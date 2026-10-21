@@ -77,7 +77,7 @@ async function main(): Promise<void> {
     const endpoint = await fetchEndpoint(judge);
     const runId = `${new Date().toISOString().replace(/[:.]/g, "-")}-${modelId}`;
     const log = new RunLog(runId, "judge-");
-    const budget = new Budget(config.budget.runUsd, config.budget.totalUsd, priorSpend());
+    const budget = new Budget(config.judge.runUsd, config.budget.totalUsd, priorSpend());
     log.write({
       type: "run",
       runId,
@@ -95,6 +95,11 @@ async function main(): Promise<void> {
     const call: JudgeCaller = async (prompt, schemaName, schema) => {
       const worst = worstCaseCost(prompt.length, judge.maxTokens, endpoint.price);
       if (stopped || !budget.tryReserve(worst)) {
+        if (!stopped) {
+          console.log(
+            `STOPPED: the next judge call could exceed $${config.judge.runUsd} this invocation or $${config.budget.totalUsd} total. Rerun to judge the rest.`,
+          );
+        }
         stopped = true;
         return null;
       }

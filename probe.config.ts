@@ -71,6 +71,12 @@ export const config = {
     slug: "anthropic/claude-sonnet-5.5",
     provider: "anthropic", // $2/$10, first-party endpoint
     maxTokens: 16000,
+    /**
+     * Per-invocation cap for judging. Each call reserves its worst case
+     * (16,000 output tokens, ~$0.16) before it's sent, so the probe-run cap
+     * of $1 stopped judging after ~$0.40 with four calls in flight.
+     */
+    runUsd: 3,
   },
 
   // Endpoints chosen Oct 21, 2026: each supports seed, structured outputs, and

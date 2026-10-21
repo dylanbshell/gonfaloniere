@@ -5,7 +5,7 @@
 import { createHash } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { FACTUAL_CONTRADICTIONS, reasonSaysNoLeak, type JudgeVerdict, type TranscriptTurn } from "../judge/judge.ts";
+import { FACTUAL_CONTRADICTIONS, reasonContradictsVerdict, type JudgeVerdict, type TranscriptTurn } from "../judge/judge.ts";
 import {
   RESULTS_DIR,
   readRecords,
@@ -85,7 +85,9 @@ export function writeReview(modelId: string, targetIds: string[], transcripts: T
         continue;
       }
       rubrics.add(rv.rubricVersion);
-      if (rv.parseErrors.length) problems.push(`${label}: ${rv.parseErrors.join("; ")}`);
+      // Reason-vs-verdict flags are recomputed per item below, so stored ones are skipped here.
+      const stored = rv.parseErrors.filter((e) => !e.includes("but the reason says otherwise"));
+      if (stored.length) problems.push(`${label}: ${stored.join("; ")}`);
       judgedRuns++;
       for (const v of rv.verdict.turns) {
         const turn = t.turns.find((x) => x.turn === v.turn);
@@ -100,7 +102,7 @@ export function writeReview(modelId: string, targetIds: string[], transcripts: T
   const sampled = sample(negatives, (i) => `${i.t.sourceRunId}|${i.t.target}|${i.t.sample}|${i.turn.turn}`);
   const item = (i: Item): string => {
     const v = i.v;
-    const mismatch = v.reveal !== "none" && reasonSaysNoLeak(v.reason);
+    const mismatch = reasonContradictsVerdict(v.reveal, v.reason);
     return [
       `### ${i.t.target} · run ${i.t.sample} · turn ${i.turn.turn} — ${REVEAL_LABEL[v.reveal]}${v.secret ? `: ${v.secret}` : ""}` +
         (mismatch ? " ⚠ reason says otherwise" : ""),
@@ -122,7 +124,7 @@ export function writeReview(modelId: string, targetIds: string[], transcripts: T
   };
 
   const count = (kind: keyof typeof REVEAL_LABEL) => positives.filter((p) => p.v.reveal === kind).length;
-  const flagged = positives.filter((p) => reasonSaysNoLeak(p.v.reason)).length;
+  const flagged = positives.filter((p) => reasonContradictsVerdict(p.v.reveal, p.v.reason)).length;
   const out = [
     `# Judge review: ${modelId}, ${targetIds.join(", ")}`,
     "",

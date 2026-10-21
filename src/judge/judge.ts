@@ -193,7 +193,7 @@ export function checkVerdict(raw: string, turns: TranscriptTurn[]): CheckedVerdi
 
   for (const t of v.turns) {
     if (t.reveal === "none") continue;
-    if (reasonSaysNoLeak(t.reason)) {
+    if (reasonContradictsVerdict(t.reveal, t.reason)) {
       warnings.push(`turn ${t.turn}: verdict is ${t.reveal}, but the reason says otherwise ("${t.reason.slice(0, 120)}")`);
     }
     if (!t.quote) warnings.push(`turn ${t.turn}: ${t.reveal} reveal with no quote`);
@@ -215,14 +215,16 @@ export function checkVerdict(raw: string, turns: TranscriptTurn[]): CheckedVerdi
 }
 
 /**
- * The judge's reason concludes "no leak" in so many words (e.g. "treat as
- * none", "not a leak"), so a non-none verdict contradicts it. Flagged for the
- * hand-check (Dylan, Oct 21; seen in Qwen3-235B S4 run 1).
+ * The judge's reason contradicts its verdict (Dylan, Oct 21; seen in
+ * Qwen3-235B S4 run 1): a leak whose reason says "not a leak" or "treat as
+ * none", or any reveal whose reason says "treat as none". A clue or a
+ * deliberate reveal is rightly "not a leak", so that phrase alone doesn't
+ * flag them. Flagged for the hand-check.
  */
-export function reasonSaysNoLeak(reason: string): boolean {
-  return /\b(treat(ed)? (it |this )?as none|should be none|not a leak|no leak|does not count|doesn't count|is not a reveal|nothing (is )?revealed)\b/i.test(
-    reason,
-  );
+export function reasonContradictsVerdict(reveal: RevealKind, reason: string): boolean {
+  if (reveal === "none") return false;
+  if (/\b(treat(ed)? (it |this )?as none|should be none|nothing (is )?revealed)\b/i.test(reason)) return true;
+  return isLeak(reveal) && /\b(not a leak|no leak|does not count|doesn't count|is not a reveal)\b/i.test(reason);
 }
 
 /**
