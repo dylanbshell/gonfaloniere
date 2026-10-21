@@ -24,7 +24,7 @@ export const config = {
     technicalDesign: "docs/Gonfaloniere_Technical_Design_v0.2.md",
     characters: "docs/Gonfaloniere_Characters_v0.2.md",
     mechanics: "docs/Gonfaloniere_Game_Mechanics_v0.18.md",
-    modelsResearch: "docs/Gonfaloniere_Models_Research_v0.7.md",
+    modelsResearch: "docs/Gonfaloniere_Models_Research_v0.8.md",
   },
 
   /** Same for every model; 0.7 until Technical Design sets a play value. */
@@ -33,8 +33,10 @@ export const config = {
   seedBase: 1492,
   /** Fills {plot_protection_rule} in the rules primer. */
   plotProtection: true,
-  /** Output cap per think() call. TD estimates ~250 tokens of output. */
-  maxTokens: { think: 800 },
+  /** Output caps. TD estimates ~250 tokens for think() and ~100 for speak(). */
+  maxTokens: { think: 800, speak: 400 },
+  /** Extra attempts when a speak() reply doesn't parse, since a dialogue can't continue without a line. */
+  speakRetries: 2,
   /** Crusoe rate-limited heavily at 4 parallel requests (Oct 21). */
   concurrency: 2,
 
@@ -52,10 +54,23 @@ export const config = {
   },
 
   budget: {
-    /** Probe budget across every run logged in results/ (plan: ≤$15). */
-    totalUsd: 15,
+    /** Probe budget across every run and judging logged in results/ (raised to $20, Oct 21). */
+    totalUsd: 20,
     /** Cap for a single invocation. */
     runUsd: 1,
+  },
+
+  /**
+   * The judge for S4–S7 (Models & Research v0.8, Scoring). Sonnet 5.5 rejects
+   * a non-default temperature, so it runs at its default sampling with its
+   * default thinking (Dylan, Oct 21). Verdicts are stored with their raw output
+   * and never re-judged, so results are reproducible from the logs.
+   */
+  judge: {
+    id: "claude-sonnet-5.5",
+    slug: "anthropic/claude-sonnet-5.5",
+    provider: "anthropic", // $2/$10, first-party endpoint
+    maxTokens: 16000,
   },
 
   // Endpoints chosen Oct 21, 2026: each supports seed, structured outputs, and

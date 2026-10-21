@@ -9,7 +9,7 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { SCORING_LEVELS, parseThink, type ScoringLevel, type ThinkParseResult } from "../output/think.ts";
-import { RESULTS_DIR, readRecords, runLogFiles, type CallRecord, type RunRecord } from "./log.ts";
+import { RESULTS_DIR, readRecords, runLogFiles, type CallRecord, type RunRecord, type ThinkCallRecord } from "./log.ts";
 
 // Set before running so results can't move the goalposts. The raw bar applies
 // at every scoring level; constrained decoding ran in S1 only.
@@ -25,7 +25,7 @@ const IMPORTANCE_BANDS = [
 ] as const;
 
 interface Scored {
-  call: CallRecord;
+  call: ThinkCallRecord;
   result: ThinkParseResult;
 }
 
@@ -49,7 +49,7 @@ function main(): void {
   const groups = unique(calls.map((c) => c.modelId)).map((modelId) => {
     const mine = calls.filter((c) => c.modelId === modelId);
     const scored = mine
-      .filter((c) => c.target !== "preflight" && !c.error)
+      .filter((c): c is ThinkCallRecord => c.callType === "think" && c.target !== "preflight" && !c.error)
       .map((c) => ({ call: c, result: parseThink(c.raw!, c.expect) }));
     return { modelId, calls: mine, scored, runs: runs.filter((r) => r.modelId === modelId) };
   });

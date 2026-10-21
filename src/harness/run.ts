@@ -1,41 +1,59 @@
 // Probe runner.
 //
 //   npm run probe -- --dry-run                       print prompts, call nothing
-//   op run --env-file=.env -- npm run probe          pre-flight, then S1
+//   op run --env-file=.env -- npm run probe          pre-flight, then every scenario
 //   op run --env-file=.env -- npm run probe -- s1 --samples 3
+//   op run --env-file=.env -- npm run probe -- s4 s5a --model qwen3.8-27b
 //
-// Targets: preflight, s1, s2, s3 (default: all, in that order).
-// Options: --model <id>, --samples <n> (override per mode), --modes raw,constrained
+// Targets: preflight, s1, s2, s3, s4, s5a (default: all, in that order).
+// Options: --model <id>, --samples <n> (single-moment scenarios, per mode),
+//          --runs <n> (dialogue scenarios), --modes raw,constrained
 
-import { execSync } from "node:child_process";
 import { parseArgs } from "node:util";
 import { config, type ModelConfig } from "../../probe.config.ts";
 import S1 from "../../scenarios/s1-quiet-capannello.ts";
 import S2 from "../../scenarios/s2-accusation.ts";
 import S3 from "../../scenarios/s3-deal-struck.ts";
-import type { CharacterName } from "../game/roster.ts";
+import S4 from "../../scenarios/s4-light-pressure.ts";
+import S5a from "../../scenarios/s5a-interrogation-isabella.ts";
+import { allowedActionTypes, allowedActionsText, type ActionContext } from "../game/actions.ts";
+import { factionOf, type CharacterName } from "../game/roster.ts";
+import { parseSpeak, type SpeakExpectation } from "../output/speak.ts";
 import { parseThink, thinkJsonSchema, type ThinkExpectation } from "../output/think.ts";
-import { assembleThinkPrompt } from "../prompt/assemble.ts";
+import { assembleSpeakPrompt, assembleThinkPrompt, type HistoryLine } from "../prompt/assemble.ts";
 import { loadDocs, type DocSources } from "../sources/docs.ts";
 import { Budget, worstCaseCost } from "./budget.ts";
-import { RunLog, priorSpend, type CallRecord } from "./log.ts";
+import { RunLog, gitCommit, priorSpend, type CallRecord, type SpeakCallRecord, type ThinkCallRecord } from "./log.ts";
 import { apiKey, callModel, fetchEndpoint, makeClient, type EndpointInfo } from "./openrouter.ts";
-import { thinkContext, type DecodingMode, type ThinkScenario } from "./scenario.ts";
+import {
+  characterContext,
+  currentFlorins,
+  type DecodingMode,
+  type DialogueScenario,
+  type LiveState,
+  type Scenario,
+  type ThinkScenario,
+} from "./scenario.ts";
 
-const SCENARIOS: Record<string, ThinkScenario> = { s1: S1, s2: S2, s3: S3 };
+const SCENARIOS: Record<string, Scenario> = { s1: S1, s2: S2, s3: S3, s4: S4, s5a: S5a };
 const TARGETS = ["preflight", ...Object.keys(SCENARIOS)];
 
-interface Job {
+/** Everything needed to make and log one call. */
+type CallSpec = {
   target: string;
   variant: string;
   character: CharacterName;
   sample: number;
+  turn?: number;
+  attempt?: number;
   seed: number;
   prompt: string;
-  expect: ThinkExpectation;
   extra: Record<string, unknown>;
   jsonSchema?: { name: string; schema: Record<string, unknown> };
-}
+} & ({ callType: "think"; expect: ThinkExpectation } | { callType: "speak"; expect: SpeakExpectation });
+
+/** Makes one call; returns null when the budget cap stops it. */
+type Caller = <S extends CallSpec>(spec: S) => Promise<(S["callType"] extends "speak" ? SpeakCallRecord : ThinkCallRecord) | null>;
 
 const { values: opts, positionals } = parseArgs({
   allowPositionals: true,
@@ -43,6 +61,7 @@ const { values: opts, positionals } = parseArgs({
     "dry-run": { type: "boolean", default: false },
     model: { type: "string" },
     samples: { type: "string" },
+    runs: { type: "string" },
     modes: { type: "string" },
   },
 });
@@ -54,12 +73,10 @@ async function main(): Promise<void> {
   }
   const model = config.models.find((m) => m.id === (opts.model ?? config.models[0]!.id));
   if (!model) throw new Error(`Unknown model "${opts.model}". Known: ${config.models.map((m) => m.id).join(", ")}`);
-
   const docs = loadDocs(config.docs);
-  const jobsByTarget = targets.map((t) => ({ target: t, jobs: buildJobs(t, model, docs) }));
 
   if (opts["dry-run"]) {
-    printDryRun(model, docs, jobsByTarget);
+    printDryRun(model, docs, targets);
     return;
   }
 
@@ -84,6 +101,7 @@ async function main(): Promise<void> {
       seedBase: config.seedBase,
       plotProtection: config.plotProtection,
       maxTokens: config.maxTokens,
+      speakRetries: config.speakRetries,
       thinkingOff: model.thinkingOff ?? config.thinkingOff,
       budget: config.budget,
     },
@@ -94,136 +112,238 @@ async function main(): Promise<void> {
     `${model.slug} via ${endpoint.providerName} (${endpoint.tag}, ${endpoint.quantization}), ` +
       `$${(endpoint.price.input * 1e6).toFixed(3)}/$${(endpoint.price.output * 1e6).toFixed(3)} per M tokens`,
   );
-  console.log(
-    `Docs: TD v${docs.versions.technicalDesign}, Characters v${docs.versions.characters}, Mechanics v${docs.versions.mechanics}, Models & Research v${docs.versions.modelsResearch}`,
-  );
+  console.log(`Docs: ${versionsLine(docs)}`);
   console.log(
     `Budget: $${budget.priorSpendUsd.toFixed(4)} spent in earlier runs; caps $${config.budget.runUsd} this run, $${config.budget.totalUsd} total\n`,
   );
 
   let calls = 0;
   let stopped = false;
-  for (const { target, jobs } of jobsByTarget) {
-    const runnable = dropUnsupported(jobs, endpoint);
-    console.log(`— ${target}: ${runnable.length} calls`);
-    const records = await runPool(runnable, config.concurrency, async (job) => {
-      const maxTokens = config.maxTokens.think;
-      const worst = worstCaseCost(job.prompt.length, maxTokens, endpoint.price);
-      if (!budget.tryReserve(worst)) return null;
-      const res = await callModel(client, {
-        model,
-        prompt: job.prompt,
-        temperature: config.temperature,
-        seed: job.seed,
-        maxTokens,
-        extra: job.extra,
-        jsonSchema: job.jsonSchema,
-      });
-      const cost = res.ok
-        ? (res.usage.costUsd ??
-          res.usage.inputTokens * endpoint.price.input + res.usage.outputTokens * endpoint.price.output)
-        : 0;
-      budget.settle(worst, cost);
-      const record: CallRecord = {
-        type: "call",
-        runId,
-        modelId: model.id,
-        providerTag: model.provider,
-        target: job.target,
-        variant: job.variant,
-        callType: "think",
-        character: job.character,
-        sample: job.sample,
-        seed: job.seed,
-        temperature: config.temperature,
-        maxTokens,
-        requestExtra: job.extra,
-        constrained: Boolean(job.jsonSchema),
-        prompt: job.prompt,
-        expect: job.expect,
-        raw: res.ok ? res.content : null,
-        reasoning: res.ok ? res.reasoning : null,
-        parsed: res.ok ? parseThink(res.content, job.expect) : null,
-        usage: res.ok ? res.usage : null,
-        costUsd: cost,
-        latencyMs: res.latencyMs,
-        provider: res.ok ? res.provider : null,
-        generationId: res.ok ? res.generationId : null,
-        finishReason: res.ok ? res.finishReason : null,
-        error: res.ok ? null : { message: res.error, status: res.status },
-        at: new Date().toISOString(),
-      };
-      log.write(record);
-      calls++;
-      console.log(progressLine(record));
-      return record;
-    });
-
-    if (records.some((r) => r === null)) {
+  const call: Caller = async (spec) => {
+    if (stopped) return null;
+    const maxTokens = config.maxTokens[spec.callType];
+    const worst = worstCaseCost(spec.prompt.length, maxTokens, endpoint.price);
+    if (!budget.tryReserve(worst)) {
       stopped = true;
-      const reason = `Budget cap reached: the next call could exceed $${config.budget.runUsd} this run or $${config.budget.totalUsd} total`;
-      log.write({ type: "stop", runId, reason, spentUsd: budget.spentUsd, at: new Date().toISOString() });
-      console.log(`\nSTOPPED. ${reason}.`);
-      break;
+      return null;
     }
-    if (target === "preflight") printPreflight(records.filter((r): r is CallRecord => r !== null));
+    const res = await callModel(client, {
+      model,
+      prompt: spec.prompt,
+      temperature: config.temperature,
+      seed: spec.seed,
+      maxTokens,
+      extra: spec.extra,
+      jsonSchema: spec.jsonSchema,
+    });
+    const cost = res.ok
+      ? (res.usage.costUsd ?? res.usage.inputTokens * endpoint.price.input + res.usage.outputTokens * endpoint.price.output)
+      : 0;
+    budget.settle(worst, cost);
+    const base = {
+      type: "call" as const,
+      runId,
+      modelId: model.id,
+      providerTag: model.provider,
+      target: spec.target,
+      variant: spec.variant,
+      character: spec.character,
+      sample: spec.sample,
+      turn: spec.turn,
+      attempt: spec.attempt,
+      seed: spec.seed,
+      temperature: config.temperature,
+      maxTokens,
+      requestExtra: spec.extra,
+      constrained: Boolean(spec.jsonSchema),
+      prompt: spec.prompt,
+      raw: res.ok ? res.content : null,
+      reasoning: res.ok ? res.reasoning : null,
+      usage: res.ok ? res.usage : null,
+      costUsd: cost,
+      latencyMs: res.latencyMs,
+      provider: res.ok ? res.provider : null,
+      generationId: res.ok ? res.generationId : null,
+      finishReason: res.ok ? res.finishReason : null,
+      error: res.ok ? null : { message: res.error, status: res.status },
+      at: new Date().toISOString(),
+    };
+    const record: CallRecord =
+      spec.callType === "think"
+        ? { ...base, callType: "think", expect: spec.expect, parsed: res.ok ? parseThink(res.content, spec.expect) : null }
+        : { ...base, callType: "speak", expect: spec.expect, parsed: res.ok ? parseSpeak(res.content, spec.expect) : null };
+    log.write(record);
+    calls++;
+    console.log(progressLine(record));
+    return record as never;
+  };
+
+  for (const target of targets) {
+    const scenario = SCENARIOS[target];
+    if (scenario?.callType === "dialogue") {
+      const runs = opts.runs ? Number(opts.runs) : scenario.runs;
+      console.log(`— ${target}: ${runs} runs × ${scenario.turns.length} turns`);
+      await runPool(
+        Array.from({ length: runs }, (_, r) => r),
+        config.concurrency,
+        (r) => runDialogue(scenario, r, docs, model, call, log, runId),
+      );
+    } else {
+      const jobs = dropUnsupported(buildJobs(target, model, docs), endpoint);
+      console.log(`— ${target}: ${jobs.length} calls`);
+      const records = await runPool(jobs, config.concurrency, (job) => call(job));
+      if (target === "preflight" && !stopped) printPreflight(records.filter((r): r is ThinkCallRecord => r !== null));
+    }
+    if (stopped) break;
   }
 
-  log.write({
-    type: "end",
-    runId,
-    calls,
-    spentUsd: budget.spentUsd,
-    stoppedByBudget: stopped,
-    at: new Date().toISOString(),
-  });
+  if (stopped) {
+    const reason = `Budget cap reached: the next call could exceed $${config.budget.runUsd} this run or $${config.budget.totalUsd} total`;
+    log.write({ type: "stop", runId, reason, spentUsd: budget.spentUsd, at: new Date().toISOString() });
+    console.log(`\nSTOPPED. ${reason}.`);
+  }
+  log.write({ type: "end", runId, calls, spentUsd: budget.spentUsd, stoppedByBudget: stopped, at: new Date().toISOString() });
   console.log(`\n${calls} calls, $${budget.spentUsd.toFixed(4)} spent. Log: ${log.path}`);
   console.log("Score with: npm run score");
   if (stopped) process.exitCode = 2;
 }
 
-function buildJobs(target: string, model: ModelConfig, docs: DocSources): Job[] {
+/**
+ * One run of a dialogue: each turn adds the scripted lines, then the probed
+ * character thinks and speaks. Their thoughts feed later turns' block 7 and
+ * their lines join History. A speak() reply that doesn't parse is retried; if
+ * none parses, the run is aborted and logged, since it can't continue.
+ */
+async function runDialogue(
+  s: DialogueScenario,
+  run: number,
+  docs: DocSources,
+  model: ModelConfig,
+  call: Caller,
+  log: RunLog,
+  runId: string,
+): Promise<void> {
+  const thinkingOff = model.thinkingOff ?? config.thinkingOff;
+  const character = s.probed;
+  const history: HistoryLine[] = [...s.opening];
+  const thoughts: string[] = [];
+
+  for (let turn = 1; turn <= s.turns.length; turn++) {
+    history.push(...s.turns[turn - 1]!);
+    const live = (): LiveState => ({
+      history: [...history],
+      shortTermThoughts: [...thoughts],
+      utterance: history.filter((l) => l.kind === "speech").length,
+    });
+    const seed = config.seedBase + run * 1000 + turn * 10;
+
+    const thinkCtx = characterContext(s, character, docs, config.plotProtection, live());
+    const thought = await call({
+      callType: "think",
+      target: s.id,
+      variant: "raw",
+      character,
+      sample: run,
+      turn,
+      seed,
+      prompt: assembleThinkPrompt(docs.templates, thinkCtx).text,
+      expect: { conversation: s.conversation.kind, livingOthers: thinkCtx.state.livingOthers },
+      extra: thinkingOff,
+    });
+    if (!thought) return;
+    const thoughtText = thought.parsed?.repaired.value?.thought;
+    if (thoughtText) thoughts.push(thoughtText);
+
+    // speak() sees the thought it just had, as TD's shortTermHistory would hold it.
+    const speakCtx = characterContext(s, character, docs, config.plotProtection, live());
+    const actions = actionContext(s, character, docs);
+    const expect: SpeakExpectation = {
+      present: speakCtx.state.present,
+      allowedActions: allowedActionTypes(actions),
+      florins: actions.florins,
+    };
+    const prompt = assembleSpeakPrompt(docs.templates, speakCtx, { allowedActions: allowedActionsText(actions) }).text;
+
+    let spoken: SpeakCallRecord | null = null;
+    for (let attempt = 0; attempt <= config.speakRetries; attempt++) {
+      const rec = await call({
+        callType: "speak",
+        target: s.id,
+        variant: "raw",
+        character,
+        sample: run,
+        turn,
+        attempt,
+        seed: seed + 1 + attempt,
+        prompt,
+        expect,
+        extra: thinkingOff,
+      });
+      if (!rec) return;
+      if (rec.parsed?.verdict === "valid") {
+        spoken = rec;
+        break;
+      }
+    }
+    if (!spoken) {
+      const reason = `no usable speak() line after ${config.speakRetries + 1} attempts`;
+      log.write({ type: "abort", runId, modelId: model.id, target: s.id, sample: run, turn, reason, at: new Date().toISOString() });
+      console.log(`  ${s.id} run ${run} ABORTED at turn ${turn}: ${reason}`);
+      return;
+    }
+    const p = spoken.parsed!;
+    history.push({ kind: "speech", speaker: character, addressee: p.addressee ?? undefined, text: p.value!.utterance });
+  }
+}
+
+function actionContext(s: Scenario, character: CharacterName, docs: DocSources): ActionContext {
+  return {
+    faction: factionOf(character),
+    florins: currentFlorins(s, character, docs),
+    pensionSize: docs.tunables.pension_size,
+    treasury: docs.tunables.embassy_treasury,
+    colloquioWith:
+      s.conversation.kind === "colloquio" ? (s.conversation.present.find((p) => p !== character) ?? null) : null,
+  };
+}
+
+type ThinkSpec = Extract<CallSpec, { callType: "think" }>;
+
+function buildJobs(target: string, model: ModelConfig, docs: DocSources): ThinkSpec[] {
   const thinkingOff = model.thinkingOff ?? config.thinkingOff;
 
   if (target === "preflight") {
     // A real think() prompt, so the check covers the calls that matter.
     const character = S1.probed[0]!;
     const { prompt, expect } = thinkPrompt(S1, character, docs);
-    const jobs: Job[] = Array.from({ length: config.preflight.calls }, (_, i) => ({
+    const job = (variant: string, sample: number, extra: Record<string, unknown>): ThinkSpec => ({
+      callType: "think",
       target,
-      variant: "thinking-off",
+      variant,
       character,
-      sample: i,
-      seed: config.seedBase + i,
+      sample,
+      seed: config.seedBase + sample,
       prompt,
       expect,
-      extra: thinkingOff,
-    }));
-    if (model.hasThinking === false) return jobs;
-    jobs.push({
-      target,
-      variant: "control-thinking-on",
-      character,
-      sample: 0,
-      seed: config.seedBase,
-      prompt,
-      expect,
-      extra: config.preflight.controlThinkingOn,
+      extra,
     });
+    const jobs = Array.from({ length: config.preflight.calls }, (_, i) => job("thinking-off", i, thinkingOff));
+    if (model.hasThinking !== false) jobs.push(job("control-thinking-on", 0, config.preflight.controlThinkingOn));
     return jobs;
   }
 
-  const scenario = SCENARIOS[target]!;
+  const scenario = SCENARIOS[target] as ThinkScenario;
   const samples = opts.samples ? Number(opts.samples) : scenario.samples;
   const modes = opts.modes ? (opts.modes.split(",") as DecodingMode[]) : scenario.modes;
   const prompts = new Map(scenario.probed.map((c) => [c, thinkPrompt(scenario, c, docs)]));
   const schema = thinkJsonSchema(scenario.conversation.kind);
 
   return modes.flatMap((mode) =>
-    Array.from({ length: samples }, (_, i): Job => {
+    Array.from({ length: samples }, (_, i): ThinkSpec => {
       const character = scenario.probed[i % scenario.probed.length]!;
       const { prompt, expect } = prompts.get(character)!;
       return {
+        callType: "think",
         target: scenario.id,
         variant: mode,
         character,
@@ -239,14 +359,14 @@ function buildJobs(target: string, model: ModelConfig, docs: DocSources): Job[] 
 }
 
 function thinkPrompt(s: ThinkScenario, character: CharacterName, docs: DocSources) {
-  const ctx = thinkContext(s, character, docs, config.plotProtection);
+  const ctx = characterContext(s, character, docs, config.plotProtection);
   return {
     prompt: assembleThinkPrompt(docs.templates, ctx).text,
     expect: { conversation: s.conversation.kind, livingOthers: ctx.state.livingOthers },
   };
 }
 
-function dropUnsupported(jobs: Job[], endpoint: EndpointInfo): Job[] {
+function dropUnsupported(jobs: ThinkSpec[], endpoint: EndpointInfo): ThinkSpec[] {
   if (endpoint.supportedParameters.includes("structured_outputs")) return jobs;
   const kept = jobs.filter((j) => !j.jsonSchema);
   if (kept.length < jobs.length) {
@@ -255,35 +375,34 @@ function dropUnsupported(jobs: Job[], endpoint: EndpointInfo): Job[] {
   return kept;
 }
 
-/** Runs jobs with bounded concurrency. Once one returns null, no new jobs start. */
-async function runPool<T>(jobs: Job[], limit: number, fn: (job: Job) => Promise<T | null>): Promise<(T | null)[]> {
-  const results: (T | null)[] = [];
+/** Runs items with bounded concurrency, in order. */
+async function runPool<I, T>(items: I[], limit: number, fn: (item: I) => Promise<T>): Promise<T[]> {
+  const results: T[] = [];
   let next = 0;
-  let halted = false;
   const worker = async (): Promise<void> => {
-    while (!halted && next < jobs.length) {
-      const result = await fn(jobs[next++]!);
-      results.push(result);
-      if (result === null) halted = true;
-    }
+    while (next < items.length) results.push(await fn(items[next++]!));
   };
-  await Promise.all(Array.from({ length: Math.min(limit, jobs.length) }, worker));
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
   return results;
 }
 
 function progressLine(r: CallRecord): string {
-  const head = `  ${r.target} ${r.variant.padEnd(19)} #${String(r.sample).padEnd(3)} ${r.character.padEnd(22)}`;
+  const where = r.turn !== undefined ? `run ${r.sample} t${r.turn}${r.attempt ? ` retry ${r.attempt}` : ""}` : `#${r.sample}`;
+  const head = `  ${r.target} ${r.callType.padEnd(5)} ${r.variant.padEnd(19)} ${where.padEnd(14)} ${r.character.padEnd(22)}`;
   if (r.error) return `${head} ERROR ${r.error.status ?? ""} ${r.error.message}`;
   const u = r.usage!;
   const reasoning = u.reasoningTokens ? ` (reasoning ${u.reasoningTokens})` : "";
+  const verdict =
+    r.callType === "think"
+      ? [r.parsed!.strict, r.parsed!.revised, r.parsed!.repaired].map((l) => l.verdict).join("/")
+      : `${r.parsed!.verdict}${r.parsed!.addressee ? ` →${r.parsed!.addressee}` : ""}${r.parsed!.action ? ` ${r.parsed!.action.type}` : ""}`;
   return (
-    `${head} ${[r.parsed!.strict, r.parsed!.revised, r.parsed!.repaired].map((l) => l.verdict).join("/").padEnd(22)} ` +
-    `in ${u.inputTokens} out ${u.outputTokens}${reasoning}` +
+    `${head} ${verdict.padEnd(22)} in ${u.inputTokens} out ${u.outputTokens}${reasoning}` +
     `  ${(r.latencyMs / 1000).toFixed(1)}s  $${r.costUsd.toFixed(5)}  ${r.provider ?? "?"}`
   );
 }
 
-function printPreflight(records: CallRecord[]): void {
+function printPreflight(records: ThinkCallRecord[]): void {
   const off = records.filter((r) => r.variant === "thinking-off" && !r.error);
   const control = records.find((r) => r.variant === "control-thinking-on" && !r.error);
   const leaked = off.filter((r) => (r.usage?.reasoningTokens ?? 0) > 0 || r.reasoning);
@@ -305,18 +424,44 @@ function printPreflight(records: CallRecord[]): void {
   );
 }
 
-function printDryRun(model: ModelConfig, docs: DocSources, jobsByTarget: { target: string; jobs: Job[] }[]): void {
+function printDryRun(model: ModelConfig, docs: DocSources, targets: string[]): void {
   console.log("DRY RUN: nothing is sent to any model.\n");
   console.log(`Model: ${model.slug}, pinned to ${model.provider} (fallbacks off)`);
-  console.log(
-    `Docs: TD v${docs.versions.technicalDesign}, Characters v${docs.versions.characters}, Mechanics v${docs.versions.mechanics}, Models & Research v${docs.versions.modelsResearch}`,
-  );
+  console.log(`Docs: ${versionsLine(docs)}`);
   console.log(`Tunables: ${JSON.stringify(docs.tunables)}`);
-  console.log(`Temperature ${config.temperature}, max_tokens ${config.maxTokens.think}, seeds from ${config.seedBase}`);
+  console.log(
+    `Temperature ${config.temperature}, max_tokens think ${config.maxTokens.think} / speak ${config.maxTokens.speak}, seeds from ${config.seedBase}`,
+  );
   console.log(`Thinking-off fields: ${JSON.stringify(model.thinkingOff ?? config.thinkingOff)}\n`);
 
   const printed = new Set<string>();
-  for (const { target, jobs } of jobsByTarget) {
+  const show = (label: string, prompt: string) => {
+    if (printed.has(prompt)) return;
+    printed.add(prompt);
+    console.log(`\n---------- PROMPT: ${label} ----------\n${prompt}\n`);
+  };
+
+  for (const target of targets) {
+    const scenario = SCENARIOS[target];
+    if (scenario?.callType === "dialogue") {
+      const runs = opts.runs ? Number(opts.runs) : scenario.runs;
+      const n = scenario.turns.length;
+      console.log(
+        `== ${target}: ${runs} runs × ${n} turns = ${runs * n * 2} calls (think + speak per turn, plus any speak retries). ` +
+          "Only turn 1 can be shown: later turns depend on the model's own replies.",
+      );
+      const history = [...scenario.opening, ...scenario.turns[0]!];
+      const live = { history, shortTermThoughts: [], utterance: history.filter((l) => l.kind === "speech").length };
+      const ctx = characterContext(scenario, scenario.probed, docs, config.plotProtection, live);
+      show(`${scenario.id} · ${scenario.probed} · turn 1 · think()`, assembleThinkPrompt(docs.templates, ctx).text);
+      const actions = allowedActionsText(actionContext(scenario, scenario.probed, docs));
+      show(
+        `${scenario.id} · ${scenario.probed} · turn 1 · speak() (block 7 will also hold the turn's thought)`,
+        assembleSpeakPrompt(docs.templates, ctx, { allowedActions: actions }).text,
+      );
+      continue;
+    }
+    const jobs = buildJobs(target, model, docs);
     const counts = new Map<string, number>();
     for (const j of jobs) counts.set(j.variant, (counts.get(j.variant) ?? 0) + 1);
     const chars = Math.max(...jobs.map((j) => j.prompt.length));
@@ -324,22 +469,15 @@ function printDryRun(model: ModelConfig, docs: DocSources, jobsByTarget: { targe
       `== ${target}: ${jobs.length} calls (${[...counts].map(([v, n]) => `${v} ${n}`).join(", ")}); ` +
         `longest prompt ${chars} chars, ~${Math.round(chars / 4)} tokens`,
     );
-    for (const j of jobs) {
-      if (printed.has(j.prompt)) continue;
-      printed.add(j.prompt);
-      console.log(`\n---------- PROMPT: ${j.target} · ${j.character} · think() ----------\n${j.prompt}\n`);
-    }
+    for (const j of jobs) show(`${j.target} · ${j.character} · think()`, j.prompt);
     const schema = jobs.find((j) => j.jsonSchema)?.jsonSchema;
     if (schema) console.log(`---------- JSON SCHEMA (constrained mode) ----------\n${JSON.stringify(schema.schema, null, 2)}\n`);
   }
 }
 
-function gitCommit(): string | null {
-  try {
-    return execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
-  } catch {
-    return null;
-  }
+function versionsLine(docs: DocSources): string {
+  const v = docs.versions;
+  return `TD v${v.technicalDesign}, Characters v${v.characters}, Mechanics v${v.mechanics}, Models & Research v${v.modelsResearch}`;
 }
 
 main().catch((e: Error) => {

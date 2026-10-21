@@ -1,8 +1,17 @@
 # Gonfaloniere
 ## Models & Research — Working Document
-### Version 0.7
+### Version 0.8
 
 ---
+
+## Changes in v0.8
+
+- **S2 and S3 results logged** (Oct 21). All six models pass gate 2. Gate 1 stays pending: its main failure source is gone in Technical Design v0.3
+- **Merged Technical Design's "TD v0.3 for the probes" handoff:** S1–S7 keep TD v0.2's prompts (for comparable results); **S8–S10 use v0.3** (movement call 9c, strategy 9d, Murder Round 9e, vote 9f; blocks 1–3 as a system message; temperature 0.7 for character calls, 0 for system calls). After S7, S1 is rerun once on v0.3 so gate 1 is judged on `think()` without contacts. Any later rerun of S7 takes gate 5's urgency measure from the movement call
+- **Judge decided:** Claude Sonnet 5.5 at temperature 0, judging each run's whole transcript but citing the turn and quote for every verdict. Rubric additions for partial leaks, denials, and first-leak turn (see Scoring)
+- **Probe budget raised to $20 total** ($15 for S1–S7 including judging, $5 for S8–S10); the judge alone is ~$7
+- **S3 design flaw noted:** Lupo has reason to keep the Colloquio going (his plot point needs 5 Florins, he's been paid 3), so S3's `done` preview counts Isabella only
+- Repaired level gains three repairs: title aliases, duplicate contacts, missing `done` outside a Colloquio
 
 ## Changes in v0.7
 
@@ -289,6 +298,13 @@ S1–S3 run twice: once raw, once with JSON-schema constrained decoding (where t
   - *Added Oct 21, after the first S1 results.* Report three levels: **strict** (as above; the original rule), **revised** (purposes beyond the three highest-urgency contacts are dropped by code and counted as a warning), and **repaired** (also: code fences stripped, missing contacts filled with urgency 0, near-miss names matched to the roster, `done` ignored outside a Colloquio). Each repair is counted. The 95% raw bar applies to each level; the strict result is never replaced
   - Code fences: one fenced block or bare JSON counts as parseable; any prose outside it doesn't. Fence rate reported separately
   - Constrained decoding: run in S1 only (no benefit found); S2–S7 run raw
+  - *Added Oct 21:* repaired level also resolves titles through a roster alias table ("Prince Emile"), merges duplicate contacts (keeping the higher urgency), and defaults a missing `done` to null outside a Colloquio only. "Top-three contact without a purpose" is reported as its own line
+  - **Status:** gate 1 is *pending* for S1–S7, since TD v0.3 removes the contact list from `think()`. It's judged on the S1 rerun under v0.3
+- **Judging (decided Oct 21):** Claude Sonnet 5.5, temperature 0. One judge call per run, with the whole transcript and each turn's private thought, returning per-turn verdicts with the quote each rests on. Rubric from "What counts as a secret," plus:
+  - **Leak:** reveals a core secret, or enough that a listener could reasonably infer it. Denials, lies, deflections, and vague hints that point nowhere are not leaks
+  - **Deliberate:** the same call's or the preceding thought plans the reveal; deliberate reveals are reported but don't count against gate 3
+  - **First leak turn** recorded per run, for "holds through turn 8"
+  - **Calibration first:** judge one model's S4 and S5a, hand-check, adjust the rubric, then judge the rest. All judged positives and a random 20% of negatives go to a review file
 - **Gate 3 — secret keeping.** **Pass: ≤10% of S4 and S5c runs leak; ≥70% of S5a and S5b runs hold through turn 8; S6 discloses the debt in ≥60% of runs without the killing** (below 60%, flag as rigid rather than fail)
 - **Gate 5 — inference.** Two measures, test versus control: the `thought` references the withdrawal, and Lupo's contact urgency toward Raffaello and LeNoir. **Pass: referenced in ≥70% of explicit-version samples, and mean urgency toward the pair at least 15 points above control.** The buried version is reported, not gated
 - **Gate 2 (free):** median importance in S2 for LeNoir at least 30 points above S1, and scores not clustered (standard deviation >10 across all scenarios)
@@ -297,7 +313,7 @@ S1–S3 run twice: once raw, once with JSON-schema constrained decoding (where t
 
 ### Cost
 
-~700 calls per model at ~3,200 input / ~200 output tokens: roughly $0.25–0.90 per model (Qwen3.5-122B highest), plus judging. **Budget: ≤$15** including the pre-flight, one rerun, and judging.
+~700 calls per model at ~3,200 input / ~200 output tokens: roughly $0.25–0.90 per model (Qwen3.5-122B highest), plus judging. **Budget: ≤$15** including the pre-flight, one rerun, and judging (~$7 for the judge on Sonnet 5.5). Strategy probes add ≤$5, for **$20 total**.
 
 ### Build
 
@@ -395,6 +411,8 @@ Rough count per turn at the default 4 Capannelli of 3: 12 `speak()` calls plus 3
 | Qwen3.5-122B-A10B | ~$238 | ~$775 combined (rough) | | **~$1,050** |
 | Qwen3-235B-A22B | ~$76 | ~$780 | ~$595 | **~$1,490** |
 
+**Output length update (Oct 21):** S1 measured ~480 output tokens per `think()` with the contact list. TD v0.3 removes it, so `think()` is expected to drop to ~150 tokens, cutting stock-game cost and per-call latency noticeably. Confirm on the S1 rerun under v0.3, then refresh this table.
+
 **Biggest lever: the number of research games.** It changes totals more than any model choice. Decide it once the first batch shows how much behavior varies between runs.
 
 ### Cost levers
@@ -462,8 +480,6 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 - [ ] Can thinking be reliably turned off on each hybrid model through OpenRouter? (Probe pre-flight)
 - [ ] Does vLLM serve LoRAs on the chosen base reliably (MoE experts, Gated DeltaNet layers, Gemma 4)? (Pilot)
 - [ ] Should Nemotron 3 Super join the probes if a reasoning-off mode is confirmed?
-- [ ] Does "Other living guests" in the State block include characters who are present? (Affects S1 scoring; Technical Design wording)
-- [ ] Pin DeepSeek V4.1 Flash to its dated snapshot (`-1017`) for reproducibility, and rerun its S1
 - [ ] Try a faster provider for Qwen3-235B
 - [ ] Fine-tuning method: GRPO, DPO, SFT, or a mix per trait
 - [ ] Confirm the 2×2 personality framing and retire the behavioral-targets framing
@@ -477,6 +493,44 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 ## Findings Log
 
 *Record each test result here: date, model, provider and quantization, prompt and briefing versions, gate tested, result, and what it changes. Tooling and price checks go in Tooling Status, not here.*
+
+### 2026-10-21 — S2 and S3, all six candidates
+
+**Setup:** as for S1 (TD v0.2 prompts), raw output only; DeepSeek now pinned to the `-1017` snapshot (pre-flight and S1 rerun, no errors). "Other living guests" confirmed to include present characters, so S1 omissions were genuine model errors and no rescore was needed. Spend after S3: $0.76.
+
+**Gate 2 — pass, all six** (LeNoir's median importance S1 → S2; SD across S1–S2):
+
+| Model | LeNoir S1 → S2 | SD |
+|---|---|---|
+| Gemma 4 31B | 20 → 90 (+70) | 25.2 |
+| Qwen3.8-27B | 15 → 85 (+70) | 28.2 |
+| DeepSeek V4.1 Flash | 25 → 72 (+47) | 18.4 |
+| Qwen3.5-122B-A10B | 35 → 75 (+40) | 19.4 |
+| Qwen3-235B-A22B | 45 → 85 (+40) | 19.3 |
+| Qwen3.6-35B-A3B | 35 → 65 (+30) | 15.1 |
+
+- Gemma's flat S1 scores were coarse, not unresponsive. Qwen3.6 passes exactly at the line because it rates small talk at 35; it may make conversations noisier
+
+**Gate 1 (raw, repaired level; pending TD v0.3):**
+
+| Model | S1 | S2 | S3 | Top-3 without purpose (S3) |
+|---|---|---|---|---|
+| Qwen3.8-27B | 100% | 97.5% | 92.5% | 2.6% |
+| Qwen3.5-122B-A10B | 95% | 97.5% | 97.5% | 2.5% |
+| Qwen3-235B-A22B | 95% | 92.5% | 97.5% | 2.5% |
+| Gemma 4 31B | 100% | 85% | 90% | 10% |
+| Qwen3.6-35B-A3B | 92.5% | 90% | 97.5% | 0% |
+| DeepSeek V4.1 Flash | 65% | 85% | 92.5% | 7.5% |
+
+- Almost all remaining failures are contact-list content (a top-three contact without a purpose; factions listed as contacts by Qwen3.8), which TD v0.3 removes. Two non-JSON replies (Qwen3.6, Qwen3.8, one each)
+
+**S3 — `done` preview (gate 7):**
+- Isabella ends the Colloquio once paid in 90–100% of samples on every model. `done` was always a boolean inside the Colloquio and null in Capannelli across S1–S3, so models switch it correctly
+- **Lupo's rates (26–85%) aren't meaningful:** his plot point needs 5 Florins and he has 3, and his thoughts say so ("three toward the five I need"). A scenario flaw, not a model one
+
+**What it changes:**
+- Gate 2 doesn't separate the models; gates 3 and 5 (S4–S7) will
+- Technical Design handoff: the payment appeared in History as `[Contessa Isabella gave Lupo 3 Florins.]`; TD has no format for transaction lines yet
 
 ### 2026-10-21 — Pre-flight and S1, all six candidates
 

@@ -1,7 +1,10 @@
 // JSONL run logs in results/. One file per run; every call is one line.
 
+import { execSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { JudgeVerdict } from "../judge/judge.ts";
+import type { SpeakExpectation, SpeakParseResult } from "../output/speak.ts";
 import type { ThinkExpectation, ThinkParseResult } from "../output/think.ts";
 import type { DocVersions } from "../sources/docs.ts";
 import type { EndpointInfo, Usage } from "./openrouter.ts";
@@ -21,7 +24,7 @@ export interface RunRecord {
   settings: Record<string, unknown>;
 }
 
-export interface CallRecord {
+interface CallBase {
   type: "call";
   runId: string;
   modelId: string;
@@ -30,19 +33,21 @@ export interface CallRecord {
   target: string;
   /** thinking-off / control-thinking-on for the pre-flight; raw / constrained for scenarios. */
   variant: string;
-  callType: "think";
   character: string;
+  /** Sample index, or the run index in a dialogue. */
   sample: number;
+  /** Dialogue only: 1-based turn within the run. */
+  turn?: number;
+  /** Dialogue speak() only: 0 for the first try, then each retry after an unparseable reply. */
+  attempt?: number;
   seed: number;
   temperature: number;
   maxTokens: number;
   requestExtra: Record<string, unknown>;
   constrained: boolean;
   prompt: string;
-  expect: ThinkExpectation;
   raw: string | null;
   reasoning: string | null;
-  parsed: ThinkParseResult | null;
   usage: Usage | null;
   /** usage.cost, or computed from tokens when OpenRouter didn't report it. */
   costUsd: number;
@@ -51,6 +56,61 @@ export interface CallRecord {
   provider: string | null;
   generationId: string | null;
   finishReason: string | null;
+  error: { message: string; status: number | null } | null;
+  at: string;
+}
+
+export interface ThinkCallRecord extends CallBase {
+  callType: "think";
+  expect: ThinkExpectation;
+  parsed: ThinkParseResult | null;
+}
+
+export interface SpeakCallRecord extends CallBase {
+  callType: "speak";
+  expect: SpeakExpectation;
+  parsed: SpeakParseResult | null;
+}
+
+export type CallRecord = ThinkCallRecord | SpeakCallRecord;
+
+/** A dialogue run that couldn't continue (e.g. speak() never produced a usable line). */
+export interface AbortRecord {
+  type: "abort";
+  runId: string;
+  modelId: string;
+  target: string;
+  sample: number;
+  turn: number;
+  reason: string;
+  at: string;
+}
+
+/** One judge call on one dialogue run (Models & Research v0.8, Scoring). */
+export interface JudgeRecord {
+  type: "judge";
+  /** This judging batch. */
+  runId: string;
+  /** The probe run whose transcript was judged. */
+  sourceRunId: string;
+  modelId: string;
+  target: string;
+  /** The dialogue run index within the source run. */
+  sample: number;
+  character: string;
+  judgeModel: string;
+  judgeProvider: string;
+  rubricVersion: string;
+  prompt: string;
+  raw: string | null;
+  reasoning: string | null;
+  verdict: JudgeVerdict | null;
+  parseErrors: string[];
+  usage: Usage | null;
+  costUsd: number;
+  latencyMs: number;
+  provider: string | null;
+  generationId: string | null;
   error: { message: string; status: number | null } | null;
   at: string;
 }
@@ -72,14 +132,15 @@ export interface EndRecord {
   at: string;
 }
 
-export type LogRecord = RunRecord | CallRecord | StopRecord | EndRecord;
+export type LogRecord = RunRecord | CallRecord | AbortRecord | JudgeRecord | StopRecord | EndRecord;
 
 export class RunLog {
   readonly path: string;
 
-  constructor(runId: string) {
+  /** `prefix` separates judging logs ("judge-…") from probe runs. */
+  constructor(runId: string, prefix = "") {
     mkdirSync(RESULTS_DIR, { recursive: true });
-    this.path = join(RESULTS_DIR, `${runId}.jsonl`);
+    this.path = join(RESULTS_DIR, `${prefix}${runId}.jsonl`);
   }
 
   write(record: LogRecord): void {
@@ -104,9 +165,18 @@ export function readRecords(files: string[]): LogRecord[] {
   );
 }
 
-/** Total spent across every logged run, for the probe-wide cap. */
+/** Total spent across every logged run and judging batch, for the probe-wide cap. */
 export function priorSpend(): number {
   return readRecords(runLogFiles())
-    .filter((r): r is CallRecord => r.type === "call")
+    .filter((r): r is CallRecord | JudgeRecord => r.type === "call" || r.type === "judge")
     .reduce((sum, r) => sum + r.costUsd, 0);
+}
+
+/** The current commit, recorded with every run so results trace back to code. */
+export function gitCommit(): string | null {
+  try {
+    return execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+  } catch {
+    return null;
+  }
 }

@@ -10,7 +10,7 @@ export interface DocPaths {
   technicalDesign: string;
   characters: string;
   mechanics: string;
-  /** Holds the probe plan and scoring rules; only its version is read. */
+  /** Holds the probe plan and scoring rules: its version and the judge rubric are read. */
   modelsResearch: string;
 }
 
@@ -31,8 +31,16 @@ export interface Tunables {
   colloquio_cap: number;
 }
 
+export interface JudgeRubric {
+  /** "What counts as a secret": the table and the deliberate-reveal line, verbatim. */
+  secrets: string;
+  /** The rubric bullets under Scoring's "Judging" entry (leak, deliberate, first leak turn), verbatim. */
+  rules: string;
+}
+
 export interface DocSources {
   versions: DocVersions;
+  judgeRubric: JudgeRubric;
   templates: PromptTemplates;
   briefings: Partial<Record<CharacterName, string>>;
   tunables: Tunables;
@@ -79,6 +87,7 @@ export function loadDocs(paths: DocPaths): DocSources {
     templates,
     briefings,
     tunables: parseTunables(mech),
+    judgeRubric: judgeRubric(mr),
   };
 }
 
@@ -148,6 +157,22 @@ function extractBriefing(chars: string, heading: string, socialAwareness: string
     throw new Error(`Briefing under "${heading}" has no social awareness placeholder`);
   }
   return body.replace("*(Standard text.)*", socialAwareness);
+}
+
+function judgeRubric(mr: string): JudgeRubric {
+  const secrets = section(mr, "### What counts as a secret").join("\n").trim();
+  const lines = mr.split("\n");
+  const start = lines.findIndex((l) => l.startsWith("- **Judging (decided"));
+  if (start < 0) throw new Error("Judging rubric not found in Models & Research");
+  const rules: string[] = [];
+  for (const line of lines.slice(start + 1)) {
+    if (!line.startsWith("  - ")) break;
+    // The calibration bullet is procedure for the harness, not rubric for the judge.
+    if (line.startsWith("  - **Calibration first:**")) continue;
+    rules.push(line.slice(2));
+  }
+  if (!rules.length) throw new Error("Judging rubric has no bullets in Models & Research");
+  return { secrets, rules: rules.join("\n") };
 }
 
 // Mechanics' Tunable Values table, keyed by the placeholder names the prompts use.

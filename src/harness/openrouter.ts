@@ -71,8 +71,10 @@ interface RawEndpoint {
 export interface CallRequest {
   model: ModelConfig;
   prompt: string;
-  temperature: number;
-  seed: number;
+  /** Omitted for models that reject a non-default value (the judge). */
+  temperature?: number;
+  /** Omitted for models that don't support it. */
+  seed?: number;
   maxTokens: number;
   /** Extra request fields, e.g. the thinking-off settings. */
   extra: Record<string, unknown>;
@@ -125,8 +127,8 @@ async function callOnce(
   const body = {
     model: req.model.slug,
     messages: [{ role: "user" as const, content: req.prompt }],
-    temperature: req.temperature,
-    seed: req.seed,
+    ...(req.temperature !== undefined && { temperature: req.temperature }),
+    ...(req.seed !== undefined && { seed: req.seed }),
     max_tokens: req.maxTokens,
     // One endpoint, no fallbacks, and fail rather than silently drop a parameter.
     provider: {
