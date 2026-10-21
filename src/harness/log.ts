@@ -42,7 +42,8 @@ interface CallBase {
   /** Dialogue speak() only: 0 for the first try, then each retry after an unparseable reply. */
   attempt?: number;
   seed: number;
-  temperature: number;
+  /** null when the model rejects a temperature and ran at its default. */
+  temperature: number | null;
   maxTokens: number;
   requestExtra: Record<string, unknown>;
   constrained: boolean;

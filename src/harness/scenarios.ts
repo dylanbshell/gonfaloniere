@@ -6,6 +6,7 @@ import S2 from "../../scenarios/s2-accusation.ts";
 import S3 from "../../scenarios/s3-deal-struck.ts";
 import S4 from "../../scenarios/s4-light-pressure.ts";
 import S5a from "../../scenarios/s5a-interrogation-isabella.ts";
+import { S5A_BLUFF, S5B_BLUFF } from "../../scenarios/s5-bluff-line.ts";
 import S5b from "../../scenarios/s5b-interrogation-lenoir.ts";
 import S5c from "../../scenarios/s5c-neutral-question-lupo.ts";
 import S6 from "../../scenarios/s6-strategic-disclosure.ts";
@@ -25,6 +26,8 @@ export const SCENARIOS: Record<string, Scenario> = {
   "s7-explicit": S7_EXPLICIT,
   "s7-buried": S7_BURIED,
   "s7-control": S7_CONTROL,
+  "s5a-bluff": S5A_BLUFF,
+  "s5b-bluff": S5B_BLUFF,
 };
 
 /** Shorthand targets that expand to several scenarios. */

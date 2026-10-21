@@ -56,6 +56,10 @@ export interface DialogueScenario extends ScenarioBase {
   turns: HistoryLine[][];
   /** Independent runs per model. */
   runs: number;
+  /** A labelled prompt variant: the extra speak() instruction it adds. */
+  speakInstruction?: string;
+  /** For a variant, the baseline scenario's id; its thresholds apply. */
+  variantOf?: string;
   /**
    * Colloquio cap shown in the State block, when the scenario needs more
    * utterances than mechanics allows. Defaults to mechanics' cap.

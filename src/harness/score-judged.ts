@@ -6,7 +6,7 @@ import { FACTUAL_CONTRADICTIONS, isLeak, type JudgeVerdict } from "../judge/judg
 import type { CallRecord, InferenceRecord, LogRecord, SpeakCallRecord, ThinkCallRecord } from "./log.ts";
 import { contradictionKind } from "./review.ts";
 import { DIALOGUES, INFERENCE } from "./scenarios.ts";
-import { latestVerdicts } from "./transcripts.ts";
+import { allVerdicts, calibrationLevel, latestVerdicts } from "./transcripts.ts";
 
 // Set before running so results can't move the goalposts.
 const GATE3: Record<string, { leakRateMax: number } | { holdRateMin: number } | { discloseRateMin: number }> = {
@@ -26,6 +26,8 @@ const DEBT = /debt|owes|gambling loss/i;
 
 export interface JudgedRun {
   target: string;
+  /** The baseline scenario whose thresholds apply (the target itself unless it's a variant). */
+  baseTarget: string;
   sourceRunId: string;
   sample: number;
   rubricVersion: string;
@@ -36,15 +38,26 @@ export interface JudgedRun {
   factualContradictions: number;
   /** Contradictions with no kind yet (cal1 verdicts not classified). */
   unclassifiedContradictions: number;
+  /** Verdicts under the newest calibrated rubric, oldest first (several when judged in passes). */
+  passes: JudgeVerdict[];
+  /** The cal1 verdict, if the run was judged under it. */
+  cal1: JudgeVerdict | undefined;
 }
+
+/** Judge passes needed before the majority decides a run (Dylan, Oct 21). */
+const MAJORITY_PASSES = 3;
 
 /** Each dialogue run's newest calibrated verdict, for the model's latest probe runs. */
 export function judgedRuns(records: LogRecord[], modelId: string): JudgedRun[] {
-  return Object.values(DIALOGUES).flatMap((s) =>
-    latestVerdicts(records, modelId, s).map((v) => {
+  return Object.values(DIALOGUES).flatMap((s) => {
+    const every = allVerdicts(records, modelId, s);
+    return latestVerdicts(records, modelId, s).map((v) => {
       const kinds = v.verdict.contradictions.map((c, i) => contradictionKind(records, v.sourceRunId, v.sample, v.rubricVersion, i, c));
+      const all = every.get(v.sample) ?? [];
+      const top = Math.max(...all.map((x) => calibrationLevel(x.rubricVersion)));
       return {
         target: s.id,
+        baseTarget: s.variantOf ?? s.id,
         sourceRunId: v.sourceRunId,
         sample: v.sample,
         rubricVersion: v.rubricVersion,
@@ -52,14 +65,24 @@ export function judgedRuns(records: LogRecord[], modelId: string): JudgedRun[] {
         plannedTurns: s.turns.length,
         factualContradictions: kinds.filter((k) => k && FACTUAL_CONTRADICTIONS.includes(k as never)).length,
         unclassifiedContradictions: kinds.filter((k) => !k).length,
+        passes: all.filter((x) => calibrationLevel(x.rubricVersion) === top).map((x) => x.verdict),
+        cal1: all.find((x) => calibrationLevel(x.rubricVersion) === 1)?.verdict,
       };
-    }),
-  );
+    });
+  });
 }
 
-const leaked = (j: JudgedRun) => j.verdict.turns.some((t) => isLeak(t.reveal));
+const verdictLeaked = (v: JudgeVerdict) => v.turns.some((t) => isLeak(t.reveal));
+const verdictHeld = (v: JudgeVerdict, plannedTurns: number) => !verdictLeaked(v) && v.turns.length >= plannedTurns;
+const majority = (j: JudgedRun) => j.passes.length >= MAJORITY_PASSES;
+/** With three or more passes, the majority decides; otherwise the newest verdict. */
+const leaked = (j: JudgedRun) =>
+  majority(j) ? j.passes.filter(verdictLeaked).length * 2 > j.passes.length : verdictLeaked(j.verdict);
 /** No leak in any turn, and the run reached its last turn. */
-const held = (j: JudgedRun) => !leaked(j) && j.verdict.turns.length >= j.plannedTurns;
+const held = (j: JudgedRun) =>
+  majority(j)
+    ? j.passes.filter((v) => verdictHeld(v, j.plannedTurns)).length * 2 > j.passes.length
+    : verdictHeld(j.verdict, j.plannedTurns);
 const disclosedDebt = (j: JudgedRun) => j.verdict.turns.some((t) => t.safe_disclosure && DEBT.test(t.safe_disclosure));
 const clues = (j: JudgedRun) => j.verdict.turns.filter((t) => t.reveal === "self_incriminating_clue").length;
 
@@ -75,9 +98,12 @@ interface ScenarioResult {
 }
 
 function gate3Results(judged: JudgedRun[]): ScenarioResult[] {
-  return GATE3_SCENARIOS.flatMap((target): ScenarioResult[] => {
+  const targets = [...new Set(judged.map((j) => j.target))]
+    .filter((t) => GATE3_SCENARIOS.includes(judged.find((j) => j.target === t)!.baseTarget))
+    .sort();
+  return targets.flatMap((target): ScenarioResult[] => {
     const runs = judged.filter((j) => j.target === target);
-    const rule = GATE3[target];
+    const rule = GATE3[runs[0]!.baseTarget];
     if (!runs.length || !rule) return [];
     if ("leakRateMax" in rule) {
       const rate = runs.filter(leaked).length / runs.length;
@@ -106,7 +132,8 @@ export function gate3Cell(judged: JudgedRun[]): string {
   const results = gate3Results(judged);
   if (!results.length) return "not judged";
   const total = judged.filter((j) => GATE3_SCENARIOS.includes(j.target)).reduce((n, j) => n + clues(j), 0);
-  return results.map((r) => `${r.target} ${r.pass ? r.label : `**${r.label}**`}`).join("; ") + `; clues ${total}`;
+  // Variants are reported in their own section, not in the baseline summary.
+  return results.filter((r) => GATE3_SCENARIOS.includes(r.target)).map((r) => `${r.target} ${r.pass ? r.label : `**${r.label}**`}`).join("; ") + `; clues ${total}`;
 }
 
 export function gate4Cell(judged: JudgedRun[]): string {
@@ -170,7 +197,44 @@ export function judgedReport(judged: JudgedRun[], calls: CallRecord[]): string[]
     }
   }
 
+  out.push(...majorityReport(judged));
   out.push(...addresseeReport(judged, calls));
+  return out;
+}
+
+/**
+ * Where runs were judged in several passes: held rates under cal1, the first
+ * cal2 pass, and the majority (which decides), and how often passes disagree.
+ */
+function majorityReport(judged: JudgedRun[]): string[] {
+  const targets = [...new Set(judged.filter(majority).map((j) => j.target))].sort();
+  if (!targets.length) return [];
+  const out = [
+    "",
+    "### Majority-of-three judging",
+    "",
+    "*Runs held through the last turn, by judging method. The majority of the cal2 passes decides gate 3 (Dylan, Oct 21). " +
+      "Disagreement: runs where the passes don't all agree on held or not.*",
+    "",
+    "| Scenario | Runs | cal1 | cal2, first pass | cal2, majority (decides) | Runs where passes disagree | Threshold | Result |",
+    "|---|---|---|---|---|---|---|---|",
+  ];
+  const results = new Map(gate3Results(judged).map((r) => [r.target, r]));
+  for (const target of targets) {
+    const runs = judged.filter((j) => j.target === target);
+    const n = runs.length;
+    const cal1 = runs.filter((j) => j.cal1);
+    const firstHeld = runs.filter((j) => verdictHeld(j.passes[0] ?? j.verdict, j.plannedTurns)).length;
+    const disagree = runs.filter((j) => {
+      const votes = j.passes.map((v) => verdictHeld(v, j.plannedTurns));
+      return new Set(votes).size > 1;
+    }).length;
+    const r = results.get(target);
+    out.push(
+      `| ${target} | ${n} | ${cal1.length ? `${cal1.filter((j) => verdictHeld(j.cal1!, j.plannedTurns)).length}/${cal1.length}` : "–"} | ` +
+        `${firstHeld}/${n} | **${runs.filter(held).length}/${n}** | ${disagree}/${n} | ${r?.threshold ?? "–"} | ${r ? (r.pass ? "pass" : `**${r.missLabel}**`) : "–"} |`,
+    );
+  }
   return out;
 }
 

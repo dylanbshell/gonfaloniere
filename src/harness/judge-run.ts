@@ -3,6 +3,7 @@
 //
 //   op run --env-file=.env -- npm run judge -- s4 s5a s5b s5c s6 s7 --model qwen3.8-27b
 //   op run --env-file=.env -- npm run judge -- s5a --model qwen3.8-27b --classify-contradictions
+//   op run --env-file=.env -- npm run judge -- s5a s5b --model qwen3.8-27b --passes 3
 //
 // Dialogue targets (S4–S6): one call per run, judging secrets turn by turn.
 // S7 targets: one call per version, judging whether each thought references
@@ -12,7 +13,8 @@
 // Judges each model's latest run of each target. Anything already judged
 // under the current rubric version is never judged again, so verdicts stay
 // fixed once recorded; a new rubric version judges afresh and keeps the old
-// verdicts in the logs.
+// verdicts in the logs. --passes N judges each dialogue run until it has N
+// verdicts under the current rubric (for majority-of-three judging).
 
 import { parseArgs } from "node:util";
 import { config } from "../../probe.config.ts";
@@ -45,7 +47,11 @@ const S7_EVENT =
 
 const { values: opts, positionals } = parseArgs({
   allowPositionals: true,
-  options: { model: { type: "string" }, "classify-contradictions": { type: "boolean", default: false } },
+  options: {
+    model: { type: "string" },
+    "classify-contradictions": { type: "boolean", default: false },
+    passes: { type: "string", default: "1" },
+  },
 });
 
 /** A judge call made under the shared budget; null when the cap stops it. */
@@ -148,14 +154,20 @@ async function judgeDialogues(
   start: () => Promise<{ call: JudgeCaller; log: RunLog; runId: string }>,
 ): Promise<void> {
   const transcripts = targets.flatMap((t) => buildTranscripts(records, modelId, DIALOGUES[t]!));
-  const judged = new Set(
-    records
-      .filter((r): r is JudgeRecord => r.type === "judge" && !r.error && r.verdict !== null && r.rubricVersion === rubricVersion)
-      .map((r) => `${r.sourceRunId}|${r.target}|${r.sample}`),
-  );
-  const pending = transcripts.filter((t) => !judged.has(`${t.sourceRunId}|${t.target}|${t.sample}`));
+  const passes = Number(opts.passes);
+  const have = new Map<string, number>();
+  for (const r of records) {
+    if (r.type !== "judge" || r.error || r.verdict === null || r.rubricVersion !== rubricVersion) continue;
+    const key = `${r.sourceRunId}|${r.target}|${r.sample}`;
+    have.set(key, (have.get(key) ?? 0) + 1);
+  }
+  // One entry per verdict still needed, so a run short two passes appears twice.
+  const pending = transcripts.flatMap((t) => {
+    const missing = Math.max(0, passes - (have.get(`${t.sourceRunId}|${t.target}|${t.sample}`) ?? 0));
+    return Array.from({ length: missing }, () => t);
+  });
   console.log(
-    `${transcripts.length} dialogue runs found; ${transcripts.length - pending.length} already judged under rubric ${rubricVersion}; ${pending.length} to judge`,
+    `${transcripts.length} dialogue runs found; ${pending.length} verdict(s) to get for ${passes} pass(es) per run under rubric ${rubricVersion}`,
   );
   if (!pending.length) return;
   const { call, log, runId } = await start();

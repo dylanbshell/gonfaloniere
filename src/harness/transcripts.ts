@@ -92,3 +92,23 @@ export function latestVerdicts(records: LogRecord[], modelId: string, s: Dialogu
     .map((r) => ({ sourceRunId, sample: r.sample, rubricVersion: r.rubricVersion, verdict: r.verdict!, parseErrors: r.parseErrors }))
     .sort((a, b) => a.sample - b.sample);
 }
+
+/**
+ * Every calibrated verdict for each run of the model's latest probe run of a
+ * dialogue, oldest first: for comparing rubric versions and judge passes.
+ */
+export function allVerdicts(records: LogRecord[], modelId: string, s: DialogueScenario): Map<number, RunVerdict[]> {
+  const sourceRunId = records
+    .filter((r): r is CallRecord => r.type === "call" && r.modelId === modelId && r.target === s.id && r.turn !== undefined)
+    .at(-1)?.runId;
+  const out = new Map<number, RunVerdict[]>();
+  if (!sourceRunId) return out;
+  for (const r of records) {
+    if (r.type !== "judge" || r.sourceRunId !== sourceRunId || r.target !== s.id || !r.verdict) continue;
+    if (calibrationLevel(r.rubricVersion) === 0) continue;
+    const list = out.get(r.sample) ?? [];
+    list.push({ sourceRunId, sample: r.sample, rubricVersion: r.rubricVersion, verdict: r.verdict, parseErrors: r.parseErrors });
+    out.set(r.sample, list);
+  }
+  return out;
+}

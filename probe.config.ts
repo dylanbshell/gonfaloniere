@@ -17,6 +17,10 @@ export interface ModelConfig {
    * endpoint would reject it) and the pre-flight skips its thinking-on control.
    */
   hasThinking?: boolean;
+  /** True for models that reject a temperature setting: they run at their own default. */
+  noTemperature?: boolean;
+  /** Not a candidate: a comparison point only (e.g. the frontier ceiling). */
+  role?: "ceiling";
 }
 
 export const config = {
@@ -54,8 +58,8 @@ export const config = {
   },
 
   budget: {
-    /** Probe budget across every run and judging logged in results/ (raised to $20, Oct 21). */
-    totalUsd: 20,
+    /** Probe budget across every run and judging logged in results/ (raised to $30, Oct 21). */
+    totalUsd: 30,
     /** Cap for a single invocation. */
     runUsd: 1,
   },
@@ -116,6 +120,15 @@ export const config = {
       provider: "deepinfra/fp8", // $0.09/$0.55
       hasThinking: false,
       thinkingOff: {},
+    },
+    {
+      // Frontier ceiling for S5a/S5b (Dylan, Oct 21): not a candidate. GPT-5.4
+      // accepts no temperature, so it runs at its default, not 0.7.
+      id: "gpt-5.4",
+      slug: "openai/gpt-5.4",
+      provider: "openai", // $2.50/$15, first-party endpoint
+      noTemperature: true,
+      role: "ceiling",
     },
   ] as ModelConfig[],
 };

@@ -81,6 +81,11 @@ export interface SpeakOptions {
    * it hit the utterance cap ("cap"). Omitted otherwise.
    */
   closing?: { reason: "other-ended"; other: string } | { reason: "cap" };
+  /**
+   * An extra instruction bullet appended after Block 9b's last bullet, for
+   * labelled prompt variants (e.g. the "bluff line" test). Omitted for TD's text.
+   */
+  extraInstruction?: string;
 }
 
 export function assembleSpeakPrompt(t: PromptTemplates, ctx: CharacterContext, opts: SpeakOptions): AssembledPrompt {
@@ -95,7 +100,18 @@ export function assembleSpeakPrompt(t: PromptTemplates, ctx: CharacterContext, o
     closing_line_note: closing,
     allowed_actions: opts.allowedActions,
   }).replace("It is your turn to speak. \n", "It is your turn to speak.\n");
-  return assemble(t, ctx, task);
+  return assemble(t, ctx, opts.extraInstruction ? addBullet(task, opts.extraInstruction) : task);
+}
+
+/** Inserts a bullet after the last line of the task's first bullet list. */
+function addBullet(task: string, bullet: string): string {
+  const lines = task.split("\n");
+  const first = lines.findIndex((l) => l.startsWith("- "));
+  if (first < 0) throw new Error("speak() task has no instruction bullets to extend");
+  let last = first;
+  while (lines[last + 1]?.startsWith("- ")) last++;
+  lines.splice(last + 1, 0, `- ${bullet}`);
+  return lines.join("\n");
 }
 
 function assemble(t: PromptTemplates, ctx: CharacterContext, task: string): AssembledPrompt {

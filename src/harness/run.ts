@@ -96,7 +96,7 @@ async function main(): Promise<void> {
     gitCommit: gitCommit(),
     targets,
     settings: {
-      temperature: config.temperature,
+      temperature: model.noTemperature ? "model default" : config.temperature,
       seedBase: config.seedBase,
       plotProtection: config.plotProtection,
       maxTokens: config.maxTokens,
@@ -129,7 +129,7 @@ async function main(): Promise<void> {
     const res = await callModel(client, {
       model,
       prompt: spec.prompt,
-      temperature: config.temperature,
+      temperature: model.noTemperature ? undefined : config.temperature,
       seed: spec.seed,
       maxTokens,
       extra: spec.extra,
@@ -151,7 +151,7 @@ async function main(): Promise<void> {
       turn: spec.turn,
       attempt: spec.attempt,
       seed: spec.seed,
-      temperature: config.temperature,
+      temperature: model.noTemperature ? null : config.temperature,
       maxTokens,
       requestExtra: spec.extra,
       constrained: Boolean(spec.jsonSchema),
@@ -265,7 +265,10 @@ async function runDialogue(
       allowedActions: allowedActionTypes(actions),
       florins: actions.florins,
     };
-    const prompt = assembleSpeakPrompt(docs.templates, speakCtx, { allowedActions: allowedActionsText(actions) }).text;
+    const prompt = assembleSpeakPrompt(docs.templates, speakCtx, {
+      allowedActions: allowedActionsText(actions),
+      extraInstruction: s.speakInstruction,
+    }).text;
 
     let spoken: SpeakCallRecord | null = null;
     for (let attempt = 0; attempt <= config.speakRetries; attempt++) {
@@ -460,7 +463,7 @@ function printDryRun(model: ModelConfig, docs: DocSources, targets: string[]): v
       const actions = allowedActionsText(actionContext(scenario, scenario.probed, docs));
       show(
         `${scenario.id} · ${scenario.probed} · turn 1 · speak() (block 7 will also hold the turn's thought)`,
-        assembleSpeakPrompt(docs.templates, ctx, { allowedActions: actions }).text,
+        assembleSpeakPrompt(docs.templates, ctx, { allowedActions: actions, extraInstruction: scenario.speakInstruction }).text,
       );
       continue;
     }
