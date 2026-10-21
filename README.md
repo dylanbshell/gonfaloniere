@@ -61,6 +61,21 @@ Planned stack: React, Node/Express, PostgreSQL.
 
 ---
 
+## Design docs
+
+The full design lives in [`docs/`](docs/):
+
+| Doc | Covers |
+|---|---|
+| [Game Mechanics](docs/Gonfaloniere_Game_Mechanics_v0.18.md) | The rules: phases, conversations, economy, murder round, win conditions, tunable values |
+| [Technical Design](docs/Gonfaloniere_Technical_Design_v0.2.md) | How the software runs it: architecture, memory, prompts, balancing method |
+| [Models & Research](docs/Gonfaloniere_Models_Research_v0.5.md) | Capability tests, cost per game, fine-tuning plans |
+| [Characters](docs/Gonfaloniere_Characters_v0.2.md) | Character briefings and shared story canon |
+
+If the docs and this README disagree, the docs are right.
+
+---
+
 ## Roadmap
 
 Each step runs only if the one before it passed. Model capability decides a lot of the design, so it gets tested before anything expensive is built.
