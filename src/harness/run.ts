@@ -5,17 +5,13 @@
 //   op run --env-file=.env -- npm run probe -- s1 --samples 3
 //   op run --env-file=.env -- npm run probe -- s4 s5a --model qwen3.8-27b
 //
-// Targets: preflight, s1, s2, s3, s4, s5a (default: all, in that order).
+// Targets: preflight, s1, s2, s3, s4, s5a, s5b, s5c, s6, s7-explicit,
+// s7-buried, s7-control (default: all, in that order); "s7" means all three.
 // Options: --model <id>, --samples <n> (single-moment scenarios, per mode),
 //          --runs <n> (dialogue scenarios), --modes raw,constrained
 
 import { parseArgs } from "node:util";
 import { config, type ModelConfig } from "../../probe.config.ts";
-import S1 from "../../scenarios/s1-quiet-capannello.ts";
-import S2 from "../../scenarios/s2-accusation.ts";
-import S3 from "../../scenarios/s3-deal-struck.ts";
-import S4 from "../../scenarios/s4-light-pressure.ts";
-import S5a from "../../scenarios/s5a-interrogation-isabella.ts";
 import { allowedActionTypes, allowedActionsText, type ActionContext } from "../game/actions.ts";
 import { factionOf, type CharacterName } from "../game/roster.ts";
 import { parseSpeak, type SpeakExpectation } from "../output/speak.ts";
@@ -25,6 +21,7 @@ import { loadDocs, type DocSources } from "../sources/docs.ts";
 import { Budget, worstCaseCost } from "./budget.ts";
 import { RunLog, gitCommit, priorSpend, type CallRecord, type SpeakCallRecord, type ThinkCallRecord } from "./log.ts";
 import { apiKey, callModel, fetchEndpoint, makeClient, type EndpointInfo } from "./openrouter.ts";
+import { SCENARIOS, TARGET_GROUPS, expandTargets, unbriefedGuests } from "./scenarios.ts";
 import {
   characterContext,
   currentFlorins,
@@ -35,8 +32,8 @@ import {
   type ThinkScenario,
 } from "./scenario.ts";
 
-const SCENARIOS: Record<string, Scenario> = { s1: S1, s2: S2, s3: S3, s4: S4, s5a: S5a };
 const TARGETS = ["preflight", ...Object.keys(SCENARIOS)];
+const S1 = SCENARIOS.s1 as ThinkScenario;
 
 /** Everything needed to make and log one call. */
 type CallSpec = {
@@ -67,9 +64,11 @@ const { values: opts, positionals } = parseArgs({
 });
 
 async function main(): Promise<void> {
-  const targets = positionals.length ? positionals.map((t) => t.toLowerCase()) : TARGETS;
+  const targets = positionals.length ? expandTargets(positionals.map((t) => t.toLowerCase())) : TARGETS;
   for (const t of targets) {
-    if (!TARGETS.includes(t)) throw new Error(`Unknown target "${t}". Known: ${TARGETS.join(", ")}`);
+    if (!TARGETS.includes(t)) {
+      throw new Error(`Unknown target "${t}". Known: ${[...TARGETS, ...Object.keys(TARGET_GROUPS)].join(", ")}`);
+    }
   }
   const model = config.models.find((m) => m.id === (opts.model ?? config.models[0]!.id));
   if (!model) throw new Error(`Unknown model "${opts.model}". Known: ${config.models.map((m) => m.id).join(", ")}`);
@@ -247,7 +246,11 @@ async function runDialogue(
       turn,
       seed,
       prompt: assembleThinkPrompt(docs.templates, thinkCtx).text,
-      expect: { conversation: s.conversation.kind, livingOthers: thinkCtx.state.livingOthers },
+      expect: {
+        conversation: s.conversation.kind,
+        livingOthers: thinkCtx.state.livingOthers,
+        ignoreNames: unbriefedGuests(s.id),
+      },
       extra: thinkingOff,
     });
     if (!thought) return;
@@ -362,7 +365,7 @@ function thinkPrompt(s: ThinkScenario, character: CharacterName, docs: DocSource
   const ctx = characterContext(s, character, docs, config.plotProtection);
   return {
     prompt: assembleThinkPrompt(docs.templates, ctx).text,
-    expect: { conversation: s.conversation.kind, livingOthers: ctx.state.livingOthers },
+    expect: { conversation: s.conversation.kind, livingOthers: ctx.state.livingOthers, ignoreNames: unbriefedGuests(s.id) },
   };
 }
 

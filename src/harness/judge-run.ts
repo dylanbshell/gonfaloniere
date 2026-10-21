@@ -1,55 +1,77 @@
-// Judges dialogue runs (S4–S7) with the configured judge, one call per run,
-// and writes a review file for hand-checking (Models & Research v0.8, Scoring).
+// Judges probe runs with the configured judge and writes review files for
+// hand-checking (Models & Research v0.8, Scoring).
 //
-//   op run --env-file=.env -- npm run judge -- s4 s5a --model qwen3.8-27b
+//   op run --env-file=.env -- npm run judge -- s4 s5a s5b s5c s6 s7 --model qwen3.8-27b
+//   op run --env-file=.env -- npm run judge -- s5a --model qwen3.8-27b --classify-contradictions
 //
-// Judges each model's latest run of each target. A run that already has a
-// verdict under the current rubric version is never judged again, so verdicts
-// stay fixed once recorded; a new rubric version judges runs afresh and keeps
-// the old verdicts in the logs.
+// Dialogue targets (S4–S6): one call per run, judging secrets turn by turn.
+// S7 targets: one call per version, judging whether each thought references
+// the withdrawals (gate 5). --classify-contradictions: one call per target,
+// giving a kind to contradictions judged before verdicts carried one.
+//
+// Judges each model's latest run of each target. Anything already judged
+// under the current rubric version is never judged again, so verdicts stay
+// fixed once recorded; a new rubric version judges afresh and keeps the old
+// verdicts in the logs.
 
 import { parseArgs } from "node:util";
 import { config } from "../../probe.config.ts";
+import { buildContradictionPrompt, contradictionKindsJsonSchema, ContradictionKinds } from "../judge/contradictions.ts";
+import { buildInferencePrompt, checkInference, inferenceJsonSchema } from "../judge/inference.ts";
 import { buildJudgePrompt, checkVerdict, isLeak, judgeJsonSchema } from "../judge/judge.ts";
 import { formatHistoryLine } from "../prompt/assemble.ts";
-import { loadDocs } from "../sources/docs.ts";
+import { loadDocs, type DocSources } from "../sources/docs.ts";
 import { Budget, worstCaseCost } from "./budget.ts";
-import { writeReview } from "./review.ts";
-import { RunLog, gitCommit, priorSpend, readRecords, runLogFiles, type JudgeRecord } from "./log.ts";
-import { apiKey, callModel, fetchEndpoint, makeClient } from "./openrouter.ts";
-import { DIALOGUES, buildTranscripts, currentRubricVersion } from "./transcripts.ts";
+import {
+  RunLog,
+  gitCommit,
+  priorSpend,
+  readRecords,
+  runLogFiles,
+  type ContradictionKindsRecord,
+  type InferenceRecord,
+  type JudgeRecord,
+  type LogRecord,
+  type ThinkCallRecord,
+} from "./log.ts";
+import { apiKey, callModel, fetchEndpoint, makeClient, type CallResult } from "./openrouter.ts";
+import { writeInferenceReview, writeReview } from "./review.ts";
+import { DIALOGUES, INFERENCE, TARGET_GROUPS, expandTargets } from "./scenarios.ts";
+import { buildTranscripts, currentRubricVersion, latestVerdicts } from "./transcripts.ts";
+
+/** The event S7 thoughts are judged against. */
+const S7_EVENT =
+  "Raffaello de' Medici and Captain Armand LeNoir withdrawing together for private words, as recorded by Il Notaio (twice, the second time remarked on).";
 
 const { values: opts, positionals } = parseArgs({
   allowPositionals: true,
-  options: { model: { type: "string" } },
+  options: { model: { type: "string" }, "classify-contradictions": { type: "boolean", default: false } },
 });
 
+/** A judge call made under the shared budget; null when the cap stops it. */
+type JudgeCaller = (
+  prompt: string,
+  schemaName: string,
+  schema: Record<string, unknown>,
+) => Promise<{ res: CallResult; cost: number } | null>;
+
 async function main(): Promise<void> {
-  const targets = positionals.length ? positionals.map((t) => t.toLowerCase()) : Object.keys(DIALOGUES);
+  const known = [...Object.keys(DIALOGUES), ...Object.keys(INFERENCE)];
+  const targets = positionals.length ? expandTargets(positionals.map((t) => t.toLowerCase())) : known;
   for (const t of targets) {
-    if (!DIALOGUES[t]) throw new Error(`Unknown dialogue target "${t}". Known: ${Object.keys(DIALOGUES).join(", ")}`);
+    if (!known.includes(t)) {
+      throw new Error(`Unknown judge target "${t}". Known: ${[...known, ...Object.keys(TARGET_GROUPS)].join(", ")}`);
+    }
   }
   if (!opts.model) throw new Error("Pass --model <id>: judging runs one model at a time");
   const modelId = opts.model;
-
   const docs = loadDocs(config.docs);
   const rubricVersion = currentRubricVersion(docs.versions.modelsResearch);
   const records = readRecords(runLogFiles());
-  const transcripts = targets.flatMap((t) => buildTranscripts(records, modelId, DIALOGUES[t]!));
-  const judged = new Set(
-    records
-      .filter(
-        (r): r is JudgeRecord =>
-          r.type === "judge" && !r.error && r.verdict !== null && r.rubricVersion === rubricVersion,
-      )
-      .map((r) => `${r.sourceRunId}|${r.target}|${r.sample}`),
-  );
-  const pending = transcripts.filter((t) => !judged.has(`${t.sourceRunId}|${t.target}|${t.sample}`));
-  console.log(
-    `${transcripts.length} runs found; ${transcripts.length - pending.length} already judged under rubric ${rubricVersion}; ${pending.length} to judge`,
-  );
 
-  if (pending.length) {
+  let session: { call: JudgeCaller; log: RunLog; runId: string; budget: Budget } | null = null;
+  const start = async () => {
+    if (session) return session;
     const judge = config.judge;
     const client = makeClient(apiKey());
     const endpoint = await fetchEndpoint(judge);
@@ -66,90 +88,284 @@ async function main(): Promise<void> {
       docVersions: docs.versions,
       gitCommit: gitCommit(),
       targets,
-      settings: { judged: modelId, maxTokens: judge.maxTokens, sampling: "model default", thinking: "model default" },
+      settings: { judged: modelId, rubricVersion, maxTokens: judge.maxTokens, sampling: "model default", thinking: "model default" },
     });
-    console.log(`Judge: ${judge.slug} via ${endpoint.providerName}; budget $${budget.priorSpendUsd.toFixed(4)} spent before this`);
-
-    const schema = judgeJsonSchema();
+    console.log(`Judge: ${judge.slug} via ${endpoint.providerName}; $${budget.priorSpendUsd.toFixed(4)} spent before this`);
     let stopped = false;
-    let next = 0;
-    const worker = async (): Promise<void> => {
-      while (!stopped && next < pending.length) {
-        const t = pending[next++]!;
-        const scenario = DIALOGUES[t.target.toLowerCase()]!;
-        const prompt = buildJudgePrompt({
-          character: t.character,
-          briefing: docs.briefings[t.character]!,
-          rubric: docs.judgeRubric,
-          present: scenario.conversation.present,
-          opening: scenario.opening.map(formatHistoryLine),
-          turns: t.turns,
-        });
-        const worst = worstCaseCost(prompt.length, judge.maxTokens, endpoint.price);
-        if (!budget.tryReserve(worst)) {
-          stopped = true;
-          break;
-        }
-        const res = await callModel(client, {
-          model: judge,
-          prompt,
-          maxTokens: judge.maxTokens,
-          extra: {},
-          jsonSchema: { name: "secret_keeping_verdict", schema },
-        });
-        const cost = res.ok
-          ? (res.usage.costUsd ?? res.usage.inputTokens * endpoint.price.input + res.usage.outputTokens * endpoint.price.output)
-          : 0;
-        budget.settle(worst, cost);
-        const checked = res.ok ? checkVerdict(res.content, t.turns) : null;
-        const record: JudgeRecord = {
-          type: "judge",
-          runId,
-          sourceRunId: t.sourceRunId,
-          modelId: t.modelId,
-          target: t.target,
-          sample: t.sample,
-          character: t.character,
-          judgeModel: judge.slug,
-          judgeProvider: judge.provider,
-          rubricVersion,
-          prompt,
-          raw: res.ok ? res.content : null,
-          reasoning: res.ok ? res.reasoning : null,
-          verdict: checked && !checked.errors.length ? checked.verdict : null,
-          parseErrors: checked ? [...checked.errors, ...checked.warnings] : [],
-          usage: res.ok ? res.usage : null,
-          costUsd: cost,
-          latencyMs: res.latencyMs,
-          provider: res.ok ? res.provider : null,
-          generationId: res.ok ? res.generationId : null,
-          error: res.ok ? null : { message: res.error, status: res.status },
-          at: new Date().toISOString(),
-        };
-        log.write(record);
-        const v = record.verdict;
-        console.log(
-          `  ${t.target} run ${t.sample}: ` +
-            (record.error
-              ? `ERROR ${record.error.message}`
-              : v
-                ? `leaks ${v.turns.filter((x) => isLeak(x.reveal)).length} ` +
-                  `(capitulated ${v.turns.filter((x) => x.reveal === "capitulated").length}), ` +
-                  `deliberate ${v.turns.filter((x) => x.reveal === "deliberate").length}, first leak ${v.first_leak_turn ?? "none"}, ` +
-                  `${v.contradictions.length} contradiction(s)`
-                : `UNUSABLE: ${record.parseErrors.join("; ")}`) +
-            `  ${(res.latencyMs / 1000).toFixed(1)}s $${cost.toFixed(4)}` +
-            (checked?.warnings.length ? `  [check: ${checked.warnings.join("; ")}]` : ""),
-        );
+    const call: JudgeCaller = async (prompt, schemaName, schema) => {
+      const worst = worstCaseCost(prompt.length, judge.maxTokens, endpoint.price);
+      if (stopped || !budget.tryReserve(worst)) {
+        stopped = true;
+        return null;
       }
+      const res = await callModel(client, { model: judge, prompt, maxTokens: judge.maxTokens, extra: {}, jsonSchema: { name: schemaName, schema } });
+      const cost = res.ok
+        ? (res.usage.costUsd ?? res.usage.inputTokens * endpoint.price.input + res.usage.outputTokens * endpoint.price.output)
+        : 0;
+      budget.settle(worst, cost);
+      return { res, cost };
     };
-    await Promise.all(Array.from({ length: Math.min(4, pending.length) }, worker));
-    if (stopped) console.log("STOPPED: the next judge call could exceed the budget cap.");
-    console.log(`Judging spent $${budget.spentUsd.toFixed(4)}. Log: ${log.path}`);
+    session = { call, log, runId, budget };
+    return session;
+  };
+
+  const dialogueTargets = targets.filter((t) => DIALOGUES[t]);
+  const inferenceTargets = targets.filter((t) => INFERENCE[t]);
+
+  if (opts["classify-contradictions"]) {
+    for (const t of dialogueTargets) await classifyContradictions(records, modelId, t, start);
+  } else {
+    if (dialogueTargets.length) await judgeDialogues(records, modelId, dialogueTargets, docs, rubricVersion, start);
+    for (const t of inferenceTargets) await judgeInference(records, modelId, t, rubricVersion, start);
   }
 
-  const path = writeReview(modelId, targets.map((t) => DIALOGUES[t]!.id), transcripts, rubricVersion);
-  console.log(`Review file: ${path}`);
+  if (session) {
+    const s = session as { log: RunLog; budget: Budget };
+    console.log(`Judging spent $${s.budget.spentUsd.toFixed(4)}. Log: ${s.log.path}`);
+  }
+  if (opts["classify-contradictions"]) return;
+  const fresh = readRecords(runLogFiles());
+  if (dialogueTargets.length) {
+    const transcripts = dialogueTargets.flatMap((t) => buildTranscripts(fresh, modelId, DIALOGUES[t]!));
+    console.log(`Review file: ${writeReview(modelId, dialogueTargets.map((t) => DIALOGUES[t]!.id), transcripts, rubricVersion)}`);
+  }
+  if (inferenceTargets.length) {
+    console.log(`Review file: ${writeInferenceReview(modelId, inferenceTargets.map((t) => INFERENCE[t]!.id), rubricVersion)}`);
+  }
+}
+
+async function judgeDialogues(
+  records: LogRecord[],
+  modelId: string,
+  targets: string[],
+  docs: DocSources,
+  rubricVersion: string,
+  start: () => Promise<{ call: JudgeCaller; log: RunLog; runId: string }>,
+): Promise<void> {
+  const transcripts = targets.flatMap((t) => buildTranscripts(records, modelId, DIALOGUES[t]!));
+  const judged = new Set(
+    records
+      .filter((r): r is JudgeRecord => r.type === "judge" && !r.error && r.verdict !== null && r.rubricVersion === rubricVersion)
+      .map((r) => `${r.sourceRunId}|${r.target}|${r.sample}`),
+  );
+  const pending = transcripts.filter((t) => !judged.has(`${t.sourceRunId}|${t.target}|${t.sample}`));
+  console.log(
+    `${transcripts.length} dialogue runs found; ${transcripts.length - pending.length} already judged under rubric ${rubricVersion}; ${pending.length} to judge`,
+  );
+  if (!pending.length) return;
+  const { call, log, runId } = await start();
+  const schema = judgeJsonSchema();
+
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (next < pending.length) {
+      const t = pending[next++]!;
+      const scenario = DIALOGUES[t.target.toLowerCase()]!;
+      const prompt = buildJudgePrompt({
+        character: t.character,
+        briefing: docs.briefings[t.character]!,
+        rubric: docs.judgeRubric,
+        present: scenario.conversation.present,
+        opening: scenario.opening.map(formatHistoryLine),
+        turns: t.turns,
+      });
+      const made = await call(prompt, "secret_keeping_verdict", schema);
+      if (!made) return;
+      const { res, cost } = made;
+      const checked = res.ok ? checkVerdict(res.content, t.turns) : null;
+      const record: JudgeRecord = {
+        type: "judge",
+        runId,
+        sourceRunId: t.sourceRunId,
+        modelId: t.modelId,
+        target: t.target,
+        sample: t.sample,
+        character: t.character,
+        judgeModel: config.judge.slug,
+        judgeProvider: config.judge.provider,
+        rubricVersion,
+        prompt,
+        raw: res.ok ? res.content : null,
+        reasoning: res.ok ? res.reasoning : null,
+        verdict: checked && !checked.errors.length ? checked.verdict : null,
+        parseErrors: checked ? [...checked.errors, ...checked.warnings] : [],
+        usage: res.ok ? res.usage : null,
+        costUsd: cost,
+        latencyMs: res.latencyMs,
+        provider: res.ok ? res.provider : null,
+        generationId: res.ok ? res.generationId : null,
+        error: res.ok ? null : { message: res.error, status: res.status },
+        at: new Date().toISOString(),
+      };
+      log.write(record);
+      const v = record.verdict;
+      const n = (kind: string) => v?.turns.filter((x) => x.reveal === kind).length ?? 0;
+      console.log(
+        `  ${t.target} run ${t.sample}: ` +
+          (record.error
+            ? `ERROR ${record.error.message}`
+            : v
+              ? `leaks ${v.turns.filter((x) => isLeak(x.reveal)).length} (capitulated ${n("capitulated")}), ` +
+                `deliberate ${n("deliberate")}, clues ${n("self_incriminating_clue")}, first leak ${v.first_leak_turn ?? "none"}, ` +
+                `${v.contradictions.length} contradiction(s)`
+              : `UNUSABLE: ${record.parseErrors.join("; ")}`) +
+          `  ${(res.latencyMs / 1000).toFixed(1)}s $${cost.toFixed(4)}` +
+          (checked?.warnings.length ? `  [check: ${checked.warnings.join("; ")}]` : ""),
+      );
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(4, pending.length) }, worker));
+}
+
+async function judgeInference(
+  records: LogRecord[],
+  modelId: string,
+  target: string,
+  rubricVersion: string,
+  start: () => Promise<{ call: JudgeCaller; log: RunLog; runId: string }>,
+): Promise<void> {
+  const scenario = INFERENCE[target]!;
+  const calls = records.filter(
+    (r): r is ThinkCallRecord => r.type === "call" && r.callType === "think" && r.modelId === modelId && r.target === scenario.id,
+  );
+  const sourceRunId = calls.at(-1)?.runId;
+  if (!sourceRunId) {
+    console.log(`${scenario.id}: no run found for ${modelId}`);
+    return;
+  }
+  const done = records.some(
+    (r) => r.type === "inference" && r.sourceRunId === sourceRunId && r.target === scenario.id && r.rubricVersion === rubricVersion && r.verdict,
+  );
+  if (done) {
+    console.log(`${scenario.id}: already judged under rubric ${rubricVersion}`);
+    return;
+  }
+  const thoughts = calls
+    .filter((c) => c.runId === sourceRunId && !c.error)
+    .flatMap((c) => {
+      const thought = c.parsed?.repaired.value?.thought;
+      return thought ? [{ sample: c.sample, thought }] : [];
+    })
+    .sort((a, b) => a.sample - b.sample);
+  const prompt = buildInferencePrompt({
+    character: scenario.probed[0]!,
+    event: S7_EVENT,
+    history: scenario.history.map(formatHistoryLine),
+    thoughts,
+  });
+  const { call, log, runId } = await start();
+  const made = await call(prompt, "inference_verdict", inferenceJsonSchema());
+  if (!made) return;
+  const { res, cost } = made;
+  const checked = res.ok ? checkInference(res.content, thoughts) : null;
+  const record: InferenceRecord = {
+    type: "inference",
+    runId,
+    sourceRunId,
+    modelId,
+    target: scenario.id,
+    character: scenario.probed[0]!,
+    judgeModel: config.judge.slug,
+    rubricVersion,
+    prompt,
+    raw: res.ok ? res.content : null,
+    verdict: checked && !checked.errors.length ? checked.verdict : null,
+    parseErrors: checked ? [...checked.errors, ...checked.warnings] : [],
+    usage: res.ok ? res.usage : null,
+    costUsd: cost,
+    latencyMs: res.latencyMs,
+    error: res.ok ? null : { message: res.error, status: res.status },
+    at: new Date().toISOString(),
+  };
+  log.write(record);
+  const v = record.verdict;
+  console.log(
+    `  ${scenario.id}: ` +
+      (record.error
+        ? `ERROR ${record.error.message}`
+        : v
+          ? `${v.samples.filter((s) => s.references_event).length} of ${v.samples.length} thoughts reference the withdrawals`
+          : `UNUSABLE: ${record.parseErrors.join("; ")}`) +
+      `  $${cost.toFixed(4)}` +
+      (checked?.warnings.length ? `  [check: ${checked.warnings.join("; ")}]` : ""),
+  );
+}
+
+async function classifyContradictions(
+  records: LogRecord[],
+  modelId: string,
+  target: string,
+  start: () => Promise<{ call: JudgeCaller; log: RunLog; runId: string }>,
+): Promise<void> {
+  const scenario = DIALOGUES[target]!;
+  const verdicts = latestVerdicts(records, modelId, scenario);
+  const classified = new Set(
+    records
+      .filter((r): r is ContradictionKindsRecord => r.type === "contradiction_kinds" && !r.error)
+      .flatMap((r) => r.items.map((i) => `${i.sourceRunId}|${i.sample}|${r.rubricVersion}`)),
+  );
+  const items = verdicts.flatMap((v) =>
+    v.verdict.contradictions
+      .map((c, position) => ({ v, c, position }))
+      .filter(({ c }) => !("kind" in c) && !classified.has(`${v.sourceRunId}|${v.sample}|${v.rubricVersion}`)),
+  );
+  if (!items.length) {
+    console.log(`${scenario.id}: no unclassified contradictions`);
+    return;
+  }
+  const rubricVersions = [...new Set(items.map((i) => i.v.rubricVersion))];
+  if (rubricVersions.length > 1) throw new Error(`${scenario.id}: contradictions from several rubric versions: ${rubricVersions.join(", ")}`);
+  const prompt = buildContradictionPrompt(
+    scenario.probed,
+    items.map((i, index) => ({ index, claims: i.c.claims, explanation: i.c.explanation })),
+  );
+  const { call, log, runId } = await start();
+  const made = await call(prompt, "contradiction_kinds", contradictionKindsJsonSchema());
+  if (!made) return;
+  const { res, cost } = made;
+  let kinds: ContradictionKinds["kinds"] = [];
+  let error = res.ok ? null : { message: res.error, status: res.status };
+  if (res.ok) {
+    const parsed = ContradictionKinds.safeParse(safeJson(res.content));
+    if (parsed.success && parsed.data.kinds.length === items.length) kinds = parsed.data.kinds;
+    else error = { message: "classification reply didn't match the items", status: null };
+  }
+  const record: ContradictionKindsRecord = {
+    type: "contradiction_kinds",
+    runId,
+    modelId,
+    target: scenario.id,
+    rubricVersion: rubricVersions[0]!,
+    items: kinds.map((k) => ({
+      sourceRunId: items[k.index]!.v.sourceRunId,
+      sample: items[k.index]!.v.sample,
+      position: items[k.index]!.position,
+      kind: k.kind,
+      reason: k.reason,
+    })),
+    judgeModel: config.judge.slug,
+    prompt,
+    raw: res.ok ? res.content : null,
+    usage: res.ok ? res.usage : null,
+    costUsd: cost,
+    latencyMs: res.latencyMs,
+    error,
+    at: new Date().toISOString(),
+  };
+  log.write(record);
+  const tally = new Map<string, number>();
+  for (const k of kinds) tally.set(k.kind, (tally.get(k.kind) ?? 0) + 1);
+  console.log(
+    `  ${scenario.id}: ${error ? `ERROR ${error.message}` : `${items.length} classified: ${[...tally].map(([k, n]) => `${k} ${n}`).join(", ")}`}  $${cost.toFixed(4)}`,
+  );
+}
+
+function safeJson(raw: string): unknown {
+  try {
+    return JSON.parse(raw.trim());
+  } catch {
+    return null;
+  }
 }
 
 main().catch((e: Error) => {

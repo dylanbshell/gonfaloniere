@@ -8,12 +8,18 @@
 
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { config } from "../../probe.config.ts";
 import { SCORING_LEVELS, parseThink, type ScoringLevel, type ThinkParseResult } from "../output/think.ts";
-import { loadDocs } from "../sources/docs.ts";
-import { RESULTS_DIR, readRecords, runLogFiles, type CallRecord, type RunRecord, type ThinkCallRecord } from "./log.ts";
-import { gate3Cell, gate4Cell, judgedReport, judgedRuns, type JudgedRun } from "./score-judged.ts";
-import { currentRubricVersion } from "./transcripts.ts";
+import {
+  RESULTS_DIR,
+  readRecords,
+  runLogFiles,
+  type CallRecord,
+  type LogRecord,
+  type RunRecord,
+  type ThinkCallRecord,
+} from "./log.ts";
+import { gate3Cell, gate4Cell, gate5Cell, gate5Report, judgedReport, judgedRuns, type JudgedRun } from "./score-judged.ts";
+import { unbriefedGuests } from "./scenarios.ts";
 
 // Set before running so results can't move the goalposts. The raw bar applies
 // at every scoring level; constrained decoding ran in S1 only.
@@ -51,15 +57,15 @@ function main(): void {
   const runs = records.filter((r): r is RunRecord => r.type === "run" && runIds.has(r.runId));
 
   // Judge verdicts under the current rubric, for the probe runs kept above.
-  const rubricVersion = currentRubricVersion(loadDocs(config.docs).versions.modelsResearch);
   const allRecords = explicit.length ? readRecords(runLogFiles()) : records;
 
   const groups = unique(calls.map((c) => c.modelId)).map((modelId) => {
     const mine = calls.filter((c) => c.modelId === modelId);
-    const judged = judgedRuns(allRecords, new Set(mine.map((c) => c.runId)), modelId, rubricVersion);
+    const judged = judgedRuns(allRecords, modelId);
     const scored = mine
       .filter((c): c is ThinkCallRecord => c.callType === "think" && c.target !== "preflight" && !c.error)
-      .map((c) => ({ call: c, result: parseThink(c.raw!, c.expect) }));
+      // Unbriefed guests are ignored in contact lists (Dylan, Oct 21); older logs predate the field.
+      .map((c) => ({ call: c, result: parseThink(c.raw!, { ...c.expect, ignoreNames: unbriefedGuests(c.target) }) }));
     return { modelId, calls: mine, scored, judged, runs: runs.filter((r) => r.modelId === modelId) };
   });
   const scenarios = unique(groups.flatMap((g) => g.scored.map((s) => s.call.target))).sort();
@@ -79,13 +85,14 @@ function main(): void {
     ``,
     `"Top-3 without purpose" is the share of parsed raw outputs where a top-three contact by urgency has no purpose, which no repair can fix.`,
     ``,
-    `Gate 3 and gate 4 come from judge verdicts under rubric ${rubricVersion}; gate 3 so far covers the judged scenarios only.`,
+    `Gates 3–5 come from judge verdicts (each run's newest calibrated rubric); gate 3 so far covers the judged scenarios only. ` +
+      `"Clues" are self-incriminating clues: reported, not leaks.`,
     ``,
-    `| Model | Endpoint | Thinking off | Raw valid | Top-3 without purpose | Constrained valid | Gate 2 | Gate 3 (so far) | Gate 4 contradictions | Cost per call | Median latency |`,
-    `|---|---|---|---|---|---|---|---|---|---|---|`,
-    ...groups.map((g) => summaryRow(g.modelId, g.calls, g.scored, g.judged, g.runs)),
+    `| Model | Endpoint | Thinking off | Raw valid | Top-3 without purpose | Constrained valid | Gate 2 | Gate 3 (so far) | Gate 4 contradictions | Gate 5 | Cost per call | Median latency |`,
+    `|---|---|---|---|---|---|---|---|---|---|---|---|`,
+    ...groups.map((g) => summaryRow(g.modelId, g.calls, g.scored, g.judged, g.runs, allRecords)),
   ];
-  for (const g of groups) out.push(...modelReport(g.modelId, g.calls, g.scored, g.judged, g.runs));
+  for (const g of groups) out.push(...modelReport(g.modelId, g.calls, g.scored, g.judged, g.runs, allRecords));
 
   const report = out.join("\n");
   const path = join(RESULTS_DIR, `report-${new Date().toISOString().replace(/[:.]/g, "-")}.md`);
@@ -94,7 +101,14 @@ function main(): void {
   console.log(`\nSaved to ${path}`);
 }
 
-function summaryRow(modelId: string, calls: CallRecord[], scored: Scored[], judged: JudgedRun[], runs: RunRecord[]): string {
+function summaryRow(
+  modelId: string,
+  calls: CallRecord[],
+  scored: Scored[],
+  judged: JudgedRun[],
+  runs: RunRecord[],
+  records: LogRecord[],
+): string {
   const ep = runs.at(-1)?.endpoint;
   const off = calls.filter((c) => !c.error && c.target === "preflight" && c.variant === "thinking-off");
   const leaked = off.filter((c) => c.usage!.reasoningTokens > 0 || c.reasoning).length;
@@ -115,11 +129,18 @@ function summaryRow(modelId: string, calls: CallRecord[], scored: Scored[], judg
   return (
     `| ${modelId} | ${ep ? `${ep.tag} (${ep.quantization})` : "?"} | ${thinking} | ${cell("raw")} | ` +
     `${topThreeRate(scored.filter((s) => s.call.variant === "raw"))} | ${cell("constrained")} | ` +
-    `${gate2Verdict(scored).short} | ${gate3Cell(judged)} | ${gate4Cell(judged)} | $${costPerCall.toFixed(5)} | ${latency.toFixed(1)}s |`
+    `${gate2Verdict(scored).short} | ${gate3Cell(judged)} | ${gate4Cell(judged)} | ${gate5Cell(records, calls, modelId)} | $${costPerCall.toFixed(5)} | ${latency.toFixed(1)}s |`
   );
 }
 
-function modelReport(modelId: string, calls: CallRecord[], scored: Scored[], judged: JudgedRun[], runs: RunRecord[]): string[] {
+function modelReport(
+  modelId: string,
+  calls: CallRecord[],
+  scored: Scored[],
+  judged: JudgedRun[],
+  runs: RunRecord[],
+  records: LogRecord[],
+): string[] {
   const out: string[] = ["", `## ${modelId}`, ""];
   const run = runs.at(-1);
   if (run) {
@@ -142,6 +163,7 @@ function modelReport(modelId: string, calls: CallRecord[], scored: Scored[], jud
   out.push(...gate2Report(scored));
   out.push(...gate7PreviewReport(scored));
   out.push(...judgedReport(judged, calls));
+  out.push(...gate5Report(records, calls, modelId));
   out.push(...costReport(calls.filter((c) => !c.error)));
   return out;
 }

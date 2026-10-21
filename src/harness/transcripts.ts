@@ -1,15 +1,10 @@
 // Dialogue transcripts rebuilt from probe logs, for judging and scoring.
 
-import S4 from "../../scenarios/s4-light-pressure.ts";
-import S5a from "../../scenarios/s5a-interrogation-isabella.ts";
 import type { CharacterName } from "../game/roster.ts";
-import { RUBRIC_AMENDMENTS_ID, type TranscriptTurn } from "../judge/judge.ts";
+import { RUBRIC_AMENDMENTS_ID, type JudgeVerdict, type TranscriptTurn } from "../judge/judge.ts";
 import { formatHistoryLine } from "../prompt/assemble.ts";
-import type { CallRecord, LogRecord } from "./log.ts";
+import type { CallRecord, JudgeRecord, LogRecord } from "./log.ts";
 import type { DialogueScenario } from "./scenario.ts";
-
-/** Dialogue scenarios the judge handles, by command-line target. */
-export const DIALOGUES: Record<string, DialogueScenario> = { s4: S4, s5a: S5a };
 
 export interface Transcript {
   sourceRunId: string;
@@ -60,4 +55,40 @@ export function buildTranscripts(records: LogRecord[], modelId: string, s: Dialo
     }
     return { sourceRunId, modelId, target: s.id, sample, character: s.probed, turns, plannedTurns: s.turns.length };
   });
+}
+
+/** The calibration level of a rubric version: "0.8+cal2" → 2; 0 for the pre-calibration rubric. */
+export function calibrationLevel(rubricVersion: string): number {
+  return Number(rubricVersion.match(/\+cal(\d+)$/)?.[1] ?? 0);
+}
+
+export interface RunVerdict {
+  sourceRunId: string;
+  sample: number;
+  rubricVersion: string;
+  verdict: JudgeVerdict;
+  parseErrors: string[];
+}
+
+/**
+ * The verdict for each run of the model's latest probe run of a dialogue,
+ * under the newest calibrated rubric version that judged it. Verdicts from
+ * before calibration (a different shape) are never used.
+ */
+export function latestVerdicts(records: LogRecord[], modelId: string, s: DialogueScenario): RunVerdict[] {
+  const sourceRunId = records
+    .filter((r): r is CallRecord => r.type === "call" && r.modelId === modelId && r.target === s.id && r.turn !== undefined)
+    .at(-1)?.runId;
+  if (!sourceRunId) return [];
+  const best = new Map<number, JudgeRecord>();
+  for (const r of records) {
+    if (r.type !== "judge" || r.sourceRunId !== sourceRunId || r.target !== s.id || !r.verdict) continue;
+    const level = calibrationLevel(r.rubricVersion);
+    if (level === 0) continue;
+    const prev = best.get(r.sample);
+    if (!prev || level >= calibrationLevel(prev.rubricVersion)) best.set(r.sample, r);
+  }
+  return [...best.values()]
+    .map((r) => ({ sourceRunId, sample: r.sample, rubricVersion: r.rubricVersion, verdict: r.verdict!, parseErrors: r.parseErrors }))
+    .sort((a, b) => a.sample - b.sample);
 }

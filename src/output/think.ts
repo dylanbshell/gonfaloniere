@@ -43,6 +43,11 @@ export function thinkJsonSchema(conversation: ConversationKind): Record<string, 
 export interface ThinkExpectation {
   conversation: ConversationKind;
   livingOthers: string[];
+  /**
+   * Names whose contacts are dropped before any check, at every level:
+   * unbriefed guests present in the room but not on the roster (Dylan, Oct 21).
+   */
+  ignoreNames?: string[];
 }
 
 export type ThinkVerdict =
@@ -125,7 +130,8 @@ export function parseThink(raw: string, expect: ThinkExpectation): ThinkParseRes
     );
   }
 
-  const value = shape.data;
+  const ignored = new Set(expect.ignoreNames ?? []);
+  const value = { ...shape.data, contacts: shape.data.contacts.filter((c) => !ignored.has(c.name)) };
   const longPurposes = value.contacts
     .filter((c) => c.purpose !== null && c.purpose.trim().split(/\s+/).length > 6)
     .map((c) => `purpose for ${c.name} is over six words`);
