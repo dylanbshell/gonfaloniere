@@ -83,7 +83,8 @@ async function main(): Promise<void> {
   const endpoint = await fetchEndpoint(model);
   const runId = `${new Date().toISOString().replace(/[:.]/g, "-")}-${model.id}`;
   const log = new RunLog(runId);
-  const budget = new Budget(config.budget.runUsd, config.budget.totalUsd, priorSpend());
+  const runCap = model.runUsd ?? config.budget.runUsd;
+  const budget = new Budget(runCap, config.budget.totalUsd, priorSpend());
 
   log.write({
     type: "run",
@@ -113,7 +114,7 @@ async function main(): Promise<void> {
   );
   console.log(`Docs: ${versionsLine(docs)}`);
   console.log(
-    `Budget: $${budget.priorSpendUsd.toFixed(4)} spent in earlier runs; caps $${config.budget.runUsd} this run, $${config.budget.totalUsd} total\n`,
+    `Budget: $${budget.priorSpendUsd.toFixed(4)} spent in earlier runs; caps $${runCap} this run, $${config.budget.totalUsd} total\n`,
   );
 
   let calls = 0;
@@ -197,7 +198,7 @@ async function main(): Promise<void> {
   }
 
   if (stopped) {
-    const reason = `Budget cap reached: the next call could exceed $${config.budget.runUsd} this run or $${config.budget.totalUsd} total`;
+    const reason = `Budget cap reached: the next call could exceed $${runCap} this run or $${config.budget.totalUsd} total`;
     log.write({ type: "stop", runId, reason, spentUsd: budget.spentUsd, at: new Date().toISOString() });
     console.log(`\nSTOPPED. ${reason}.`);
   }

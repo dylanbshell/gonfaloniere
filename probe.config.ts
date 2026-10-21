@@ -21,6 +21,8 @@ export interface ModelConfig {
   noTemperature?: boolean;
   /** Not a candidate: a comparison point only (e.g. the frontier ceiling). */
   role?: "ceiling";
+  /** Per-invocation cap for this model, when its calls cost more than the default allows. */
+  runUsd?: number;
 }
 
 export const config = {
@@ -129,6 +131,8 @@ export const config = {
       provider: "openai", // $2.50/$15, first-party endpoint
       noTemperature: true,
       role: "ceiling",
+      // S5a and S5b together are estimated at ~$3.40.
+      runUsd: 5,
     },
   ] as ModelConfig[],
 };
