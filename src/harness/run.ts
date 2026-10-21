@@ -4,7 +4,7 @@
 //   op run --env-file=.env -- npm run probe          pre-flight, then S1
 //   op run --env-file=.env -- npm run probe -- s1 --samples 3
 //
-// Targets: preflight, s1, s2 (default: all, in that order).
+// Targets: preflight, s1, s2, s3 (default: all, in that order).
 // Options: --model <id>, --samples <n> (override per mode), --modes raw,constrained
 
 import { execSync } from "node:child_process";
@@ -12,6 +12,7 @@ import { parseArgs } from "node:util";
 import { config, type ModelConfig } from "../../probe.config.ts";
 import S1 from "../../scenarios/s1-quiet-capannello.ts";
 import S2 from "../../scenarios/s2-accusation.ts";
+import S3 from "../../scenarios/s3-deal-struck.ts";
 import type { CharacterName } from "../game/roster.ts";
 import { parseThink, thinkJsonSchema, type ThinkExpectation } from "../output/think.ts";
 import { assembleThinkPrompt } from "../prompt/assemble.ts";
@@ -21,7 +22,7 @@ import { RunLog, priorSpend, type CallRecord } from "./log.ts";
 import { apiKey, callModel, fetchEndpoint, makeClient, type EndpointInfo } from "./openrouter.ts";
 import { thinkContext, type DecodingMode, type ThinkScenario } from "./scenario.ts";
 
-const SCENARIOS: Record<string, ThinkScenario> = { s1: S1, s2: S2 };
+const SCENARIOS: Record<string, ThinkScenario> = { s1: S1, s2: S2, s3: S3 };
 const TARGETS = ["preflight", ...Object.keys(SCENARIOS)];
 
 interface Job {

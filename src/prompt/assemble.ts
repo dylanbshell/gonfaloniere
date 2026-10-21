@@ -26,7 +26,12 @@ export type ConversationKind = "capannello" | "colloquio";
 
 export type HistoryLine =
   | { kind: "speech"; speaker: string; addressee?: string; text: string }
-  | { kind: "notaio"; text: string };
+  | { kind: "notaio"; text: string }
+  /**
+   * Something the system records that isn't speech, such as a payment. TD
+   * doesn't fix a format yet; shown as a bracketed line.
+   */
+  | { kind: "event"; text: string };
 
 export interface StateValues {
   phaseLabel: string;
@@ -66,6 +71,31 @@ export interface AssembledPrompt {
 
 export function assembleThinkPrompt(t: PromptTemplates, ctx: CharacterContext): AssembledPrompt {
   return assemble(t, ctx, fill(t.think, { character_name: ctx.characterName }));
+}
+
+export interface SpeakOptions {
+  /** The {allowed_actions} text, from game/actions.ts. */
+  allowedActions: string;
+  /**
+   * A Colloquio is closing: the other character ended it ("other-ended"), or
+   * it hit the utterance cap ("cap"). Omitted otherwise.
+   */
+  closing?: { reason: "other-ended"; other: string } | { reason: "cap" };
+}
+
+export function assembleSpeakPrompt(t: PromptTemplates, ctx: CharacterContext, opts: SpeakOptions): AssembledPrompt {
+  const closing =
+    opts.closing?.reason === "other-ended"
+      ? `${opts.closing.other} is ending this private conversation. This is your last line here.`
+      : opts.closing?.reason === "cap"
+        ? "This private conversation must end now. This is your last line here."
+        : "";
+  const task = fill(t.speak, {
+    character_name: ctx.characterName,
+    closing_line_note: closing,
+    allowed_actions: opts.allowedActions,
+  }).replace("It is your turn to speak. \n", "It is your turn to speak.\n");
+  return assemble(t, ctx, task);
 }
 
 function assemble(t: PromptTemplates, ctx: CharacterContext, task: string): AssembledPrompt {
@@ -133,6 +163,7 @@ function memoryBlock(t: PromptTemplates, ctx: CharacterContext): string {
 
 export function formatHistoryLine(line: HistoryLine): string {
   if (line.kind === "notaio") return `[Il Notaio] ${line.text}`;
+  if (line.kind === "event") return `[${line.text}]`;
   return line.addressee
     ? `${line.speaker} (to ${line.addressee}): ${line.text}`
     : `${line.speaker}: ${line.text}`;

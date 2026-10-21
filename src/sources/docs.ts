@@ -28,6 +28,7 @@ export interface Tunables {
   vote_price: number;
   pension_size: number;
   embassy_treasury: number;
+  colloquio_cap: number;
 }
 
 export interface DocSources {
@@ -154,7 +155,8 @@ function parseTunables(mech: string): Tunables {
   const rows = new Map<string, number>();
   for (const line of section(mech, "## Tunable Values")) {
     const cells = line.split("|").map((c) => c.trim());
-    const value = cells[2]?.match(/^\d+/);
+    // First number in the cell: "15 Florins (…)", "About 6 utterances (3 each)".
+    const value = cells[2]?.match(/\d+/);
     if (cells[1] && value) rows.set(cells[1], Number(value[0]));
   }
   const get = (lever: string): number => {
@@ -168,5 +170,6 @@ function parseTunables(mech: string): Tunables {
     vote_price: get("Vote price"),
     pension_size: get("Pension size"),
     embassy_treasury: get("Embassy treasury"),
+    colloquio_cap: get("Colloquio cap"),
   };
 }

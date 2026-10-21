@@ -129,6 +129,7 @@ function modelReport(modelId: string, calls: CallRecord[], scored: Scored[], run
   out.push(...preflightReport(calls.filter((c) => c.target === "preflight" && !c.error)));
   out.push(...gate1Report(scored));
   out.push(...gate2Report(scored));
+  out.push(...gate7PreviewReport(scored));
   out.push(...costReport(calls.filter((c) => !c.error)));
   return out;
 }
@@ -285,6 +286,23 @@ function gate2Report(scored: Scored[]): string[] {
       );
     }
   }
+  return out;
+}
+
+/** S3: does `done` fire once the deal is struck? (Gate 7 preview; reported, not gated.) */
+function gate7PreviewReport(scored: Scored[]): string[] {
+  const s3 = scored.filter((s) => s.call.target === "S3" && s.result.strict.value);
+  if (!s3.length) return [];
+  const out = ["", "### Gate 7 preview: `done` after a deal (S3)", "", "| Character | n | done true | done false | done null or missing |", "|---|---|---|---|---|"];
+  for (const character of [...unique(s3.map((s) => s.call.character)), "all"]) {
+    const rows = s3.filter((s) => character === "all" || s.call.character === character).map((s) => s.result.strict.value!.done);
+    const n = (pred: (d: boolean | null | undefined) => boolean) => rows.filter(pred).length;
+    out.push(
+      `| ${character === "all" ? "**all**" : character} | ${rows.length} | ${pct(n((d) => d === true) / rows.length)} | ` +
+        `${n((d) => d === false)} | ${n((d) => d === null || d === undefined)} |`,
+    );
+  }
+  out.push("", "*Outputs that failed to parse at all are left out.*");
   return out;
 }
 

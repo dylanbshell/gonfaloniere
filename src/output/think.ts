@@ -3,6 +3,7 @@
 
 import { z } from "zod";
 import { resolveAlias } from "../game/roster.ts";
+import { parseJson } from "./json.ts";
 import type { ConversationKind } from "../prompt/assemble.ts";
 
 const score = z.int().min(0).max(100);
@@ -301,22 +302,6 @@ function topThreePurposes(contacts: ThinkOutput["contacts"]): {
   };
 }
 
-function parseJson(raw: string): { json: unknown; fenced: boolean; error?: string } {
-  const text = raw.trim();
-  try {
-    return { json: JSON.parse(text), fenced: false };
-  } catch {
-    const m = text.match(/^```(?:json)?\s*\n([\s\S]*?)\n?```$/);
-    if (m?.[1] !== undefined) {
-      try {
-        return { json: JSON.parse(m[1]), fenced: true };
-      } catch (e) {
-        return { json: null, fenced: true, error: `invalid JSON inside code fence: ${(e as Error).message}` };
-      }
-    }
-    return { json: null, fenced: false, error: "not JSON" };
-  }
-}
 
 /** Every "Other living guest" exactly once, exact spelling, and no one else. */
 function nameErrors(v: ThinkOutput, expect: ThinkExpectation): string[] {
