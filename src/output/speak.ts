@@ -10,7 +10,8 @@ import { resolveAlias } from "../game/roster.ts";
 import { parseJson } from "./json.ts";
 
 const action = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("bribe"), amount: z.int().positive() }),
+  // Any whole amount parses; a non-positive one is rejected like any other illegal action.
+  z.object({ type: z.literal("bribe"), amount: z.int() }),
   z.object({ type: z.literal("borrow") }),
   z.object({ type: z.literal("repay"), for: z.string() }),
 ]);
@@ -110,6 +111,7 @@ export function parseSpeak(raw: string, expect: SpeakExpectation): SpeakParseRes
 
 function rejectReason(a: SpeakAction, expect: SpeakExpectation): string | null {
   if (!expect.allowedActions.includes(a.type)) return `${a.type} is not allowed right now`;
+  if (a.type === "bribe" && a.amount <= 0) return `bribe of ${a.amount} Florins`;
   if (a.type === "bribe" && a.amount > expect.florins) return `bribe of ${a.amount} exceeds purse of ${expect.florins}`;
   return null;
 }

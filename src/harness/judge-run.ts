@@ -4,48 +4,25 @@
 //   op run --env-file=.env -- npm run judge -- s4 s5a --model qwen3.8-27b
 //
 // Judges each model's latest run of each target. A run that already has a
-// verdict is never judged again, so verdicts stay fixed once recorded.
+// verdict under the current rubric version is never judged again, so verdicts
+// stay fixed once recorded; a new rubric version judges runs afresh and keeps
+// the old verdicts in the logs.
 
 import { parseArgs } from "node:util";
 import { config } from "../../probe.config.ts";
-import S4 from "../../scenarios/s4-light-pressure.ts";
-import S5a from "../../scenarios/s5a-interrogation-isabella.ts";
-import type { CharacterName } from "../game/roster.ts";
-import { buildJudgePrompt, checkVerdict, judgeJsonSchema, type TranscriptTurn } from "../judge/judge.ts";
+import { buildJudgePrompt, checkVerdict, isLeak, judgeJsonSchema } from "../judge/judge.ts";
 import { formatHistoryLine } from "../prompt/assemble.ts";
 import { loadDocs } from "../sources/docs.ts";
 import { Budget, worstCaseCost } from "./budget.ts";
 import { writeReview } from "./review.ts";
-import {
-  RunLog,
-  gitCommit,
-  priorSpend,
-  readRecords,
-  runLogFiles,
-  type CallRecord,
-  type JudgeRecord,
-  type LogRecord,
-} from "./log.ts";
+import { RunLog, gitCommit, priorSpend, readRecords, runLogFiles, type JudgeRecord } from "./log.ts";
 import { apiKey, callModel, fetchEndpoint, makeClient } from "./openrouter.ts";
-import type { DialogueScenario } from "./scenario.ts";
-
-const DIALOGUES: Record<string, DialogueScenario> = { s4: S4, s5a: S5a };
+import { DIALOGUES, buildTranscripts, currentRubricVersion } from "./transcripts.ts";
 
 const { values: opts, positionals } = parseArgs({
   allowPositionals: true,
   options: { model: { type: "string" } },
 });
-
-export interface Transcript {
-  sourceRunId: string;
-  modelId: string;
-  target: string;
-  sample: number;
-  character: CharacterName;
-  turns: TranscriptTurn[];
-  /** Turns the run was meant to have; fewer means it was aborted. */
-  plannedTurns: number;
-}
 
 async function main(): Promise<void> {
   const targets = positionals.length ? positionals.map((t) => t.toLowerCase()) : Object.keys(DIALOGUES);
@@ -56,15 +33,21 @@ async function main(): Promise<void> {
   const modelId = opts.model;
 
   const docs = loadDocs(config.docs);
+  const rubricVersion = currentRubricVersion(docs.versions.modelsResearch);
   const records = readRecords(runLogFiles());
   const transcripts = targets.flatMap((t) => buildTranscripts(records, modelId, DIALOGUES[t]!));
   const judged = new Set(
     records
-      .filter((r): r is JudgeRecord => r.type === "judge" && !r.error && r.verdict !== null)
+      .filter(
+        (r): r is JudgeRecord =>
+          r.type === "judge" && !r.error && r.verdict !== null && r.rubricVersion === rubricVersion,
+      )
       .map((r) => `${r.sourceRunId}|${r.target}|${r.sample}`),
   );
   const pending = transcripts.filter((t) => !judged.has(`${t.sourceRunId}|${t.target}|${t.sample}`));
-  console.log(`${transcripts.length} runs found; ${transcripts.length - pending.length} already judged; ${pending.length} to judge`);
+  console.log(
+    `${transcripts.length} runs found; ${transcripts.length - pending.length} already judged under rubric ${rubricVersion}; ${pending.length} to judge`,
+  );
 
   if (pending.length) {
     const judge = config.judge;
@@ -129,7 +112,7 @@ async function main(): Promise<void> {
           character: t.character,
           judgeModel: judge.slug,
           judgeProvider: judge.provider,
-          rubricVersion: docs.versions.modelsResearch ?? "?",
+          rubricVersion,
           prompt,
           raw: res.ok ? res.content : null,
           reasoning: res.ok ? res.reasoning : null,
@@ -150,7 +133,9 @@ async function main(): Promise<void> {
             (record.error
               ? `ERROR ${record.error.message}`
               : v
-                ? `${v.turns.filter((x) => x.leak).length} leak turn(s), first non-deliberate ${v.first_leak_turn ?? "none"}, ` +
+                ? `leaks ${v.turns.filter((x) => isLeak(x.reveal)).length} ` +
+                  `(capitulated ${v.turns.filter((x) => x.reveal === "capitulated").length}), ` +
+                  `deliberate ${v.turns.filter((x) => x.reveal === "deliberate").length}, first leak ${v.first_leak_turn ?? "none"}, ` +
                   `${v.contradictions.length} contradiction(s)`
                 : `UNUSABLE: ${record.parseErrors.join("; ")}`) +
             `  ${(res.latencyMs / 1000).toFixed(1)}s $${cost.toFixed(4)}` +
@@ -163,43 +148,8 @@ async function main(): Promise<void> {
     console.log(`Judging spent $${budget.spentUsd.toFixed(4)}. Log: ${log.path}`);
   }
 
-  const path = writeReview(modelId, targets.map((t) => DIALOGUES[t]!.id), transcripts);
+  const path = writeReview(modelId, targets.map((t) => DIALOGUES[t]!.id), transcripts, rubricVersion);
   console.log(`Review file: ${path}`);
-}
-
-/**
- * Rebuilds each run of a dialogue from the model's latest run of that target.
- * An aborted run ends at the turn with no usable line; plannedTurns shows how
- * many it should have had.
- */
-function buildTranscripts(records: LogRecord[], modelId: string, s: DialogueScenario): Transcript[] {
-  const calls = records.filter(
-    (r): r is CallRecord => r.type === "call" && r.modelId === modelId && r.target === s.id && r.turn !== undefined,
-  );
-  const sourceRunId = calls.at(-1)?.runId;
-  if (!sourceRunId) return [];
-  const mine = calls.filter((c) => c.runId === sourceRunId);
-
-  return [...new Set(mine.map((c) => c.sample))].sort((a, b) => a - b).map((sample) => {
-    const turns: TranscriptTurn[] = [];
-    for (let turn = 1; turn <= s.turns.length; turn++) {
-      const think = mine.find((c) => c.sample === sample && c.turn === turn && c.callType === "think");
-      const spoke = mine.find(
-        (c) => c.sample === sample && c.turn === turn && c.callType === "speak" && c.parsed?.verdict === "valid",
-      );
-      if (!think && !spoke) break;
-      const said = spoke?.callType === "speak" ? spoke.parsed : null;
-      turns.push({
-        turn,
-        before: s.turns[turn - 1]!.map(formatHistoryLine),
-        thought: think?.callType === "think" ? (think.parsed?.repaired.value?.thought ?? null) : null,
-        utterance: said?.value?.utterance ?? null,
-        addressee: said?.addressee ?? null,
-      });
-      if (!spoke) break;
-    }
-    return { sourceRunId, modelId, target: s.id, sample, character: s.probed, turns, plannedTurns: s.turns.length };
-  });
 }
 
 main().catch((e: Error) => {

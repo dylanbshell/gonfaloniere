@@ -1,5 +1,5 @@
 // Scores logged runs against the Capability Probe Plan's thresholds (Models &
-// Research v0.7, "Scoring and pass thresholds"). Re-validates every raw output
+// Research v0.8, "Scoring and pass thresholds"). Re-validates every raw output
 // with the current parser, so a parser fix rescoring old logs needs no new calls.
 //
 //   npm run score                          each model's latest run of each target
@@ -8,8 +8,12 @@
 
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { config } from "../../probe.config.ts";
 import { SCORING_LEVELS, parseThink, type ScoringLevel, type ThinkParseResult } from "../output/think.ts";
+import { loadDocs } from "../sources/docs.ts";
 import { RESULTS_DIR, readRecords, runLogFiles, type CallRecord, type RunRecord, type ThinkCallRecord } from "./log.ts";
+import { gate3Cell, gate4Cell, judgedReport, judgedRuns, type JudgedRun } from "./score-judged.ts";
+import { currentRubricVersion } from "./transcripts.ts";
 
 // Set before running so results can't move the goalposts. The raw bar applies
 // at every scoring level; constrained decoding ran in S1 only.
@@ -46,12 +50,17 @@ function main(): void {
   const runIds = new Set(calls.map((c) => c.runId));
   const runs = records.filter((r): r is RunRecord => r.type === "run" && runIds.has(r.runId));
 
+  // Judge verdicts under the current rubric, for the probe runs kept above.
+  const rubricVersion = currentRubricVersion(loadDocs(config.docs).versions.modelsResearch);
+  const allRecords = explicit.length ? readRecords(runLogFiles()) : records;
+
   const groups = unique(calls.map((c) => c.modelId)).map((modelId) => {
     const mine = calls.filter((c) => c.modelId === modelId);
+    const judged = judgedRuns(allRecords, new Set(mine.map((c) => c.runId)), modelId, rubricVersion);
     const scored = mine
       .filter((c): c is ThinkCallRecord => c.callType === "think" && c.target !== "preflight" && !c.error)
       .map((c) => ({ call: c, result: parseThink(c.raw!, c.expect) }));
-    return { modelId, calls: mine, scored, runs: runs.filter((r) => r.modelId === modelId) };
+    return { modelId, calls: mine, scored, judged, runs: runs.filter((r) => r.modelId === modelId) };
   });
   const scenarios = unique(groups.flatMap((g) => g.scored.map((s) => s.call.target))).sort();
 
@@ -70,11 +79,13 @@ function main(): void {
     ``,
     `"Top-3 without purpose" is the share of parsed raw outputs where a top-three contact by urgency has no purpose, which no repair can fix.`,
     ``,
-    `| Model | Endpoint | Thinking off | Raw valid | Top-3 without purpose | Constrained valid | Gate 2 | Cost per call | Median latency |`,
-    `|---|---|---|---|---|---|---|---|---|`,
-    ...groups.map((g) => summaryRow(g.modelId, g.calls, g.scored, g.runs)),
+    `Gate 3 and gate 4 come from judge verdicts under rubric ${rubricVersion}; gate 3 so far covers the judged scenarios only.`,
+    ``,
+    `| Model | Endpoint | Thinking off | Raw valid | Top-3 without purpose | Constrained valid | Gate 2 | Gate 3 (so far) | Gate 4 contradictions | Cost per call | Median latency |`,
+    `|---|---|---|---|---|---|---|---|---|---|---|`,
+    ...groups.map((g) => summaryRow(g.modelId, g.calls, g.scored, g.judged, g.runs)),
   ];
-  for (const g of groups) out.push(...modelReport(g.modelId, g.calls, g.scored, g.runs));
+  for (const g of groups) out.push(...modelReport(g.modelId, g.calls, g.scored, g.judged, g.runs));
 
   const report = out.join("\n");
   const path = join(RESULTS_DIR, `report-${new Date().toISOString().replace(/[:.]/g, "-")}.md`);
@@ -83,7 +94,7 @@ function main(): void {
   console.log(`\nSaved to ${path}`);
 }
 
-function summaryRow(modelId: string, calls: CallRecord[], scored: Scored[], runs: RunRecord[]): string {
+function summaryRow(modelId: string, calls: CallRecord[], scored: Scored[], judged: JudgedRun[], runs: RunRecord[]): string {
   const ep = runs.at(-1)?.endpoint;
   const off = calls.filter((c) => !c.error && c.target === "preflight" && c.variant === "thinking-off");
   const leaked = off.filter((c) => c.usage!.reasoningTokens > 0 || c.reasoning).length;
@@ -104,11 +115,11 @@ function summaryRow(modelId: string, calls: CallRecord[], scored: Scored[], runs
   return (
     `| ${modelId} | ${ep ? `${ep.tag} (${ep.quantization})` : "?"} | ${thinking} | ${cell("raw")} | ` +
     `${topThreeRate(scored.filter((s) => s.call.variant === "raw"))} | ${cell("constrained")} | ` +
-    `${gate2Verdict(scored).short} | $${costPerCall.toFixed(5)} | ${latency.toFixed(1)}s |`
+    `${gate2Verdict(scored).short} | ${gate3Cell(judged)} | ${gate4Cell(judged)} | $${costPerCall.toFixed(5)} | ${latency.toFixed(1)}s |`
   );
 }
 
-function modelReport(modelId: string, calls: CallRecord[], scored: Scored[], runs: RunRecord[]): string[] {
+function modelReport(modelId: string, calls: CallRecord[], scored: Scored[], judged: JudgedRun[], runs: RunRecord[]): string[] {
   const out: string[] = ["", `## ${modelId}`, ""];
   const run = runs.at(-1);
   if (run) {
@@ -130,6 +141,7 @@ function modelReport(modelId: string, calls: CallRecord[], scored: Scored[], run
   out.push(...gate1Report(scored));
   out.push(...gate2Report(scored));
   out.push(...gate7PreviewReport(scored));
+  out.push(...judgedReport(judged, calls));
   out.push(...costReport(calls.filter((c) => !c.error)));
   return out;
 }
@@ -294,11 +306,14 @@ function gate7PreviewReport(scored: Scored[]): string[] {
   const s3 = scored.filter((s) => s.call.target === "S3" && s.result.strict.value);
   if (!s3.length) return [];
   const out = ["", "### Gate 7 preview: `done` after a deal (S3)", "", "| Character | n | done true | done false | done null or missing |", "|---|---|---|---|---|"];
-  for (const character of [...unique(s3.map((s) => s.call.character)), "all"]) {
-    const rows = s3.filter((s) => character === "all" || s.call.character === character).map((s) => s.result.strict.value!.done);
+  for (const character of unique(s3.map((s) => s.call.character))) {
+    const rows = s3.filter((s) => s.call.character === character).map((s) => s.result.strict.value!.done);
     const n = (pred: (d: boolean | null | undefined) => boolean) => rows.filter(pred).length;
+    // Lupo's plot point needs 5 Florins and he's been paid 3, so he has reason
+    // to continue: the preview counts Isabella only (Models & Research v0.8).
+    const label = character === "Contessa Isabella" ? "**Contessa Isabella** (counted)" : `${character} (not counted: scenario flaw)`;
     out.push(
-      `| ${character === "all" ? "**all**" : character} | ${rows.length} | ${pct(n((d) => d === true) / rows.length)} | ` +
+      `| ${label} | ${rows.length} | ${pct(n((d) => d === true) / rows.length)} | ` +
         `${n((d) => d === false)} | ${n((d) => d === null || d === undefined)} |`,
     );
   }
