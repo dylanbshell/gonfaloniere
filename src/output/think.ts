@@ -2,6 +2,7 @@
 // the gate 1 validity rules in Models & Research. Reusable by the engine.
 
 import { z } from "zod";
+import { resolveAlias } from "../game/roster.ts";
 import type { ConversationKind } from "../prompt/assemble.ts";
 
 const score = z.int().min(0).max(100);
@@ -12,12 +13,16 @@ const contact = z.object({
   purpose: z.string().nullable(),
 });
 
-/** Lenient shape check for parsing: extra keys are ignored. */
+/**
+ * Lenient shape check for parsing: extra keys are ignored, and a missing
+ * `done` parses so the repaired level can fill it outside a Colloquio. The
+ * strict and revised levels still count a missing `done` as a syntax failure.
+ */
 export const ThinkOutput = z.object({
   thought: z.string().min(1),
   importance: score,
   contacts: z.array(contact),
-  done: z.boolean().nullable(),
+  done: z.boolean().nullable().optional(),
 });
 
 export type ThinkOutput = z.infer<typeof ThinkOutput>;
@@ -52,10 +57,13 @@ export type ThinkVerdict =
  *   most urgent contacts is invalid
  * - revised: code keeps purposes only for the three most urgent; extras are a warning
  * - repaired: what the engine could use after simple code fixes. On top of
- *   revised: fences stripped, near-miss names matched to the roster, missing
- *   contacts filled with urgency 0, `done` ignored outside a Colloquio
- * At every level a top-three contact without a purpose is invalid, and one
- * fenced block or bare JSON parses while prose outside it doesn't.
+ *   revised: fences stripped, aliases and near-miss names matched to the
+ *   roster, duplicate contacts dropped (higher urgency kept), missing contacts
+ *   filled with urgency 0, `done` ignored outside a Colloquio and filled with
+ *   null there if missing (Oct 21 additions: aliases, duplicates, missing done)
+ * At every level a top-three contact without a purpose is invalid (it is also
+ * reported on its own), and one fenced block or bare JSON parses while prose
+ * outside it doesn't.
  */
 export type ScoringLevel = "strict" | "revised" | "repaired";
 export const SCORING_LEVELS: readonly ScoringLevel[] = ["strict", "revised", "repaired"];
@@ -71,10 +79,17 @@ export interface LevelResult {
 export interface Repairs {
   fenceStripped: boolean;
   purposesDropped: number;
-  /** [as written, roster name] */
+  /** [as written, roster name], matched through the roster's alias table. */
+  aliasesMatched: [string, string][];
+  /** [as written, roster name], matched as a near-miss spelling. */
   namesMatched: [string, string][];
+  /** Names listed more than once; the higher-urgency entry was kept. */
+  duplicatesDropped: string[];
   contactsFilled: string[];
+  /** `done` was true or false outside a Colloquio and was set to null. */
   doneIgnored: boolean;
+  /** `done` was missing outside a Colloquio and was set to null. */
+  doneFilled: boolean;
 }
 
 export interface ThinkParseResult {
@@ -85,12 +100,17 @@ export interface ThinkParseResult {
   repaired: LevelResult;
   /** What the repaired level changed; null when the output didn't parse. */
   repairs: Repairs | null;
+  /**
+   * A top-three contact (by urgency, after repairs) has no purpose. No code
+   * repair can fix it, so it's reported on its own; null when the output didn't parse.
+   */
+  topThreeWithoutPurpose: boolean | null;
 }
 
 export function parseThink(raw: string, expect: ThinkExpectation): ThinkParseResult {
   const syntax = (errors: string[], fenced: boolean): ThinkParseResult => {
     const failed: LevelResult = { verdict: "syntax", errors, warnings: [], value: null };
-    return { fenced, strict: failed, revised: failed, repaired: failed, repairs: null };
+    return { fenced, strict: failed, revised: failed, repaired: failed, repairs: null, topThreeWithoutPurpose: null };
   };
 
   const { json, fenced, error } = parseJson(raw);
@@ -112,12 +132,13 @@ export function parseThink(raw: string, expect: ThinkExpectation): ThinkParseRes
   const purposes = topThreePurposes(value.contacts);
   const extraNote = purposes.extra.length ? `${purposes.extra.length} purpose(s) beyond the top three` : null;
 
-  const level = (errors: string[], warnings: string[], v: ThinkOutput): LevelResult => ({
-    verdict: errors.length ? "meaning" : "valid",
-    errors,
+  const level = (errors: string[], warnings: string[], v: ThinkOutput, syntaxErrors: string[] = []): LevelResult => ({
+    verdict: syntaxErrors.length ? "syntax" : errors.length ? "meaning" : "valid",
+    errors: [...syntaxErrors, ...errors],
     warnings,
-    value: v,
+    value: syntaxErrors.length ? null : v,
   });
+  const doneMissing = value.done === undefined ? ["done: missing"] : [];
 
   const fixed = repair(value, expect);
   const fixedPurposes = topThreePurposes(fixed.value.contacts);
@@ -125,10 +146,15 @@ export function parseThink(raw: string, expect: ThinkExpectation): ThinkParseRes
   const repairNotes = [
     ...(fenced ? ["fence stripped"] : []),
     ...(repairs.purposesDropped ? [`${repairs.purposesDropped} purpose(s) beyond the top three, dropped`] : []),
+    ...repairs.aliasesMatched.map(([from, to]) => `alias "${from}" matched to "${to}"`),
     ...repairs.namesMatched.map(([from, to]) => `name "${from}" matched to "${to}"`),
+    ...repairs.duplicatesDropped.map((n) => `duplicate "${n}" dropped`),
     ...(repairs.contactsFilled.length ? [`${repairs.contactsFilled.length} missing contact(s) filled`] : []),
     ...(repairs.doneIgnored ? ["done ignored outside a Colloquio"] : []),
+    ...(repairs.doneFilled ? ["missing done set to null outside a Colloquio"] : []),
   ];
+  const repairedDoneMissing =
+    fixed.value.done === undefined ? ["done: missing in a Colloquio"] : [];
 
   return {
     fenced,
@@ -136,18 +162,26 @@ export function parseThink(raw: string, expect: ThinkExpectation): ThinkParseRes
       [...common, ...missingPurposeErrors(purposes.missing), ...(extraNote ? [`contacts: ${extraNote}`] : [])],
       longPurposes,
       value,
+      doneMissing,
     ),
     revised: level(
       [...common, ...missingPurposeErrors(purposes.missing)],
       [...longPurposes, ...(extraNote ? [`${extraNote}, dropped`] : [])],
       dropPurposes(value, purposes.extra),
+      doneMissing,
     ),
     repaired: level(
-      [...nameErrors(fixed.value, expect), ...missingPurposeErrors(fixedPurposes.missing)],
+      [
+        ...nameErrors(fixed.value, expect),
+        ...doneErrors(fixed.value, expect),
+        ...missingPurposeErrors(fixedPurposes.missing),
+      ],
       [...longPurposes, ...repairNotes],
       dropPurposes(fixed.value, fixedPurposes.extra),
+      repairedDoneMissing,
     ),
     repairs,
+    topThreeWithoutPurpose: fixedPurposes.missing > 0,
   };
 }
 
@@ -164,22 +198,49 @@ function repair(
   value: ThinkOutput,
   expect: ThinkExpectation,
 ): { value: ThinkOutput; repairs: Omit<Repairs, "fenceStripped" | "purposesDropped"> } {
-  const listed = new Set(value.contacts.map((c) => c.name).filter((n) => expect.livingOthers.includes(n)));
+  const expected = (n: string) => expect.livingOthers.includes(n);
+  const listed = new Set(value.contacts.map((c) => c.name).filter(expected));
+  const aliasesMatched: [string, string][] = [];
   const namesMatched: [string, string][] = [];
-  const contacts = value.contacts.map((c) => {
-    if (expect.livingOthers.includes(c.name)) return c;
+  const renamed = value.contacts.map((c) => {
+    if (expected(c.name)) return c;
+    // An alias of someone already listed is renamed too; the duplicate rule
+    // below then keeps the higher-urgency entry.
+    const alias = resolveAlias(c.name);
+    if (alias && expected(alias)) {
+      listed.add(alias);
+      aliasesMatched.push([c.name, alias]);
+      return { ...c, name: alias };
+    }
     const match = nearMiss(c.name, expect.livingOthers.filter((n) => !listed.has(n)));
     if (!match) return c;
     listed.add(match);
     namesMatched.push([c.name, match]);
     return { ...c, name: match };
   });
+
+  // Duplicates: keep the higher-urgency entry (the first, on a tie).
+  const best = new Map<string, number>();
+  renamed.forEach((c, i) => {
+    const b = best.get(c.name);
+    if (b === undefined || c.urgency > renamed[b]!.urgency) best.set(c.name, i);
+  });
+  const duplicatesDropped: string[] = [];
+  const contacts = renamed.filter((c, i) => {
+    if (!expected(c.name) || best.get(c.name) === i) return true;
+    if (!duplicatesDropped.includes(c.name)) duplicatesDropped.push(c.name);
+    return false;
+  });
+
   const contactsFilled = expect.livingOthers.filter((n) => !listed.has(n));
   contacts.push(...contactsFilled.map((name) => ({ name, urgency: 0, purpose: null })));
-  const doneIgnored = expect.conversation === "capannello" && value.done !== null;
+
+  const outsideColloquio = expect.conversation === "capannello";
+  const doneIgnored = outsideColloquio && value.done !== null && value.done !== undefined;
+  const doneFilled = outsideColloquio && value.done === undefined;
   return {
-    value: { ...value, contacts, done: doneIgnored ? null : value.done },
-    repairs: { namesMatched, contactsFilled, doneIgnored },
+    value: { ...value, contacts, done: outsideColloquio ? null : value.done },
+    repairs: { aliasesMatched, namesMatched, duplicatesDropped, contactsFilled, doneIgnored, doneFilled },
   };
 }
 
@@ -274,6 +335,7 @@ function nameErrors(v: ThinkOutput, expect: ThinkExpectation): string[] {
 }
 
 function doneErrors(v: ThinkOutput, expect: ThinkExpectation): string[] {
+  if (v.done === undefined) return [];
   if (expect.conversation === "capannello" && v.done !== null) return [`done: ${v.done} in a Capannello, expected null`];
   if (expect.conversation === "colloquio" && v.done === null) return ["done: null in a Colloquio, expected true or false"];
   return [];

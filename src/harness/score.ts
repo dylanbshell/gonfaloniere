@@ -62,12 +62,16 @@ function main(): void {
     ``,
     `## Summary`,
     ``,
+    `**Gate 1 status: pending Technical Design's contact decision.** No model is eliminated on gate 1 for now (Dylan, Oct 21).`,
+    ``,
     `Gate 1 valid rates as **strict / revised / repaired** (Models & Research v0.7, Scoring). ` +
       `Raw covers ${scenarios.join(", ")}; constrained ran in S1 only. Thresholds: raw ≥${pct(GATE1.raw)} at each level, ` +
       `constrained ≥${pct(GATE1.constrained)}. Bold = below threshold.`,
     ``,
-    `| Model | Endpoint | Thinking off | Raw valid | Constrained valid | Gate 2 | Cost per call | Median latency |`,
-    `|---|---|---|---|---|---|---|---|`,
+    `"Top-3 without purpose" is the share of parsed raw outputs where a top-three contact by urgency has no purpose, which no repair can fix.`,
+    ``,
+    `| Model | Endpoint | Thinking off | Raw valid | Top-3 without purpose | Constrained valid | Gate 2 | Cost per call | Median latency |`,
+    `|---|---|---|---|---|---|---|---|---|`,
     ...groups.map((g) => summaryRow(g.modelId, g.calls, g.scored, g.runs)),
   ];
   for (const g of groups) out.push(...modelReport(g.modelId, g.calls, g.scored, g.runs));
@@ -98,7 +102,8 @@ function summaryRow(modelId: string, calls: CallRecord[], scored: Scored[], runs
   const costPerCall = scenarioCalls.reduce((t, c) => t + c.costUsd, 0) / scenarioCalls.length;
   const latency = median(scenarioCalls.map((c) => c.latencyMs)) / 1000;
   return (
-    `| ${modelId} | ${ep ? `${ep.tag} (${ep.quantization})` : "?"} | ${thinking} | ${cell("raw")} | ${cell("constrained")} | ` +
+    `| ${modelId} | ${ep ? `${ep.tag} (${ep.quantization})` : "?"} | ${thinking} | ${cell("raw")} | ` +
+    `${topThreeRate(scored.filter((s) => s.call.variant === "raw"))} | ${cell("constrained")} | ` +
     `${gate2Verdict(scored).short} | $${costPerCall.toFixed(5)} | ${latency.toFixed(1)}s |`
   );
 }
@@ -156,12 +161,15 @@ function gate1Report(scored: Scored[]): string[] {
     "",
     "### Gate 1: structured output",
     "",
+    "**Status: pending Technical Design's contact decision.** No model is eliminated on gate 1 for now.",
+    "",
     "*Strict = the rule as written; revised = extra purposes dropped by code (warning); repaired = also fences stripped, " +
-      "near-miss names matched, missing contacts filled at urgency 0, `done` ignored outside a Colloquio. " +
+      "aliases and near-miss names matched, duplicate contacts dropped (higher urgency kept), missing contacts filled at urgency 0, " +
+      "`done` ignored outside a Colloquio (and set to null there if missing). " +
       "Gate 1 is judged over every think() from every scenario.*",
     "",
-    "| Scenario | Mode | Calls | Strict | Revised | Repaired | Syntax failures | Threshold |",
-    "|---|---|---|---|---|---|---|---|",
+    "| Scenario | Mode | Calls | Strict | Revised | Repaired | Top-3 without purpose | Syntax failures | Threshold |",
+    "|---|---|---|---|---|---|---|---|---|",
   ];
   const scenarios = unique(scored.map((s) => s.call.target)).sort();
   for (const mode of ["raw", "constrained"] as const) {
@@ -175,7 +183,9 @@ function gate1Report(scored: Scored[]): string[] {
         return r >= GATE1[mode] ? pct(r) : `**${pct(r)}**`;
       });
       const syntax = rows.filter((s) => s.result.strict.verdict === "syntax").length;
-      out.push(`| ${label} | ${mode} | ${rows.length} | ${cells.join(" | ")} | ${syntax} | ≥${pct(GATE1[mode])} |`);
+      out.push(
+        `| ${label} | ${mode} | ${rows.length} | ${cells.join(" | ")} | ${topThreeRate(rows)} | ${syntax} | ≥${pct(GATE1[mode])} |`,
+      );
     }
   }
 
@@ -187,7 +197,10 @@ function gate1Report(scored: Scored[]): string[] {
       return `${hits.length} of ${raw.length} outputs`;
     };
     const total = (pick: (s: Scored) => number) => parsed.reduce((t, s) => t + pick(s), 0);
-    const matched = tally(parsed.flatMap((s) => s.result.repairs!.namesMatched.map(([a, b]) => `"${a}" → "${b}"`)));
+    const pairs = (xs: [string, string][]) => xs.map(([a, b]) => `"${a}" → "${b}"`);
+    const aliases = tally(parsed.flatMap((s) => pairs(s.result.repairs!.aliasesMatched)));
+    const matched = tally(parsed.flatMap((s) => pairs(s.result.repairs!.namesMatched)));
+    const dupes = tally(parsed.flatMap((s) => s.result.repairs!.duplicatesDropped));
     const filled = tally(parsed.flatMap((s) => s.result.repairs!.contactsFilled));
     out.push(
       "",
@@ -195,11 +208,16 @@ function gate1Report(scored: Scored[]): string[] {
       "",
       `- Fence stripped: ${r((s) => +s.result.repairs!.fenceStripped)}`,
       `- Extra purposes dropped: ${r((s) => s.result.repairs!.purposesDropped)} (${total((s) => s.result.repairs!.purposesDropped)} purposes)`,
+      `- Aliases matched: ${r((s) => s.result.repairs!.aliasesMatched.length)}` +
+        (aliases.length ? ` — ${aliases.map(([m, n]) => `${n}× ${m}`).join(", ")}` : ""),
       `- Near-miss names matched: ${r((s) => s.result.repairs!.namesMatched.length)}` +
         (matched.length ? ` — ${matched.map(([m, n]) => `${n}× ${m}`).join(", ")}` : ""),
+      `- Duplicate contacts dropped: ${r((s) => s.result.repairs!.duplicatesDropped.length)}` +
+        (dupes.length ? ` — ${dupes.map(([m, n]) => `${m} ${n}×`).join(", ")}` : ""),
       `- Missing contacts filled: ${r((s) => s.result.repairs!.contactsFilled.length)} (${total((s) => s.result.repairs!.contactsFilled.length)} names)` +
         (filled.length ? ` — most often ${filled.slice(0, 4).map(([m, n]) => `${m} ${n}×`).join(", ")}` : ""),
       `- \`done\` ignored outside a Colloquio: ${r((s) => +s.result.repairs!.doneIgnored)}`,
+      `- Missing \`done\` set to null outside a Colloquio: ${r((s) => +s.result.repairs!.doneFilled)}`,
     );
   }
 
@@ -293,6 +311,14 @@ function costReport(calls: CallRecord[]): string[] {
   }
   out.push("", `Total: $${calls.reduce((s, c) => s + c.costUsd, 0).toFixed(4)} over ${calls.length} calls.`);
   return out;
+}
+
+/** Share of parsed outputs with a top-three contact lacking a purpose (after repairs). */
+function topThreeRate(rows: Scored[]): string {
+  const parsed = rows.filter((s) => s.result.topThreeWithoutPurpose !== null);
+  if (!parsed.length) return "–";
+  const n = parsed.filter((s) => s.result.topThreeWithoutPurpose).length;
+  return `${pct(n / parsed.length)} (${n}/${parsed.length})`;
 }
 
 function validRate(rows: Scored[], level: ScoringLevel): number {
