@@ -47,34 +47,50 @@ export type ThinkVerdict =
   | "valid";
 
 /**
- * How "purposes for the top three only" is scored (Dylan, Oct 21). Every
- * result is scored under both:
- * - original: a purpose anywhere outside the three most urgent contacts is invalid
+ * Gate 1 is scored at three levels (Models & Research v0.7, Scoring):
+ * - strict: the rule as written before any run; a purpose outside the three
+ *   most urgent contacts is invalid
  * - revised: code keeps purposes only for the three most urgent; extras are a warning
- * Under both, a top-three contact without a purpose is invalid.
+ * - repaired: what the engine could use after simple code fixes. On top of
+ *   revised: fences stripped, near-miss names matched to the roster, missing
+ *   contacts filled with urgency 0, `done` ignored outside a Colloquio
+ * At every level a top-three contact without a purpose is invalid, and one
+ * fenced block or bare JSON parses while prose outside it doesn't.
  */
-export type PurposeRule = "original" | "revised";
-export const PURPOSE_RULES: readonly PurposeRule[] = ["original", "revised"];
+export type ScoringLevel = "strict" | "revised" | "repaired";
+export const SCORING_LEVELS: readonly ScoringLevel[] = ["strict", "revised", "repaired"];
 
-export interface RuleResult {
+export interface LevelResult {
   verdict: ThinkVerdict;
   errors: string[];
   warnings: string[];
-  /** The output as the engine would use it; under the revised rule, extra purposes are nulled. */
+  /** The output as the engine would use it at this level. */
   value: ThinkOutput | null;
 }
 
+export interface Repairs {
+  fenceStripped: boolean;
+  purposesDropped: number;
+  /** [as written, roster name] */
+  namesMatched: [string, string][];
+  contactsFilled: string[];
+  doneIgnored: boolean;
+}
+
 export interface ThinkParseResult {
-  /** Output was one markdown code fence, parsed after stripping it. Prose outside a fence is invalid. */
+  /** Output was one markdown code fence, parsed after stripping it. */
   fenced: boolean;
-  original: RuleResult;
-  revised: RuleResult;
+  strict: LevelResult;
+  revised: LevelResult;
+  repaired: LevelResult;
+  /** What the repaired level changed; null when the output didn't parse. */
+  repairs: Repairs | null;
 }
 
 export function parseThink(raw: string, expect: ThinkExpectation): ThinkParseResult {
   const syntax = (errors: string[], fenced: boolean): ThinkParseResult => {
-    const failed: RuleResult = { verdict: "syntax", errors, warnings: [], value: null };
-    return { fenced, original: failed, revised: failed };
+    const failed: LevelResult = { verdict: "syntax", errors, warnings: [], value: null };
+    return { fenced, strict: failed, revised: failed, repaired: failed, repairs: null };
   };
 
   const { json, fenced, error } = parseJson(raw);
@@ -89,34 +105,118 @@ export function parseThink(raw: string, expect: ThinkExpectation): ThinkParseRes
   }
 
   const value = shape.data;
-  const common = meaningErrors(value, expect);
   const longPurposes = value.contacts
     .filter((c) => c.purpose !== null && c.purpose.trim().split(/\s+/).length > 6)
     .map((c) => `purpose for ${c.name} is over six words`);
-  const { missing, extra } = topThreePurposes(value.contacts);
-  const missingError = missing ? [`contacts: ${missing} of the top three by urgency have no purpose`] : [];
-  const extraNote = extra.length ? `${extra.length} purpose(s) beyond the top three` : null;
+  const common = [...nameErrors(value, expect), ...doneErrors(value, expect)];
+  const purposes = topThreePurposes(value.contacts);
+  const extraNote = purposes.extra.length ? `${purposes.extra.length} purpose(s) beyond the top three` : null;
 
-  const originalErrors = [...common, ...missingError, ...(extraNote ? [`contacts: ${extraNote}`] : [])];
-  const revisedErrors = [...common, ...missingError];
+  const level = (errors: string[], warnings: string[], v: ThinkOutput): LevelResult => ({
+    verdict: errors.length ? "meaning" : "valid",
+    errors,
+    warnings,
+    value: v,
+  });
+
+  const fixed = repair(value, expect);
+  const fixedPurposes = topThreePurposes(fixed.value.contacts);
+  const repairs: Repairs = { ...fixed.repairs, fenceStripped: fenced, purposesDropped: fixedPurposes.extra.length };
+  const repairNotes = [
+    ...(fenced ? ["fence stripped"] : []),
+    ...(repairs.purposesDropped ? [`${repairs.purposesDropped} purpose(s) beyond the top three, dropped`] : []),
+    ...repairs.namesMatched.map(([from, to]) => `name "${from}" matched to "${to}"`),
+    ...(repairs.contactsFilled.length ? [`${repairs.contactsFilled.length} missing contact(s) filled`] : []),
+    ...(repairs.doneIgnored ? ["done ignored outside a Colloquio"] : []),
+  ];
+
   return {
     fenced,
-    original: {
-      verdict: originalErrors.length ? "meaning" : "valid",
-      errors: originalErrors,
-      warnings: longPurposes,
+    strict: level(
+      [...common, ...missingPurposeErrors(purposes.missing), ...(extraNote ? [`contacts: ${extraNote}`] : [])],
+      longPurposes,
       value,
-    },
-    revised: {
-      verdict: revisedErrors.length ? "meaning" : "valid",
-      errors: revisedErrors,
-      warnings: [...longPurposes, ...(extraNote ? [`${extraNote}, dropped`] : [])],
-      value: {
-        ...value,
-        contacts: value.contacts.map((c) => (extra.includes(c) ? { ...c, purpose: null } : c)),
-      },
-    },
+    ),
+    revised: level(
+      [...common, ...missingPurposeErrors(purposes.missing)],
+      [...longPurposes, ...(extraNote ? [`${extraNote}, dropped`] : [])],
+      dropPurposes(value, purposes.extra),
+    ),
+    repaired: level(
+      [...nameErrors(fixed.value, expect), ...missingPurposeErrors(fixedPurposes.missing)],
+      [...longPurposes, ...repairNotes],
+      dropPurposes(fixed.value, fixedPurposes.extra),
+    ),
+    repairs,
   };
+}
+
+function missingPurposeErrors(missing: number): string[] {
+  return missing ? [`contacts: ${missing} of the top three by urgency without a purpose`] : [];
+}
+
+function dropPurposes(v: ThinkOutput, extra: ThinkOutput["contacts"]): ThinkOutput {
+  return { ...v, contacts: v.contacts.map((c) => (extra.includes(c) ? { ...c, purpose: null } : c)) };
+}
+
+/** The repaired level's fixes other than purposes and fences. */
+function repair(
+  value: ThinkOutput,
+  expect: ThinkExpectation,
+): { value: ThinkOutput; repairs: Omit<Repairs, "fenceStripped" | "purposesDropped"> } {
+  const listed = new Set(value.contacts.map((c) => c.name).filter((n) => expect.livingOthers.includes(n)));
+  const namesMatched: [string, string][] = [];
+  const contacts = value.contacts.map((c) => {
+    if (expect.livingOthers.includes(c.name)) return c;
+    const match = nearMiss(c.name, expect.livingOthers.filter((n) => !listed.has(n)));
+    if (!match) return c;
+    listed.add(match);
+    namesMatched.push([c.name, match]);
+    return { ...c, name: match };
+  });
+  const contactsFilled = expect.livingOthers.filter((n) => !listed.has(n));
+  contacts.push(...contactsFilled.map((name) => ({ name, urgency: 0, purpose: null })));
+  const doneIgnored = expect.conversation === "capannello" && value.done !== null;
+  return {
+    value: { ...value, contacts, done: doneIgnored ? null : value.done },
+    repairs: { namesMatched, contactsFilled, doneIgnored },
+  };
+}
+
+/**
+ * The one candidate a misspelled or shortened name most plausibly means: equal
+ * once accents, case, and punctuation are ignored; else within two edits; else
+ * the only candidate containing all its words ("LeNoir" → "Captain Armand LeNoir").
+ */
+function nearMiss(name: string, candidates: string[]): string | null {
+  const norm = (s: string) =>
+    s
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9 ]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  const n = norm(name);
+  const only = (xs: string[]) => (xs.length === 1 ? xs[0]! : null);
+  const exact = candidates.filter((c) => norm(c) === n);
+  if (exact.length) return only(exact);
+  const close = candidates.filter((c) => editDistance(norm(c), n) <= 2);
+  if (close.length) return only(close);
+  const words = n.split(" ").filter(Boolean);
+  return words.length ? only(candidates.filter((c) => words.every((w) => norm(c).split(" ").includes(w)))) : null;
+}
+
+function editDistance(a: string, b: string): number {
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const row = [i];
+    for (let j = 1; j <= b.length; j++) {
+      row[j] = Math.min(prev[j]! + 1, row[j - 1]! + 1, prev[j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    prev = row;
+  }
+  return prev[b.length]!;
 }
 
 /**
@@ -157,11 +257,9 @@ function parseJson(raw: string): { json: unknown; fenced: boolean; error?: strin
   }
 }
 
-/** Errors that count under both purpose rules. */
-function meaningErrors(v: ThinkOutput, expect: ThinkExpectation): string[] {
+/** Every "Other living guest" exactly once, exact spelling, and no one else. */
+function nameErrors(v: ThinkOutput, expect: ThinkExpectation): string[] {
   const errors: string[] = [];
-
-  // Every "Other living guest" exactly once, exact spelling, and no one else.
   const counts = new Map<string, number>();
   for (const c of v.contacts) counts.set(c.name, (counts.get(c.name) ?? 0) + 1);
   for (const name of expect.livingOthers) {
@@ -172,12 +270,11 @@ function meaningErrors(v: ThinkOutput, expect: ThinkExpectation): string[] {
   for (const name of counts.keys()) {
     if (!expect.livingOthers.includes(name)) errors.push(`contacts: unknown name "${name}"`);
   }
-
-  if (expect.conversation === "capannello" && v.done !== null) {
-    errors.push(`done: ${v.done} in a Capannello, expected null`);
-  }
-  if (expect.conversation === "colloquio" && v.done === null) {
-    errors.push("done: null in a Colloquio, expected true or false");
-  }
   return errors;
+}
+
+function doneErrors(v: ThinkOutput, expect: ThinkExpectation): string[] {
+  if (expect.conversation === "capannello" && v.done !== null) return [`done: ${v.done} in a Capannello, expected null`];
+  if (expect.conversation === "colloquio" && v.done === null) return ["done: null in a Colloquio, expected true or false"];
+  return [];
 }

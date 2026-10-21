@@ -10,12 +10,16 @@ export interface DocPaths {
   technicalDesign: string;
   characters: string;
   mechanics: string;
+  /** Holds the probe plan and scoring rules; only its version is read. */
+  modelsResearch: string;
 }
 
 export interface DocVersions {
   technicalDesign: string;
   characters: string;
   mechanics: string;
+  /** Absent in logs from before Oct 21 v0.7 scoring. */
+  modelsResearch?: string;
 }
 
 export interface Tunables {
@@ -44,6 +48,7 @@ export function loadDocs(paths: DocPaths): DocSources {
   const td = readFileSync(paths.technicalDesign, "utf8");
   const chars = readFileSync(paths.characters, "utf8");
   const mech = readFileSync(paths.mechanics, "utf8");
+  const mr = readFileSync(paths.modelsResearch, "utf8");
 
   const [rulesPrimer, plotProtectionRule] = fencesUnder(td, "### Block 2 — Rules primer");
   const templates: PromptTemplates = {
@@ -68,6 +73,7 @@ export function loadDocs(paths: DocPaths): DocSources {
       technicalDesign: docVersion(td, paths.technicalDesign),
       characters: docVersion(chars, paths.characters),
       mechanics: docVersion(mech, paths.mechanics),
+      modelsResearch: docVersion(mr, paths.modelsResearch),
     },
     templates,
     briefings,

@@ -1,8 +1,16 @@
 # Gonfaloniere
 ## Models & Research — Working Document
-### Version 0.6
+### Version 0.7
 
 ---
+
+## Changes in v0.7
+
+- **First results logged** (Oct 21): thinking-off pre-flight and S1 on all six candidates. See Findings Log
+- **Gate 1 scoring revised after the first results, and labelled as such.** Scores are now reported three ways: *strict* (the rule as written before any run), *revised* (extra contact purposes dropped by code and counted as warnings), and *repaired* (what the engine could use after simple code fixes). The strict result stands in the record; the change is because the top-three rule is bookkeeping that code should enforce, not a test of the model
+- **Constrained decoding dropped for S2–S7.** It fixed nothing (every failure was about content, not JSON shape) and made two models worse
+- **Measured costs replace estimates for stock calls:** ~$0.0002–0.0017 per S1 call (~$0.29–2.52 per 1,500-call game). `think()` output is ~480 tokens, about double the earlier assumption
+- Handoff to Technical Design: the per-utterance contact list causes most gate 1 failures and most output tokens
 
 ## Changes in v0.6
 
@@ -278,6 +286,9 @@ S1–S3 run twice: once raw, once with JSON-schema constrained decoding (where t
 *Set before running so results can't move the goalposts.*
 
 - **Gate 1 — structured output.** Valid means: parses as JSON; all keys present; importance is an integer 0–100; contacts name every "Other living guest" exactly once with exact spelling; purposes for the top three only; `done` correct for the conversation type. **Pass: ≥99% valid with constrained decoding and ≥95% raw.** Report syntax failures and meaning failures separately
+  - *Added Oct 21, after the first S1 results.* Report three levels: **strict** (as above; the original rule), **revised** (purposes beyond the three highest-urgency contacts are dropped by code and counted as a warning), and **repaired** (also: code fences stripped, missing contacts filled with urgency 0, near-miss names matched to the roster, `done` ignored outside a Colloquio). Each repair is counted. The 95% raw bar applies to each level; the strict result is never replaced
+  - Code fences: one fenced block or bare JSON counts as parseable; any prose outside it doesn't. Fence rate reported separately
+  - Constrained decoding: run in S1 only (no benefit found); S2–S7 run raw
 - **Gate 3 — secret keeping.** **Pass: ≤10% of S4 and S5c runs leak; ≥70% of S5a and S5b runs hold through turn 8; S6 discloses the debt in ≥60% of runs without the killing** (below 60%, flag as rigid rather than fail)
 - **Gate 5 — inference.** Two measures, test versus control: the `thought` references the withdrawal, and Lupo's contact urgency toward Raffaello and LeNoir. **Pass: referenced in ≥70% of explicit-version samples, and mean urgency toward the pair at least 15 points above control.** The buried version is reported, not gated
 - **Gate 2 (free):** median importance in S2 for LeNoir at least 30 points above S1, and scores not clustered (standard deviation >10 across all scenarios)
@@ -451,6 +462,9 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 - [ ] Can thinking be reliably turned off on each hybrid model through OpenRouter? (Probe pre-flight)
 - [ ] Does vLLM serve LoRAs on the chosen base reliably (MoE experts, Gated DeltaNet layers, Gemma 4)? (Pilot)
 - [ ] Should Nemotron 3 Super join the probes if a reasoning-off mode is confirmed?
+- [ ] Does "Other living guests" in the State block include characters who are present? (Affects S1 scoring; Technical Design wording)
+- [ ] Pin DeepSeek V4.1 Flash to its dated snapshot (`-1017`) for reproducibility, and rerun its S1
+- [ ] Try a faster provider for Qwen3-235B
 - [ ] Fine-tuning method: GRPO, DPO, SFT, or a mix per trait
 - [ ] Confirm the 2×2 personality framing and retire the behavioral-targets framing
 - [ ] Does Honest/Trusting need training at all?
@@ -464,4 +478,35 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 
 *Record each test result here: date, model, provider and quantization, prompt and briefing versions, gate tested, result, and what it changes. Tooling and price checks go in Tooling Status, not here.*
 
-*No tests run yet.*
+### 2026-10-21 — Pre-flight and S1, all six candidates
+
+**Setup:** TD v0.2 prompts, Characters v0.2 briefings, Mechanics v0.18 values; temperature 0.7; one provider pinned per model, fallbacks off; 40 `think()` samples per mode, rotated across Lupo, Isabella, LeNoir; scripted small talk from Clarice; prompt sent as one user message. Spend to date: $0.41 of $15.
+
+**Pre-flight:** all six passed (0 reasoning tokens; a thinking-on control call confirmed the check detects reasoning). No API errors after adding retries; Crusoe needed concurrency cut to 2.
+
+| Model | Provider, precision | Raw valid (strict / revised) | Constrained (strict / revised) | S1 importance SD | Cost per call | Median latency |
+|---|---|---|---|---|---|---|
+| Gemma 4 31B | Crusoe, bf16 | 100% / **100%** | 27.5% / 87.5% | 6.6 | $0.00050 | 7.9s |
+| Qwen3.6-35B-A3B | Parasail, fp8 | 15% / 72.5% | 20% / 72.5% | 13.6 | $0.00054 | 4.6s |
+| Qwen3.8-27B | DeepInfra, bf16 | 10% / **95%** | 15% / 87.5% | 10.5 | $0.00099 | 10.4s |
+| Qwen3.5-122B-A10B | AtlasCloud, fp8 | 7.5% / 35% | 2.5% / 35% | 8.8 | $0.00168 | 6.1s |
+| DeepSeek V4.1 Flash | DeepInfra, fp8 | 12.5% / 70% | 17.5% / 72.5% | 6.5 | $0.00019 | 4.1s |
+| Qwen3-235B-A22B | DeepInfra, fp8 | 2.5% / 92.5% | 10% / 90% | 11.7 | $0.00043 | 17.3s |
+
+**Findings:**
+- **Under the strict rule, no model passes gate 1.** Every model gives purposes to more than three contacts, often all eleven. Under the revised rule, Gemma 4 (100%) and Qwen3.8 (95%) pass raw; Qwen3-235B is close (92.5%)
+- **The remaining failures are contact-list content:** omitted guests (Clarice most often, likely because she is present; Qwen3.6 sometimes lists only those present), one misspelled name (Qwen3.8). Spot checks confirmed these are model mistakes, not harness bugs
+- **Possible prompt ambiguity, to verify:** the State block lists "Present" and "Other living guests" separately, and block 9a asks for contacts for "every guest in Other living guests." If the harness puts present characters only under "Present," then omitting them is following the prompt, and those outputs were scored wrongly. Check before S2
+- **Qwen3.5-122B** returns `done: false` instead of null in a Capannello in 42 of 80 outputs. Harmless to the engine (code can ignore `done` outside a Colloquio), but it counts under strict scoring
+- **Constrained decoding didn't help any model** and hurt Gemma and Qwen3.8; the schema enforces shape, not content
+- **Gate 2 baseline (judged after S2):** Gemma and DeepSeek cluster tightly (SD ~6.5; Isabella scored exactly 30 in all Gemma samples); the three Qwen3 models use more of the scale. Qwen3.6's median of 45 for small talk may be too eager
+- **Code fences:** Gemma always fences its JSON; Qwen3.5-122B 5% of the time; others never
+- **Cost:** at 1,500 calls, measured S1 call costs imply ~$0.29 (DeepSeek), ~$0.65 (Qwen3-235B), ~$0.75 (Gemma), ~$0.81 (Qwen3.6), ~$1.49 (Qwen3.8), ~$2.52 (Qwen3.5-122B) per stock game. Real games will cost more: S1 prompts (~2,400 tokens) lack memory and strategy blocks
+- **Speed:** Qwen3-235B at 17s median on DeepInfra is slow for full games; worth trying another provider before ruling on it
+- **Precision differs across providers** (bf16 for Gemma and Qwen3.8; fp8 for the rest), a possible confound to keep in mind when comparing close results
+
+**What it changes:**
+- Constrained decoding dropped for S2–S7 (see Scoring)
+- Gate 1 reported at three levels from now on (see Scoring)
+- Technical Design handoff: the per-utterance contact list (eleven entries every call) drives most gate 1 failures and most output tokens. Gate 1's own listed fallback is to drop it from per-utterance `think()` and ask only when a character's movement window comes up
+- Gate 1 alone doesn't eliminate any model yet: under the likely engine fixes, the remaining errors are repairable. Gates 3 and 5 are expected to separate them

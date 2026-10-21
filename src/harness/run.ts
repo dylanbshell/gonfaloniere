@@ -4,13 +4,14 @@
 //   op run --env-file=.env -- npm run probe          pre-flight, then S1
 //   op run --env-file=.env -- npm run probe -- s1 --samples 3
 //
-// Targets: preflight, s1 (default: both, in that order).
+// Targets: preflight, s1, s2 (default: all, in that order).
 // Options: --model <id>, --samples <n> (override per mode), --modes raw,constrained
 
 import { execSync } from "node:child_process";
 import { parseArgs } from "node:util";
 import { config, type ModelConfig } from "../../probe.config.ts";
 import S1 from "../../scenarios/s1-quiet-capannello.ts";
+import S2 from "../../scenarios/s2-accusation.ts";
 import type { CharacterName } from "../game/roster.ts";
 import { parseThink, thinkJsonSchema, type ThinkExpectation } from "../output/think.ts";
 import { assembleThinkPrompt } from "../prompt/assemble.ts";
@@ -20,7 +21,7 @@ import { RunLog, priorSpend, type CallRecord } from "./log.ts";
 import { apiKey, callModel, fetchEndpoint, makeClient, type EndpointInfo } from "./openrouter.ts";
 import { thinkContext, type DecodingMode, type ThinkScenario } from "./scenario.ts";
 
-const SCENARIOS: Record<string, ThinkScenario> = { s1: S1 };
+const SCENARIOS: Record<string, ThinkScenario> = { s1: S1, s2: S2 };
 const TARGETS = ["preflight", ...Object.keys(SCENARIOS)];
 
 interface Job {
@@ -93,7 +94,7 @@ async function main(): Promise<void> {
       `$${(endpoint.price.input * 1e6).toFixed(3)}/$${(endpoint.price.output * 1e6).toFixed(3)} per M tokens`,
   );
   console.log(
-    `Docs: TD v${docs.versions.technicalDesign}, Characters v${docs.versions.characters}, Mechanics v${docs.versions.mechanics}`,
+    `Docs: TD v${docs.versions.technicalDesign}, Characters v${docs.versions.characters}, Mechanics v${docs.versions.mechanics}, Models & Research v${docs.versions.modelsResearch}`,
   );
   console.log(
     `Budget: $${budget.priorSpendUsd.toFixed(4)} spent in earlier runs; caps $${config.budget.runUsd} this run, $${config.budget.totalUsd} total\n`,
@@ -197,6 +198,7 @@ function buildJobs(target: string, model: ModelConfig, docs: DocSources): Job[] 
       expect,
       extra: thinkingOff,
     }));
+    if (model.hasThinking === false) return jobs;
     jobs.push({
       target,
       variant: "control-thinking-on",
@@ -274,7 +276,7 @@ function progressLine(r: CallRecord): string {
   const u = r.usage!;
   const reasoning = u.reasoningTokens ? ` (reasoning ${u.reasoningTokens})` : "";
   return (
-    `${head} ${`${r.parsed!.original.verdict}/${r.parsed!.revised.verdict}`.padEnd(15)} ` +
+    `${head} ${[r.parsed!.strict, r.parsed!.revised, r.parsed!.repaired].map((l) => l.verdict).join("/").padEnd(22)} ` +
     `in ${u.inputTokens} out ${u.outputTokens}${reasoning}` +
     `  ${(r.latencyMs / 1000).toFixed(1)}s  $${r.costUsd.toFixed(5)}  ${r.provider ?? "?"}`
   );
@@ -291,6 +293,10 @@ function printPreflight(records: CallRecord[]): void {
         ? `  Thinking off: INCOMPLETE (only ${off.length}/${config.preflight.calls} calls answered, none with reasoning)`
         : `  Thinking off: PASS (${off.length}/${config.preflight.calls} calls with no reasoning tokens or text)`,
   );
+  if (!records.some((r) => r.variant === "control-thinking-on")) {
+    console.log("  Control (thinking on): skipped, the model has no thinking mode");
+    return;
+  }
   console.log(
     control && control.usage!.reasoningTokens > 0
       ? `  Control (thinking on): ${control.usage!.reasoningTokens} reasoning tokens reported, so the check can see reasoning`
@@ -302,7 +308,7 @@ function printDryRun(model: ModelConfig, docs: DocSources, jobsByTarget: { targe
   console.log("DRY RUN: nothing is sent to any model.\n");
   console.log(`Model: ${model.slug}, pinned to ${model.provider} (fallbacks off)`);
   console.log(
-    `Docs: TD v${docs.versions.technicalDesign}, Characters v${docs.versions.characters}, Mechanics v${docs.versions.mechanics}`,
+    `Docs: TD v${docs.versions.technicalDesign}, Characters v${docs.versions.characters}, Mechanics v${docs.versions.mechanics}, Models & Research v${docs.versions.modelsResearch}`,
   );
   console.log(`Tunables: ${JSON.stringify(docs.tunables)}`);
   console.log(`Temperature ${config.temperature}, max_tokens ${config.maxTokens.think}, seeds from ${config.seedBase}`);
