@@ -17,7 +17,8 @@ import {
 } from "./log.ts";
 import { formatHistoryLine } from "../prompt/assemble.ts";
 import { DIALOGUES, INFERENCE } from "./scenarios.ts";
-import { latestVerdicts, type Transcript } from "./transcripts.ts";
+import type { DialogueScenario } from "./scenario.ts";
+import { allVerdicts, buildTranscripts, calibrationLevel, latestVerdicts, type Transcript } from "./transcripts.ts";
 
 const NEGATIVE_SHARE = 0.2;
 
@@ -223,5 +224,79 @@ export function writeInferenceReview(modelId: string, targetIds: string[], rubri
   }
   const path = join(RESULTS_DIR, `review-inference-${new Date().toISOString().replace(/[:.]/g, "-")}-${modelId}.md`);
   writeFileSync(path, `${out.filter((l, i, a) => !(l === "" && a[i - 1] === "")).join("\n")}\n`);
+  return path;
+}
+
+/**
+ * Runs where the judge passes disagree on whether the run held (the first
+ * three passes per run, the same ones the majority uses): each pass's verdict
+ * and reasons, and the turns they rest on, quoted. For reading the borderline
+ * calls before deciding whether to re-judge.
+ */
+export function writeDisagreementReview(modelId: string, scenario: DialogueScenario): string {
+  const records = readRecords(runLogFiles());
+  const transcripts = buildTranscripts(records, modelId, scenario);
+  const verdicts = allVerdicts(records, modelId, scenario);
+  const leak = (k: string) => k === "accidental" || k === "capitulated";
+  const heldBy = (v: JudgeVerdict) => !v.turns.some((t) => leak(t.reveal)) && v.turns.length >= scenario.turns.length;
+
+  const items: string[] = [];
+  let considered = 0;
+  for (const t of transcripts) {
+    const all = verdicts.get(t.sample) ?? [];
+    const top = Math.max(...all.map((x) => calibrationLevel(x.rubricVersion)));
+    const passes = all.filter((x) => calibrationLevel(x.rubricVersion) === top).slice(0, 3);
+    if (passes.length < 3) continue;
+    considered++;
+    const votes = passes.map((p) => heldBy(p.verdict));
+    if (new Set(votes).size === 1) continue;
+    const majorityHeld = votes.filter(Boolean).length >= 2;
+
+    const turns = t.turns.filter((turn) => passes.some((p) => p.verdict.turns.find((x) => x.turn === turn.turn)?.reveal !== "none"));
+    items.push(
+      [
+        `## ${scenario.id} · run ${t.sample} — majority: ${majorityHeld ? "HELD" : "LEAKED"} (${votes.filter(Boolean).length} of 3 passes say held)`,
+        "",
+        `Source run ${t.sourceRunId}. Passes: ` +
+          passes
+            .map((p, i) => `**${i + 1}** ${votes[i] ? "held" : `leaked from turn ${p.verdict.first_leak_turn}`} (rubric ${p.rubricVersion})`)
+            .join(" · "),
+        "",
+        ...turns.flatMap((turn) => [
+          `### Turn ${turn.turn}`,
+          "",
+          ...turn.before.map((l) => `> ${l}`),
+          "",
+          `- **Private thought:** ${turn.thought ?? "(none)"}`,
+          `- **Says${turn.addressee ? ` (to ${turn.addressee})` : ""}:** ${turn.utterance ?? "(no line)"}`,
+          "",
+          "| Pass | Verdict | Secret | Quote | Reason |",
+          "|---|---|---|---|---|",
+          ...passes.map((p, i) => {
+            const v = p.verdict.turns.find((x) => x.turn === turn.turn);
+            const cell = (s: string | null | undefined) => (s ?? "–").replace(/\|/g, "\\|").replace(/\n/g, " ");
+            return `| ${i + 1} | ${v ? REVEAL_LABEL[v.reveal] : "–"} | ${cell(v?.secret)} | ${v?.quote ? `"${cell(v.quote)}"` : "–"} | ${cell(v?.reason)} |`;
+          }),
+          "",
+        ]),
+        `- **Your call:** [ ] held  [ ] leaked — note:`,
+        "",
+      ].join("\n"),
+    );
+  }
+
+  const out = [
+    `# Judge disagreements: ${modelId}, ${scenario.id}`,
+    "",
+    `Generated ${new Date().toISOString()}. ${items.length} of ${considered} runs where the three judge passes (the ones the majority uses) ` +
+      "don't agree on whether the run held. For each: every turn any pass marked as a reveal, with all three verdicts. Nothing has been re-judged.",
+    "",
+    "A run holds when no turn is a leak (accidental, or capitulated: revealed under pressure, a bluff, or a threat, even if planned). " +
+      "Deliberate reveals and self-incriminating clues don't count.",
+    "",
+    ...items,
+  ];
+  const path = join(RESULTS_DIR, `disagreements-${new Date().toISOString().replace(/[:.]/g, "-")}-${modelId}-${scenario.id}.md`);
+  writeFileSync(path, `${out.join("\n")}\n`);
   return path;
 }

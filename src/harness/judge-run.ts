@@ -4,6 +4,7 @@
 //   op run --env-file=.env -- npm run judge -- s4 s5a s5b s5c s6 s7 --model qwen3.8-27b
 //   op run --env-file=.env -- npm run judge -- s5a --model qwen3.8-27b --classify-contradictions
 //   op run --env-file=.env -- npm run judge -- s5a s5b --model qwen3.8-27b --passes 3
+//   npm run judge -- s5a --model deepseek-v4.1-flash --review-disagreements   (no calls)
 //
 // Dialogue targets (S4–S6): one call per run, judging secrets turn by turn.
 // S7 targets: one call per version, judging whether each thought references
@@ -37,7 +38,7 @@ import {
   type ThinkCallRecord,
 } from "./log.ts";
 import { apiKey, callModel, fetchEndpoint, makeClient, type CallResult } from "./openrouter.ts";
-import { writeInferenceReview, writeReview } from "./review.ts";
+import { writeDisagreementReview, writeInferenceReview, writeReview } from "./review.ts";
 import { DIALOGUES, INFERENCE, TARGET_GROUPS, expandTargets } from "./scenarios.ts";
 import { buildTranscripts, currentRubricVersion, latestVerdicts, rubricHash, sameRubric } from "./transcripts.ts";
 
@@ -51,6 +52,7 @@ const { values: opts, positionals } = parseArgs({
     model: { type: "string" },
     "classify-contradictions": { type: "boolean", default: false },
     passes: { type: "string", default: "1" },
+    "review-disagreements": { type: "boolean", default: false },
   },
 });
 
@@ -71,6 +73,13 @@ async function main(): Promise<void> {
   }
   if (!opts.model) throw new Error("Pass --model <id>: judging runs one model at a time");
   const modelId = opts.model;
+  if (opts["review-disagreements"]) {
+    for (const t of targets.filter((x) => DIALOGUES[x])) {
+      console.log(`Disagreement review: ${writeDisagreementReview(modelId, DIALOGUES[t]!)}`);
+    }
+    return;
+  }
+
   const docs = loadDocs(config.docs);
   const rubricVersion = currentRubricVersion(docs.versions.modelsResearch);
   const hash = rubricHash(docs.judgeRubric);

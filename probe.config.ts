@@ -71,8 +71,12 @@ export const config = {
   },
 
   budget: {
-    /** Probe budget across every run and judging logged in results/ (raised to $35, Oct 21). */
-    totalUsd: 35,
+    /**
+     * Probe budget across every run and judging logged in results/ (raised to
+     * $35, Oct 21). PROBE_TOTAL_USD lowers it for one invocation, to hold a
+     * step to its own budget (e.g. $3 for assumption test #4).
+     */
+    totalUsd: Math.min(35, Number(process.env.PROBE_TOTAL_USD ?? 35)),
     /** Cap for a single invocation. */
     runUsd: 1,
   },
@@ -137,10 +141,12 @@ export const config = {
     {
       // Assumption test #4 (Models & Research v0.10): the earlier DeepSeek
       // release, to check the lead comes from DeepSeek's training. The April
-      // snapshot, "DeepSeek V4 Flash 0423" (Dylan, Oct 21).
+      // snapshot, "DeepSeek V4 Flash 0423" (Dylan, Oct 21). DeepInfra
+      // rate-limited it almost completely (Oct 22), so it's pinned to Parasail;
+      // GMICloud (gmicloud/fp8) is the next fallback.
       id: "deepseek-v4-flash",
       slug: "deepseek/deepseek-v4-flash",
-      provider: "deepinfra/fp8", // $0.09/$0.18
+      provider: "parasail/fp8", // $0.14/$0.28
     },
     {
       // Frontier ceiling for S5a/S5b (Dylan, Oct 21): not a candidate. GPT-5.4
