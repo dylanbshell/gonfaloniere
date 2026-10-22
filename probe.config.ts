@@ -23,15 +23,26 @@ export interface ModelConfig {
   role?: "ceiling";
   /** Per-invocation cap for this model, when its calls cost more than the default allows. */
   runUsd?: number;
+  /**
+   * TD v0.3 message layout: blocks 1–3 as a system message (true, the default)
+   * or all blocks in one user message (false). TD v0.2 runs always use one user message.
+   */
+  systemRole?: boolean;
 }
 
 export const config = {
   docs: {
+    // TD v0.2 stays the reference for S1–S7 (TD v0.3, Changes); --td 0.3 selects the newer prompts.
     technicalDesign: "docs/Gonfaloniere_Technical_Design_v0.2.md",
     characters: "docs/Gonfaloniere_Characters_v0.2.md",
     mechanics: "docs/Gonfaloniere_Game_Mechanics_v0.18.md",
-    modelsResearch: "docs/Gonfaloniere_Models_Research_v0.8.md",
+    modelsResearch: "docs/Gonfaloniere_Models_Research_v0.10.md",
   },
+  /** Technical Design versions selectable with --td, by version. */
+  technicalDesigns: {
+    "0.2": "docs/Gonfaloniere_Technical_Design_v0.2.md",
+    "0.3": "docs/Gonfaloniere_Technical_Design_v0.3.md",
+  } as Record<string, string>,
 
   /** Same for every model; 0.7 until Technical Design sets a play value. */
   temperature: 0.7,
@@ -60,8 +71,8 @@ export const config = {
   },
 
   budget: {
-    /** Probe budget across every run and judging logged in results/ (raised to $30, Oct 21). */
-    totalUsd: 30,
+    /** Probe budget across every run and judging logged in results/ (raised to $35, Oct 21). */
+    totalUsd: 35,
     /** Cap for a single invocation. */
     runUsd: 1,
   },
@@ -122,6 +133,14 @@ export const config = {
       provider: "deepinfra/fp8", // $0.09/$0.55
       hasThinking: false,
       thinkingOff: {},
+    },
+    {
+      // Assumption test #4 (Models & Research v0.10): the earlier DeepSeek
+      // release, to check the lead comes from DeepSeek's training. The April
+      // snapshot, "DeepSeek V4 Flash 0423" (Dylan, Oct 21).
+      id: "deepseek-v4-flash",
+      slug: "deepseek/deepseek-v4-flash",
+      provider: "deepinfra/fp8", // $0.09/$0.18
     },
     {
       // Frontier ceiling for S5a/S5b (Dylan, Oct 21): not a candidate. GPT-5.4

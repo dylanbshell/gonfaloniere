@@ -48,6 +48,11 @@ export interface ThinkExpectation {
    * unbriefed guests present in the room but not on the roster (Dylan, Oct 21).
    */
   ignoreNames?: string[];
+  /**
+   * The Block 9a the prompt used: TD v0.2 asks for a contact list; TD v0.3
+   * removed it and asks for `done` only in a Colloquio. Default v0.2.
+   */
+  format?: "td0.2" | "td0.3";
 }
 
 export type ThinkVerdict =
@@ -96,6 +101,8 @@ export interface Repairs {
   doneIgnored: boolean;
   /** `done` was missing outside a Colloquio and was set to null. */
   doneFilled: boolean;
+  /** Importance wasn't a whole number from 0 to 100, and was rounded and clamped (TD v0.3). */
+  scoreClamped?: boolean;
 }
 
 export interface ThinkParseResult {
@@ -114,6 +121,7 @@ export interface ThinkParseResult {
 }
 
 export function parseThink(raw: string, expect: ThinkExpectation): ThinkParseResult {
+  if (expect.format === "td0.3") return parseThinkV3(raw, expect);
   const syntax = (errors: string[], fenced: boolean): ThinkParseResult => {
     const failed: LevelResult = { verdict: "syntax", errors, warnings: [], value: null };
     return { fenced, strict: failed, revised: failed, repaired: failed, repairs: null, topThreeWithoutPurpose: null };
@@ -330,4 +338,67 @@ function doneErrors(v: ThinkOutput, expect: ThinkExpectation): string[] {
   if (expect.conversation === "capannello" && v.done !== null) return [`done: ${v.done} in a Capannello, expected null`];
   if (expect.conversation === "colloquio" && v.done === null) return ["done: null in a Colloquio, expected true or false"];
   return [];
+}
+
+/** TD v0.3's think() reply: thought and importance, plus `done` in a Colloquio. */
+const ThinkOutputV3 = z.object({
+  thought: z.string().min(1),
+  importance: z.number(),
+  done: z.boolean().nullable().optional(),
+});
+
+/**
+ * Gate 1 levels for TD v0.3 (no contact list). Strict and revised are the
+ * same: there are no purposes to drop. Repaired adds TD v0.3's Output
+ * Validation & Repair: importance rounded and clamped to 0–100, `done` ignored
+ * outside a Colloquio.
+ */
+function parseThinkV3(raw: string, expect: ThinkExpectation): ThinkParseResult {
+  const syntax = (errors: string[], fenced: boolean): ThinkParseResult => {
+    const failed: LevelResult = { verdict: "syntax", errors, warnings: [], value: null };
+    return { fenced, strict: failed, revised: failed, repaired: failed, repairs: null, topThreeWithoutPurpose: null };
+  };
+  const { json, fenced, error } = parseJson(raw);
+  if (error) return syntax([error], fenced);
+  const shape = ThinkOutputV3.safeParse(json);
+  if (!shape.success) return syntax(shape.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`), fenced);
+
+  const v = shape.data;
+  const colloquio = expect.conversation === "colloquio";
+  const scoreOk = Number.isInteger(v.importance) && v.importance >= 0 && v.importance <= 100;
+  const syntaxErrors = colloquio && (v.done === undefined || v.done === null) ? ["done: missing or null in a Colloquio"] : [];
+  const meaning = [
+    ...(scoreOk ? [] : [`importance: ${v.importance} is not a whole number from 0 to 100`]),
+    ...(!colloquio && v.done !== undefined ? [`done: ${v.done} given outside a Colloquio, where it isn't asked for`] : []),
+  ];
+  const level = (errors: string[], value: ThinkOutput): LevelResult =>
+    syntaxErrors.length
+      ? { verdict: "syntax", errors: syntaxErrors, warnings: [], value: null }
+      : { verdict: errors.length ? "meaning" : "valid", errors, warnings: [], value };
+
+  const asIs: ThinkOutput = { thought: v.thought, importance: v.importance, contacts: [], done: v.done ?? null };
+  const fixed: ThinkOutput = {
+    ...asIs,
+    importance: Math.min(100, Math.max(0, Math.round(v.importance))),
+    done: colloquio ? (v.done ?? null) : null,
+  };
+  const repairs: Repairs = {
+    fenceStripped: fenced,
+    purposesDropped: 0,
+    aliasesMatched: [],
+    namesMatched: [],
+    duplicatesDropped: [],
+    contactsFilled: [],
+    doneIgnored: !colloquio && v.done !== undefined && v.done !== null,
+    doneFilled: false,
+    scoreClamped: !scoreOk,
+  };
+  return {
+    fenced,
+    strict: level(meaning, asIs),
+    revised: level(meaning, asIs),
+    repaired: level([], fixed),
+    repairs,
+    topThreeWithoutPurpose: null,
+  };
 }

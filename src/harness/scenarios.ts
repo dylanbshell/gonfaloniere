@@ -44,8 +44,10 @@ export const INFERENCE: Record<string, ThinkScenario> = {
   "s7-control": S7_CONTROL,
 };
 
+/** The scenario for an id; a scorer label like "S1 · TD v0.3" resolves to S1. */
 export function scenarioById(id: string): Scenario | undefined {
-  return Object.values(SCENARIOS).find((s) => s.id === id);
+  const base = id.split(" · ")[0];
+  return Object.values(SCENARIOS).find((s) => s.id === base);
 }
 
 /**

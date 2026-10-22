@@ -70,7 +70,10 @@ interface RawEndpoint {
 
 export interface CallRequest {
   model: ModelConfig;
+  /** The user message. */
   prompt: string;
+  /** A system message sent before it (TD v0.3's blocks 1–3), if any. */
+  system?: string;
   /** Omitted for models that reject a non-default value (the judge). */
   temperature?: number;
   /** Omitted for models that don't support it. */
@@ -126,7 +129,10 @@ async function callOnce(
 ): Promise<CallResult & { retryAfterMs?: number }> {
   const body = {
     model: req.model.slug,
-    messages: [{ role: "user" as const, content: req.prompt }],
+    messages: [
+      ...(req.system ? [{ role: "system" as const, content: req.system }] : []),
+      { role: "user" as const, content: req.prompt },
+    ],
     ...(req.temperature !== undefined && { temperature: req.temperature }),
     ...(req.seed !== undefined && { seed: req.seed }),
     max_tokens: req.maxTokens,

@@ -8,7 +8,10 @@
 // Targets: preflight, s1, s2, s3, s4, s5a, s5b, s5c, s6, s7-explicit,
 // s7-buried, s7-control (default: all, in that order); "s7" means all three.
 // Options: --model <id>, --samples <n> (single-moment scenarios, per mode),
-//          --runs <n> (dialogue scenarios), --modes raw,constrained
+//          --runs <n> (dialogue scenarios), --modes raw,constrained,
+//          --td 0.2|0.3 (which Technical Design's prompts; default 0.2, the
+//          S1–S7 reference), --extend (dialogue runs append to the model's
+//          latest run of each target, so they pool with it)
 
 import { parseArgs } from "node:util";
 import { config, type ModelConfig } from "../../probe.config.ts";
@@ -19,9 +22,20 @@ import { parseThink, thinkJsonSchema, type ThinkExpectation } from "../output/th
 import { assembleSpeakPrompt, assembleThinkPrompt, type HistoryLine } from "../prompt/assemble.ts";
 import { loadDocs, type DocSources } from "../sources/docs.ts";
 import { Budget, worstCaseCost } from "./budget.ts";
-import { RunLog, gitCommit, priorSpend, type CallRecord, type SpeakCallRecord, type ThinkCallRecord } from "./log.ts";
+import {
+  RunLog,
+  gitCommit,
+  priorSpend,
+  readRecords,
+  runLogFiles,
+  type CallRecord,
+  type SpeakCallRecord,
+  type ThinkCallRecord,
+} from "./log.ts";
 import { apiKey, callModel, fetchEndpoint, makeClient, type EndpointInfo } from "./openrouter.ts";
 import { SCENARIOS, TARGET_GROUPS, expandTargets, unbriefedGuests } from "./scenarios.ts";
+import { probePool } from "./transcripts.ts";
+import type { AssembledPrompt } from "../prompt/assemble.ts";
 import {
   characterContext,
   currentFlorins,
@@ -45,6 +59,8 @@ type CallSpec = {
   attempt?: number;
   seed: number;
   prompt: string;
+  /** TD v0.3's system message (blocks 1–3), when the run uses that layout. */
+  system?: string;
   extra: Record<string, unknown>;
   jsonSchema?: { name: string; schema: Record<string, unknown> };
 } & ({ callType: "think"; expect: ThinkExpectation } | { callType: "speak"; expect: SpeakExpectation });
@@ -56,6 +72,8 @@ const { values: opts, positionals } = parseArgs({
   allowPositionals: true,
   options: {
     "dry-run": { type: "boolean", default: false },
+    td: { type: "string", default: "0.2" },
+    extend: { type: "boolean", default: false },
     model: { type: "string" },
     samples: { type: "string" },
     runs: { type: "string" },
@@ -72,7 +90,28 @@ async function main(): Promise<void> {
   }
   const model = config.models.find((m) => m.id === (opts.model ?? config.models[0]!.id));
   if (!model) throw new Error(`Unknown model "${opts.model}". Known: ${config.models.map((m) => m.id).join(", ")}`);
-  const docs = loadDocs(config.docs);
+  const tdPath = config.technicalDesigns[opts.td!];
+  if (!tdPath) throw new Error(`Unknown --td "${opts.td}". Known: ${Object.keys(config.technicalDesigns).join(", ")}`);
+  const docs = loadDocs({ ...config.docs, technicalDesign: tdPath });
+  // TD v0.3: blocks 1–3 as a system message unless the model opts out, and Block 9a without contacts.
+  layout.systemRole = opts.td !== "0.2" && model.systemRole !== false;
+  layout.thinkFormat = opts.td === "0.2" ? "td0.2" : "td0.3";
+
+  // --extend: each dialogue target continues numbering after the model's latest pool of runs.
+  const extendsRuns: Record<string, string> = {};
+  const sampleOffsets: Record<string, number> = {};
+  if (opts.extend) {
+    const records = readRecords(runLogFiles());
+    for (const t of targets) {
+      const s = SCENARIOS[t];
+      if (s?.callType !== "dialogue") throw new Error(`--extend applies to dialogue targets only; "${t}" isn't one`);
+      const pool = probePool(records, model.id, s.id);
+      if (!pool.length) throw new Error(`--extend: no earlier ${s.id} run for ${model.id} to extend`);
+      const samples = records.filter((r): r is CallRecord => r.type === "call" && pool.includes(r.runId) && r.target === s.id).map((c) => c.sample);
+      extendsRuns[s.id] = pool[0]!;
+      sampleOffsets[s.id] = Math.max(...samples) + 1;
+    }
+  }
 
   if (opts["dry-run"]) {
     printDryRun(model, docs, targets);
@@ -97,6 +136,9 @@ async function main(): Promise<void> {
     gitCommit: gitCommit(),
     targets,
     settings: {
+      td: opts.td,
+      systemRole: layout.systemRole,
+      ...(opts.extend && { extends: extendsRuns, sampleOffsets }),
       temperature: model.noTemperature ? "model default" : config.temperature,
       seedBase: config.seedBase,
       plotProtection: config.plotProtection,
@@ -122,7 +164,7 @@ async function main(): Promise<void> {
   const call: Caller = async (spec) => {
     if (stopped) return null;
     const maxTokens = config.maxTokens[spec.callType];
-    const worst = worstCaseCost(spec.prompt.length, maxTokens, endpoint.price);
+    const worst = worstCaseCost((spec.system?.length ?? 0) + spec.prompt.length, maxTokens, endpoint.price);
     if (!budget.tryReserve(worst)) {
       stopped = true;
       return null;
@@ -130,6 +172,7 @@ async function main(): Promise<void> {
     const res = await callModel(client, {
       model,
       prompt: spec.prompt,
+      system: spec.system,
       temperature: model.noTemperature ? undefined : config.temperature,
       seed: spec.seed,
       maxTokens,
@@ -157,6 +200,7 @@ async function main(): Promise<void> {
       requestExtra: spec.extra,
       constrained: Boolean(spec.jsonSchema),
       prompt: spec.prompt,
+      system: spec.system,
       raw: res.ok ? res.content : null,
       reasoning: res.ok ? res.reasoning : null,
       usage: res.ok ? res.usage : null,
@@ -186,7 +230,7 @@ async function main(): Promise<void> {
       await runPool(
         Array.from({ length: runs }, (_, r) => r),
         config.concurrency,
-        (r) => runDialogue(scenario, r, docs, model, call, log, runId),
+        (r) => runDialogue(scenario, r + (sampleOffsets[scenario.id] ?? 0), docs, model, call, log, runId),
       );
     } else {
       const jobs = dropUnsupported(buildJobs(target, model, docs), endpoint);
@@ -216,6 +260,7 @@ async function main(): Promise<void> {
  */
 async function runDialogue(
   s: DialogueScenario,
+  /** The run's sample number: its index, plus any --extend offset. */
   run: number,
   docs: DocSources,
   model: ModelConfig,
@@ -246,11 +291,12 @@ async function runDialogue(
       sample: run,
       turn,
       seed,
-      prompt: assembleThinkPrompt(docs.templates, thinkCtx).text,
+      ...messages(assembleThinkPrompt(docs.templates, thinkCtx)),
       expect: {
         conversation: s.conversation.kind,
         livingOthers: thinkCtx.state.livingOthers,
         ignoreNames: unbriefedGuests(s.id),
+        format: layout.thinkFormat,
       },
       extra: thinkingOff,
     });
@@ -266,10 +312,12 @@ async function runDialogue(
       allowedActions: allowedActionTypes(actions),
       florins: actions.florins,
     };
-    const prompt = assembleSpeakPrompt(docs.templates, speakCtx, {
-      allowedActions: allowedActionsText(actions),
-      extraInstruction: s.speakInstruction,
-    }).text;
+    const speakMessages = messages(
+      assembleSpeakPrompt(docs.templates, speakCtx, {
+        allowedActions: allowedActionsText(actions),
+        extraInstruction: s.speakInstruction,
+      }),
+    );
 
     let spoken: SpeakCallRecord | null = null;
     for (let attempt = 0; attempt <= config.speakRetries; attempt++) {
@@ -282,7 +330,7 @@ async function runDialogue(
         turn,
         attempt,
         seed: seed + 1 + attempt,
-        prompt,
+        ...speakMessages,
         expect,
         extra: thinkingOff,
       });
@@ -322,7 +370,7 @@ function buildJobs(target: string, model: ModelConfig, docs: DocSources): ThinkS
   if (target === "preflight") {
     // A real think() prompt, so the check covers the calls that matter.
     const character = S1.probed[0]!;
-    const { prompt, expect } = thinkPrompt(S1, character, docs);
+    const { prompt, system, expect } = thinkPrompt(S1, character, docs);
     const job = (variant: string, sample: number, extra: Record<string, unknown>): ThinkSpec => ({
       callType: "think",
       target,
@@ -331,6 +379,7 @@ function buildJobs(target: string, model: ModelConfig, docs: DocSources): ThinkS
       sample,
       seed: config.seedBase + sample,
       prompt,
+      system,
       expect,
       extra,
     });
@@ -348,7 +397,7 @@ function buildJobs(target: string, model: ModelConfig, docs: DocSources): ThinkS
   return modes.flatMap((mode) =>
     Array.from({ length: samples }, (_, i): ThinkSpec => {
       const character = scenario.probed[i % scenario.probed.length]!;
-      const { prompt, expect } = prompts.get(character)!;
+      const { prompt, system, expect } = prompts.get(character)!;
       return {
         callType: "think",
         target: scenario.id,
@@ -357,6 +406,7 @@ function buildJobs(target: string, model: ModelConfig, docs: DocSources): ThinkS
         sample: i,
         seed: config.seedBase + i,
         prompt,
+        system,
         expect,
         extra: thinkingOff,
         jsonSchema: mode === "constrained" ? { name: "think", schema } : undefined,
@@ -368,9 +418,22 @@ function buildJobs(target: string, model: ModelConfig, docs: DocSources): ThinkS
 function thinkPrompt(s: ThinkScenario, character: CharacterName, docs: DocSources) {
   const ctx = characterContext(s, character, docs, config.plotProtection);
   return {
-    prompt: assembleThinkPrompt(docs.templates, ctx).text,
-    expect: { conversation: s.conversation.kind, livingOthers: ctx.state.livingOthers, ignoreNames: unbriefedGuests(s.id) },
+    ...messages(assembleThinkPrompt(docs.templates, ctx)),
+    expect: {
+      conversation: s.conversation.kind,
+      livingOthers: ctx.state.livingOthers,
+      ignoreNames: unbriefedGuests(s.id),
+      format: layout.thinkFormat,
+    },
   };
+}
+
+/** How prompts are laid out for this run, set once from --td and the model. */
+const layout = { systemRole: false, thinkFormat: "td0.2" as "td0.2" | "td0.3" };
+
+/** The run's message layout: one user message, or TD v0.3's system + user split. */
+function messages(p: AssembledPrompt): { prompt: string; system?: string } {
+  return layout.systemRole ? { prompt: p.user, system: p.system } : { prompt: p.text };
 }
 
 function dropUnsupported(jobs: ThinkSpec[], endpoint: EndpointInfo): ThinkSpec[] {
@@ -476,7 +539,9 @@ function printDryRun(model: ModelConfig, docs: DocSources, targets: string[]): v
       `== ${target}: ${jobs.length} calls (${[...counts].map(([v, n]) => `${v} ${n}`).join(", ")}); ` +
         `longest prompt ${chars} chars, ~${Math.round(chars / 4)} tokens`,
     );
-    for (const j of jobs) show(`${j.target} · ${j.character} · think()`, j.prompt);
+    for (const j of jobs) {
+      show(`${j.target} · ${j.character} · think()`, j.system ? `[SYSTEM MESSAGE]\n${j.system}\n\n[USER MESSAGE]\n${j.prompt}` : j.prompt);
+    }
     const schema = jobs.find((j) => j.jsonSchema)?.jsonSchema;
     if (schema) console.log(`---------- JSON SCHEMA (constrained mode) ----------\n${JSON.stringify(schema.schema, null, 2)}\n`);
   }

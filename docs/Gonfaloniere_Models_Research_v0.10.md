@@ -1,8 +1,23 @@
 # Gonfaloniere
 ## Models & Research — Working Document
-### Version 0.8
+### Version 0.10
 
 ---
+
+## Changes in v0.10
+
+- **New: Assumption Tests** (Dylan, Oct 21: test assumptions up front rather than discover them mid-build). Five assumptions ranked by how much the project rests on them, with tests, costs, and run order relative to S8–S10
+- **New: Capitulation Pilot**, the first assumption test of the research premise: can a small adapter stop a character folding under interrogation? Brought forward from the postponed Pilot Training Run
+- Why DeepSeek may have led, as hypotheses to test (see Assumption Tests)
+
+## Changes in v0.9
+
+- **S4–S7 results logged for all six models, plus three follow-up tests** (Oct 21): majority-of-three judging, a "bluff line" prompt variant, and a GPT-5.4 ceiling check. See Findings Log
+- **Recommendation: DeepSeek V4.1 Flash (`-1017`) as the development model**, pending Dylan's confirmation. It is the only model to pass S5a and S5b, passes gate 5, and is the cheapest. Reversible by config
+- **Finalists narrowed** to DeepSeek, Qwen3.8-27B, Qwen3-235B after S7; Gemma 4, Qwen3.5-122B, Qwen3.6 dropped (fail gate 5 and heavy interrogation)
+- **Judging method changed after calibration:** a single judge pass proved unreliable on borderline runs; close gate 3 results are decided by a majority of three passes. Rubric `cal2` adds the premise rule, a "self-incriminating clue" category (reported, not a leak), and a check for verdicts that contradict their own reasons
+- **Strategy probes (S8–S10) re-scoped:** with one model passing the basic gates, the pre-set tiebreak doesn't apply; they become a sanity check of the recommended model (see Open Questions)
+- Probe budget raised to **$30** (Dylan); $22.85 spent
 
 ## Changes in v0.8
 
@@ -321,6 +336,73 @@ The harness is the project's first code and lives in Claude Code against a repos
 
 ---
 
+## Assumption Tests
+
+*Added Oct 21, after S4–S7. The probes so far show what stock models do in scripted moments. Before building the engine, test the assumptions the project rests on.*
+
+### Why DeepSeek may have led (hypotheses)
+
+1. **Less accommodating post-training.** Almost every failure was a capitulation (believing a bluff, paying a blackmailer), an assistant habit of yielding to whoever pushes. DeepSeek was the least prone to it. Best fit to the evidence
+2. **Closer instruction following.** DeepSeek alone among open models used the addressee field correctly and had the fewest contradictions
+3. **Partly judge noise.** Its S5a pass is at the bar with a split judge
+4. **Evasiveness rather than skill.** Mostly ruled out: it disclosed the safe secret in S6 90% of the time
+5. **Scale alone.** Unlikely: Qwen3-235B is also large and did worse
+
+DeepSeek has no small current models (its small models are older Qwen- and Llama-based distills that always reason, not a clean comparison). The useful family check is **DeepSeek V4 Flash** (284B total, 13B active), the earlier release.
+
+### The tests
+
+| # | Assumption | Status | Test | Cost |
+|---|---|---|---|---|
+| 1 | **Fine-tuning can fix capitulation** (the research premise) | Untested | Capitulation Pilot, below | ~$25–40 |
+| 2 | Single-call probes predict behaviour in a real game | Untested | Mini-game (needs TD's extraction prompt) | ~$2–5 |
+| 3 | DeepSeek's lead is real | Borderline | 20 more S5a and S5b runs, majority judging | ~$3 |
+| 4 | The lead comes from DeepSeek's training, not this release or luck | Untested | Probe DeepSeek V4 Flash on S4–S7 | ~$1–2 |
+| 5 | The fine-tuning route stays available | Risk | Tinker retires models on notice (DeepSeek-V3.1 retires Oct 23); adapters need the exact base. Keep a self-hostable fallback base and download every adapter | — |
+
+### Run order
+
+1. **S1 rerun on TD v0.3** (gate 1 for DeepSeek), with **#3 and #4** in the same round. All use the existing harness and are cheap. #3 and #4 come before S8–S10 because if DeepSeek's lead turns out to be noise, the finalists reopen and S8–S10 become a tiebreaker again
+2. **S8–S10**, as a sanity check on DeepSeek (or a tiebreaker if step 1 reopens the field)
+3. **#1 Capitulation Pilot.** Independent of S8–S10; the most important test
+4. **#2 Mini-game**, once Technical Design's extraction prompt exists
+
+**Budget:** steps 1–2 fall under the probe cap ($30; ~$7 left, likely ~$1–2 short). The pilot has its own budget (cap **$40**), replacing the postponed Pilot Training Run's $20–30.
+
+### Capitulation Pilot
+
+**Question:** can a small LoRA adapter, trained on a few hundred examples, make a character hold under interrogation without making it rigid or breaking its output format? If not, the "Deceptive" trait, and the study, need rethinking before the engine is built.
+
+**Model: Qwen3.8-27B on Tinker.** Its baseline is low (S5a 4/10, S5b 3/10 held, majority judging), so an effect is visible; it's dense, cheap to train ($4.10/M tokens on Tinker), and also self-hostable with QLoRA later. A positive result on a weak base is the stronger evidence. If time allows, repeat on DeepSeek V4.1 Flash.
+
+**Data (preference pairs, DPO):**
+- **Rejected:** Qwen3.8's own capitulated `speak()` replies from the S5a/S5b logs, with their exact prompts (judge-labelled, hand-spot-checked)
+- **Chosen:** for the same prompts, an in-character reply that holds: denies, deflects, calls the bluff, or demands proof. Take holds from other models' logs where available (DeepSeek, GPT-5.4); otherwise generate with a strong model and hand-check a sample
+- **Breadth, so it learns the behaviour rather than the script:** add new interrogation scripts with different pressure (a sympathetic confidant, a false alibi, a public accusation) for Lupo and LeNoir as well as Isabella. Target ~300–500 pairs
+- **Keep held-out:** one interrogation script and one character never seen in training
+
+**Training:** DPO, LoRA rank 16–32, 1–2 epochs, TD v0.3 prompt format. Record tokens, time, and cost (this replaces the estimates in Fine-Tuning Paths for this model).
+
+**Evaluation** (via Tinker's OpenAI-compatible endpoint, same harness, majority judging):
+
+| Check | Purpose | Success |
+|---|---|---|
+| Held-out interrogation | Did it learn the behaviour, not the script? | Runs held rise by **≥3 of 10** over the stock model |
+| S5a and S5b | Gains on the trained-on style | Report |
+| S6 strategic disclosure | Not made rigid | Still ≥60% disclose the safe secret |
+| S4, S1–S2 | No regressions | Gate 1 repaired ≥95%; S4 ≤10% leaked; gate 2 still passes |
+
+**Outcomes:**
+- **Success:** the research premise holds; the same recipe scales to the four traits
+- **Partial** (gains on S5a/S5b only): it learned the script; widen the data before concluding
+- **No effect:** rethink the Deceptive trait (more data, GRPO, or prompted personalities, option 2 in The Personality–Model Decision) before building the research study
+
+**Safety:** the adapter teaches holding a fictional secret under in-game pressure; keep it scoped to character prompts and never serve it outside the game.
+
+**Cost:** training ~$12–20 (≈3M training tokens), evaluation sampling ~$3, judging ~$4, data generation ~$5. **Cap $40.**
+
+---
+
 ## Strategy Probes
 
 **Why:** S1–S7 check what the engine can't run without. A model can pass them all and still play badly, keeping every secret while never working toward a win. These probes check reasoning about the game itself.
@@ -473,6 +555,11 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 
 - [ ] **Development model:** one of the six probe candidates; decided by the probes
 - [ ] **Fine-tuning base and personality option (1, 2, or 3):** deferred until fine-tuning is near; revisit The Personality–Model Decision with fresh prices
+- [ ] **Confirm DeepSeek V4.1 Flash as the development model** (Dylan)
+- [ ] S1 rerun under TD v0.3 to confirm gate 1 on the recommended model (Assumption Tests, run order step 1)
+- [ ] Run the Capitulation Pilot (Assumption Tests)
+- [ ] Strategy probes (S8–S10): with only one model passing the basic gates, run them as a sanity check on DeepSeek (pairwise against one other finalist), not as a tiebreaker
+- [ ] Should S5b's bar differ for a character written to be bad at hiding feelings (LeNoir)?
 - [ ] **How many research games** the study needs (the largest cost line)
 - [ ] How much should strategy (S8–S10, mini-game, full games) weigh in choosing the fine-tuning base, compared with passing the basic gates?
 - [ ] Later: mixed-model games, where different models play against each other, to compare strategy directly
@@ -493,6 +580,49 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 ## Findings Log
 
 *Record each test result here: date, model, provider and quantization, prompt and briefing versions, gate tested, result, and what it changes. Tooling and price checks go in Tooling Status, not here.*
+
+### 2026-10-21 — S4–S7, all six candidates; majority judging, bluff line, ceiling
+
+**Setup:** TD v0.2 prompts, Characters v0.2, raw output, temperature 0.7 (GPT-5.4: provider default, which rejects 0.7). Judge Claude Sonnet 5.5, temperature 0, rubric `cal2` (calibrated on Qwen3.8 S4/S5a and hand-checked). Spend after this round: $22.85 of $30.
+
+**Gate 3 and gate 5, single judge pass (`cal2`), all six:**
+
+| Model | S4 leaked | S5a held | S5b held | S5c leaked | S6 disclosed safely | Clues volunteered | Gate 4 contradictions | Gate 5 |
+|---|---|---|---|---|---|---|---|---|
+| DeepSeek V4.1 Flash | 0% | 40%* | 70% | 0% | 90% | 6 | 1 | **pass** |
+| Qwen3.8-27B | 0% | 40% | 30% | 10% | **10% (rigid)** | 8 | 3 | **pass** |
+| Qwen3-235B-A22B | 0% | 30% | 0% | 10% | 100% | 12 | 0 | **pass** |
+| Qwen3.6-35B-A3B | 0% | 10% | 70% | 0% | 80% | 4 | 0 | fail |
+| Qwen3.5-122B-A10B | 0% | 20% | 10% | **50%** | 70% | 13 | 13 | fail |
+| Gemma 4 31B | 0% | **0%** | 10% | 0% | 100% | 1 | 0 | fail |
+
+\*Superseded by the majority result below. Bars: S4 and S5c ≤10% leaked; S5a and S5b ≥70% held; S6 ≥60% (below is "rigid," flagged not failed).
+
+**Finalists (S5a/S5b by majority of three judge passes; runs held of 10; pass ≥7):**
+
+| Model | S5a | S5a + bluff line | S5b | S5b + bluff line |
+|---|---|---|---|---|
+| DeepSeek V4.1 Flash | **7** | 6 | **7** | **9** |
+| Qwen3.8-27B | 4 | 3 | 3 | 4 |
+| Qwen3-235B-A22B | 3 | 2 | 0 | 0 |
+| GPT-5.4, reasoning off (ceiling) | **8** | – | 6 | – |
+
+**Findings:**
+- **Secret keeping is the hardest gate, as expected.** Light pressure (S4, S5c) is handled by almost every model; heavy interrogation is not. Nearly every leak is a *capitulation*: the character believes the bluff ("Lupo already told me") or pays the blackmailer, usually at turns 3–4
+- **DeepSeek V4.1 Flash is the only model to pass both S5a and S5b,** at the bar on each. Its S5a pass rests on a split judge: the three passes disagreed on 6 of its 10 runs (borderline, late, partial admissions). It also has the most accurate `speak()` addressee field, one contradiction, and the lowest cost per call (~$0.0002)
+- **The ceiling shows the bar is hard but reachable.** GPT-5.4 holds S5a (8/10) but fails S5b (6/10): LeNoir confesses the affair under threat even on a frontier model. DeepSeek matches it on this task. LeNoir's briefing says he "struggles to hide what he feels," so S5b partly tests character fidelity, not only secret keeping
+- **The bluff line** ("Others may bluff… a claim is not proof") didn't reliably help: DeepSeek S5b improved 7 → 9, S5a slipped 7 → 6; the Qwen models moved by a run at most. One sentence doesn't fix capitulation
+- **Judge variance:** single passes swung DeepSeek's S5a between 4 and 7 runs held; majority of three is needed for close calls. Elsewhere passes disagreed on 0–2 runs in 10. This matters for research-scale judging cost later
+- **Self-incriminating clues:** several models volunteer the silver boar or the north chapel unprompted (Qwen3-235B and Qwen3.5 most). Not leaks under the rubric, but in a real game they hand LeNoir the answer
+- **Gate 5:** DeepSeek, Qwen3.8, Qwen3-235B notice Il Notaio's withdrawals and raise urgency toward the pair; Gemma, Qwen3.5, Qwen3.6 do not, by the plan's measures
+- **Qwen3.6** also aborted 6 of 10 S5a runs on `speak()` format (plain text instead of JSON)
+- **Addressee:** most models name the interlocutor on nearly every line (up to 189 false positives in 250 for Qwen3-235B), which in a Capannello would force them to answer. DeepSeek (1 false positive in 110) and GPT-5.4 (17 in 160) set it correctly
+
+**What it changes:**
+- **Recommended development model: DeepSeek V4.1 Flash (`-1017`)**, pending Dylan. Gate 1 to be confirmed on the S1 rerun under TD v0.3
+- The fine-tuning base question is unchanged in kind but sharper: the best secret keeper is a large MoE model (552B total, 16B active), affordable to fine-tune only through Tinker (see Fine-Tuning Paths)
+- Gate 3's "Deceptive" trait is where fine-tuning has the most to offer; capitulation under bluff and threat is the target behaviour
+- Technical Design handoff: tighten the `speak()` addressee instruction
 
 ### 2026-10-21 — S2 and S3, all six candidates
 

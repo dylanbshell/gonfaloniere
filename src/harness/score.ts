@@ -19,7 +19,8 @@ import {
   type ThinkCallRecord,
 } from "./log.ts";
 import { gate3Cell, gate4Cell, gate5Cell, gate5Report, judgedReport, judgedRuns, type JudgedRun } from "./score-judged.ts";
-import { unbriefedGuests } from "./scenarios.ts";
+import { scenarioById, unbriefedGuests } from "./scenarios.ts";
+import { probePool, tdVersionOf } from "./transcripts.ts";
 
 // Set before running so results can't move the goalposts. The raw bar applies
 // at every scoring level; constrained decoding ran in S1 only.
@@ -47,12 +48,25 @@ function main(): void {
   const records = readRecords(files);
   let calls = records.filter((r): r is CallRecord => r.type === "call");
 
-  // By default, each model's latest run of each target (pre-flight, S1, S2…).
+  // By default, each model's latest run of each target and Technical Design
+  // version; dialogues use their pool (a run plus any --extend runs).
   if (!explicit.length && !args.includes("--all")) {
     const latest = new Map<string, string>();
-    for (const c of calls) latest.set(`${c.modelId}|${c.target}`, c.runId);
-    calls = calls.filter((c) => latest.get(`${c.modelId}|${c.target}`) === c.runId);
+    for (const c of calls) latest.set(`${c.modelId}|${c.target}|${tdVersionOf(records, c.runId)}`, c.runId);
+    const pools = new Map<string, Set<string>>();
+    calls = calls.filter((c) => {
+      const key = `${c.modelId}|${c.target}|${tdVersionOf(records, c.runId)}`;
+      if (!scenarioById(c.target) || scenarioById(c.target)!.callType !== "dialogue") return latest.get(key) === c.runId;
+      if (!pools.has(key)) pools.set(key, new Set(probePool(records, c.modelId, c.target)));
+      return pools.get(key)!.has(c.runId);
+    });
   }
+  // Runs on newer Technical Design prompts get their own rows, e.g. "S1 · TD v0.3",
+  // so the TD v0.2 results stay the S1–S7 reference.
+  calls = calls.map((c) => {
+    const td = tdVersionOf(records, c.runId);
+    return td === "0.2" ? c : { ...c, target: `${c.target} · TD v${td}` };
+  });
   const runIds = new Set(calls.map((c) => c.runId));
   const runs = records.filter((r): r is RunRecord => r.type === "run" && runIds.has(r.runId));
 
@@ -115,7 +129,8 @@ function summaryRow(
   const thinking = !off.length ? "not run" : leaked ? `**FLAG** (${leaked}/${off.length})` : `pass (${off.length}/${off.length})`;
 
   const cell = (mode: "raw" | "constrained") => {
-    const rows = scored.filter((s) => s.call.variant === mode);
+    // The S1–S7 reference: TD v0.2 rows only; newer-TD runs appear in the model's own gate 1 table.
+    const rows = scored.filter((s) => s.call.variant === mode && !s.call.target.includes(" · TD v"));
     if (!rows.length) return "–";
     return SCORING_LEVELS.map((level) => {
       const rate = validRate(rows, level);

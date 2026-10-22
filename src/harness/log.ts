@@ -47,7 +47,10 @@ interface CallBase {
   maxTokens: number;
   requestExtra: Record<string, unknown>;
   constrained: boolean;
+  /** The user message; with TD v0.3's layout, blocks 4–9. */
   prompt: string;
+  /** TD v0.3's system message (blocks 1–3), when the run used that layout. */
+  system?: string;
   raw: string | null;
   reasoning: string | null;
   usage: Usage | null;

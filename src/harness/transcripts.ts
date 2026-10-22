@@ -3,7 +3,7 @@
 import type { CharacterName } from "../game/roster.ts";
 import { RUBRIC_AMENDMENTS_ID, type JudgeVerdict, type TranscriptTurn } from "../judge/judge.ts";
 import { formatHistoryLine } from "../prompt/assemble.ts";
-import type { CallRecord, JudgeRecord, LogRecord } from "./log.ts";
+import type { CallRecord, JudgeRecord, LogRecord, RunRecord } from "./log.ts";
 import type { DialogueScenario } from "./scenario.ts";
 
 export interface Transcript {
@@ -23,7 +23,7 @@ export function currentRubricVersion(modelsResearch: string | undefined): string
 }
 
 /**
- * Rebuilds each run of a dialogue from the model's latest run of that target.
+ * Rebuilds each run of a dialogue from the model's latest pool of probe runs of that target.
  * An aborted run ends at the turn with no usable line; plannedTurns shows how
  * many it should have had.
  */
@@ -31,9 +31,9 @@ export function buildTranscripts(records: LogRecord[], modelId: string, s: Dialo
   const calls = records.filter(
     (r): r is CallRecord => r.type === "call" && r.modelId === modelId && r.target === s.id && r.turn !== undefined,
   );
-  const sourceRunId = calls.at(-1)?.runId;
-  if (!sourceRunId) return [];
-  const mine = calls.filter((c) => c.runId === sourceRunId);
+  const pool = new Set(probePool(records, modelId, s.id));
+  if (!pool.size) return [];
+  const mine = calls.filter((c) => pool.has(c.runId));
 
   return [...new Set(mine.map((c) => c.sample))].sort((a, b) => a - b).map((sample) => {
     const turns: TranscriptTurn[] = [];
@@ -53,6 +53,7 @@ export function buildTranscripts(records: LogRecord[], modelId: string, s: Dialo
       });
       if (!spoke) break;
     }
+    const sourceRunId = mine.find((c) => c.sample === sample)!.runId;
     return { sourceRunId, modelId, target: s.id, sample, character: s.probed, turns, plannedTurns: s.turns.length };
   });
 }
@@ -71,44 +72,70 @@ export interface RunVerdict {
 }
 
 /**
- * The verdict for each run of the model's latest probe run of a dialogue,
+ * The verdict for each run in the model's latest pool of probe runs of a dialogue,
  * under the newest calibrated rubric version that judged it. Verdicts from
  * before calibration (a different shape) are never used.
  */
 export function latestVerdicts(records: LogRecord[], modelId: string, s: DialogueScenario): RunVerdict[] {
-  const sourceRunId = records
-    .filter((r): r is CallRecord => r.type === "call" && r.modelId === modelId && r.target === s.id && r.turn !== undefined)
-    .at(-1)?.runId;
-  if (!sourceRunId) return [];
+  const pool = new Set(probePool(records, modelId, s.id));
   const best = new Map<number, JudgeRecord>();
   for (const r of records) {
-    if (r.type !== "judge" || r.sourceRunId !== sourceRunId || r.target !== s.id || !r.verdict) continue;
+    if (r.type !== "judge" || !pool.has(r.sourceRunId) || r.target !== s.id || !r.verdict) continue;
     const level = calibrationLevel(r.rubricVersion);
     if (level === 0) continue;
     const prev = best.get(r.sample);
     if (!prev || level >= calibrationLevel(prev.rubricVersion)) best.set(r.sample, r);
   }
   return [...best.values()]
-    .map((r) => ({ sourceRunId, sample: r.sample, rubricVersion: r.rubricVersion, verdict: r.verdict!, parseErrors: r.parseErrors }))
+    .map((r) => ({
+      sourceRunId: r.sourceRunId,
+      sample: r.sample,
+      rubricVersion: r.rubricVersion,
+      verdict: r.verdict!,
+      parseErrors: r.parseErrors,
+    }))
     .sort((a, b) => a.sample - b.sample);
 }
 
 /**
- * Every calibrated verdict for each run of the model's latest probe run of a
+ * Every calibrated verdict for each run in the model's latest pool of probe runs of a
  * dialogue, oldest first: for comparing rubric versions and judge passes.
  */
 export function allVerdicts(records: LogRecord[], modelId: string, s: DialogueScenario): Map<number, RunVerdict[]> {
-  const sourceRunId = records
-    .filter((r): r is CallRecord => r.type === "call" && r.modelId === modelId && r.target === s.id && r.turn !== undefined)
-    .at(-1)?.runId;
+  const pool = new Set(probePool(records, modelId, s.id));
   const out = new Map<number, RunVerdict[]>();
-  if (!sourceRunId) return out;
   for (const r of records) {
-    if (r.type !== "judge" || r.sourceRunId !== sourceRunId || r.target !== s.id || !r.verdict) continue;
+    if (r.type !== "judge" || !pool.has(r.sourceRunId) || r.target !== s.id || !r.verdict) continue;
     if (calibrationLevel(r.rubricVersion) === 0) continue;
     const list = out.get(r.sample) ?? [];
-    list.push({ sourceRunId, sample: r.sample, rubricVersion: r.rubricVersion, verdict: r.verdict, parseErrors: r.parseErrors });
+    list.push({ sourceRunId: r.sourceRunId, sample: r.sample, rubricVersion: r.rubricVersion, verdict: r.verdict, parseErrors: r.parseErrors });
     out.set(r.sample, list);
   }
   return out;
+}
+
+/** The Technical Design version a probe run's prompts came from. */
+export function tdVersionOf(records: LogRecord[], runId: string): string {
+  const run = records.find((r): r is RunRecord => r.type === "run" && r.runId === runId);
+  return run?.docVersions.technicalDesign ?? "0.2";
+}
+
+/**
+ * The probe runs that pool for a model and scenario: the latest run of that
+ * target, or the run it extends (--extend), plus every run extending the same
+ * base. Runs from a different Technical Design version never pool.
+ */
+export function probePool(records: LogRecord[], modelId: string, targetId: string): string[] {
+  const calls = records.filter((r): r is CallRecord => r.type === "call" && r.modelId === modelId && r.target === targetId);
+  const latest = calls.at(-1)?.runId;
+  if (!latest) return [];
+  const extendsOf = (runId: string): string | undefined => {
+    const run = records.find((r): r is RunRecord => r.type === "run" && r.runId === runId);
+    return (run?.settings.extends as Record<string, string> | undefined)?.[targetId];
+  };
+  const base = extendsOf(latest) ?? latest;
+  const td = tdVersionOf(records, base);
+  return [...new Set(calls.map((c) => c.runId))].filter(
+    (id) => (id === base || extendsOf(id) === base) && tdVersionOf(records, id) === td,
+  );
 }

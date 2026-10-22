@@ -66,11 +66,32 @@ export interface CharacterContext {
 
 export interface AssembledPrompt {
   blocks: { id: string; text: string }[];
+  /** All nine blocks as one text (TD v0.2's layout, or system_role off). */
   text: string;
+  /** TD v0.3's layout: blocks 1–3, sent as the system message. */
+  system: string;
+  /** TD v0.3's layout: blocks 4–9, sent as one user message. */
+  user: string;
 }
 
+/**
+ * Block 9a. TD v0.3 removed the contact list and made `done` Colloquio-only,
+ * through {done_instruction} and {think_schema}; TD v0.2's template has
+ * neither placeholder, so those values go unused there.
+ */
 export function assembleThinkPrompt(t: PromptTemplates, ctx: CharacterContext): AssembledPrompt {
-  return assemble(t, ctx, fill(t.think, { character_name: ctx.characterName }));
+  const colloquio = ctx.state.conversation.kind === "colloquio";
+  return assemble(
+    t,
+    ctx,
+    fill(t.think, {
+      character_name: ctx.characterName,
+      done_instruction: colloquio
+        ? "\n3. done — true if you have what you came for, or nothing more is to be gained here; otherwise false.\n"
+        : "",
+      think_schema: colloquio ? '{"thought": "...", "importance": 0, "done": false}' : '{"thought": "...", "importance": 0}',
+    }),
+  );
 }
 
 export interface SpeakOptions {
@@ -124,7 +145,8 @@ function assemble(t: PromptTemplates, ctx: CharacterContext, task: string): Asse
     { id: "6-8-memory", text: memoryBlock(t, ctx) },
     { id: "9-task", text: task },
   ];
-  return { blocks, text: blocks.map((b) => b.text).join("\n\n") };
+  const join = (bs: typeof blocks) => bs.map((b) => b.text).join("\n\n");
+  return { blocks, text: join(blocks), system: join(blocks.slice(0, 3)), user: join(blocks.slice(3)) };
 }
 
 function rulesBlock(t: PromptTemplates, r: RulesValues): string {
