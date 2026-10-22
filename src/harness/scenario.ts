@@ -1,7 +1,7 @@
 // Scenario definitions and how they turn into per-character prompt contexts.
 
 import { ROSTER, factionOf, type CharacterName } from "../game/roster.ts";
-import type { CharacterContext, ConversationKind, HistoryLine } from "../prompt/assemble.ts";
+import type { CharacterContext, ConversationKind, HistoryLine, RulesValues } from "../prompt/assemble.ts";
 import type { DocSources } from "../sources/docs.ts";
 
 export type DecodingMode = "raw" | "constrained";
@@ -92,7 +92,7 @@ export function characterContext(
   s: Scenario,
   character: CharacterName,
   docs: DocSources,
-  plotProtection: boolean,
+  plot: Pick<RulesValues, "plotProtection" | "plotReward">,
   live?: LiveState,
 ): CharacterContext {
   const briefing = docs.briefings[character];
@@ -104,7 +104,7 @@ export function characterContext(
   return {
     characterName: character,
     briefing,
-    rules: { ...tunables, plotProtection },
+    rules: { ...tunables, plotProtection: plot.plotProtection, plotReward: plot.plotReward },
     // Blocks 4 and 6 are stubbed for probes (TD, Prompt Drafts). Block 7 is
     // empty for single-moment samples and holds a dialogue's earlier thoughts.
     strategy: null,

@@ -59,16 +59,19 @@ export function loadDocs(paths: DocPaths): DocSources {
   const mech = readFileSync(paths.mechanics, "utf8");
   const mr = readFileSync(paths.modelsResearch, "utf8");
 
-  const [rulesPrimer, plotProtectionRule] = fencesUnder(td, "### Block 2 — Rules primer");
+  const [rulesPrimer, plotRule] = fencesUnder(td, "### Block 2 — Rules primer");
+  // TD v0.4's Capannello addressee instruction: an indented block under 9b.
+  const [addresseeInstruction] = fencesUnder(td, "### Block 9b — speak() task", { indented: true });
   const templates: PromptTemplates = {
     frame: only(fencesUnder(td, "### Block 1 — Frame"), "Block 1"),
     rulesPrimer: required(rulesPrimer, "Block 2"),
-    plotProtectionRule: required(plotProtectionRule, "Block 2 plot protection rule"),
+    plotRule: required(plotRule, "Block 2 plot rule"),
     strategy: only(fencesUnder(td, "### Block 4 — Strategy"), "Block 4"),
     state: only(fencesUnder(td, "### Block 5 — State"), "Block 5"),
     memory: only(fencesUnder(td, "### Blocks 6–8 — Memory"), "Blocks 6–8"),
     think: only(fencesUnder(td, "### Block 9a — think() task"), "Block 9a"),
     speak: only(fencesUnder(td, "### Block 9b — speak() task"), "Block 9b"),
+    ...(addresseeInstruction && { addresseeInstruction }),
   };
 
   const socialAwareness = standardSocialAwareness(chars);
@@ -110,11 +113,16 @@ function section(md: string, heading: string): string[] {
   return lines.slice(start + 1, end < 0 ? undefined : end);
 }
 
-function fencesUnder(md: string, heading: string): string[] {
+/** Top-level code blocks under a heading, or with `indented`, those nested in a list (de-indented). */
+function fencesUnder(md: string, heading: string, opts: { indented?: boolean } = {}): string[] {
   const fences: string[] = [];
   let current: string[] | null = null;
-  for (const line of section(md, heading)) {
-    if (line.startsWith("```")) {
+  let indent = "";
+  for (const raw of section(md, heading)) {
+    const fence = raw.trimStart().startsWith("```") && (opts.indented ? raw[0] === " " : raw.startsWith("```"));
+    if (fence && !current) indent = raw.slice(0, raw.length - raw.trimStart().length);
+    const line = raw.startsWith(indent) ? raw.slice(indent.length) : raw;
+    if (fence) {
       if (current) {
         fences.push(current.join("\n"));
         current = null;

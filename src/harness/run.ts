@@ -21,7 +21,7 @@ import { allowedActionTypes, allowedActionsText, type ActionContext } from "../g
 import { factionOf, type CharacterName } from "../game/roster.ts";
 import { parseSpeak, type SpeakExpectation } from "../output/speak.ts";
 import { parseThink, thinkJsonSchema, type ThinkExpectation } from "../output/think.ts";
-import { assembleSpeakPrompt, assembleThinkPrompt, type HistoryLine } from "../prompt/assemble.ts";
+import { assembleSpeakPrompt, assembleThinkPrompt, speakHasAddressee, type HistoryLine } from "../prompt/assemble.ts";
 import { loadDocs, type DocSources } from "../sources/docs.ts";
 import { Budget, worstCaseCost } from "./budget.ts";
 import {
@@ -145,6 +145,7 @@ async function main(): Promise<void> {
       temperature: model.noTemperature ? "model default" : config.temperature,
       seedBase: config.seedBase,
       plotProtection: config.plotProtection,
+      plotReward: config.plotReward,
       maxTokens: config.maxTokens,
       speakRetries: config.speakRetries,
       thinkingOff: model.thinkingOff ?? config.thinkingOff,
@@ -286,7 +287,7 @@ async function runDialogue(
     });
     const seed = config.seedBase + run * 1000 + turn * 10;
 
-    const thinkCtx = characterContext(s, character, docs, config.plotProtection, live());
+    const thinkCtx = characterContext(s, character, docs, config, live());
     const thought = await call({
       callType: "think",
       target: s.id,
@@ -309,12 +310,13 @@ async function runDialogue(
     if (thoughtText) thoughts.push(thoughtText);
 
     // speak() sees the thought it just had, as TD's shortTermHistory would hold it.
-    const speakCtx = characterContext(s, character, docs, config.plotProtection, live());
+    const speakCtx = characterContext(s, character, docs, config, live());
     const actions = actionContext(s, character, docs);
     const expect: SpeakExpectation = {
       present: speakCtx.state.present,
       allowedActions: allowedActionTypes(actions),
       florins: actions.florins,
+      addressee: speakHasAddressee(docs.templates, s.conversation.kind),
     };
     const speakMessages = messages(
       assembleSpeakPrompt(docs.templates, speakCtx, {
@@ -420,7 +422,7 @@ function buildJobs(target: string, model: ModelConfig, docs: DocSources): ThinkS
 }
 
 function thinkPrompt(s: ThinkScenario, character: CharacterName, docs: DocSources) {
-  const ctx = characterContext(s, character, docs, config.plotProtection);
+  const ctx = characterContext(s, character, docs, config);
   return {
     ...messages(assembleThinkPrompt(docs.templates, ctx)),
     expect: {
@@ -526,7 +528,7 @@ function printDryRun(model: ModelConfig, docs: DocSources, targets: string[]): v
       );
       const history = [...scenario.opening, ...scenario.turns[0]!];
       const live = { history, shortTermThoughts: [], utterance: history.filter((l) => l.kind === "speech").length };
-      const ctx = characterContext(scenario, scenario.probed, docs, config.plotProtection, live);
+      const ctx = characterContext(scenario, scenario.probed, docs, config, live);
       show(`${scenario.id} · ${scenario.probed} · turn 1 · think()`, assembleThinkPrompt(docs.templates, ctx).text);
       const actions = allowedActionsText(actionContext(scenario, scenario.probed, docs));
       show(

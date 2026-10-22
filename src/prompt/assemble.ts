@@ -5,13 +5,18 @@
 export interface PromptTemplates {
   frame: string;
   rulesPrimer: string;
-  /** Inserted as {plot_protection_rule} when plot protection is on. */
-  plotProtectionRule: string;
+  /**
+   * Block 2's second block: the plot protection rule (TD v0.2–v0.3, as
+   * {plot_protection_rule}) or the Plot Reward rule (TD v0.4, as {plot_reward_rule}).
+   */
+  plotRule: string;
   strategy: string;
   state: string;
   memory: string;
   think: string;
   speak: string;
+  /** TD v0.4's Capannello {addressee_instruction}; absent in earlier versions. */
+  addresseeInstruction?: string;
 }
 
 export interface RulesValues {
@@ -19,7 +24,10 @@ export interface RulesValues {
   income: number;
   vote_price: number;
   pension_size: number;
+  /** TD v0.2–v0.3: fills {plot_protection_rule}. */
   plotProtection: boolean;
+  /** TD v0.4's `plot_reward` flag: fills {plot_reward_rule}. */
+  plotReward: boolean;
 }
 
 export type ConversationKind = "capannello" | "colloquio";
@@ -46,7 +54,7 @@ export interface StateValues {
   florins: number;
   pensionsHeld: number;
   /** French Embassy characters only. */
-  embassyLedger?: { treasury: number; pensions: string };
+  embassyLedger?: { treasury: number; pensions: string; latest?: string };
   withdrawalCount: number;
   plotStatus?: string;
   actionFeedback?: string;
@@ -116,12 +124,29 @@ export function assembleSpeakPrompt(t: PromptTemplates, ctx: CharacterContext, o
       : opts.closing?.reason === "cap"
         ? "This private conversation must end now. This is your last line here."
         : "";
-  const task = fill(t.speak, {
+  const addressee = speakHasAddressee(t, ctx.state.conversation.kind);
+  // An empty {addressee_instruction} (TD v0.4's Colloquio) takes its line with it.
+  const template = addressee ? t.speak : t.speak.replace("{addressee_instruction}\n", "");
+  const task = fill(template, {
     character_name: ctx.characterName,
     closing_line_note: closing,
     allowed_actions: opts.allowedActions,
-  }).replace("It is your turn to speak. \n", "It is your turn to speak.\n");
+    // TD v0.4 only; earlier templates have neither placeholder.
+    addressee_instruction: t.addresseeInstruction ?? "",
+    speak_schema: addressee
+      ? '{"addressee": "..." or null, "utterance": "...", "action": null or {...}}'
+      : '{"utterance": "...", "action": null or {...}}',
+  })
+    .replace("It is your turn to speak. \n", "It is your turn to speak.\n");
   return assemble(t, ctx, opts.extraInstruction ? addBullet(task, opts.extraInstruction) : task);
+}
+
+/**
+ * Whether speak() asks for an addressee: always before TD v0.4; from v0.4
+ * (whose template has {speak_schema}), only in a Capannello.
+ */
+export function speakHasAddressee(t: PromptTemplates, kind: ConversationKind): boolean {
+  return kind === "capannello" || !t.speak.includes("{speak_schema}");
 }
 
 /** Inserts a bullet after the last line of the task's first bullet list. */
@@ -155,7 +180,8 @@ function rulesBlock(t: PromptTemplates, r: RulesValues): string {
     income: String(r.income),
     vote_price: String(r.vote_price),
     pension_size: String(r.pension_size),
-    plot_protection_rule: r.plotProtection ? t.plotProtectionRule : "",
+    plot_protection_rule: r.plotProtection ? t.plotRule : "",
+    plot_reward_rule: r.plotReward ? t.plotRule : "",
   }).trimEnd();
 }
 
@@ -169,7 +195,9 @@ function stateBlock(t: PromptTemplates, s: StateValues): string {
     florins: String(s.florins),
     pensions_held: s.pensionsHeld ? String(s.pensionsHeld) : "none",
     embassy_ledger: s.embassyLedger
-      ? `Embassy treasury: ${s.embassyLedger.treasury} Florins. Pensions held: ${s.embassyLedger.pensions}.`
+      ? `Embassy treasury: ${s.embassyLedger.treasury} Florins. Pensions held: ${s.embassyLedger.pensions}.` +
+        // TD v0.4 adds the most recent change; nothing has changed at a probe's start.
+        (s.embassyLedger.latest ? ` Latest: ${s.embassyLedger.latest}.` : "")
       : "",
     withdrawal_count: String(s.withdrawalCount),
     plot_status: s.plotStatus ?? "",

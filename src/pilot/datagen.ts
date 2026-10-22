@@ -28,7 +28,7 @@ import { buildCandidatePrompt, candidateJsonSchema, checkCandidateLabels, type C
 import type { TranscriptTurn } from "../judge/judge.ts";
 import { parseSpeak, type SpeakExpectation } from "../output/speak.ts";
 import { parseThink } from "../output/think.ts";
-import { assembleSpeakPrompt, assembleThinkPrompt, formatHistoryLine, type HistoryLine } from "../prompt/assemble.ts";
+import { assembleSpeakPrompt, assembleThinkPrompt, formatHistoryLine, speakHasAddressee, type HistoryLine } from "../prompt/assemble.ts";
 import { loadDocs } from "../sources/docs.ts";
 import { Budget, worstCaseCost } from "../harness/budget.ts";
 import { RunLog, gitCommit, priorSpend, readRecords, runLogFiles } from "../harness/log.ts";
@@ -45,7 +45,8 @@ export interface Candidate {
   seed: number;
   raw: string | null;
   /** The reply as the engine would use it; null if it didn't parse. */
-  parsed: { addressee: string | null; utterance: string; action: unknown } | null;
+  /** `addressee` is absent where the prompt didn't ask for one (TD v0.4's Colloquio). */
+  parsed: { addressee?: string | null; utterance: string; action: unknown } | null;
   /** Haiku's label (every usable reply). */
   haikuLabel: CandidateLabel | null;
   /** Sonnet's re-check, where it looked. */
@@ -196,7 +197,7 @@ async function main(): Promise<void> {
       let cost = 0;
 
       // Stock Qwen thinks; its thought is part of the prompt both models reply to.
-      const thinkCtx = characterContext(s, character, docs, config.plotProtection, live());
+      const thinkCtx = characterContext(s, character, docs, config, live());
       const tp = assembleThinkPrompt(docs.templates, thinkCtx);
       const t = await call(qwen, qwenEp, { prompt: tp.user, system: tp.system, seed, maxTokens: config.maxTokens.think, temperature: config.temperature, extra: thinkingOff(qwen) });
       if (!t) return;
@@ -206,7 +207,7 @@ async function main(): Promise<void> {
         : null;
       if (thought) thoughts.push(thought);
 
-      const speakCtx = characterContext(s, character, docs, config.plotProtection, live());
+      const speakCtx = characterContext(s, character, docs, config, live());
       const actions = {
         faction: factionOf(character),
         florins: currentFlorins(s, character, docs),
@@ -215,7 +216,7 @@ async function main(): Promise<void> {
         colloquioWith: s.conversation.kind === "colloquio" ? (s.conversation.present.find((p) => p !== character) ?? null) : null,
       };
       const sp = assembleSpeakPrompt(docs.templates, speakCtx, { allowedActions: allowedActionsText(actions) });
-      const expect: SpeakExpectation = { present: speakCtx.state.present, allowedActions: allowedActionTypes(actions), florins: actions.florins };
+      const expect: SpeakExpectation = { present: speakCtx.state.present, allowedActions: allowedActionTypes(actions), florins: actions.florins, addressee: speakHasAddressee(docs.templates, s.conversation.kind) };
 
       // Before --sample-from-turn, one Qwen reply just carries the conversation forward.
       const sampling = turn >= Number(opts["sample-from-turn"]);
@@ -235,7 +236,7 @@ async function main(): Promise<void> {
           model: d.model.id,
           seed: d.seed,
           raw,
-          parsed: p?.verdict === "valid" ? { addressee: p.addressee, utterance: p.value!.utterance, action: p.action } : null,
+          parsed: p?.verdict === "valid" ? { ...(expect.addressee && { addressee: p.addressee }), utterance: p.value!.utterance, action: p.action } : null,
           haikuLabel: null,
           sonnetLabel: null,
           recheckReason: null,
@@ -348,7 +349,7 @@ async function main(): Promise<void> {
         return;
       }
       const cont = candidates[pick]!.parsed!;
-      earlier.push({ turn, before: s.turns[turn - 1]!.map(formatHistoryLine), thought, utterance: cont.utterance, addressee: cont.addressee });
+      earlier.push({ turn, before: s.turns[turn - 1]!.map(formatHistoryLine), thought, utterance: cont.utterance, addressee: cont.addressee ?? null });
       history.push({ kind: "speech", speaker: character, addressee: cont.addressee ?? undefined, text: cont.utterance });
     }
   }

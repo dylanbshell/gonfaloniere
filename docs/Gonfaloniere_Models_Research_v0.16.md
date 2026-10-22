@@ -1,8 +1,16 @@
 # Gonfaloniere
 ## Models & Research — Working Document
-### Version 0.15
+### Version 0.16
 
 ---
+
+## Changes in v0.16
+
+Merged four handoffs (Oct 22):
+- **Characters v0.3:** LeNoir no longer "struggles to hide what he feels" (temper shows; honour forbids naming Giorgia). **Version pinning rule:** every stock and adapted evaluation in a comparison uses the same briefing and TD versions, recorded in the Findings Log; results across briefing versions aren't compared. The open question on a separate S5b bar for LeNoir is closed as moot
+- **TD v0.4 prompt changes:** the pilot adopts TD v0.4 and Characters v0.3 if its pairs aren't generated yet (otherwise stays pinned and records it); addressee false positives re-measured on stock Qwen3.8 within the pilot's baselines; bribe History lines already match TD's format
+- **Propensity to kill:** left to Bold/Cautious, not fixed in briefings (matches Characters v0.3). Willingness to kill is now a named Bold/Cautious measure
+- **Real-history leakage:** no separate probe. A judge check for real history after the evening (e.g. Piero's exile, Savonarola's execution) or "corrections" of the briefing is added to the mini-game and S8–S10 (TD v0.4 block 1 already instructs against it)
 
 ## Changes in v0.15
 
@@ -394,7 +402,7 @@ DeepSeek has no small current models (its small models are older Qwen- and Llama
 | # | Assumption | Status | Test | Cost |
 |---|---|---|---|---|
 | 1 | **Fine-tuning can fix capitulation** (the research premise) | Untested | Capitulation Pilot, below | ~$25–40 |
-| 2 | Single-call probes predict behaviour in a real game | Untested | Mini-game (needs TD's extraction prompt) | ~$2–5 |
+| 2 | Single-call probes predict behaviour in a real game | Untested | Mini-game (needs TD's extraction prompt). Also checks **real-history leakage**: the judge flags any reference to events after the evening (Piero's exile, Savonarola's execution) or a "correction" of the briefing from real history (e.g. Clarice as Lorenzo's wife) | ~$2–5 |
 | 3 | DeepSeek's lead is real | **Holds** (Oct 22): only model to pass gate 3 under `cal3` (S5a 27/30, S5b 22/30) | 20 more S5a and S5b runs, majority judging | ~$3 (done) |
 | 4 | The lead comes from DeepSeek's training, not this release or luck | **Mostly holds** (Oct 22, Parasail): V4 Flash matches V4.1 on S5a, ahead of the Qwen models on S5b but short of the bar; 10 runs only | Probe DeepSeek V4 Flash on S4–S7 | ~$1–2 |
 | 5 | The fine-tuning route stays available | Risk | Tinker retires models on notice (DeepSeek-V3.1 retires Oct 23); adapters need the exact base. Keep a self-hostable fallback base and download every adapter | — |
@@ -426,7 +434,11 @@ DeepSeek has no small current models (its small models are older Qwen- and Llama
 - **Breadth, so it learns the behaviour rather than the script:** add new interrogation scripts with different pressure (a sympathetic confidant, a false alibi, a public accusation) for Lupo and LeNoir as well as Isabella. Target ~300–500 pairs
 - **Keep held-out:** one interrogation script and one character never seen in training
 
-**Training:** DPO, LoRA rank 16–32, 1–2 epochs, TD v0.3 prompt format. Record tokens, time, and cost (this replaces the estimates in Fine-Tuning Paths for this model).
+**Versions (Oct 22):** if the pairs aren't generated yet, data, baselines, and evaluations all use **TD v0.4 and Characters v0.3** (the play format); stock baselines already taken on older versions are rerun. If the pairs already exist, everything stays pinned to the versions they were built on, recorded in the Findings Log. Stock and adapted results are compared only on the same versions.
+
+**Addressee check (TD v0.4 handoff):** the stock Qwen3.8 baselines on S4 and S6 also report `speak()` addressee false positives under v0.4's tightened instruction (no extra cost).
+
+**Training:** DPO, LoRA rank 16–32, 1 epoch first (a second only on approval), in the prompt format of the pinned TD version. Record tokens, time, and cost (this replaces the estimates in Fine-Tuning Paths for this model).
 
 **Evaluation** (via Tinker's OpenAI-compatible endpoint, same harness, majority judging):
 
@@ -457,7 +469,7 @@ DeepSeek has no small current models (its small models are older Qwen- and Llama
 
 **Status:** a **tiebreaker**, not a gate. Run only on the two or three models that pass gates 1, 3, and 5. One good plan isn't good play, so these catch weak reasoning; the mini-game and full games show whether characters follow their plans, adapt, and win. Strategy matters most for the fine-tuning base, which is harder to change than the development model.
 
-**Setup:** same harness, rules, and prompt blocks as S1–S7. The task block (9) uses Technical Design's strategy, Murder Round, and vote prompts once drafted; until then, **stand-in task prompts**, recorded as such in the Findings Log. Same characters: Lupo, Isabella, LeNoir.
+**Setup:** same harness, rules, and prompt blocks as S1–S7. The judge also flags real-history leakage (see Assumption Tests, #2). The task block (9) uses Technical Design's strategy, Murder Round, and vote prompts once drafted; until then, **stand-in task prompts**, recorded as such in the Findings Log. Same characters: Lupo, Isabella, LeNoir.
 
 ### S8 — Rules reasoning (scored against an answer key)
 
@@ -576,6 +588,7 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
   | **Cautious** | Competence + caution | Avoids exposure; waits for proof |
 
   - **Bold:** commits early, makes large bribes, accepts a French pension when it pays, slips away into Colloquii, makes open accusations, acts in the Murder Round rather than guarding
+  - **Willingness to kill belongs to this axis** (Oct 22). Briefings give motives only (Characters v0.3, Rewrite Rules); how readily a character kills is left to Bold/Cautious, so a fixed "propensity to kill" doesn't mask the personality effect. Measured by Murder Round kills vs. guards and other acts, per variant
   - **Cautious:** holds Florins back, bribes small or late, refuses risky offers, stays in company, hedges commitments, wants evidence before accusing, guards rather than strikes
   - **Defined by actions, not by how much a character says.** Caution must not mean "shares less," or Cautious becomes a better secret keeper and overlaps the shared competence. Check: Cautious and Neutral should hold S5a/S5b at similar rates
   - **Measurable from logs without a judge:** the Florin ledger (bribe sizes and timing, pension accepted), movement (Colloquii entered), Murder Round acts, and vote timing; a judge adds accusations and commitments
@@ -622,7 +635,6 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 - [ ] Should paying a blackmailer count toward plot points in the game (does Bartolo "learn" the secret)? A Technical Design question under its deduced-knowledge rule, separate from gate 3
 - [ ] Run the Capitulation Pilot (Assumption Tests)
 - [ ] Strategy probes (S8–S10): deferred until after the pilot; run on the fine-tuning bases it qualifies, with DeepSeek as the reference
-- [ ] Should S5b's bar differ for a character written to be bad at hiding feelings (LeNoir)?
 - [ ] **How many research games** the study needs (the largest cost line)
 - [ ] How much should strategy (S8–S10, mini-game, full games) weigh in choosing the fine-tuning base, compared with passing the basic gates?
 - [ ] Later: mixed-model games, where different models play against each other, to compare strategy directly

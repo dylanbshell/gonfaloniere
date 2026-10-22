@@ -70,15 +70,17 @@ export const config = {
     technicalDesign: technicalDesignPath(process.env.PROBE_TD ?? "0.2"),
     characters: `docs/Gonfaloniere_Characters_v${CHARACTERS_VERSION}.md`,
     mechanics: "docs/Gonfaloniere_Game_Mechanics_v0.18.md",
-    modelsResearch: "docs/Gonfaloniere_Models_Research_v0.15.md",
+    modelsResearch: "docs/Gonfaloniere_Models_Research_v0.16.md",
   },
 
   /** Same for every model; 0.7 until Technical Design sets a play value. */
   temperature: 0.7,
   /** Sample i uses seed seedBase + i, so modes and models see the same seeds. */
   seedBase: 1492,
-  /** Fills {plot_protection_rule} in the rules primer. */
+  /** Fills {plot_protection_rule} in the rules primer (TD v0.2–v0.3). */
   plotProtection: true,
+  /** TD v0.4's `plot_reward` flag: off for the Capitulation Pilot, so {plot_reward_rule} and {plot_status} are empty. */
+  plotReward: false,
   /** Output caps. TD estimates ~250 tokens for think() and ~100 for speak(). */
   maxTokens: { think: 800, speak: 400 },
   /** Extra attempts when a speak() reply doesn't parse, since a dialogue can't continue without a line. */

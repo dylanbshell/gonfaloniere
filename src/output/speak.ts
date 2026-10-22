@@ -16,9 +16,12 @@ const action = z.discriminatedUnion("type", [
   z.object({ type: z.literal("repay"), for: z.string() }),
 ]);
 
-/** Lenient shape check: extra keys ignored; a missing `action` counts as none. */
+/**
+ * Lenient shape check: extra keys ignored; a missing `action` counts as none.
+ * `addressee` is required unless the prompt didn't ask for it (TD v0.4's Colloquio).
+ */
 export const SpeakOutput = z.object({
-  addressee: z.string().nullable(),
+  addressee: z.string().nullable().optional(),
   utterance: z.string().min(1),
   action: action.nullable().optional(),
 });
@@ -32,6 +35,8 @@ export interface SpeakExpectation {
   allowedActions: ActionType[];
   /** For checking a bribe amount. */
   florins: number;
+  /** False when the prompt has no addressee field (TD v0.4's Colloquio); default true. */
+  addressee?: boolean;
 }
 
 export interface SpeakParseResult {
@@ -70,10 +75,13 @@ export function parseSpeak(raw: string, expect: SpeakExpectation): SpeakParseRes
 
   const value = shape.data;
   const warnings: string[] = [];
+  const asked = expect.addressee ?? true;
+  if (asked && value.addressee === undefined) return failed(["addressee: missing"]);
+  if (!asked && value.addressee != null) warnings.push(`addressee "${value.addressee}" given where none was asked; ignored`);
 
   let addressee: string | null = null;
   let addresseeIssue: SpeakParseResult["addresseeIssue"] = null;
-  if (value.addressee !== null && value.addressee.trim() !== "") {
+  if (asked && value.addressee != null && value.addressee.trim() !== "") {
     if (expect.present.includes(value.addressee)) {
       addressee = value.addressee;
     } else {
