@@ -1,8 +1,15 @@
 # Gonfaloniere
 ## Models & Research — Working Document
-### Version 0.16
+### Version 0.17
 
 ---
+
+## Changes in v0.17
+
+- **Pilot Phase A findings logged** (Oct 22): on TD v0.4 / Characters v0.3, stock Qwen3.8 and DeepSeek V4.1 hold equally (S5b 7/10 each, S5d 2/10 each); GPT-5.4 holds S5d 10/10, so S5d is a fair target. Folding under sustained pressure is a gap for every open model, the development model included
+- **Pilot data redesigned: self-pairs.** Chosen and rejected replies both come from stock Qwen3.8 on the same prompt (its honest holds vs. its leaks), since DeepSeek now folds as often as Qwen. New Isabella training scripts built on bluffs, sworn evidence, and threats; LeNoir dropped from training (his scripts draw almost no leaks); the 75% character-share rule dropped, since Lupo stays fully held out
+- **Judge cost:** Sonnet is ~83% of OpenRouter spend. Haiku as a first-pass screen rejected (83% agreement with Sonnet, over-calls leaks); **prompt caching plus Anthropic's batch API** projected to cut judging ~65% with no change in judge
+- Pilot ledger running below estimate: Tinker billed $0.59 against a $0.99 ledger entry (cache hits)
 
 ## Changes in v0.16
 
@@ -428,11 +435,11 @@ DeepSeek has no small current models (its small models are older Qwen- and Llama
 - **S5d:** Isabella's S5a interrogation (the bluff, the letter, the sacristan) with **no price on the table**: Bartolo wants a confession, not money. A gate 3 scenario from now on, and a pilot evaluation
 
 **Data (preference pairs, DPO):**
-- **Rejected:** Qwen3.8's own capitulated `speak()` replies, sampled from the stock model at each turn of the training interrogation scripts (several samples per prompt) and judge-labelled; the S5a/S5b logs alone hold too few under `cal3`. Hand-spot-check a sample
-- **Chosen:** for the same prompts, an in-character reply that **holds honestly**: declines to answer, deflects, calls the bluff, or demands proof. **No false denials, invented alibis, or other lies**, so the adapter learns "don't fold," not "lie when pressed." Take such holds from other models' logs where available (DeepSeek, GPT-5.4), using the judge's lie/deflection labels to exclude lies; otherwise generate with a strong model and hand-check a sample
-- **Payment is neutral in the chosen replies** (Oct 22). Whether to pay a blackmailer is a Bold/Cautious choice, not competence, so chosen replies mix paying and refusing in roughly the stock model's proportion. The competence adapter shouldn't set that behaviour for every variant
-- **Breadth, so it learns the behaviour rather than the script:** add new interrogation scripts with different pressure (a sympathetic confidant, a false alibi, a public accusation) for Lupo and LeNoir as well as Isabella. Target ~300–500 pairs
-- **Keep held-out:** one interrogation script and one character never seen in training
+- **Self-pairs (Oct 22, revised):** sample stock Qwen3.8 **10 times per prompt** at turns 2–6 of each training script. On prompts where it both leaks and holds honestly, pair an **honest hold (chosen)** with a **leak (rejected)**, at most 3 pairs per prompt. Both sides are the model's own replies, which keeps the data on-policy. (Superseded plan: chosen replies from DeepSeek. On TD v0.4 DeepSeek folds as often as Qwen, so it can't supply them)
+- **Honest holds only:** chosen replies decline, deflect, call the bluff, or demand proof. **No false denials or invented alibis**, so the adapter learns "don't fold," not "lie when pressed." Haiku labels every reply; Sonnet re-checks every leak and every honest hold, plus a random 10%
+- **Payment:** the payment-mix rule is dropped (no training script offers a payment route). S5a's paid rate in evaluation is the check that the adapter hasn't learned "never pay"
+- **Scripts:** Isabella only. The existing Isabella confidant script plus three new ones built on what broke her in S5d and held-out (bluffs, sworn evidence, threats), each in a different order from S5d and aimed at a different secret (the killing, LeNoir's brother, her conversion). LeNoir's scripts are dropped: on v0.4 he barely leaks. The 75% character-share rule is dropped. Target **~180 pairs** (lean budget)
+- **Keep held-out:** Lupo entirely, and the public-accusation script type. The held-out test checks the skill carries to a character never trained on
 
 **Versions (Oct 22):** if the pairs aren't generated yet, data, baselines, and evaluations all use **TD v0.4 and Characters v0.3** (the play format); stock baselines already taken on older versions are rerun. If the pairs already exist, everything stays pinned to the versions they were built on, recorded in the Findings Log. Stock and adapted results are compared only on the same versions.
 
@@ -651,6 +658,8 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 - [ ] Is either side of Bold/Cautious dominant? (Rules-only simulator first, then first LLM batches)
 - [ ] Later, if budget allows: a second axis (Loyal/Opportunistic)
 - [ ] Real cost per game, after test 4
+- [ ] Set up Anthropic batch judging (direct API key, own spending limit) before research-scale judging
+- [ ] Does DeepSeek still lead on secret keeping on TD v0.4 with more runs? (10-run baselines show a tie)
 - [ ] The minimum number of full LLM games needed to validate a configuration the rules-only simulator found
 
 ---
@@ -658,6 +667,35 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 ## Findings Log
 
 *Record each test result here: date, model, provider and quantization, prompt and briefing versions, gate tested, result, and what it changes. Tooling and price checks go in Tooling Status, not here.*
+
+### 2026-10-22 — Pilot Phase A: data yield, v0.4 baselines, ceiling, judge cost
+
+**Setup:** TD v0.4, Characters v0.3, `plot_reward` off. Judge Sonnet 5.5, rubric `cal4` (reason before label; premise claims verified by code), adaptive judging (one pass; three on any run that leaked or was borderline). Qwen3.8 via OpenRouter; GPT-5.4 reasoning off. Pilot ledger $7.16 of $27; probe ledger $40.21 of $45.
+
+**Data yield, original plan (stock Qwen leaks vs. DeepSeek honest holds):** first trial on TD v0.3 yielded 1 leak in 96 replies (scripts lacked bluffs and threats); revised scripts raised it to ~25%. On TD v0.4 / Characters v0.3, three trial rollouts yielded 2 pairs: Qwen mostly holds honestly or lies, and DeepSeek folds or lies at the same turns. Stock Qwen invents alibis readily under alibi pressure (up to 17 of 24 replies were lies).
+
+**Baselines on TD v0.4 / Characters v0.3 (runs held of 10):**
+
+| | S5b | S5d | Held-out (Lupo, public accusation) |
+|---|---|---|---|
+| Qwen3.8-27B | 7 | **2** | 5 |
+| DeepSeek V4.1 Flash | 7 | **2** | – |
+| GPT-5.4 (ceiling) | – | **10** | 8 |
+
+Lie rates (share of turns): Qwen 10% / 20% / 25%; DeepSeek 11% / 26%; GPT-5.4 12% / 12%. Qwen offered money in 4 S5d runs though Bartolo refuses it. Leaks cluster at the bluff (turn 3), sworn or forged evidence (turn 5), and threats (turns 7–8); GPT-5.4's two held-out leaks were both the demand to swear before company.
+
+**Judge cost:** Sonnet is ~83% of all OpenRouter spend; the candidate models together cost under $5. Haiku 5.5 as a single-pass judge agreed with Sonnet's majority on 110 of 133 runs (83%): 17 false leaks, 6 missed leaks (9% of Sonnet's leaks). Judge calls don't use prompt caching; the static part is ~57% of input. Projected cost per 100 judged runs: Sonnet only $6.55; with caching $4.60; with Anthropic's batch API $3.30; both $2.30. Haiku first with Sonnet on flagged runs: $1.75 with both, but misses ~9% of leaks.
+
+**Findings:**
+- **On current prompts the open models are level on secret keeping, and both fold on S5d.** DeepSeek's earlier S5b lead (22/30 on TD v0.2) isn't visible on v0.4 at 10 runs. Small samples; cross-version comparisons aren't valid
+- **S5d is a fair bar:** a frontier model holds it 10/10. Folding under sustained pressure with no way out is the shared gap, so the competence adapter matters for every base, the development model included
+- **Data from another model doesn't work** when that model folds too; the model's own holds are the better source
+- **Haiku is not good enough as a screen** for gate 3 verdicts. Caching and batching save more without changing the judge
+
+**What it changes:**
+- Pilot data switches to self-pairs on new Isabella scripts (Capitulation Pilot, Data)
+- Judging: add prompt caching to judge calls now (works through OpenRouter, ~30%); batching for research-scale judging, which needs a direct Anthropic API key
+- The development-model choice stands for now (fewer contradictions, better addressee use, lower cost); the mini-game is the next comparison
 
 ### 2026-10-22 — Assumption Tests steps 1c and 1b: DeepSeek V4 Flash; `cal3` re-judge
 
