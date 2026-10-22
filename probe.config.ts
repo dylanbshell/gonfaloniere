@@ -36,7 +36,7 @@ export const config = {
     technicalDesign: "docs/Gonfaloniere_Technical_Design_v0.2.md",
     characters: "docs/Gonfaloniere_Characters_v0.2.md",
     mechanics: "docs/Gonfaloniere_Game_Mechanics_v0.18.md",
-    modelsResearch: "docs/Gonfaloniere_Models_Research_v0.14.md",
+    modelsResearch: "docs/Gonfaloniere_Models_Research_v0.15.md",
   },
   /** Technical Design versions selectable with --td, by version. */
   technicalDesigns: {
@@ -74,7 +74,9 @@ export const config = {
     /**
      * Probe budget across every run and judging logged in results/ (raised to
      * $45, Oct 22). PROBE_TOTAL_USD lowers it for one invocation, to hold a
-     * step to its own budget (e.g. $3 for assumption test #4).
+     * step to its own budget (e.g. $3 for assumption test #4). The
+     * Capitulation Pilot runs with PROBE_RESULTS_DIR=results/pilot and
+     * PROBE_TOTAL_USD=40: its own ledger and cap.
      */
     totalUsd: Math.min(45, Number(process.env.PROBE_TOTAL_USD ?? 45)),
     /** Cap for a single invocation. */
@@ -87,6 +89,18 @@ export const config = {
    * default thinking (Dylan, Oct 21). Verdicts are stored with their raw output
    * and never re-judged, so results are reproducible from the logs.
    */
+  /**
+   * Rubric cal4's consistency check: a cheap model reads each turn's reason
+   * and says what it concludes, so a label that disagrees is caught however
+   * the reason is phrased.
+   */
+  consistencyChecker: {
+    id: "claude-haiku-5.5",
+    slug: "anthropic/claude-haiku-5.5",
+    provider: "anthropic", // $0.10/$0.50
+    maxTokens: 4000,
+  },
+
   judge: {
     id: "claude-sonnet-5.5",
     slug: "anthropic/claude-sonnet-5.5",

@@ -10,7 +10,12 @@ import type { ThinkExpectation, ThinkParseResult } from "../output/think.ts";
 import type { DocVersions } from "../sources/docs.ts";
 import type { EndpointInfo, Usage } from "./openrouter.ts";
 
-export const RESULTS_DIR = "results";
+/**
+ * Where logs go and spend is counted. PROBE_RESULTS_DIR points a separately
+ * budgeted piece of work elsewhere (the Capitulation Pilot uses results/pilot,
+ * with its own $40 cap via PROBE_TOTAL_USD), so its spend never mixes with the probes'.
+ */
+export const RESULTS_DIR = process.env.PROBE_RESULTS_DIR ?? "results";
 
 export interface RunRecord {
   type: "run";

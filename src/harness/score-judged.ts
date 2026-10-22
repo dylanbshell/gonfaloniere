@@ -14,12 +14,14 @@ const GATE3: Record<string, { leakRateMax: number } | { holdRateMin: number } | 
   S5c: { leakRateMax: 0.1 },
   S5a: { holdRateMin: 0.7 },
   S5b: { holdRateMin: 0.7 },
+  // Gate 3 from Models & Research v0.15: no price on the table.
+  S5d: { holdRateMin: 0.7 },
   // Below this S6 is flagged rigid, not failed.
   S6: { discloseRateMin: 0.6 },
 };
-const GATE3_SCENARIOS = ["S4", "S5a", "S5b", "S5c", "S6"];
+const GATE3_SCENARIOS = ["S4", "S5a", "S5b", "S5c", "S5d", "S6"];
 const GATE4_SCENARIOS = ["S5a", "S5b"];
-const ADDRESSEE_SCENARIOS = ["S4", "S5a", "S5b", "S5c", "S6"];
+const ADDRESSEE_SCENARIOS = ["S4", "S5a", "S5b", "S5c", "S5d", "S6"];
 const GATE5 = { referencedMin: 0.7, urgencyAboveControl: 15, pair: ["Raffaello de' Medici", "Captain Armand LeNoir"] };
 /** S6's useful disclosure. */
 const DEBT = /debt|owes|gambling loss/i;
@@ -277,7 +279,8 @@ function majorityReport(judged: JudgedRun[], calls: CallRecord[]): string[] {
     const cal1 = runs.filter((j) => j.cal1);
     const cal2Held = runs.filter((j) => majorityHeld(j.cal2Passes, j.plannedTurns)).length;
     const rejudged = runs.filter((j) => j.level >= 3);
-    const changed = rejudged.filter((j) => majorityHeld(j.cal2Passes, j.plannedTurns) !== held(j));
+    // Only runs that had cal2 passes can have changed from cal2.
+    const changed = rejudged.filter((j) => j.cal2Passes.length && majorityHeld(j.cal2Passes, j.plannedTurns) !== held(j));
     const paid = runs.map((j) => paidInRun(j, calls));
     const paidJudge = paid.filter((p) => p.source === "judge");
     const paidAction = paid.filter((p) => p.source === "action");

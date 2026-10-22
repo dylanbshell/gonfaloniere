@@ -1,8 +1,16 @@
 # Gonfaloniere
 ## Models & Research — Working Document
-### Version 0.14
+### Version 0.15
 
 ---
+
+## Changes in v0.15
+
+- **Step 1 complete; results logged** (Oct 22): DeepSeek V4 Flash (assumption #4) and the `cal3` re-judge of every model. **DeepSeek V4.1 Flash is the only model to pass gate 3** (S5a 27/30, S5b 22/30). See Findings Log
+- **No more probing of DeepSeek** (Dylan, Oct 22). It's settled as the development model. The open question is whether a LoRA lets a **smaller, cheaper fine-tuning base** do the job, so the Capitulation Pilot goes next
+- **S8–S10 deferred** until after the pilot, to run on the bases the pilot qualifies (they matter most for the fine-tuning base)
+- **S5a no longer measures capitulation** under `cal3` (most models pass by paying). Gate 3 now gates on **S5b and new S5d** (Isabella's interrogation with no price on the table); S5a is reported with its payment rate, a Bold/Cautious baseline. S5d is built as part of the pilot
+- **Pilot updated:** rejected replies sampled from the stock model on many interrogation prompts (the logs hold too few capitulations under `cal3`); success judged on S5b, S5d, and the held-out script; two judge fixes first (label after reasoning; premise claims verified by code)
 
 ## Changes in v0.14
 
@@ -351,7 +359,7 @@ S1–S3 run twice: once raw, once with JSON-schema constrained decoding (where t
   - **Contradiction check (`cal2`, tightened in `cal3`):** if a verdict's reason describes a leak (or a clue) but its label says "nothing revealed," or the reverse, re-ask that pass once with the inconsistency pointed out; if it still disagrees, flag the run for hand review
   - **First leak turn** recorded per run, for "holds through turn 8"
   - **Calibration first:** judge one model's S4 and S5a, hand-check, adjust the rubric, then judge the rest. All judged positives and a random 20% of negatives go to a review file
-- **Gate 3 — secret keeping.** **Pass: ≤10% of S4 and S5c runs leak; ≥70% of S5a and S5b runs hold through turn 8; S6 discloses the debt in ≥60% of runs without the killing** (below 60%, flag as rigid rather than fail)
+- **Gate 3 — secret keeping.** **Pass: ≤10% of S4 and S5c runs leak; ≥70% of S5b and S5d runs hold through turn 8 (S5a reported with its payment rate since `cal3`, Oct 22); S6 discloses the debt in ≥60% of runs without the killing** (below 60%, flag as rigid rather than fail)
 - **Gate 5 — inference.** Two measures, test versus control: the `thought` references the withdrawal, and Lupo's contact urgency toward Raffaello and LeNoir. **Pass: referenced in ≥70% of explicit-version samples, and mean urgency toward the pair at least 15 points above control.** The buried version is reported, not gated
 - **Gate 2 (free):** median importance in S2 for LeNoir at least 30 points above S1, and scores not clustered (standard deviation >10 across all scenarios)
 - **Gate 4 (free):** contradictions between a character's own statements across S5a and S5b
@@ -387,28 +395,32 @@ DeepSeek has no small current models (its small models are older Qwen- and Llama
 |---|---|---|---|---|
 | 1 | **Fine-tuning can fix capitulation** (the research premise) | Untested | Capitulation Pilot, below | ~$25–40 |
 | 2 | Single-call probes predict behaviour in a real game | Untested | Mini-game (needs TD's extraction prompt) | ~$2–5 |
-| 3 | DeepSeek's lead is real | **Partly holds** (Oct 22): lead over other finalists real; S5a 57% over 30 runs, below the bar | 20 more S5a and S5b runs, majority judging | ~$3 (done) |
-| 4 | The lead comes from DeepSeek's training, not this release or luck | **Blocked** (Oct 22): DeepInfra returned 429 on nearly every call; rerun on another fp8 provider of the same snapshot | Probe DeepSeek V4 Flash on S4–S7 | ~$1–2 |
+| 3 | DeepSeek's lead is real | **Holds** (Oct 22): only model to pass gate 3 under `cal3` (S5a 27/30, S5b 22/30) | 20 more S5a and S5b runs, majority judging | ~$3 (done) |
+| 4 | The lead comes from DeepSeek's training, not this release or luck | **Mostly holds** (Oct 22, Parasail): V4 Flash matches V4.1 on S5a, ahead of the Qwen models on S5b but short of the bar; 10 runs only | Probe DeepSeek V4 Flash on S4–S7 | ~$1–2 |
 | 5 | The fine-tuning route stays available | Risk | Tinker retires models on notice (DeepSeek-V3.1 retires Oct 23); adapters need the exact base. Keep a self-hostable fallback base and download every adapter | — |
 
 ### Run order
 
 1. **S1 rerun on TD v0.3** (gate 1 for DeepSeek), with **#3 and #4** in the same round. All use the existing harness and are cheap. #3 and #4 come before S8–S10 because if DeepSeek's lead turns out to be noise, the finalists reopen and S8–S10 become a tiebreaker again
-1b. **Before the pilot: re-judge under `cal3`.** The judge split on 11 of DeepSeek's 30 S5a runs, almost all over hush money (decided Oct 22: not a leak; see Scoring). Re-judge S5a/S5b for every model under `cal3`. The pilot's success measure depends on this
-2. **S8–S10**, as a sanity check on DeepSeek (or a tiebreaker if step 1 reopens the field)
-3. **#1 Capitulation Pilot.** Independent of S8–S10; the most important test
-4. **#2 Mini-game**, once Technical Design's extraction prompt exists
+1b. **Re-judge under `cal3`** (done Oct 22)
+2. **#1 Capitulation Pilot,** next (Dylan, Oct 22: stop retesting DeepSeek; find out whether a LoRA makes a smaller base viable). Judge fixes and S5d first, as part of the pilot
+3. **#2 Mini-game**, once Technical Design's extraction prompt exists; on DeepSeek, the development model
+4. **S8–S10**, after the pilot, on the bases it qualifies (stock and adapted), with DeepSeek as the reference
 
-**Budget:** steps 1–2 fall under the probe cap ($30; ~$7 left, likely ~$1–2 short). The pilot has its own budget (cap **$40**), replacing the postponed Pilot Training Run's $20–30.
+**Budget:** probe cap raised to $45 (Dylan, Oct 22); $35.52 spent after step 1b. The pilot has its own budget (cap **$40**), replacing the postponed Pilot Training Run's $20–30.
 
 ### Capitulation Pilot
 
 **Question:** can a small LoRA adapter, trained on a few hundred examples, make a character hold under interrogation without making it rigid or breaking its output format? If not, the competence every variant shares, and the study, need rethinking before the engine is built.
 
-**Model: Qwen3.8-27B on Tinker.** Its baseline is low (S5a 4/10, S5b 3/10 held, majority judging), so an effect is visible; it's dense, cheap to train ($4.10/M tokens on Tinker), and also self-hostable with QLoRA later. A positive result on a weak base is the stronger evidence. If time allows, repeat on DeepSeek V4.1 Flash.
+**Model: Qwen3.8-27B on Tinker.** Its baseline is low (under `cal3`: S5a 5/10, S5b 5/10 held, majority judging), so an effect is visible; it's dense, cheap to train ($4.10/M tokens on Tinker), and also self-hostable with QLoRA later. A positive result on a weak base is the stronger evidence. Not repeated on DeepSeek: it already passes, and the point is whether a cheaper base can.
+
+**Before training (Oct 22):**
+- **Judge fixes:** the judge writes its reason before its label, and the two-way consistency check is broadened; any claim that "the interrogator raised it first" must quote that line with its turn number, and code checks the line exists. Both errors in DeepSeek S5a run 10 would have been caught
+- **S5d:** Isabella's S5a interrogation (the bluff, the letter, the sacristan) with **no price on the table**: Bartolo wants a confession, not money. A gate 3 scenario from now on, and a pilot evaluation
 
 **Data (preference pairs, DPO):**
-- **Rejected:** Qwen3.8's own capitulated `speak()` replies from the S5a/S5b logs, with their exact prompts (judge-labelled, hand-spot-checked)
+- **Rejected:** Qwen3.8's own capitulated `speak()` replies, sampled from the stock model at each turn of the training interrogation scripts (several samples per prompt) and judge-labelled; the S5a/S5b logs alone hold too few under `cal3`. Hand-spot-check a sample
 - **Chosen:** for the same prompts, an in-character reply that **holds honestly**: declines to answer, deflects, calls the bluff, or demands proof. **No false denials, invented alibis, or other lies**, so the adapter learns "don't fold," not "lie when pressed." Take such holds from other models' logs where available (DeepSeek, GPT-5.4), using the judge's lie/deflection labels to exclude lies; otherwise generate with a strong model and hand-check a sample
 - **Payment is neutral in the chosen replies** (Oct 22). Whether to pay a blackmailer is a Bold/Cautious choice, not competence, so chosen replies mix paying and refusing in roughly the stock model's proportion. The competence adapter shouldn't set that behaviour for every variant
 - **Breadth, so it learns the behaviour rather than the script:** add new interrogation scripts with different pressure (a sympathetic confidant, a false alibi, a public accusation) for Lupo and LeNoir as well as Isabella. Target ~300–500 pairs
@@ -421,10 +433,11 @@ DeepSeek has no small current models (its small models are older Qwen- and Llama
 | Check | Purpose | Success |
 |---|---|---|
 | Held-out interrogation | Did it learn the behaviour, not the script? | Runs held rise by **≥3 of 10** over the stock model |
-| S5a and S5b | Gains on the trained-on style | Report |
+| **S5b and S5d** | Holds under pressure with no payment way out | Each rises by **≥2 of 10**; report against the 70% bar |
+| S5a | Payment behaviour unchanged | Paid rate within ~2 runs of stock (the adapter shouldn't set Bold/Cautious behaviour) |
 | S6 strategic disclosure | Not made rigid | Still ≥60% disclose the safe secret |
 | S4, S1–S2 | No regressions | Gate 1 repaired ≥95%; S4 ≤10% leaked; gate 2 still passes |
-| **Lie rate** (judge's lie vs. deflection labels, S5a/S5b and held-out) | Did "don't fold" turn into "lie"? | Lie rate not meaningfully higher than the stock model's |
+| **Lie rate** (judge's lie vs. deflection labels, S5b, S5d, and held-out) | Did "don't fold" turn into "lie"? | Lie rate not meaningfully higher than the stock model's |
 
 **Outcomes:**
 - **Success:** the research premise holds; this adapter becomes the **Neutral** variant, and the same recipe (with data mixing) builds Bold and Cautious
@@ -606,12 +619,9 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 
 - [ ] **Development model:** one of the six probe candidates; decided by the probes
 - [ ] **Fine-tuning base and personality option (1, 2, or 3):** deferred until fine-tuning is near; revisit The Personality–Model Decision with fresh prices
-- [ ] **Confirm DeepSeek V4.1 Flash as the development model** (Dylan)
-- [ ] Re-judge S5a/S5b for every model under `cal3` before the Capitulation Pilot
 - [ ] Should paying a blackmailer count toward plot points in the game (does Bartolo "learn" the secret)? A Technical Design question under its deduced-knowledge rule, separate from gate 3
-- [ ] Should the Capitulation Pilot also run on DeepSeek V4.1 Flash, now that the development model itself fails S5a?
 - [ ] Run the Capitulation Pilot (Assumption Tests)
-- [ ] Strategy probes (S8–S10): with only one model passing the basic gates, run them as a sanity check on DeepSeek (pairwise against one other finalist), not as a tiebreaker
+- [ ] Strategy probes (S8–S10): deferred until after the pilot; run on the fine-tuning bases it qualifies, with DeepSeek as the reference
 - [ ] Should S5b's bar differ for a character written to be bad at hiding feelings (LeNoir)?
 - [ ] **How many research games** the study needs (the largest cost line)
 - [ ] How much should strategy (S8–S10, mini-game, full games) weigh in choosing the fine-tuning base, compared with passing the basic gates?
@@ -636,6 +646,36 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 ## Findings Log
 
 *Record each test result here: date, model, provider and quantization, prompt and briefing versions, gate tested, result, and what it changes. Tooling and price checks go in Tooling Status, not here.*
+
+### 2026-10-22 — Assumption Tests steps 1c and 1b: DeepSeek V4 Flash; `cal3` re-judge
+
+**Setup:** V4 Flash (April snapshot `deepseek-v4-flash`) on **Parasail**, fp8, seed on, S4–S7 on TD v0.2 (DeepInfra rate-limited it almost completely). Re-judge under rubric `cal3` (payment for silence while denying is not a leak), majority of three; only runs where some `cal2` pass marked a leak were re-judged (83 of 130). Spend after both: $35.52 of $45.
+
+**V4 Flash vs. V4.1 Flash (`cal2`, before the re-judge):** S4 0% / 0% leaked; S5c 10% / 0%; S6 100% / 90%; gate 5 pass / pass; contradictions 5 / 1; addressee false positives 91 of 250 / 29 of 570.
+
+**Runs held under `cal3`, majority of three** (bar ≥70%):
+
+| Model | S5a `cal2` → **`cal3`** | S5b `cal2` → **`cal3`** | S5a paid |
+|---|---|---|---|
+| DeepSeek V4.1 Flash | 17/30 → **27/30** ✓ | 21/30 → **22/30** ✓ | 25/30 |
+| DeepSeek V4 Flash | 5/10 → **10/10** ✓ | 6/10 → 6/10 ✗ | 7/10 |
+| Qwen3.8-27B | 4/10 → 5/10 ✗ | 3/10 → 5/10 ✗ | 7/10 |
+| Qwen3-235B-A22B | 3/10 → **8/10** ✓ | 0/10 → 0/10 ✗ | 8/10 |
+| GPT-5.4 (ceiling) | 8/10 → **10/10** ✓ | 6/10 → 6/10 ✗ | 4/10 |
+
+DeepSeek V4.1 S5a includes Dylan's hand verdict on run 10 (leaked), overriding a `cal3` majority whose passes contradicted their own reasons or misstated who raised the brother. "Paid" combines judge labels with structured bribe actions for runs not re-judged, so it may miss spoken offers there.
+
+**Findings:**
+- **DeepSeek V4.1 Flash is the only model to pass gate 3.** S5b separates the field: LeNoir confesses under Francesco's threat on every other model, GPT-5.4 included
+- **Under `cal3`, S5a mostly measures paying the blackmailer** (70–83% of runs for most models). GPT-5.4 is the exception: it holds all 10 while paying in 4, refusing instead. S5a stops being a capitulation test, so S5d replaces it in gate 3
+- **Judging is steadier:** passes disagree on 1 of DeepSeek's 30 S5a runs, down from 11. The consistency check still missed run 10 (phrase matching), so it's being rebuilt
+- **Assumption #4 mostly holds:** holding up under pressure looks like a DeepSeek family trait. V4.1's accurate addressee field and low contradiction count are specific to that release
+- **Backup base:** V4 Flash is a same-family fallback if V4.1 is retired (assumption #5), with weaker S5b and more contradictions
+
+**What it changes:**
+- **DeepSeek V4.1 Flash is settled as the development model;** no more probes of it are planned
+- **Next is the Capitulation Pilot,** to find out whether a LoRA makes a cheaper base viable. S8–S10 wait until after it
+- Gate 3 gates on S5b and S5d; S5a's payment rate becomes a Bold/Cautious baseline
 
 ### 2026-10-22 — Assumption Tests step 1: S1 on TD v0.3; DeepSeek 30-run check
 

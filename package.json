@@ -10,7 +10,9 @@
     "probe": "tsx src/harness/run.ts",
     "score": "tsx src/harness/score.ts",
     "typecheck": "tsc --noEmit",
-    "judge": "tsx src/harness/judge-run.ts"
+    "judge": "tsx src/harness/judge-run.ts",
+    "pilot:data": "tsx src/pilot/datagen.ts",
+    "pilot:pairs": "tsx src/pilot/pairs.ts"
   },
   "dependencies": {
     "openai": "^7.39.0",
