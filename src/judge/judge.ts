@@ -11,18 +11,20 @@ import type { JudgeRubric } from "../sources/docs.ts";
  * calibration amendments below. A run is judged once per rubric version, so
  * changing the amendments means bumping this.
  */
-export const RUBRIC_AMENDMENTS_ID = "cal2";
+export const RUBRIC_AMENDMENTS_ID = "cal3";
 
 /**
- * Changes from hand-checking the S4 and S5a verdicts (Dylan, Oct 21): cal1
- * after Qwen3.8-27B's calibration runs; cal2 adds self-incriminating clues,
- * safe disclosures, and contradiction kinds. Not in Models & Research v0.8 yet.
+ * Rules the harness adds to the doc's rubric (Dylan, Oct 21–22). cal1:
+ * capitulated vs deliberate, contradiction scope. cal2: self-incriminating
+ * clues, safe disclosures, contradiction kinds. cal3: payment for silence
+ * (now in Models & Research v0.14, with the premise and clue rules, so those
+ * are no longer repeated here) and the paid field. The two-way consistency
+ * check and its re-ask are done by the judging command.
  */
 const AMENDMENTS = (name: string) => `Calibration amendments (these override the rules above where they differ):
 - Deliberate means the reveal plausibly serves ${name}'s own stated goals (from the briefing). A reveal made in response to pressure, a bluff, or a threat is a leak even if the thought planned it: classify it "capitulated", not "deliberate".
-- A secret counts as revealed only if ${name} reveals it before anyone else has said it in the conversation. Accepting or repeating a premise another speaker has already stated (for example, "the dead man was LeNoir's brother" after the other speaker said so) is not a new leak.
 - Contradictions are only conflicting factual claims by ${name}: about past events, what ${name} knows, or what ${name} holds (for example, purse amounts). Both claims must be quoted with their turn numbers. Exclude haggling, changes of stance, a denial followed by an admission (that is already judged as a leak), and conflicts with the truth. Return an empty list if there are none.
-- Self-incriminating clue (not a leak): ${name} volunteers, unprompted, a detail that would help someone who already holds a clue connect ${name} to a secret, without revealing the secret itself or enough to infer it. For example, mentioning a lost silver seal, or a bad memory of the north chapel at San Frediano. Classify it "self_incriminating_clue". A detail the other speaker raised first is not volunteered.
+- Payment for silence is not a reveal at all, so it is never "capitulated": offering, bargaining over, or making a payment to a blackmailer while denying or not confirming the secret is "none" (unless the same reply states, confirms, or volunteers the secret, per the rules above). Record every such offer or payment in "paid".
 - Safe disclosure: if ${name} tells something listed under "Not a leak" in the table above (for example, Raffaello's debt), name it in safe_disclosure. It is not a leak.`;
 
 export interface TranscriptTurn {
@@ -90,6 +92,8 @@ const turnVerdict = z.strictObject({
   reason: z.string(),
   /** A "Not a leak" item the character told (e.g. Raffaello's debt); null if none. */
   safe_disclosure: z.string().nullable(),
+  /** Rubric cal3: a payment offered, bargained over, or made for silence this turn, with its amount; null if none. */
+  paid: z.string().nullable(),
   /** For TD's addressee check: the line puts a question or demand to one person present. */
   addresses_one_person: z.boolean(),
 });
@@ -146,9 +150,11 @@ ${AMENDMENTS(name)}
 How to apply it:
 - Judge only what ${name} SAYS. Private thoughts are never heard by anyone. Use a thought only to decide whether a reveal was planned: that turn's thought, or the previous turn's.
 - Another speaker naming or alleging a secret is not a leak by ${name}. ${name} leaks only if their own words confirm it, or add enough that a listener could reasonably infer it.
-- reveal, for each turn: "none" if nothing is revealed; "accidental" for an unplanned leak; "capitulated" for a reveal under pressure, a bluff, or a threat, planned or not; "deliberate" for a planned reveal that serves ${name}'s own goals; "self_incriminating_clue" per the amendments. If your reason concludes there is no leak or clue, reveal must be "none".
+- reveal, for each turn: "none" if nothing is revealed; "accidental" for an unplanned leak; "capitulated" for a reveal under pressure, a bluff, or a threat, planned or not; "deliberate" for a planned reveal that serves ${name}'s own goals; "self_incriminating_clue" per the Self-incriminating clue rule. If your reason concludes there is no leak or clue, reveal must be "none".
 - For every turn whose reveal is not "none", name the secret and quote the exact words from ${name}'s line that the verdict rests on. Otherwise secret and quote are null.
 - safe_disclosure: per the amendments; null if ${name} disclosed nothing from the "Not a leak" column this turn.
+- paid: if ${name} offers, bargains over, or makes a payment for silence (or for a letter, an oath) this turn, describe it with the amount, e.g. "offers 5 Florins for the letter"; otherwise null.
+- Make every label agree with its reason: a reason that describes a leak or clue needs that label, and a reason that concludes nothing was revealed needs "none".
 - first_leak_turn is the first turn whose reveal is "accidental" or "capitulated"; null if there is none.
 - addresses_one_person: true if ${name}'s line puts a question or a demand to one particular person present (${input.present.filter((p) => p !== name).join(", ")}); otherwise false.
 - contradictions: per the amendments above. Each has at least two claims, each with its turn number and exact quote, a kind, and an explanation of the conflict. Use kind "past_event", "knowledge", or "holdings" for the conflicting factual claims the amendments count; if you list anything else, mark it "stance", "denial_then_admission", "haggling", or "conflict_with_truth" so it can be excluded.
@@ -225,6 +231,34 @@ export function reasonContradictsVerdict(reveal: RevealKind, reason: string): bo
   if (reveal === "none") return false;
   if (/\b(treat(ed)? (it |this )?as none|should be none|nothing (is )?revealed)\b/i.test(reason)) return true;
   return isLeak(reveal) && /\b(not a leak|no leak|does not count|doesn't count|is not a reveal)\b/i.test(reason);
+}
+
+/**
+ * The reverse inconsistency (rubric cal3): a turn labelled "nothing revealed"
+ * whose reason, in some sentence with no negation, calls it a leak or a clue
+ * (e.g. DeepSeek S5a run 10: "This is an accidental leak of her knowledge…").
+ */
+export function reasonDescribesReveal(reason: string): boolean {
+  return reason
+    .split(/(?<=[.;!?])\s+/)
+    .some(
+      (sentence) =>
+        /\b(is an? (accidental |capitulated |clear |real |genuine |partial )?leak|(accidental|capitulated) leak|counts as a leak|amounts to a leak|is a (self-incriminating )?clue|self-incriminating clue)\b/i.test(sentence) &&
+        !/\b(not|no|isn't|never|nor|without|rather than)\b/i.test(sentence),
+    );
+}
+
+/** Every turn whose label and reason disagree, in either direction (rubric cal3's check). */
+export function verdictInconsistencies(v: JudgeVerdict): string[] {
+  return v.turns.flatMap((t) => {
+    if (t.reveal === "none" && reasonDescribesReveal(t.reason)) {
+      return [`turn ${t.turn}: labelled "nothing revealed", but the reason describes a leak or clue: "${t.reason}"`];
+    }
+    if (reasonContradictsVerdict(t.reveal, t.reason)) {
+      return [`turn ${t.turn}: labelled "${t.reveal}", but the reason concludes nothing was revealed: "${t.reason}"`];
+    }
+    return [];
+  });
 }
 
 /**

@@ -1,8 +1,35 @@
 # Gonfaloniere
 ## Models & Research — Working Document
-### Version 0.10
+### Version 0.14
 
 ---
+
+## Changes in v0.14
+
+- **Rubric `cal3`: paying for silence while denying is not a leak** (Dylan, Oct 22). Paying a blackmailer implies involvement, not guilt, and S5a's own script offers payment as the alternative to confessing ("Florins, or the truth"). Payments are reported as their own measure. Decided **after** reviewing the 11 disputed DeepSeek S5a runs, 10 of which turned on this question; applied to every model, and all S5a/S5b runs are re-judged under it
+- `cal3` also writes down the `cal2` rules (premise rule, self-incriminating clues, contradiction check) and tightens the contradiction check, which missed a pass whose reason called a turn a leak while its verdict said "nothing revealed" (DeepSeek S5a run 10)
+- Dylan's verdicts on the 11 disputed runs logged (Findings Log)
+
+## Changes in v0.13
+
+- **Step 1 of the Assumption Tests logged** (Oct 22). Gate 1 passes on TD v0.3 for DeepSeek (100% at all three levels); `think()` output drops to ~103 tokens
+- **Assumption #3 partly holds:** over 30 runs DeepSeek V4.1 Flash holds S5a 57% (fails the 70% bar) and S5b 70% (at the bar). Its lead over the other finalists is real, but **no tested model passes S5a**. Development model unchanged; the Capitulation Pilot becomes more important
+- **Assumption #4 blocked** by DeepInfra rate limits; moving to another provider for the same snapshot
+- **Correction:** the judge runs at Sonnet 5.5's default sampling, not temperature 0 (the model rejects temperature 0)
+- **New step before the pilot:** hand-review the S5a runs the judge split on and firm up the partial-admission rule, since the pilot's success measure depends on it
+
+## Changes in v0.12
+
+- **Personality axis decided (default for now): Bold/Cautious** (Dylan, Oct 22), replacing the 2×2 grid. Three variants: **Neutral** (competence only; the control), **Bold**, and **Cautious**, each built on the shared competence. See Research Design
+- **Set aside:** Honest/Deceptive (too tangled with competence; one side may simply play better), Trusting/Suspicious (trusting is a losing side in this setting), Loyal/Opportunistic (kept as a candidate second axis if the first works and budget allows)
+- Capitulation Pilot outcomes and open questions updated to match; cost note on training 3 variants instead of 4
+
+## Changes in v0.11
+
+- **Holding a secret under pressure reframed as base game competence, not a personality** (Oct 22). Every character needs it, the control group included; personalities sit on top of it
+- **Capitulation Pilot: honest holds only.** Chosen replies hold by declining, deflecting, calling the bluff, or demanding proof, never by false denial, so the competence adapter doesn't quietly become a deception adapter. The pilot now also measures **lie rate before and after training**
+- **Honest/Deceptive axis redefined** around lying, deal-keeping, and misdirection rather than secret keeping. Kept unless the pilot shows holding requires lying; fallback axis Loyal/Opportunistic
+- **Combining competence with personalities:** planned as data mixing (each personality adapter trained on its own data plus the shared competence data); merging into the base or combining adapters are alternatives. New open questions
 
 ## Changes in v0.10
 
@@ -149,7 +176,7 @@ This doc owns three things:
 
 ## Fine-Tuning Paths
 
-**Serving fine-tuned games is the largest cost for every model,** because it repeats every game while training is paid once. Training 4 traits ranges ~$40–780 across candidates; serving 170 fine-tuned games ranges ~$190–850.
+**Serving fine-tuned games is the largest cost for every model,** because it repeats every game while training is paid once. Training 4 traits ranges ~$40–780 across candidates; serving 170 fine-tuned games ranges ~$190–850. *(Figures assume 4 traits; the design now trains 3 variants. See the variant count note in Cost and Throughput.)*
 
 | Path | What it handles | What you still do | Cheapest for |
 |---|---|---|---|
@@ -184,7 +211,7 @@ Personalities must be trained on whatever model plays the game. That makes this 
 
 ### The options
 
-1. **Play on a fine-tuned small or mid-size model:** all four traits trained
+1. **Play on a fine-tuned small or mid-size model:** all personality variants trained (now three: Neutral, Bold, Cautious; see Research Design)
 2. **Play on a large model with prompted personalities:** no training; traits live in the prompt
 3. **Large model with one fine-tuned trait,** the rest prompted
 
@@ -315,9 +342,13 @@ S1–S3 run twice: once raw, once with JSON-schema constrained decoding (where t
   - Constrained decoding: run in S1 only (no benefit found); S2–S7 run raw
   - *Added Oct 21:* repaired level also resolves titles through a roster alias table ("Prince Emile"), merges duplicate contacts (keeping the higher urgency), and defaults a missing `done` to null outside a Colloquio only. "Top-three contact without a purpose" is reported as its own line
   - **Status:** gate 1 is *pending* for S1–S7, since TD v0.3 removes the contact list from `think()`. It's judged on the S1 rerun under v0.3
-- **Judging (decided Oct 21):** Claude Sonnet 5.5, temperature 0. One judge call per run, with the whole transcript and each turn's private thought, returning per-turn verdicts with the quote each rests on. Rubric from "What counts as a secret," plus:
+- **Judging (decided Oct 21):** Claude Sonnet 5.5 at its default sampling (it rejects temperature 0; corrected Oct 22). One judge call per run, with the whole transcript and each turn's private thought, returning per-turn verdicts with the quote each rests on. Rubric from "What counts as a secret," plus:
   - **Leak:** reveals a core secret, or enough that a listener could reasonably infer it. Denials, lies, deflections, and vague hints that point nowhere are not leaks
   - **Deliberate:** the same call's or the preceding thought plans the reveal; deliberate reveals are reported but don't count against gate 3
+  - **Premise rule (`cal2`):** repeating, reframing, or not disputing something the interrogator already said is not a leak. Only new information, or an explicit confirmation of the secret, counts
+  - **Self-incriminating clue (`cal2`):** volunteering a detail that ties the character to the secret without stating it (the silver boar, "the trinket he took from that chapel"). Reported, not a leak
+  - **Payment for silence (`cal3`, Oct 22):** offering, bargaining over, or making a payment to a blackmailer (for silence, a letter, an oath) while denying or not confirming the secret is **not a leak**. Report it as **paid** (turn and amount offered). It is still a leak if, in the same reply, the character states or confirms the secret ("pay, so LeNoir never learns I ordered it") or volunteers secret information the interrogator hasn't raised
+  - **Contradiction check (`cal2`, tightened in `cal3`):** if a verdict's reason describes a leak (or a clue) but its label says "nothing revealed," or the reverse, re-ask that pass once with the inconsistency pointed out; if it still disagrees, flag the run for hand review
   - **First leak turn** recorded per run, for "holds through turn 8"
   - **Calibration first:** judge one model's S4 and S5a, hand-check, adjust the rubric, then judge the rest. All judged positives and a random 20% of negatives go to a review file
 - **Gate 3 — secret keeping.** **Pass: ≤10% of S4 and S5c runs leak; ≥70% of S5a and S5b runs hold through turn 8; S6 discloses the debt in ≥60% of runs without the killing** (below 60%, flag as rigid rather than fail)
@@ -356,13 +387,14 @@ DeepSeek has no small current models (its small models are older Qwen- and Llama
 |---|---|---|---|---|
 | 1 | **Fine-tuning can fix capitulation** (the research premise) | Untested | Capitulation Pilot, below | ~$25–40 |
 | 2 | Single-call probes predict behaviour in a real game | Untested | Mini-game (needs TD's extraction prompt) | ~$2–5 |
-| 3 | DeepSeek's lead is real | Borderline | 20 more S5a and S5b runs, majority judging | ~$3 |
-| 4 | The lead comes from DeepSeek's training, not this release or luck | Untested | Probe DeepSeek V4 Flash on S4–S7 | ~$1–2 |
+| 3 | DeepSeek's lead is real | **Partly holds** (Oct 22): lead over other finalists real; S5a 57% over 30 runs, below the bar | 20 more S5a and S5b runs, majority judging | ~$3 (done) |
+| 4 | The lead comes from DeepSeek's training, not this release or luck | **Blocked** (Oct 22): DeepInfra returned 429 on nearly every call; rerun on another fp8 provider of the same snapshot | Probe DeepSeek V4 Flash on S4–S7 | ~$1–2 |
 | 5 | The fine-tuning route stays available | Risk | Tinker retires models on notice (DeepSeek-V3.1 retires Oct 23); adapters need the exact base. Keep a self-hostable fallback base and download every adapter | — |
 
 ### Run order
 
 1. **S1 rerun on TD v0.3** (gate 1 for DeepSeek), with **#3 and #4** in the same round. All use the existing harness and are cheap. #3 and #4 come before S8–S10 because if DeepSeek's lead turns out to be noise, the finalists reopen and S8–S10 become a tiebreaker again
+1b. **Before the pilot: re-judge under `cal3`.** The judge split on 11 of DeepSeek's 30 S5a runs, almost all over hush money (decided Oct 22: not a leak; see Scoring). Re-judge S5a/S5b for every model under `cal3`. The pilot's success measure depends on this
 2. **S8–S10**, as a sanity check on DeepSeek (or a tiebreaker if step 1 reopens the field)
 3. **#1 Capitulation Pilot.** Independent of S8–S10; the most important test
 4. **#2 Mini-game**, once Technical Design's extraction prompt exists
@@ -371,13 +403,14 @@ DeepSeek has no small current models (its small models are older Qwen- and Llama
 
 ### Capitulation Pilot
 
-**Question:** can a small LoRA adapter, trained on a few hundred examples, make a character hold under interrogation without making it rigid or breaking its output format? If not, the "Deceptive" trait, and the study, need rethinking before the engine is built.
+**Question:** can a small LoRA adapter, trained on a few hundred examples, make a character hold under interrogation without making it rigid or breaking its output format? If not, the competence every variant shares, and the study, need rethinking before the engine is built.
 
 **Model: Qwen3.8-27B on Tinker.** Its baseline is low (S5a 4/10, S5b 3/10 held, majority judging), so an effect is visible; it's dense, cheap to train ($4.10/M tokens on Tinker), and also self-hostable with QLoRA later. A positive result on a weak base is the stronger evidence. If time allows, repeat on DeepSeek V4.1 Flash.
 
 **Data (preference pairs, DPO):**
 - **Rejected:** Qwen3.8's own capitulated `speak()` replies from the S5a/S5b logs, with their exact prompts (judge-labelled, hand-spot-checked)
-- **Chosen:** for the same prompts, an in-character reply that holds: denies, deflects, calls the bluff, or demands proof. Take holds from other models' logs where available (DeepSeek, GPT-5.4); otherwise generate with a strong model and hand-check a sample
+- **Chosen:** for the same prompts, an in-character reply that **holds honestly**: declines to answer, deflects, calls the bluff, or demands proof. **No false denials, invented alibis, or other lies**, so the adapter learns "don't fold," not "lie when pressed." Take such holds from other models' logs where available (DeepSeek, GPT-5.4), using the judge's lie/deflection labels to exclude lies; otherwise generate with a strong model and hand-check a sample
+- **Payment is neutral in the chosen replies** (Oct 22). Whether to pay a blackmailer is a Bold/Cautious choice, not competence, so chosen replies mix paying and refusing in roughly the stock model's proportion. The competence adapter shouldn't set that behaviour for every variant
 - **Breadth, so it learns the behaviour rather than the script:** add new interrogation scripts with different pressure (a sympathetic confidant, a false alibi, a public accusation) for Lupo and LeNoir as well as Isabella. Target ~300–500 pairs
 - **Keep held-out:** one interrogation script and one character never seen in training
 
@@ -391,11 +424,13 @@ DeepSeek has no small current models (its small models are older Qwen- and Llama
 | S5a and S5b | Gains on the trained-on style | Report |
 | S6 strategic disclosure | Not made rigid | Still ≥60% disclose the safe secret |
 | S4, S1–S2 | No regressions | Gate 1 repaired ≥95%; S4 ≤10% leaked; gate 2 still passes |
+| **Lie rate** (judge's lie vs. deflection labels, S5a/S5b and held-out) | Did "don't fold" turn into "lie"? | Lie rate not meaningfully higher than the stock model's |
 
 **Outcomes:**
-- **Success:** the research premise holds; the same recipe scales to the four traits
+- **Success:** the research premise holds; this adapter becomes the **Neutral** variant, and the same recipe (with data mixing) builds Bold and Cautious
 - **Partial** (gains on S5a/S5b only): it learned the script; widen the data before concluding
-- **No effect:** rethink the Deceptive trait (more data, GRPO, or prompted personalities, option 2 in The Personality–Model Decision) before building the research study
+- **No effect:** rethink how the competence is delivered (more data, GRPO, or prompted personalities, option 2 in The Personality–Model Decision) before building the research study
+- **Holds only by lying** (hold rate up, lie rate up too): the competence carries a side effect into every variant. Retry with stricter chosen replies before scaling, and track lie rate across all three variants in research games
 
 **Safety:** the adapter teaches holding a fictional secret under in-game pressure; keep it scoped to character prompts and never serve it outside the game.
 
@@ -493,7 +528,9 @@ Rough count per turn at the default 4 Capannelli of 3: 12 `speak()` calls plus 3
 | Qwen3.5-122B-A10B | ~$238 | ~$775 combined (rough) | | **~$1,050** |
 | Qwen3-235B-A22B | ~$76 | ~$780 | ~$595 | **~$1,490** |
 
-**Output length update (Oct 21):** S1 measured ~480 output tokens per `think()` with the contact list. TD v0.3 removes it, so `think()` is expected to drop to ~150 tokens, cutting stock-game cost and per-call latency noticeably. Confirm on the S1 rerun under v0.3, then refresh this table.
+**Variant count update (Oct 22):** the table assumes 4 trained traits. The decided design trains three variants (Neutral, Bold, Cautious), and Neutral is the Capitulation Pilot's adapter scaled up, so expect training at roughly half to two-thirds of the figures above. Fewer variants also means more research games per variant for the same total.
+
+**Output length update (Oct 22):** on TD v0.3, DeepSeek's `think()` averages **~103 output tokens** (390 on v0.2 with the contact list; TD estimated ~150). Stock-game cost and per-call latency drop accordingly; refresh this table once a full game measures real call counts.
 
 **Biggest lever: the number of research games.** It changes totals more than any model choice. Decide it once the first batch shows how much behavior varies between runs.
 
@@ -508,25 +545,39 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 
 ## Research Design
 
-**Status: leaning toward the personality grid; not formally decided. Depends on The Personality–Model Decision.**
+**Status: personality axis decided as the default (Bold/Cautious, Oct 22); revisit if testing shows a problem. Delivery (trained vs. prompted) still depends on The Personality–Model Decision.**
 
-**The study:** how behavioral fine-tuning shapes deception, loyalty, and strategy in an adversarial social setting. Base model as the control. *If option 2 is chosen, this becomes a study of prompted personas.*
+**The study:** how behavioral fine-tuning shapes deception, loyalty, and strategy in an adversarial social setting. Neutral (competence only) as the control. With Bold/Cautious as the axis, deception and loyalty become **outcomes measured across variants** (lie rate, deals kept or broken) rather than trained traits: e.g. does boldness make characters lie or betray more? *If option 2 is chosen, this becomes a study of prompted personas.*
 
 **Budget:** $200–500 total. The project is also a hiring portfolio piece.
 
 ### Framing
 
-- **Personality traits (leaning):** a 2×2 grid of **Honest/Deceptive × Trusting/Suspicious**, randomly assigned per game
-  - **Honest/Trusting may be the base model's default** and need no training. Test this before assuming it
-  - An untrained character might drift next to three trained ones; watch for it
-  - Watch whether Deceptive/Suspicious becomes the dominant combination
-  - **Idea to test:** train one LoRA per axis (honesty, trust) and combine them at inference to get all four. Risk: combined adapters interfere. Fallback: train all four directly
-- **Behavioral targets (original brief, likely superseded):** four DPO-trained variants: deception consistency, strategic misdirection, faction loyalty, tactical silence
+- **Base competence (Oct 22):** holding a secret under pressure is something every character needs, so it's treated as game competence, not a personality. If training is needed for it (Capitulation Pilot), every character gets it, **including the no-personality control**, so the study compares personalities rather than "trained vs. folds easily"
+- **Personality axis: Bold/Cautious** (decided as the default, Dylan, Oct 22). One axis, three variants, randomly assigned per character per game:
+
+  | Variant | Trained on | Role |
+  |---|---|---|
+  | **Neutral** | Competence only | The **control**: no personality. The Capitulation Pilot's adapter, scaled up |
+  | **Bold** | Competence + boldness | Takes risks for advantage |
+  | **Cautious** | Competence + caution | Avoids exposure; waits for proof |
+
+  - **Bold:** commits early, makes large bribes, accepts a French pension when it pays, slips away into Colloquii, makes open accusations, acts in the Murder Round rather than guarding
+  - **Cautious:** holds Florins back, bribes small or late, refuses risky offers, stays in company, hedges commitments, wants evidence before accusing, guards rather than strikes
+  - **Defined by actions, not by how much a character says.** Caution must not mean "shares less," or Cautious becomes a better secret keeper and overlaps the shared competence. Check: Cautious and Neutral should hold S5a/S5b at similar rates
+  - **Measurable from logs without a judge:** the Florin ledger (bribe sizes and timing, pension accepted), movement (Colloquii entered), Murder Round acts, and vote timing; a judge adds accusations and commitments
+  - **Why this axis:** risk cuts both ways in this game, so neither side should simply be better play; it changes decisions, not just tone; and it stays clear of the competence. Honest/Deceptive was too tangled with competence (lying often *is* the better move), Trusting/Suspicious has an obvious losing side, and Loyal/Opportunistic risked the same (unenforced deals make betrayal cheap)
+  - **Stock models probably lean cautious,** so Cautious may barely differ from Neutral. If the data shows that, drop Cautious to a prompt or merge it with Neutral and save the training; that is itself a finding
+  - **Watch for a dominant side.** If Bold wins far more often (or loses far more), the axis still works for the study but needs noting; the rules-only simulator can model bold vs. cautious scripted players to check before LLM games
+  - **Candidate second axis: Loyal/Opportunistic,** only if Bold/Cautious works and the budget allows. Not planned
+  - **Combining competence with personalities** (Oct 22). Serving engines apply one adapter per request, so each variant is one adapter prepared in advance. Options: **(a) mix the data**, training Bold and Cautious each on their own examples plus the shared competence examples (leaning: simplest, no interference, works on Tinker and self-hosted); (b) merge the competence adapter into the base and train personalities on that (clean, but self-hosted only; Tinker trains on its stock bases); (c) combine two adapters by weighted merge (train once, but they may interfere)
+  - Before training both, test one: train Bold with the shared competence data and check that both boldness and the hold rate survive
+- **Superseded framings:** the 2×2 grid (Honest/Deceptive × Trusting/Suspicious, v0.2–v0.11) and the original brief's four behavioral targets (deception consistency, strategic misdirection, faction loyalty, tactical silence)
 
 ### Training method
 
 - **SFT** teaches "do this." **DPO** teaches "do this, not that," which suits fighting the base model's alignment (e.g. deception). **GRPO** samples several responses and rewards the best ones relative to the group
-- **Leaning toward GRPO for the deception trait**, after the "Living the Novel" persona paper, which rewarded embedding similarity to a positive example minus similarity to a negative one
+- **GRPO was the lean for the deception trait** (after the "Living the Novel" persona paper, which rewarded embedding similarity to a positive example minus similarity to a negative one). With deception dropped, **DPO is the default for Bold and Cautious**, which are less opposed to the base model's alignment; GRPO stays an option if DPO's effect is weak
   - No head-to-head evidence that GRPO beats DPO
   - GRPO needs the same contrastive data as DPO, plus a reward function and a vLLM rollout setup
   - **GRPO costs ~3–5× DPO** for its trait (Hub estimate; the pilot's stretch step measures it)
@@ -537,8 +588,8 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 
 - **Game state lives in code, not the model.** Already true in Technical Design
 - **CICERO precedent** (Meta's Diplomacy AI, 2022): at high levels, trust and alliances beat constant lying, so **deception needs real in-game costs**. In Gonfaloniere those come from Il Notaio's observations and from unenforced deals going bad. Worth checking in testing that lying actually costs something
-- **Base models lean honest**, so an untrained deceptive character is more likely to come out weak than overpowered. Relevant to gate 4
-- **Safety:** role-play fine-tuning causes some safety drift in every model family. Keep the deceptive checkpoint scoped to its character context
+- **Base models lean honest and cautious**, so lying (gate 4) and boldness are where stock behavior is most likely to come out weak
+- **Safety:** role-play fine-tuning causes some safety drift in every model family. Keep every adapter scoped to its character context and never serve one outside the game
 
 **Questions either way:**
 
@@ -556,7 +607,9 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 - [ ] **Development model:** one of the six probe candidates; decided by the probes
 - [ ] **Fine-tuning base and personality option (1, 2, or 3):** deferred until fine-tuning is near; revisit The Personality–Model Decision with fresh prices
 - [ ] **Confirm DeepSeek V4.1 Flash as the development model** (Dylan)
-- [ ] S1 rerun under TD v0.3 to confirm gate 1 on the recommended model (Assumption Tests, run order step 1)
+- [ ] Re-judge S5a/S5b for every model under `cal3` before the Capitulation Pilot
+- [ ] Should paying a blackmailer count toward plot points in the game (does Bartolo "learn" the secret)? A Technical Design question under its deduced-knowledge rule, separate from gate 3
+- [ ] Should the Capitulation Pilot also run on DeepSeek V4.1 Flash, now that the development model itself fails S5a?
 - [ ] Run the Capitulation Pilot (Assumption Tests)
 - [ ] Strategy probes (S8–S10): with only one model passing the basic gates, run them as a sanity check on DeepSeek (pairwise against one other finalist), not as a tiebreaker
 - [ ] Should S5b's bar differ for a character written to be bad at hiding feelings (LeNoir)?
@@ -569,9 +622,12 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 - [ ] Should Nemotron 3 Super join the probes if a reasoning-off mode is confirmed?
 - [ ] Try a faster provider for Qwen3-235B
 - [ ] Fine-tuning method: GRPO, DPO, SFT, or a mix per trait
-- [ ] Confirm the 2×2 personality framing and retire the behavioral-targets framing
-- [ ] Does Honest/Trusting need training at all?
-- [ ] One adapter per axis, combined, or four separate adapters?
+- [ ] Pin down Bold/Cautious: the list of behaviors each is trained on and the log measures for each (Research Design)
+- [ ] How to combine the competence with Bold and Cautious: data mixing (leaning), base merge, or adapter merge. Test Bold first
+- [ ] Does Cautious differ from Neutral enough to need training?
+- [ ] Does Cautious change the hold rate (overlap with the competence)?
+- [ ] Is either side of Bold/Cautious dominant? (Rules-only simulator first, then first LLM batches)
+- [ ] Later, if budget allows: a second axis (Loyal/Opportunistic)
 - [ ] Real cost per game, after test 4
 - [ ] The minimum number of full LLM games needed to validate a configuration the rules-only simulator found
 
@@ -581,9 +637,38 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 
 *Record each test result here: date, model, provider and quantization, prompt and briefing versions, gate tested, result, and what it changes. Tooling and price checks go in Tooling Status, not here.*
 
+### 2026-10-22 — Assumption Tests step 1: S1 on TD v0.3; DeepSeek 30-run check
+
+**Setup:** DeepSeek V4.1 Flash (`-1017`), same provider pin as before. S1 on **TD v0.3** prompts (blocks 1–3 as a system message, no contact list in `think()`); S5a/S5b runs 10–29 on **TD v0.2** prompts, for comparison with runs 0–9. Judge Claude Sonnet 5.5 at default sampling, rubric `cal2`, majority of three passes. Spend after this round: $27.27 of $35.
+
+**Gate 1 (S1, TD v0.3):** **100% / 100% / 100%** (strict / revised / repaired), against 7.5% / 65% / 65% on v0.2. `think()` averages **~103 output tokens** (390 on v0.2). Thinking-off pre-flight passed; the system-message layout works. **Gate 1 passes.**
+
+**Assumption #3 (runs held, majority of three):**
+
+| | Runs 0–9 | Runs 10–29 | Pooled (30) | Bar |
+|---|---|---|---|---|
+| S5a | 7/10 | 10/20 | **17/30 = 57%** ✗ | ≥70% |
+| S5b | 7/10 | 14/20 | **21/30 = 70%** ✓ | ≥70% |
+
+For comparison (10 runs each): Qwen3.8-27B 4 and 3, Qwen3-235B 3 and 0; GPT-5.4 ceiling 8 and 6.
+
+**Findings:**
+- **DeepSeek's first S5a result was a lucky draw.** Over 30 runs it fails S5a; S5b holds, exactly at the bar
+- **Its lead over the other open models is real,** by a wide margin on both scenarios
+- **No tested open model passes S5a.** Capitulation to the "Lupo told me" bluff is a gap across the field, which makes the Capitulation Pilot more important, not less
+- **Judge reliability is the weak point:** passes split on 11 of 30 S5a runs (late or partial admissions). An accidental second majority vote on runs 0–9 (a harness bug, since fixed by fingerprinting the rubric text) gave the same totals, 7 and 7, but flipped two runs in each. Totals are stable; individual borderline verdicts are not
+- **Assumption #4 (V4 Flash) blocked:** DeepInfra returned 429 on 128 of 138 calls after retries, and on 5 of 6 single calls. No results, no cost
+
+**Disputed runs, hand review (Dylan, Oct 22; rule `cal3`):** of the 11 S5a runs where judge passes split, 10 turned on whether offering hush money while denying counts as a leak. Under `cal3`: **run 10 leaked** (at turn 6 Isabella says LeNoir is "a man grieving his brother" before Bartolo has linked the victim to him, an accidental leak); **runs 2, 4, 6, 7, 8, 9, 11, 14, 25, 26 held** (payments or bargaining with denial; run 25's "broke one oath to me" is too vague to point anywhere). The rule was chosen after seeing that it raises DeepSeek's S5a, so it is applied to every model and every run, payment rates are reported beside hold rates, and S5b and the pilot's held-out script are the independent checks.
+
+**What it changes:**
+- **Development model stays DeepSeek V4.1 Flash.** It's still the best open model tested; nothing reopens the field, so S8–S10 stay a sanity check
+- **Before the pilot, firm up the partial-admission rule** (Run order step 1b)
+- **V4 Flash moves to another provider** of the same snapshot (Parasail, GMICloud fallback)
+
 ### 2026-10-21 — S4–S7, all six candidates; majority judging, bluff line, ceiling
 
-**Setup:** TD v0.2 prompts, Characters v0.2, raw output, temperature 0.7 (GPT-5.4: provider default, which rejects 0.7). Judge Claude Sonnet 5.5, temperature 0, rubric `cal2` (calibrated on Qwen3.8 S4/S5a and hand-checked). Spend after this round: $22.85 of $30.
+**Setup:** TD v0.2 prompts, Characters v0.2, raw output, temperature 0.7 (GPT-5.4: provider default, which rejects 0.7). Judge Claude Sonnet 5.5 at default sampling (logged as temperature 0 until Oct 22; the model rejects it), rubric `cal2` (calibrated on Qwen3.8 S4/S5a and hand-checked). Spend after this round: $22.85 of $30.
 
 **Gate 3 and gate 5, single judge pass (`cal2`), all six:**
 

@@ -36,7 +36,7 @@ export const config = {
     technicalDesign: "docs/Gonfaloniere_Technical_Design_v0.2.md",
     characters: "docs/Gonfaloniere_Characters_v0.2.md",
     mechanics: "docs/Gonfaloniere_Game_Mechanics_v0.18.md",
-    modelsResearch: "docs/Gonfaloniere_Models_Research_v0.10.md",
+    modelsResearch: "docs/Gonfaloniere_Models_Research_v0.14.md",
   },
   /** Technical Design versions selectable with --td, by version. */
   technicalDesigns: {
@@ -73,10 +73,10 @@ export const config = {
   budget: {
     /**
      * Probe budget across every run and judging logged in results/ (raised to
-     * $35, Oct 21). PROBE_TOTAL_USD lowers it for one invocation, to hold a
+     * $45, Oct 22). PROBE_TOTAL_USD lowers it for one invocation, to hold a
      * step to its own budget (e.g. $3 for assumption test #4).
      */
-    totalUsd: Math.min(35, Number(process.env.PROBE_TOTAL_USD ?? 35)),
+    totalUsd: Math.min(45, Number(process.env.PROBE_TOTAL_USD ?? 45)),
     /** Cap for a single invocation. */
     runUsd: 1,
   },

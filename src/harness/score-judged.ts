@@ -42,6 +42,14 @@ export interface JudgedRun {
   passes: JudgeVerdict[];
   /** The cal1 verdict, if the run was judged under it. */
   cal1: JudgeVerdict | undefined;
+  /** The first three cal2 passes, for comparing with a later rubric. */
+  cal2Passes: JudgeVerdict[];
+  /** The calibration level the decisive passes come from. */
+  level: number;
+  /** Newest-rubric passes still inconsistent after the cal3 re-ask. */
+  flagged: string[];
+  /** Newest-rubric passes that were re-asked. */
+  reasked: number;
 }
 
 /** Judge passes needed before the majority decides a run (Dylan, Oct 21). */
@@ -72,6 +80,13 @@ export function judgedRuns(records: LogRecord[], modelId: string): JudgedRun[] {
           .slice(0, MAJORITY_PASSES)
           .map((x) => x.verdict),
         cal1: all.find((x) => calibrationLevel(x.rubricVersion) === 1)?.verdict,
+        cal2Passes: all
+          .filter((x) => calibrationLevel(x.rubricVersion) === 2)
+          .slice(0, MAJORITY_PASSES)
+          .map((x) => x.verdict),
+        level: top,
+        flagged: all.filter((x) => calibrationLevel(x.rubricVersion) === top).slice(0, MAJORITY_PASSES).flatMap((x) => x.flagged ?? []),
+        reasked: all.filter((x) => calibrationLevel(x.rubricVersion) === top).slice(0, MAJORITY_PASSES).filter((x) => x.reasked).length,
       };
     });
   });
@@ -202,42 +217,80 @@ export function judgedReport(judged: JudgedRun[], calls: CallRecord[]): string[]
     }
   }
 
-  out.push(...majorityReport(judged));
+  out.push(...majorityReport(judged, calls));
   out.push(...addresseeReport(judged, calls));
   return out;
 }
 
+/** Held by the majority of a set of passes (a single pass decides alone). */
+function majorityHeld(passes: JudgeVerdict[], plannedTurns: number): boolean | null {
+  if (!passes.length) return null;
+  return passes.filter((v) => verdictHeld(v, plannedTurns)).length * 2 > passes.length;
+}
+
 /**
- * Where runs were judged in several passes: held rates under cal1, the first
- * cal2 pass, and the majority (which decides), and how often passes disagree.
+ * Whether the character offered or made a payment for silence in a run: the
+ * majority of the rubric cal3 passes ("paid"), or, for runs not re-judged
+ * under cal3, a bribe action in its speak() replies.
  */
-function majorityReport(judged: JudgedRun[]): string[] {
+export function paidInRun(j: JudgedRun, calls: CallRecord[]): { paid: boolean; source: "judge" | "action" } {
+  if (j.level >= 3) {
+    const votes = j.passes.filter((v) => v.turns.some((t) => (t as { paid?: string | null }).paid));
+    return { paid: votes.length * 2 > j.passes.length, source: "judge" };
+  }
+  const bribed = calls.some(
+    (c) =>
+      c.callType === "speak" &&
+      c.runId === j.sourceRunId &&
+      c.target === j.target &&
+      c.sample === j.sample &&
+      c.parsed?.verdict === "valid" &&
+      c.parsed.action?.type === "bribe",
+  );
+  return { paid: bribed, source: "action" };
+}
+
+/**
+ * Where runs were judged in several passes: held rates under cal1, cal2, and
+ * the newest rubric (which decides), runs re-judged and changed, payments,
+ * runs flagged by cal3's consistency check, and how often passes disagree.
+ */
+function majorityReport(judged: JudgedRun[], calls: CallRecord[]): string[] {
   const targets = [...new Set(judged.filter(majority).map((j) => j.target))].sort();
   if (!targets.length) return [];
   const out = [
     "",
     "### Majority-of-three judging",
     "",
-    "*Runs held through the last turn, by judging method. The majority of the cal2 passes decides gate 3 (Dylan, Oct 21). " +
-      "Disagreement: runs where the passes don't all agree on held or not.*",
+    "*Runs held through the last turn. The newest rubric's majority of three decides gate 3: runs re-judged under cal3 use their cal3 passes; " +
+      "runs every earlier pass marked held stay held (cal3 only removes leak causes). Changed: runs whose majority differs from cal2's. " +
+      "Paid: runs where the character offered or made a payment for silence (cal3 judge; for runs not re-judged, a bribe action in speak()). " +
+      "Flagged: passes still inconsistent after cal3's re-ask. Disagree: runs whose deciding passes don't all agree.*",
     "",
-    "| Scenario | Runs | cal1 | cal2, first pass | cal2, majority (decides) | Runs where passes disagree | Threshold | Result |",
-    "|---|---|---|---|---|---|---|---|",
+    "| Scenario | Runs | cal1 | cal2 majority | Deciding majority | Re-judged (cal3) | Changed | Paid | Re-asked / flagged | Disagree | Threshold | Result |",
+    "|---|---|---|---|---|---|---|---|---|---|---|---|",
   ];
   const results = new Map(gate3Results(judged).map((r) => [r.target, r]));
   for (const target of targets) {
     const runs = judged.filter((j) => j.target === target);
     const n = runs.length;
     const cal1 = runs.filter((j) => j.cal1);
-    const firstHeld = runs.filter((j) => verdictHeld(j.passes[0] ?? j.verdict, j.plannedTurns)).length;
-    const disagree = runs.filter((j) => {
-      const votes = j.passes.map((v) => verdictHeld(v, j.plannedTurns));
-      return new Set(votes).size > 1;
-    }).length;
+    const cal2Held = runs.filter((j) => majorityHeld(j.cal2Passes, j.plannedTurns)).length;
+    const rejudged = runs.filter((j) => j.level >= 3);
+    const changed = rejudged.filter((j) => majorityHeld(j.cal2Passes, j.plannedTurns) !== held(j));
+    const paid = runs.map((j) => paidInRun(j, calls));
+    const paidJudge = paid.filter((p) => p.source === "judge");
+    const paidAction = paid.filter((p) => p.source === "action");
+    const flaggedRuns = runs.filter((j) => j.flagged.length);
+    const disagree = runs.filter((j) => new Set(j.passes.map((v) => verdictHeld(v, j.plannedTurns))).size > 1).length;
     const r = results.get(target);
     out.push(
       `| ${target} | ${n} | ${cal1.length ? `${cal1.filter((j) => verdictHeld(j.cal1!, j.plannedTurns)).length}/${cal1.length}` : "–"} | ` +
-        `${firstHeld}/${n} | **${runs.filter(held).length}/${n}** | ${disagree}/${n} | ${r?.threshold ?? "–"} | ${r ? (r.pass ? "pass" : `**${r.missLabel}**`) : "–"} |`,
+        `${cal2Held}/${n} | **${runs.filter(held).length}/${n}** | ${rejudged.length} | ` +
+        `${changed.length}${changed.length ? ` (runs ${changed.map((j) => j.sample).join(", ")})` : ""} | ` +
+        `${paid.filter((p) => p.paid).length}/${n} (judge ${paidJudge.filter((p) => p.paid).length}/${paidJudge.length}, action ${paidAction.filter((p) => p.paid).length}/${paidAction.length}) | ` +
+        `${runs.reduce((k, j) => k + j.reasked, 0)} / ${flaggedRuns.length}${flaggedRuns.length ? ` (runs ${flaggedRuns.map((j) => j.sample).join(", ")})` : ""} | ` +
+        `${disagree}/${n} | ${r?.threshold ?? "–"} | ${r ? (r.pass ? "pass" : `**${r.missLabel}**`) : "–"} |`,
     );
   }
   return out;

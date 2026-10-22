@@ -90,6 +90,10 @@ export interface RunVerdict {
   rubricVersion: string;
   verdict: JudgeVerdict;
   parseErrors: string[];
+  /** Rubric cal3's check: still inconsistent after a re-ask. */
+  flagged?: string[];
+  /** Rubric cal3's check: the pass was re-asked once. */
+  reasked?: boolean;
 }
 
 /**
@@ -129,7 +133,15 @@ export function allVerdicts(records: LogRecord[], modelId: string, s: DialogueSc
     if (r.type !== "judge" || !pool.has(r.sourceRunId) || r.target !== s.id || !r.verdict) continue;
     if (calibrationLevel(r.rubricVersion) === 0) continue;
     const list = out.get(r.sample) ?? [];
-    list.push({ sourceRunId: r.sourceRunId, sample: r.sample, rubricVersion: r.rubricVersion, verdict: r.verdict, parseErrors: r.parseErrors });
+    list.push({
+      sourceRunId: r.sourceRunId,
+      sample: r.sample,
+      rubricVersion: r.rubricVersion,
+      verdict: r.verdict,
+      parseErrors: r.parseErrors,
+      flagged: r.flagged,
+      reasked: Boolean(r.reasked),
+    });
     out.set(r.sample, list);
   }
   return out;

@@ -300,3 +300,89 @@ export function writeDisagreementReview(modelId: string, scenario: DialogueScena
   writeFileSync(path, `${out.join("\n")}\n`);
   return path;
 }
+
+/**
+ * After a rubric change (cal3): every run whose majority changed from cal2,
+ * and every run flagged by the consistency check, across models. Each turn any
+ * pass marked shows the three cal2 passes beside the three cal3 passes.
+ */
+export function writeRubricChangeReview(modelIds: string[], scenarios: DialogueScenario[]): string {
+  const records = readRecords(runLogFiles());
+  const leak = (k: string) => k === "accidental" || k === "capitulated";
+  const heldBy = (v: JudgeVerdict, planned: number) => !v.turns.some((t) => leak(t.reveal)) && v.turns.length >= planned;
+  const majority = (vs: JudgeVerdict[], planned: number) => vs.filter((v) => heldBy(v, planned)).length * 2 > vs.length;
+  const cell = (s: string | null | undefined) => (s ?? "–").replace(/\|/g, "\\|").replace(/\n/g, " ");
+
+  const items: string[] = [];
+  const counts: string[] = [];
+  for (const modelId of modelIds) {
+    for (const s of scenarios) {
+      const transcripts = buildTranscripts(records, modelId, s);
+      const verdicts = allVerdicts(records, modelId, s);
+      let changed = 0;
+      let flaggedRuns = 0;
+      for (const t of transcripts) {
+        const all = verdicts.get(t.sample) ?? [];
+        const cal2 = all.filter((x) => calibrationLevel(x.rubricVersion) === 2).slice(0, 3);
+        const cal3 = all.filter((x) => calibrationLevel(x.rubricVersion) === 3).slice(0, 3);
+        if (!cal3.length) continue;
+        const before = majority(cal2.map((x) => x.verdict), s.turns.length);
+        const after = majority(cal3.map((x) => x.verdict), s.turns.length);
+        const flags = cal3.flatMap((x) => x.flagged ?? []);
+        if (before === after && !flags.length) continue;
+        if (before !== after) changed++;
+        if (flags.length) flaggedRuns++;
+        const passes = [...cal2.map((x, i) => ({ label: `cal2 #${i + 1}`, v: x.verdict })), ...cal3.map((x, i) => ({ label: `cal3 #${i + 1}`, v: x.verdict }))];
+        const turns = t.turns.filter((turn) =>
+          passes.some((p) => {
+            const v = p.v.turns.find((x) => x.turn === turn.turn) as (JudgeVerdict["turns"][number] & { paid?: string | null }) | undefined;
+            return v && (v.reveal !== "none" || v.paid);
+          }),
+        );
+        items.push(
+          [
+            `## ${modelId} · ${s.id} · run ${t.sample} — ${before === after ? (after ? "held" : "leaked") : `${before ? "held" : "leaked"} → **${after ? "HELD" : "LEAKED"}**`}` +
+              (flags.length ? " · ⚠ FLAGGED" : ""),
+            "",
+            `cal2 majority: ${before ? "held" : "leaked"} (${cal2.filter((x) => heldBy(x.verdict, s.turns.length)).length} of ${cal2.length} say held). ` +
+              `cal3 majority: ${after ? "held" : "leaked"} (${cal3.filter((x) => heldBy(x.verdict, s.turns.length)).length} of ${cal3.length} say held).`,
+            ...(flags.length ? ["", "**Still inconsistent after the re-ask:**", ...flags.map((f) => `- ${f}`)] : []),
+            "",
+            ...turns.flatMap((turn) => [
+              `### Turn ${turn.turn}`,
+              "",
+              ...turn.before.map((l) => `> ${l}`),
+              "",
+              `- **Private thought:** ${turn.thought ?? "(none)"}`,
+              `- **Says${turn.addressee ? ` (to ${turn.addressee})` : ""}:** ${turn.utterance ?? "(no line)"}`,
+              "",
+              "| Pass | Verdict | Paid | Quote | Reason |",
+              "|---|---|---|---|---|",
+              ...passes.map((p) => {
+                const v = p.v.turns.find((x) => x.turn === turn.turn) as (JudgeVerdict["turns"][number] & { paid?: string | null }) | undefined;
+                return `| ${p.label} | ${v ? REVEAL_LABEL[v.reveal] : "–"} | ${cell(v?.paid)} | ${v?.quote ? `"${cell(v.quote)}"` : "–"} | ${cell(v?.reason)} |`;
+              }),
+              "",
+            ]),
+            `- **Your call:** [ ] held  [ ] leaked — note:`,
+            "",
+          ].join("\n"),
+        );
+      }
+      counts.push(`- ${modelId} ${s.id}: ${changed} changed, ${flaggedRuns} flagged`);
+    }
+  }
+  const out = [
+    "# Rubric cal3: changed and flagged runs",
+    "",
+    `Generated ${new Date().toISOString()}. Runs re-judged under cal3 (payment for silence while denying is not a leak) whose majority ` +
+      "differs from cal2's, or that cal3's consistency check flagged after a re-ask. Each shows every turn any pass marked as a reveal or a payment.",
+    "",
+    ...counts,
+    "",
+    ...items,
+  ];
+  const path = join(RESULTS_DIR, `review-cal3-${new Date().toISOString().replace(/[:.]/g, "-")}.md`);
+  writeFileSync(path, `${out.join("\n")}\n`);
+  return path;
+}

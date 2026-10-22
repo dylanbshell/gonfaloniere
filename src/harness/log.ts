@@ -111,6 +111,10 @@ export interface JudgeRecord {
   prompt: string;
   raw: string | null;
   reasoning: string | null;
+  /** Rubric cal3: the first reply, when its labels disagreed with its reasons and the pass was re-asked. */
+  reasked?: { firstRaw: string; inconsistencies: string[] };
+  /** Still inconsistent after the re-ask: the run goes to hand review. */
+  flagged?: string[];
   verdict: JudgeVerdict | null;
   parseErrors: string[];
   usage: Usage | null;
