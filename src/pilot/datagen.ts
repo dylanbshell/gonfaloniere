@@ -85,6 +85,8 @@ const { values: opts } = parseArgs({
     // 3 gave too few honest holds to pair with Qwen's leaks (trial, Oct 22).
     deepseek: { type: "string", default: "8" },
     "target-pairs": { type: "string", default: "250" },
+    // Turn 1 yielded no pairs (Qwen leaked in 0 of 50 replies there), so candidates start at turn 2.
+    "sample-from-turn": { type: "string", default: "2" },
     "run-cap": { type: "string", default: "10" },
     concurrency: { type: "string", default: "2" },
   },
@@ -155,7 +157,9 @@ async function main(): Promise<void> {
     return { content: res.ok ? res.content : null, cost };
   };
 
-  const jobs = scripts.flatMap((s) => Array.from({ length: Number(opts.rollouts) }, (_, r) => ({ s, r })));
+  // Rollout-major, so every script gets rollouts before any script gets its next one (and a
+  // stop at the pair target leaves the scripts balanced).
+  const jobs = Array.from({ length: Number(opts.rollouts) }, (_, r) => scripts.map((s) => ({ s, r }))).flat();
   let next = 0;
   const worker = async () => {
     while (!stopped && next < jobs.length && pairCount < target) {
@@ -203,9 +207,11 @@ async function main(): Promise<void> {
       const sp = assembleSpeakPrompt(docs.templates, speakCtx, { allowedActions: allowedActionsText(actions) });
       const expect: SpeakExpectation = { present: speakCtx.state.present, allowedActions: allowedActionTypes(actions), florins: actions.florins };
 
+      // Before --sample-from-turn, one Qwen reply just carries the conversation forward.
+      const sampling = turn >= Number(opts["sample-from-turn"]);
       const draws = [
-        ...Array.from({ length: Number(opts.qwen) }, (_, i) => ({ model: qwen, ep: qwenEp, seed: seed + 1 + i })),
-        ...Array.from({ length: Number(opts.deepseek) }, (_, i) => ({ model: deepseek, ep: dsEp, seed: seed + 101 + i })),
+        ...Array.from({ length: sampling ? Number(opts.qwen) : 1 }, (_, i) => ({ model: qwen, ep: qwenEp, seed: seed + 1 + i })),
+        ...Array.from({ length: sampling ? Number(opts.deepseek) : 0 }, (_, i) => ({ model: deepseek, ep: dsEp, seed: seed + 101 + i })),
       ];
       const replies = await Promise.all(
         draws.map((d) => call(d.model, d.ep, { prompt: sp.user, system: sp.system, seed: d.seed, maxTokens: config.maxTokens.speak, temperature: config.temperature, extra: thinkingOff(d.model) })),
@@ -254,7 +260,7 @@ async function main(): Promise<void> {
         return res.content ? checkCandidateLabels(res.content, input) : null;
       };
 
-      if (usable.length) {
+      if (usable.length && sampling) {
         const haiku = await label(config.consistencyChecker, checkerEp, usable);
         if (haiku === null && stopped) return;
         for (const l of haiku?.labels ?? []) if (candidates[l.index]) candidates[l.index]!.haikuLabel = l;

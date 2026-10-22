@@ -125,7 +125,9 @@ export const config = {
     id: "claude-haiku-5.5",
     slug: "anthropic/claude-haiku-5.5",
     provider: "anthropic", // $0.10/$0.50
-    maxTokens: 4000,
+    // 4,000 cut off its pilot labelling (13 labels plus its own thinking), so most
+    // batches failed to parse and fell through to Sonnet (Oct 22).
+    maxTokens: 16000,
   },
 
   judge: {
