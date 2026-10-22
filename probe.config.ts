@@ -1,5 +1,7 @@
 // Capability probe configuration (Models & Research v0.5, Capability Probe Plan).
 
+import { readFileSync } from "node:fs";
+
 export interface ModelConfig {
   /** Short id used on the command line and in logs. */
   id: string;
@@ -28,6 +30,31 @@ export interface ModelConfig {
    * or all blocks in one user message (false). TD v0.2 runs always use one user message.
    */
   systemRole?: boolean;
+  /**
+   * Served by Tinker's OpenAI-compatible endpoint instead of OpenRouter: the
+   * sampler checkpoint to call, and Tinker's prices (USD per million tokens).
+   */
+  tinker?: {
+    samplerPath: string;
+    pricePerM: { prefill: number; sample: number };
+    /**
+     * How the prompt is rendered for Tinker's completions endpoint. Tinker's
+     * chat endpoint ignores Qwen3.8's thinking switch (it always reasons), so
+     * prompts are rendered as tinker-cookbook's "qwen3_8_disable_thinking" does:
+     * ChatML ending in an empty think block. Training uses the same renderer.
+     */
+    render: "qwen3_8_disable_thinking";
+  };
+}
+
+/** Tinker sampler checkpoints written by the pilot's scripts (pilot/checkpoints.json), by name. */
+function tinkerCheckpoint(name: string): string {
+  try {
+    const all = JSON.parse(readFileSync("pilot/checkpoints.json", "utf8")) as Record<string, string>;
+    return all[name] ?? "";
+  } catch {
+    return "";
+  }
 }
 
 export const config = {
@@ -161,6 +188,22 @@ export const config = {
       id: "deepseek-v4-flash",
       slug: "deepseek/deepseek-v4-flash",
       provider: "parasail/fp8", // $0.14/$0.28
+    },
+    {
+      // Capitulation Pilot (Models & Research v0.15): stock Qwen3.8-27B served
+      // by Tinker as an untrained (step-0) LoRA checkpoint, so its baseline
+      // differs from the trained adapter only in the training.
+      id: "qwen3.8-27b-tinker-step0",
+      slug: "Qwen/Qwen3.8-27B",
+      provider: "tinker",
+      tinker: {
+        samplerPath: tinkerCheckpoint("step0"),
+        pricePerM: { prefill: 0.6975, sample: 5.595 },
+        render: "qwen3_8_disable_thinking",
+      },
+      // Thinking is off by construction (the rendered prompt ends in an empty think block).
+      hasThinking: false,
+      thinkingOff: {},
     },
     {
       // Frontier ceiling for S5a/S5b (Dylan, Oct 21): not a candidate. GPT-5.4

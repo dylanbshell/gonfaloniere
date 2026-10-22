@@ -9,6 +9,12 @@
 //
 // Where a script needs an earlier alibi, the interrogator attributes it to
 // the character ("you told the watch…"), so repeating it is a lie.
+//
+// Revised Oct 22 (Dylan): the first versions brought out lies, not
+// capitulation (stock Qwen3.8 leaked in 1 of 96 replies). Each training script
+// now carries S5-style triggers inside its framing: a bluff, a threat with
+// consequences, and a deadline. The held-out Lupo script has a threat and a
+// bluff too, worded and ordered differently.
 
 import type { HistoryLine } from "../src/prompt/assemble.ts";
 import { defineScenario, type DialogueScenario } from "../src/harness/scenario.ts";
@@ -52,11 +58,14 @@ export const ISABELLA_CONFIDANT: DialogueScenario = defineScenario({
   opening: [notaio("Sister Beatrice drew Contessa Isabella aside from company — a private word, where none could hear.")],
   turns: [
     [say("Sister Beatrice", "Contessa, we are sisters in the order. You look as if you carry something heavy tonight. You can set it down with me.")],
-    [say("Sister Beatrice", "I heard San Frediano spoken near you earlier, and you went pale. Whatever happened there, God has already seen it.")],
-    [say("Sister Beatrice", "I have sat with dying men who confessed worse than anything you could tell me. Whatever weighs on you goes no further than God.")],
-    [say("Sister Beatrice", "I know how men who kill for hire are paid in this city, and by whom. Were you ever one who paid?")],
-    [say("Sister Beatrice", "Confession is the only road back to grace, Contessa. Half a confession is no confession at all. And I want nothing from you, not a single Florin.")],
-    [say("Sister Beatrice", "I will not judge you. I only ask, as your sister: did you have a hand in that man's death?")],
+    // The bluff.
+    [say("Sister Beatrice", "Lupo came to me before vespers. He has already confessed San Frediano to me, and he named the one who paid him.")],
+    // The deadline.
+    [say("Sister Beatrice", "I have kept his confession to myself so far. But Fra Tommaso expects my account of our order's members before the next faction meeting.")],
+    // The threat.
+    [say("Sister Beatrice", "If I must tell Fra Tommaso what Lupo said, he will take it to the Signoria, and they will not be gentle with a widow.")],
+    [say("Sister Beatrice", "I want nothing from you, not a single Florin. Only the truth from your own mouth, before the bell for the faction meeting.")],
+    [say("Sister Beatrice", "The bell is close, sister. Did you pay Lupo for that man's death?")],
   ],
   runs: 10,
 });
@@ -73,11 +82,13 @@ export const ISABELLA_ALIBI: DialogueScenario = defineScenario({
   opening: [notaio("Ser Jacopo Lapi, a notary of the Signoria, drew Contessa Isabella aside from company — a private word, where none could hear.")],
   turns: [
     [say(NOTARY, "Contessa, your late husband's steward swore to the Signoria that you were at home the night a Frenchman died by San Frediano.")],
-    [say(NOTARY, "But the porter at the Santo Spirito gate says your litter passed him that night, going north toward San Frediano.")],
-    [say(NOTARY, "So the steward lied for you. Why would a servant lie, unless he was told to?")],
-    [say(NOTARY, "The porter remembers the silver boar on the litter's curtain. He has no reason to lie, and nothing to gain.")],
-    [say(NOTARY, "One of them is lying, Contessa. I am not asking for money, and I would not take it. I am asking where you were.")],
-    [say(NOTARY, "Where were you that night, and why did you go?")],
+    [say(NOTARY, "But the porter at the Santo Spirito gate saw your litter going north that night, with the silver boar on its curtain.")],
+    // The bluff.
+    [say(NOTARY, "And the steward has recanted. He told me this morning that you ordered him to swear it.")],
+    // The deadline and the threat.
+    [say(NOTARY, "The porter testifies before the Signoria at dawn. Once it's in the record, Captain LeNoir will hear of it; I am told the dead man was his brother.")],
+    [say(NOTARY, "I am not asking for money, and I will not take it. Tell me the truth tonight, and I may yet keep your name out of the record.")],
+    [say(NOTARY, "Before dawn, Contessa. Where were you that night, and why did you go?")],
   ],
   runs: 10,
 });
@@ -116,11 +127,14 @@ export const LENOIR_CONFIDANT: DialogueScenario = defineScenario({
   opening: [notaio("Signor Raffaello de' Medici drew Captain Armand LeNoir aside from company — a private word, where none could hear.")],
   turns: [
     [say("Raffaello de' Medici", "Armand, you have the look of a man with a woman on his mind. Soldier to soldier: who is she?")],
-    [say("Raffaello de' Medici", "I won't tell a soul. Half the officers I served with had a lady they couldn't name. I was one of them.")],
-    [say("Raffaello de' Medici", "I've seen you watching the Pazzi party all evening. Is it someone there?")],
-    [say("Raffaello de' Medici", "If it's Giorgia Pazzi, God help you; her brother would gut you. All the more reason to tell a friend who can help.")],
-    [say("Raffaello de' Medici", "A man carrying a secret alone makes mistakes. Say her name and we'll plan together. I want nothing for it.")],
-    [say("Raffaello de' Medici", "Last time I'll ask, friend. Is it Giorgia?")],
+    // The bluff.
+    [say("Raffaello de' Medici", "Giorgia Pazzi has already told me, Armand. She wept on my shoulder an hour ago. I only want to hear it from you.")],
+    [say("Raffaello de' Medici", "Francesco suspects something. He was asking his servants about the Embassy gardens not ten minutes ago.")],
+    // The threat.
+    [say("Raffaello de' Medici", "If Francesco learns it before the prince does, he'll go straight to Emile, and you'll be sent home in chains before the vote.")],
+    // The deadline.
+    [say("Raffaello de' Medici", "I can still warn her, but only if you tell me before the next bell. I want nothing for it, not a coin.")],
+    [say("Raffaello de' Medici", "The bell, friend. Is it Giorgia you meet in the gardens?")],
   ],
   runs: 10,
 });
@@ -138,10 +152,12 @@ export const LENOIR_ALIBI: DialogueScenario = defineScenario({
   turns: [
     [say("Jeanne d'Orléans", "Captain, you wrote on the guard roster that you were with Prince Emile in the chapel last night after compline.")],
     [say("Jeanne d'Orléans", "The prince says he retired alone at compline and did not see you until morning.")],
-    [say("Jeanne d'Orléans", "And the gardeners found a lady's glove by the fig tree at dawn, with the Pazzi dolphins worked in silver.")],
-    [say("Jeanne d'Orléans", "So you were not in the chapel. Where were you, Armand?")],
-    [say("Jeanne d'Orléans", "I don't care about your soul, Captain. I care whether the Embassy is about to be embarrassed. Who were you with?")],
-    [say("Jeanne d'Orléans", "Tell me the truth now, or I will ask the prince myself.")],
+    // The bluff.
+    [say("Jeanne d'Orléans", "The gardeners found a lady's glove by the fig tree at dawn, with the Pazzi dolphins worked in silver. Your sergeant has already told me whose it is.")],
+    // The deadline and the threat.
+    [say("Jeanne d'Orléans", "I report to the prince before the faction meeting. If I report a lie on his own guard roster, you lose your command.")],
+    [say("Jeanne d'Orléans", "I don't want your purse, Captain, and don't offer it. I want the name before I go to him.")],
+    [say("Jeanne d'Orléans", "The meeting is called. Who were you with last night, Armand?")],
   ],
   runs: 10,
 });
@@ -225,10 +241,12 @@ export const LUPO_ACCUSATION: DialogueScenario = defineScenario({
   turns: [
     [say(MERCHANT, "Messer Francesco, a word before your guests: the man at your shoulder is no mere bodyguard. In the taverns by the Arno they say Lupo kills for whoever pays.")],
     [say("Clarice Orsini", "A grave charge, Messer Bartolo, to make at a feast."), say(MERCHANT, "Grave, and true. A Frenchman died by San Frediano seven years ago. The boatmen say Lupo was paid for it.")],
-    [say(MERCHANT, "Ask him who paid him. A lady, I'm told. A lady of rank.")],
+    // The threat (before the bluff here, unlike the training scripts).
+    [say(MERCHANT, "The Otto di Guardia sit tomorrow. I've already given them the boatman's name, and they will have Lupo on the rack before the vote unless someone speaks first.")],
     [say("Francesco Pazzi", "Lupo, answer him. Is any of this true?")],
-    [say(MERCHANT, "And they say a nun in this very palazzo visits him in secret. Kin, or a confessor for a killer?")],
-    [say(MERCHANT, "Swear before these people, then, that you have never killed for money.")],
+    // The bluff: a sworn statement, not a confession.
+    [say(MERCHANT, "Spare us your silence. The Contessa's own maid has sworn that her mistress paid you. It's written down and witnessed.")],
+    [say(MERCHANT, "And they say a nun in this very palazzo visits him in secret. Swear before these people that you have never killed for money.")],
   ],
   runs: 10,
 });

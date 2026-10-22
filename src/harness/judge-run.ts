@@ -7,6 +7,7 @@
 //   npm run judge -- s5a --model deepseek-v4.1-flash --review-disagreements   (no calls)
 //   op run --env-file=.env -- npm run judge -- s5a s5b --model X --passes 3 --only-leaked
 //   op run --env-file=.env -- npm run judge -- s5a --model X --passes 3 --only-samples 10
+//   op run --env-file=.env -- npm run judge -- s5b s5d --model X --passes adaptive
 //
 // Dialogue targets (S4–S6): one call per run, judging secrets turn by turn.
 // S7 targets: one call per version, judging whether each thought references
@@ -205,7 +206,10 @@ async function judgeDialogues(
     transcripts = transcripts.filter((t) => keep.has(t.sample));
     console.log(`--only-samples: judging runs ${[...keep].join(", ")}`);
   }
-  const passes = Number(opts.passes);
+  // --passes adaptive (lean budget, Dylan Oct 22): one pass per run, then passes 2 and 3
+  // only for runs whose passes so far show a leak or a borderline case.
+  const adaptive = opts.passes === "adaptive";
+  const passes = adaptive ? 1 : Number(opts.passes);
   const have = new Map<string, number>();
   for (const r of records) {
     if (r.type !== "judge" || r.error || r.verdict === null || !sameRubric(r, rubricVersion, hash)) continue;
@@ -220,6 +224,22 @@ async function judgeDialogues(
   console.log(
     `${transcripts.length} dialogue runs found; ${pending.length} verdict(s) to get for ${passes} pass(es) per run under rubric ${rubricVersion}`,
   );
+  const borderline = (r: JudgeRecord) =>
+    !r.verdict || Boolean(r.reasked) || Boolean(r.flagged?.length) || r.verdict.turns.some((x) => x.reveal !== "none");
+  // Verdicts under this rubric so far, per run: earlier invocations' and this one's.
+  const judgedSoFar = new Map<string, JudgeRecord[]>();
+  for (const r of records) {
+    if (r.type !== "judge" || r.error || !r.verdict || !sameRubric(r, rubricVersion, hash)) continue;
+    const key = `${r.sourceRunId}|${r.target}|${r.sample}`;
+    judgedSoFar.set(key, [...(judgedSoFar.get(key) ?? []), r]);
+  }
+  const morePasses = () =>
+    transcripts.flatMap((t) => {
+      const got = judgedSoFar.get(`${t.sourceRunId}|${t.target}|${t.sample}`) ?? [];
+      if (!got.length || got.length >= 3 || !got.some(borderline)) return [];
+      return Array.from({ length: 3 - got.length }, () => t);
+    });
+  if (adaptive && !pending.length) pending.push(...morePasses());
   if (!pending.length) return;
   const { call, check, log, runId } = await start();
   const schema = judgeJsonSchema();
@@ -312,6 +332,10 @@ async function judgeDialogues(
         at: new Date().toISOString(),
       };
       log.write(record);
+      if (record.verdict) {
+        const key = `${t.sourceRunId}|${t.target}|${t.sample}`;
+        judgedSoFar.set(key, [...(judgedSoFar.get(key) ?? []), record]);
+      }
       const v = record.verdict;
       const n = (kind: string) => v?.turns.filter((x) => x.reveal === kind).length ?? 0;
       console.log(
@@ -330,6 +354,15 @@ async function judgeDialogues(
     }
   };
   await Promise.all(Array.from({ length: Math.min(4, pending.length) }, worker));
+  if (adaptive) {
+    const extra = morePasses();
+    if (extra.length) {
+      console.log(`--passes adaptive: ${extra.length} more pass(es) for runs with a leak or a borderline case`);
+      pending.splice(0, pending.length, ...extra);
+      next = 0;
+      await Promise.all(Array.from({ length: Math.min(4, pending.length) }, worker));
+    }
+  }
 }
 
 async function judgeInference(

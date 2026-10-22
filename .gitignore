@@ -8,3 +8,8 @@ node_modules/
 
 # Probe logs and reports
 results/
+
+# Capitulation Pilot: Python environment and downloaded adapters
+pilot/.venv/
+pilot/adapters/
+__pycache__/

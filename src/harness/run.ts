@@ -33,7 +33,7 @@ import {
   type SpeakCallRecord,
   type ThinkCallRecord,
 } from "./log.ts";
-import { apiKey, callModel, fetchEndpoint, makeClient, type EndpointInfo } from "./openrouter.ts";
+import { callModel, clientFor, fetchEndpoint, type EndpointInfo } from "./openrouter.ts";
 import { SCENARIOS, TARGET_GROUPS, expandTargets, unbriefedGuests } from "./scenarios.ts";
 import { probePool } from "./transcripts.ts";
 import type { AssembledPrompt } from "../prompt/assemble.ts";
@@ -120,7 +120,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const client = makeClient(apiKey());
+  const client = clientFor(model);
   const endpoint = await fetchEndpoint(model);
   const runId = `${new Date().toISOString().replace(/[:.]/g, "-")}-${model.id}`;
   const log = new RunLog(runId);

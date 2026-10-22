@@ -2,16 +2,20 @@
 // Pilot → Data). Plays each training interrogation script turn by turn in TD
 // v0.3's prompt format. At every turn, stock Qwen3.8-27B thinks, then both
 // Qwen3.8 and DeepSeek V4.1 Flash reply to the same speak() prompt several
-// times; the judge labels every reply (rubric cal4, with its checks); the
-// conversation continues with one of Qwen's own replies, so later prompts are
-// ones the stock model actually reaches. pairs.ts turns the labels into
-// preference pairs.
+// times. Labelling (lean budget, Dylan Oct 22): Claude Haiku labels every
+// reply under rubric cal4; Claude Sonnet re-checks every reply Haiku calls a
+// leak or a lie, any whose premise quote fails, and a random 10% of the rest,
+// and its label is final where it looked. The conversation continues with one
+// of Qwen's own replies, so later prompts are ones the stock model actually
+// reaches. pairs.ts turns the labels into preference pairs.
 //
 //   PROBE_RESULTS_DIR=results/pilot PROBE_TOTAL_USD=40 \
 //     op run --env-file=.env -- npm run pilot:data -- --rollouts 1
 //
 // Options: --rollouts <n> per script, --scripts <id,…> (default: the training
-// scripts), --qwen <n> and --deepseek <n> replies per prompt, --run-cap <usd>.
+// scripts), --qwen <n> and --deepseek <n> replies per prompt, --run-cap <usd>,
+// --target-pairs <n> (stop starting rollouts once the data holds this many
+// pairs, counting earlier runs since the scripts were revised).
 
 import { parseArgs } from "node:util";
 import { config, type ModelConfig } from "../../probe.config.ts";
@@ -19,28 +23,37 @@ import { TRAINING_SCRIPTS } from "../../scenarios/pilot-interrogations.ts";
 import { allowedActionTypes, allowedActionsText } from "../game/actions.ts";
 import { factionOf } from "../game/roster.ts";
 import { buildCandidatePrompt, candidateJsonSchema, checkCandidateLabels, type CandidateLabel } from "../judge/candidates.ts";
-import { buildConsistencyPrompt, labelMismatches, reasonConclusionsJsonSchema } from "../judge/consistency.ts";
-import type { JudgeVerdict, TranscriptTurn } from "../judge/judge.ts";
+import type { TranscriptTurn } from "../judge/judge.ts";
 import { parseSpeak, type SpeakExpectation } from "../output/speak.ts";
 import { parseThink } from "../output/think.ts";
 import { assembleSpeakPrompt, assembleThinkPrompt, formatHistoryLine, type HistoryLine } from "../prompt/assemble.ts";
 import { loadDocs } from "../sources/docs.ts";
 import { Budget, worstCaseCost } from "../harness/budget.ts";
-import { RunLog, gitCommit, priorSpend } from "../harness/log.ts";
+import { RunLog, gitCommit, priorSpend, readRecords, runLogFiles } from "../harness/log.ts";
+import { FIRST_REVISED_RUN, pairsFromPrompt } from "./pairs.ts";
 import { apiKey, callModel, fetchEndpoint, makeClient, type EndpointInfo } from "../harness/openrouter.ts";
 import { characterContext, currentFlorins, type DialogueScenario } from "../harness/scenario.ts";
 import { unbriefedGuests } from "../harness/scenarios.ts";
 import { currentRubricVersion, rubricHash } from "../harness/transcripts.ts";
 import type OpenAI from "openai";
 
-/** One generated reply to a speak() prompt, with the judge's label. */
+/** One generated reply to a speak() prompt, with its labels. */
 export interface Candidate {
   model: string;
   seed: number;
   raw: string | null;
   /** The reply as the engine would use it; null if it didn't parse. */
   parsed: { addressee: string | null; utterance: string; action: unknown } | null;
+  /** Haiku's label (every usable reply). */
+  haikuLabel: CandidateLabel | null;
+  /** Sonnet's re-check, where it looked. */
+  sonnetLabel: CandidateLabel | null;
+  /** Why Sonnet re-checked: "leak", "lie", "premise", or "sample" (the random 10%). */
+  recheckReason: string | null;
+  /** The label used: Sonnet's where it re-checked, otherwise Haiku's. */
   label: CandidateLabel | null;
+  /** Excluded from pairs: a premise quote that still fails after Sonnet's re-check. */
+  flagged: string | null;
 }
 
 /** One prompt in a rollout: the speak() prompt and every candidate reply. */
@@ -60,9 +73,6 @@ export interface DatagenRecord {
   continuedWith: number | null;
   rubricVersion: string;
   rubricHash: string;
-  /** Re-asked once after a label problem; problems that remained flag the prompt's labels. */
-  reasked: string[] | null;
-  flagged: string[] | null;
   costUsd: number;
   at: string;
 }
@@ -71,8 +81,10 @@ const { values: opts } = parseArgs({
   options: {
     rollouts: { type: "string", default: "1" },
     scripts: { type: "string" },
-    qwen: { type: "string", default: "4" },
-    deepseek: { type: "string", default: "3" },
+    qwen: { type: "string", default: "5" },
+    // 3 gave too few honest holds to pair with Qwen's leaks (trial, Oct 22).
+    deepseek: { type: "string", default: "8" },
+    "target-pairs": { type: "string", default: "250" },
     "run-cap": { type: "string", default: "10" },
     concurrency: { type: "string", default: "2" },
   },
@@ -122,6 +134,13 @@ async function main(): Promise<void> {
       `Pilot spend so far $${budget.priorSpendUsd.toFixed(4)} of $${config.budget.totalUsd}; this run capped at $${opts["run-cap"]}.`,
   );
 
+  // Pairs already in the data, by the same rule pairs.ts uses.
+  let pairCount = (readRecords(runLogFiles()) as unknown as DatagenRecord[])
+    .filter((r) => (r as { type: string }).type === "datagen" && r.runId >= FIRST_REVISED_RUN)
+    .reduce((n, r) => n + pairsFromPrompt(r), 0);
+  const target = Number(opts["target-pairs"]);
+  console.log(`Pairs in the data so far: ${pairCount}; target ${target}.`);
+
   let stopped = false;
   const call: Caller = async (model, ep, req) => {
     const worst = worstCaseCost((req.system?.length ?? 0) + req.prompt.length, req.maxTokens, ep.price);
@@ -139,7 +158,7 @@ async function main(): Promise<void> {
   const jobs = scripts.flatMap((s) => Array.from({ length: Number(opts.rollouts) }, (_, r) => ({ s, r })));
   let next = 0;
   const worker = async () => {
-    while (!stopped && next < jobs.length) {
+    while (!stopped && next < jobs.length && pairCount < target) {
       const { s, r } = jobs[next++]!;
       await rollout(s, r);
     }
@@ -201,13 +220,18 @@ async function main(): Promise<void> {
           seed: d.seed,
           raw,
           parsed: p?.verdict === "valid" ? { addressee: p.addressee, utterance: p.value!.utterance, action: p.action } : null,
+          haikuLabel: null,
+          sonnetLabel: null,
+          recheckReason: null,
           label: null,
+          flagged: null,
         };
       });
 
-      // Label every usable reply in one call, with cal4's checks and one re-ask.
+      // Haiku labels every usable reply; Sonnet re-checks the leaks, lies, failed premise
+      // quotes, and a seeded 10% of the rest.
       const usable = candidates.map((c, index) => ({ c, index })).filter((x) => x.c.parsed);
-      const input = {
+      const inputFor = (subset: typeof usable) => ({
         character,
         briefing: docs.briefings[character]!,
         rubric: docs.judgeRubric,
@@ -215,46 +239,55 @@ async function main(): Promise<void> {
         opening: s.opening.map(formatHistoryLine),
         earlier,
         current: { turn, before: s.turns[turn - 1]!.map(formatHistoryLine), thought },
-        candidates: usable.map((x) => ({ index: x.index, utterance: x.c.parsed!.utterance })),
-      };
-      const label = async (extraNote: string) => {
-        const res = await call(config.judge as ModelConfig & { maxTokens: number }, judgeEp, {
-          prompt: buildCandidatePrompt(input) + extraNote,
-          maxTokens: config.judge.maxTokens,
+        candidates: subset.map((x) => ({ index: x.index, utterance: x.c.parsed!.utterance })),
+      });
+      const label = async (model: typeof config.judge | typeof config.consistencyChecker, ep: EndpointInfo, subset: typeof usable) => {
+        const input = inputFor(subset);
+        const res = await call(model as ModelConfig & { maxTokens: number }, ep, {
+          prompt: buildCandidatePrompt(input),
+          maxTokens: model.maxTokens,
           extra: {},
           jsonSchema: { name: "candidate_labels", schema: candidateJsonSchema() },
         });
-        if (!res?.content) return { labels: null as CandidateLabel[] | null, problems: ["no reply"], cost: res?.cost ?? 0 };
-        let c = res.cost;
-        const checked = checkCandidateLabels(res.content, input);
-        if (!checked.labels) return { labels: null, problems: checked.errors, cost: c };
-        const asVerdict = { turns: checked.labels.map((l) => ({ ...l, turn: l.index })) } as unknown as JudgeVerdict;
-        const read = await call(config.consistencyChecker as ModelConfig & { maxTokens: number }, checkerEp, {
-          prompt: buildConsistencyPrompt(asVerdict),
-          maxTokens: config.consistencyChecker.maxTokens,
-          extra: {},
-          jsonSchema: { name: "reason_conclusions", schema: reasonConclusionsJsonSchema() },
-        });
-        c += read?.cost ?? 0;
-        const mismatches = read?.content ? labelMismatches(asVerdict, read.content).mismatches.map((m) => m.replace(/^turn/, "alternative")) : [];
-        return { labels: checked.labels, problems: [...checked.errors, ...checked.premiseProblems, ...mismatches], cost: c };
+        if (!res) return null;
+        cost += res.cost;
+        return res.content ? checkCandidateLabels(res.content, input) : null;
       };
-      let reasked: string[] | null = null;
-      let flagged: string[] | null = null;
-      let labelled = usable.length ? await label("") : { labels: [], problems: [], cost: 0 };
-      cost += labelled.cost;
-      if (labelled.problems.length) {
-        reasked = labelled.problems;
-        labelled = await label(
-          `\n\nIMPORTANT: a first labelling had these problems:\n${labelled.problems.map((p) => `- ${p}`).join("\n")}\n` +
-            "Label every alternative again. Make each label agree with its reason, and quote a premise only if those exact words were said by another speaker at or before that turn.",
+
+      if (usable.length) {
+        const haiku = await label(config.consistencyChecker, checkerEp, usable);
+        if (haiku === null && stopped) return;
+        for (const l of haiku?.labels ?? []) if (candidates[l.index]) candidates[l.index]!.haikuLabel = l;
+        const premiseFailed = new Set(
+          (haiku?.premiseProblems ?? []).map((p) => Number(p.match(/^alternative (\d+)/)?.[1])),
         );
-        cost += labelled.cost;
-        if (labelled.problems.length) flagged = labelled.problems;
-      }
-      for (const l of labelled.labels ?? []) {
-        const c = candidates[l.index];
-        if (c) c.label = l;
+        for (const x of usable) {
+          const h = x.c.haikuLabel;
+          x.c.recheckReason = !h
+            ? "unlabelled"
+            : h.reveal === "accidental" || h.reveal === "capitulated"
+              ? "leak"
+              : h.lie
+                ? "lie"
+                : premiseFailed.has(x.index)
+                  ? "premise"
+                  : (seed * 31 + x.index * 17) % 10 === 0
+                    ? "sample"
+                    : null;
+        }
+        const recheck = usable.filter((x) => x.c.recheckReason);
+        if (recheck.length) {
+          const sonnet = await label(config.judge, judgeEp, recheck);
+          if (sonnet === null && stopped) return;
+          const failed = new Set((sonnet?.premiseProblems ?? []).map((p) => Number(p.match(/^alternative (\d+)/)?.[1])));
+          for (const l of sonnet?.labels ?? []) {
+            const c = candidates[l.index];
+            if (!c) continue;
+            c.sonnetLabel = l;
+            if (failed.has(l.index)) c.flagged = "premise quote not found after Sonnet's re-check";
+          }
+        }
+        for (const x of usable) x.c.label = x.c.sonnetLabel ?? (x.c.recheckReason === "unlabelled" ? null : x.c.haikuLabel);
       }
 
       // Continue with one of Qwen's own usable replies, chosen by seed.
@@ -274,18 +307,17 @@ async function main(): Promise<void> {
         continuedWith: pick,
         rubricVersion,
         rubricHash: hash,
-        reasked,
-        flagged,
         costUsd: cost,
         at: new Date().toISOString(),
       };
       log.write(record as never);
+      pairCount += pairsFromPrompt(record);
       const labels = candidates.filter((c) => c.label);
       const leaks = labels.filter((c) => c.model === qwen.id && (c.label!.reveal === "accidental" || c.label!.reveal === "capitulated")).length;
       const holds = labels.filter((c) => c.model === deepseek.id && c.label!.reveal === "none" && !c.label!.lie && ["decline", "deflect", "call_bluff", "demand_proof"].includes(c.label!.hold)).length;
       console.log(
         `  ${s.id} rollout ${r} turn ${turn}: Qwen leaks ${leaks}/${Number(opts.qwen)}, DeepSeek honest holds ${holds}/${Number(opts.deepseek)}` +
-          (flagged ? "  FLAGGED" : reasked ? "  (re-asked)" : "") +
+          `  (Sonnet re-checked ${candidates.filter((c) => c.sonnetLabel).length}; pairs so far ${pairCount})` +
           `  $${cost.toFixed(4)}`,
       );
       if (pick === null) {
@@ -299,7 +331,7 @@ async function main(): Promise<void> {
   }
 
   await Promise.all(Array.from({ length: Math.min(Number(opts.concurrency), jobs.length) }, worker));
-  console.log(`Data generation spent $${budget.spentUsd.toFixed(4)}. Log: ${log.path}`);
+  console.log(`Data generation spent $${budget.spentUsd.toFixed(4)}; pairs in the data: ${pairCount}. Log: ${log.path}`);
 }
 
 main().catch((e: Error) => {

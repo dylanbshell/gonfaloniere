@@ -4,6 +4,8 @@ import OpenAI from "openai";
 import type { ModelConfig } from "../../probe.config.ts";
 
 const BASE_URL = "https://openrouter.ai/api/v1";
+/** Tinker's OpenAI-compatible endpoint (beta), for pilot checkpoints. */
+const TINKER_URL = "https://tinker.thinkingmachines.dev/services/tinker-prod/oai/api/v1";
 
 /** Reads the key without ever printing it. */
 export function apiKey(): string {
@@ -32,6 +34,22 @@ export function makeClient(key: string): OpenAI {
   });
 }
 
+/**
+ * The client a model is served through: Tinker (TINKER_API_KEY) for pilot
+ * checkpoints, otherwise OpenRouter. Never prints either key.
+ */
+export function clientFor(model: ModelConfig): OpenAI {
+  if (!model.tinker) return makeClient(apiKey());
+  const key = process.env.TINKER_API_KEY;
+  if (!key || key.startsWith("op://")) {
+    throw new Error("TINKER_API_KEY isn't resolved. Run through 1Password: op run --env-file=.env -- …");
+  }
+  if (!model.tinker.samplerPath) {
+    throw new Error(`${model.id} has no Tinker sampler checkpoint yet (pilot/checkpoints.json). Run pilot/step0.py first.`);
+  }
+  return new OpenAI({ baseURL: TINKER_URL, apiKey: key, maxRetries: 0, timeout: 120_000 });
+}
+
 export interface EndpointInfo {
   providerName: string;
   tag: string;
@@ -41,8 +59,17 @@ export interface EndpointInfo {
   supportedParameters: string[];
 }
 
-/** Public endpoint listing; needs no key. */
+/** Public endpoint listing; needs no key. Tinker checkpoints use their configured prices. */
 export async function fetchEndpoint(model: ModelConfig): Promise<EndpointInfo> {
+  if (model.tinker) {
+    return {
+      providerName: "Tinker",
+      tag: "tinker",
+      quantization: "unknown",
+      price: { input: model.tinker.pricePerM.prefill / 1e6, output: model.tinker.pricePerM.sample / 1e6 },
+      supportedParameters: [],
+    };
+  }
   const res = await fetch(`${BASE_URL}/models/${model.slug}/endpoints`);
   if (!res.ok) throw new Error(`Endpoint listing for ${model.slug} failed: HTTP ${res.status}`);
   const body = (await res.json()) as { data: { endpoints: RawEndpoint[] } };
@@ -123,10 +150,55 @@ export async function callModel(client: OpenAI, req: CallRequest): Promise<CallR
   }
 }
 
+/**
+ * Qwen3.8's chat format with thinking disabled, exactly as tinker-cookbook's
+ * "qwen3_8_disable_thinking" renderer produces it (checked Oct 22).
+ */
+export function renderQwen38NoThinking(system: string | undefined, user: string): string {
+  return (
+    (system ? `<|im_start|>system\n${system}<|im_end|>\n` : "") +
+    `<|im_start|>user\n${user}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n`
+  );
+}
+
+/** Tinker checkpoints: a pre-rendered prompt to the completions endpoint, stopping at the end-of-turn token. */
+async function callTinker(client: OpenAI, req: CallRequest): Promise<CallResult & { retryAfterMs?: number }> {
+  const started = performance.now();
+  try {
+    const res = await client.completions.create({
+      model: req.model.tinker!.samplerPath,
+      prompt: renderQwen38NoThinking(req.system, req.prompt),
+      max_tokens: req.maxTokens,
+      ...(req.temperature !== undefined && { temperature: req.temperature }),
+      stop: ["<|im_end|>"],
+    });
+    const choice = res.choices[0];
+    return {
+      ok: true,
+      content: choice?.text ?? "",
+      reasoning: null,
+      usage: {
+        inputTokens: res.usage?.prompt_tokens ?? 0,
+        outputTokens: res.usage?.completion_tokens ?? 0,
+        reasoningTokens: 0,
+        costUsd: null,
+      },
+      provider: "Tinker",
+      generationId: res.id,
+      finishReason: choice?.finish_reason ?? null,
+      latencyMs: Math.round(performance.now() - started),
+    };
+  } catch (e) {
+    const status = e instanceof OpenAI.APIError ? (e.status ?? null) : null;
+    return { ok: false, error: (e as Error).message, status, latencyMs: Math.round(performance.now() - started) };
+  }
+}
+
 async function callOnce(
   client: OpenAI,
   req: CallRequest,
 ): Promise<CallResult & { retryAfterMs?: number }> {
+  if (req.model.tinker) return callTinker(client, req);
   const body = {
     model: req.model.slug,
     messages: [
