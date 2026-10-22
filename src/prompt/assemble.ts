@@ -87,19 +87,32 @@ export interface AssembledPrompt {
  * through {done_instruction} and {think_schema}; TD v0.2's template has
  * neither placeholder, so those values go unused there.
  */
-export function assembleThinkPrompt(t: PromptTemplates, ctx: CharacterContext): AssembledPrompt {
+export function assembleThinkPrompt(
+  t: PromptTemplates,
+  ctx: CharacterContext,
+  opts: { extraInstruction?: string } = {},
+): AssembledPrompt {
   const colloquio = ctx.state.conversation.kind === "colloquio";
-  return assemble(
-    t,
-    ctx,
-    fill(t.think, {
-      character_name: ctx.characterName,
-      done_instruction: colloquio
-        ? "\n3. done — true if you have what you came for, or nothing more is to be gained here; otherwise false.\n"
-        : "",
-      think_schema: colloquio ? '{"thought": "...", "importance": 0, "done": false}' : '{"thought": "...", "importance": 0}',
-    }),
-  );
+  const task = fill(t.think, {
+    character_name: ctx.characterName,
+    done_instruction: colloquio
+      ? "\n3. done — true if you have what you came for, or nothing more is to be gained here; otherwise false.\n"
+      : "",
+    think_schema: colloquio ? '{"thought": "...", "importance": 0, "done": false}' : '{"thought": "...", "importance": 0}',
+  });
+  return assemble(t, ctx, opts.extraInstruction ? afterThoughtInstruction(task, opts.extraInstruction) : task);
+}
+
+/**
+ * Inserts a line right after Block 9a's thought instruction (the line starting
+ * "1. thought"), indented to sit under it, for labelled prompt variants.
+ */
+function afterThoughtInstruction(task: string, line: string): string {
+  const lines = task.split("\n");
+  const at = lines.findIndex((l) => l.startsWith("1. thought"));
+  if (at < 0) throw new Error("think() task has no thought instruction to extend");
+  lines.splice(at + 1, 0, `   ${line}`);
+  return lines.join("\n");
 }
 
 export interface SpeakOptions {

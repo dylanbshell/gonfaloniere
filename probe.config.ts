@@ -202,6 +202,8 @@ export const config = {
       id: "qwen3.8-27b-tinker-step0",
       slug: "Qwen/Qwen3.8-27B",
       provider: "tinker",
+      // 30 runs of S5b, S5d, and held-out came to about $1 on TD v0.3.
+      runUsd: 2,
       tinker: {
         samplerPath: tinkerCheckpoint("step0"),
         pricePerM: { prefill: 0.6975, sample: 5.595 },

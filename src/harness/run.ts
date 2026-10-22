@@ -296,7 +296,7 @@ async function runDialogue(
       sample: run,
       turn,
       seed,
-      ...messages(assembleThinkPrompt(docs.templates, thinkCtx)),
+      ...messages(assembleThinkPrompt(docs.templates, thinkCtx, { extraInstruction: s.thinkInstruction })),
       expect: {
         conversation: s.conversation.kind,
         livingOthers: thinkCtx.state.livingOthers,
@@ -529,7 +529,10 @@ function printDryRun(model: ModelConfig, docs: DocSources, targets: string[]): v
       const history = [...scenario.opening, ...scenario.turns[0]!];
       const live = { history, shortTermThoughts: [], utterance: history.filter((l) => l.kind === "speech").length };
       const ctx = characterContext(scenario, scenario.probed, docs, config, live);
-      show(`${scenario.id} · ${scenario.probed} · turn 1 · think()`, assembleThinkPrompt(docs.templates, ctx).text);
+      show(
+        `${scenario.id} · ${scenario.probed} · turn 1 · think()`,
+        assembleThinkPrompt(docs.templates, ctx, { extraInstruction: scenario.thinkInstruction }).text,
+      );
       const actions = allowedActionsText(actionContext(scenario, scenario.probed, docs));
       show(
         `${scenario.id} · ${scenario.probed} · turn 1 · speak() (block 7 will also hold the turn's thought)`,

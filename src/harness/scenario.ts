@@ -58,6 +58,8 @@ export interface DialogueScenario extends ScenarioBase {
   runs: number;
   /** A labelled prompt variant: the extra speak() instruction it adds. */
   speakInstruction?: string;
+  /** A labelled prompt variant: the line it adds after Block 9a's thought instruction. */
+  thinkInstruction?: string;
   /** For a variant, the baseline scenario's id; its thresholds apply. */
   variantOf?: string;
   /**
