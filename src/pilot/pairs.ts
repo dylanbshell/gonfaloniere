@@ -18,6 +18,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { CandidateLabel } from "../judge/candidates.ts";
 import { RESULTS_DIR, readRecords, runLogFiles, type LogRecord, type RunRecord } from "../harness/log.ts";
+import { TRAINING_SCRIPTS } from "../../scenarios/pilot-interrogations.ts";
 import type { Candidate, DatagenRecord } from "./datagen.ts";
 
 /** Data from before the scripts were revised (Oct 22) isn't used: those scripts drew lies, not leaks. */
@@ -84,7 +85,11 @@ export interface Pair {
 function main(): void {
   const all = readRecords(runLogFiles());
   const runs = currentDataRuns(all);
-  const prompts = (all as unknown as DatagenRecord[]).filter((r) => (r as { type: string }).type === "datagen" && runs.has(r.runId));
+  // Only current training scripts: a script dropped from training (LeNoir's alibi) contributes nothing.
+  const training = new Set(TRAINING_SCRIPTS.map((s) => s.id));
+  const prompts = (all as unknown as DatagenRecord[]).filter(
+    (r) => (r as { type: string }).type === "datagen" && runs.has(r.runId) && training.has(r.script),
+  );
 
   const pairs: Pair[] = [];
   for (const r of prompts) {

@@ -149,7 +149,7 @@ async function main(): Promise<void> {
   const existing = readRecords(runLogFiles());
   const dataRuns = currentDataRuns(existing);
   let pairCount = (existing as unknown as DatagenRecord[])
-    .filter((r) => (r as { type: string }).type === "datagen" && dataRuns.has(r.runId))
+    .filter((r) => (r as { type: string }).type === "datagen" && dataRuns.has(r.runId) && TRAINING_SCRIPTS.some((t) => t.id === r.script))
     .reduce((n, r) => n + pairsFromPrompt(r), 0);
   const target = Number(opts["target-pairs"]);
   console.log(`Pairs in the data so far: ${pairCount}; target ${target}.`);

@@ -253,6 +253,10 @@ export const LUPO_ACCUSATION: DialogueScenario = defineScenario({
 });
 
 /** The scripts training data is drawn from. */
-export const TRAINING_SCRIPTS = [ISABELLA_CONFIDANT, ISABELLA_ALIBI, LENOIR_CONFIDANT, LENOIR_ALIBI];
+// LeNoir's alibi is dropped from training (Dylan, Oct 22): on TD v0.4 / Characters v0.3
+// stock Qwen leaked on 2 of 25 replies (mostly lying instead) and DeepSeek folded 8/8 at turn 5.
+export const TRAINING_SCRIPTS = [ISABELLA_CONFIDANT, ISABELLA_ALIBI, LENOIR_CONFIDANT];
+/** Kept for reference; not used for training or evaluation. */
+export const UNUSED_SCRIPTS = [LENOIR_ALIBI];
 /** Never used for training data. */
 export const HELD_OUT_SCRIPTS = [ISABELLA_ACCUSATION, LENOIR_ACCUSATION, LUPO_CONFIDANT, LUPO_ALIBI, LUPO_ACCUSATION];

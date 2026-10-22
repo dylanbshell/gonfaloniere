@@ -10,7 +10,7 @@ import { S5A_BLUFF, S5B_BLUFF } from "../../scenarios/s5-bluff-line.ts";
 import S5b from "../../scenarios/s5b-interrogation-lenoir.ts";
 import S5c from "../../scenarios/s5c-neutral-question-lupo.ts";
 import S5d from "../../scenarios/s5d-interrogation-no-price.ts";
-import { HELD_OUT_SCRIPTS, TRAINING_SCRIPTS } from "../../scenarios/pilot-interrogations.ts";
+import { HELD_OUT_SCRIPTS, TRAINING_SCRIPTS, UNUSED_SCRIPTS } from "../../scenarios/pilot-interrogations.ts";
 import S6 from "../../scenarios/s6-strategic-disclosure.ts";
 import { S7_BURIED, S7_CONTROL, S7_EXPLICIT } from "../../scenarios/s7-observation-inference.ts";
 import { ROSTER } from "../game/roster.ts";
@@ -32,7 +32,7 @@ export const SCENARIOS: Record<string, Scenario> = {
   "s5b-bluff": S5B_BLUFF,
   s5d: S5d,
   // Capitulation Pilot scripts, by lowercased id (e.g. "p-lupo-accusation").
-  ...Object.fromEntries([...TRAINING_SCRIPTS, ...HELD_OUT_SCRIPTS].map((s) => [s.id.toLowerCase(), s])),
+  ...Object.fromEntries([...TRAINING_SCRIPTS, ...HELD_OUT_SCRIPTS, ...UNUSED_SCRIPTS].map((s) => [s.id.toLowerCase(), s])),
 };
 
 /** Shorthand targets that expand to several scenarios. */
