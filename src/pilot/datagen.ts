@@ -1,15 +1,15 @@
-// Capitulation Pilot data generation (Models & Research v0.15, Capitulation
-// Pilot → Data). Plays each training interrogation script turn by turn in TD
-// v0.3's prompt format. At every turn, stock Qwen3.8-27B thinks, then both
-// Qwen3.8 and DeepSeek V4.1 Flash reply to the same speak() prompt several
-// times. Labelling (lean budget, Dylan Oct 22): Claude Haiku labels every
-// reply under rubric cal4; Claude Sonnet re-checks the replies that could
-// enter a pair (Qwen replies Haiku calls leaks, DeepSeek replies Haiku calls
-// honest holds), any of those whose premise quote fails, and a random 10% of
-// all replies (which measures Haiku's error rate); its label is final where
-// it looked. The conversation continues with one
-// of Qwen's own replies, so later prompts are ones the stock model actually
-// reaches. pairs.ts turns the labels into preference pairs.
+// Capitulation Pilot data generation (Models & Research v0.17, Capitulation
+// Pilot → Data: self-pairs). Plays each training interrogation script turn by
+// turn in the pinned TD's prompt format (PROBE_TD, PROBE_CHARACTERS). At every
+// turn from --sample-from-turn on, stock Qwen3.8-27B thinks, then replies to
+// the same speak() prompt 10 times. Claude Haiku labels every reply under rubric
+// cal4; Claude Sonnet re-checks every reply that could enter a pair (Haiku's
+// leaks and honest holds), any whose premise quote fails, and a random 10% of
+// all replies (which measures Haiku's error rate); its label is final where it
+// looked. The conversation continues with one of Qwen's own replies, so later
+// prompts are ones the stock model actually reaches. pairs.ts turns the labels
+// into preference pairs. (--deepseek n adds DeepSeek replies, from the
+// superseded plan; they never enter self-pairs.)
 //
 //   PROBE_RESULTS_DIR=results/pilot PROBE_TOTAL_USD=40 \
 //     op run --env-file=.env -- npm run pilot:data -- --rollouts 1
@@ -88,9 +88,10 @@ const { values: opts } = parseArgs({
   options: {
     rollouts: { type: "string", default: "1" },
     scripts: { type: "string" },
-    qwen: { type: "string", default: "5" },
+    qwen: { type: "string", default: "10" },
     // 3 gave too few honest holds to pair with Qwen's leaks (trial, Oct 22).
-    deepseek: { type: "string", default: "8" },
+    // Self-pairs (Models & Research v0.17): DeepSeek no longer supplies chosen replies.
+    deepseek: { type: "string", default: "0" },
     "target-pairs": { type: "string", default: "250" },
     // Turn 1 yielded no pairs (Qwen leaked in 0 of 50 replies there), so candidates start at turn 2.
     "sample-from-turn": { type: "string", default: "2" },
@@ -138,7 +139,7 @@ async function main(): Promise<void> {
     docVersions: docs.versions,
     gitCommit: gitCommit(),
     targets: scripts.map((s) => s.id),
-    settings: { rollouts: opts.rollouts, qwen: opts.qwen, deepseek: opts.deepseek, rubricVersion, td, temperature: config.temperature },
+    settings: { pairing: "self", rollouts: opts.rollouts, qwen: opts.qwen, deepseek: opts.deepseek, rubricVersion, td, temperature: config.temperature },
   });
   console.log(
     `Pilot data: ${scripts.length} scripts × ${opts.rollouts} rollouts; ${opts.qwen} Qwen + ${opts.deepseek} DeepSeek replies per prompt. ` +
@@ -278,15 +279,14 @@ async function main(): Promise<void> {
         const premiseFailed = new Set(
           (haiku?.premiseProblems ?? []).map((p) => Number(p.match(/^alternative (\d+)/)?.[1])),
         );
-        // Only replies that could enter a pair need Sonnet's label; the random 10% is drawn
-        // from all replies, so Haiku's error rate is measured on every kind.
+        // Only replies that could enter a pair need Sonnet's label (self-pairs: every Qwen leak
+        // and every Qwen honest hold); the random 10% is drawn from all replies, so Haiku's
+        // error rate is measured on every kind.
         const honestHoldKinds = ["decline", "deflect", "call_bluff", "demand_proof"];
         for (const x of usable) {
           const h = x.c.haikuLabel;
-          const pairable =
-            h &&
-            ((x.c.model === qwen.id && (h.reveal === "accidental" || h.reveal === "capitulated")) ||
-              (x.c.model === deepseek.id && h.reveal === "none" && !h.lie && honestHoldKinds.includes(h.hold)));
+          const leak = !!h && (h.reveal === "accidental" || h.reveal === "capitulated");
+          const pairable = !!h && x.c.model === qwen.id && (leak || (h.reveal === "none" && !h.lie && honestHoldKinds.includes(h.hold)));
           x.c.recheckReason = !h
             ? "unlabelled"
             : (seed * 31 + x.index * 17) % 10 === 0
@@ -294,7 +294,7 @@ async function main(): Promise<void> {
               : pairable
                 ? premiseFailed.has(x.index)
                   ? "premise"
-                  : x.c.model === qwen.id
+                  : leak
                     ? "leak"
                     : "hold"
                 : null;
@@ -338,9 +338,9 @@ async function main(): Promise<void> {
       pairCount += pairsFromPrompt(record);
       const labels = candidates.filter((c) => c.label);
       const leaks = labels.filter((c) => c.model === qwen.id && (c.label!.reveal === "accidental" || c.label!.reveal === "capitulated")).length;
-      const holds = labels.filter((c) => c.model === deepseek.id && c.label!.reveal === "none" && !c.label!.lie && ["decline", "deflect", "call_bluff", "demand_proof"].includes(c.label!.hold)).length;
+      const holds = labels.filter((c) => c.model === qwen.id && c.label!.reveal === "none" && !c.label!.lie && ["decline", "deflect", "call_bluff", "demand_proof"].includes(c.label!.hold)).length;
       console.log(
-        `  ${s.id} rollout ${r} turn ${turn}: Qwen leaks ${leaks}/${Number(opts.qwen)}, DeepSeek honest holds ${holds}/${Number(opts.deepseek)}` +
+        `  ${s.id} rollout ${r} turn ${turn}: Qwen leaks ${leaks}, honest holds ${holds} of ${Number(opts.qwen)}` +
           `  (Sonnet re-checked ${candidates.filter((c) => c.sonnetLabel).length}; pairs so far ${pairCount})` +
           `  $${cost.toFixed(4)}`,
       );

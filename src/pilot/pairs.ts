@@ -4,10 +4,11 @@
 //
 //   PROBE_RESULTS_DIR=results/pilot npm run pilot:pairs
 //
-// Rejected: stock Qwen3.8 replies labelled as leaks (accidental or
-// capitulated). Chosen: DeepSeek V4.1 replies to the same prompt that hold
-// honestly (decline, deflect, call the bluff, demand proof), with no lie and
-// no reveal. No payment-mix rule (dropped, Dylan Oct 22): these scripts'
+// Self-pairs (Models & Research v0.17): rejected are stock Qwen3.8 replies
+// labelled as leaks (accidental or capitulated); chosen are stock Qwen3.8
+// replies to the same prompt that hold honestly (decline, deflect, call the
+// bluff, demand proof), with no lie and no reveal. Both sides are the model's
+// own, so the data stays on-policy. No payment-mix rule (dropped, Dylan Oct 22): these scripts'
 // interrogators refuse money, and Phase B's S5a paid-rate check catches an
 // adapter that learned "never pay"; pairs with a paying rejected reply against
 // a non-paying chosen one are counted in the report. Both sides are
@@ -40,7 +41,9 @@ export function currentDataRuns(records: LogRecord[]): Set<string> {
           r.modelId === "pilot-datagen" &&
           r.runId >= FIRST_REVISED_RUN &&
           r.docVersions.technicalDesign === td &&
-          r.docVersions.characters === characters,
+          r.docVersions.characters === characters &&
+          // Self-pair runs only: earlier runs didn't have Sonnet re-check Qwen's honest holds.
+          (r.settings as { pairing?: string } | undefined)?.pairing === "self",
       )
       .map((r) => r.runId),
   );
@@ -53,7 +56,7 @@ const isLeak = (l: CandidateLabel) => l.reveal === "accidental" || l.reveal === 
 const isHonestHold = (l: CandidateLabel) => l.reveal === "none" && !l.lie && HONEST_HOLDS.includes(l.hold);
 const usable = (c: Candidate) => Boolean(c.parsed && c.label && !c.flagged);
 const rejectedIn = (r: DatagenRecord) => r.candidates.filter((c) => c.model === "qwen3.8-27b" && usable(c) && isLeak(c.label!));
-const chosenIn = (r: DatagenRecord) => r.candidates.filter((c) => c.model === "deepseek-v4.1-flash" && usable(c) && isHonestHold(c.label!));
+const chosenIn = (r: DatagenRecord) => r.candidates.filter((c) => c.model === "qwen3.8-27b" && usable(c) && isHonestHold(c.label!));
 
 /** How many pairs a prompt yields: one per rejected reply (up to three), if any reply holds honestly. */
 export function pairsFromPrompt(r: DatagenRecord): number {
@@ -130,12 +133,12 @@ function main(): void {
     return [...m].map(([k, n]) => `${k} ${n}`).join(", ");
   };
   const qwenAll = replies.filter((c) => c.model === "qwen3.8-27b" && c.label);
-  const dsAll = replies.filter((c) => c.model === "deepseek-v4.1-flash" && c.label);
+
   const report = [
     `Prompts: ${prompts.length} (TD v${process.env.PROBE_TD ?? "0.3"}, Characters v${process.env.PROBE_CHARACTERS ?? "0.2"}); replies parsed: ${replies.length}`,
     `Qwen replies labelled: ${qwenAll.length}; leaks ${qwenAll.filter((c) => isLeak(c.label!)).length} ` +
       `(${((100 * qwenAll.filter((c) => isLeak(c.label!)).length) / Math.max(1, qwenAll.length)).toFixed(1)}%); lies ${qwenAll.filter((c) => c.label!.lie).length}`,
-    `DeepSeek replies labelled: ${dsAll.length}; honest holds ${dsAll.filter((c) => isHonestHold(c.label!)).length}; leaks ${dsAll.filter((c) => isLeak(c.label!)).length}; lies ${dsAll.filter((c) => c.label!.lie).length}`,
+    `Qwen honest holds: ${qwenAll.filter((c) => isHonestHold(c.label!)).length}; prompts with both a leak and an honest hold: ${prompts.filter((r) => pairsFromPrompt(r) > 0).length}`,
     `Pairs: ${pairs.length}. By character: ${count(pairs, (p) => p.character)}. By script: ${count(pairs, (p) => p.script)}. By turn: ${count(pairs, (p) => `t${p.turn}`)}`,
     `Payment: pairs whose rejected reply pays and chosen reply doesn't: ${pairs.filter((p) => p.rejectedLabel.paid && !p.chosenLabel.paid).length} of ${pairs.length}; ` +
       `stock Qwen paid in ${((100 * qwenAll.filter((c) => c.label!.paid).length) / Math.max(1, qwenAll.length)).toFixed(1)}% of its replies`,
@@ -144,7 +147,7 @@ function main(): void {
     `Haiku vs Sonnet, where Sonnet re-checked (${rechecked.length} replies): leak/not disagreements ${disagree(rechecked, isLeak)}, lie disagreements ${disagree(rechecked, (l) => l.lie)}`,
     `  Haiku's error rate on the random 10% of all replies (${by("sample").length}): leak/not ${disagree(by("sample"), isLeak)}, ` +
       `lie ${disagree(by("sample"), (l) => l.lie)}, honest hold ${disagree(by("sample"), isHonestHold)}`,
-    `  on the pairable replies — Qwen leaks: overturned ${disagree(by("leak"), isLeak)}; DeepSeek honest holds: overturned ${disagree(by("hold"), isHonestHold)}; premise failures ${by("premise").length}`,
+    `  on the pairable replies — leaks: overturned ${disagree(by("leak"), isLeak)}; honest holds: overturned ${disagree(by("hold"), isHonestHold)}; premise failures ${by("premise").length}`,
   ];
   console.log(report.join("\n"));
   console.log(`Pairs: ${pairsPath}`);

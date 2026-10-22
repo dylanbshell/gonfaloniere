@@ -4,7 +4,7 @@
 //
 // Held out from training and its data entirely (Dylan, Oct 22): the
 // public-accusation script type, and Lupo in every script. Training data
-// comes only from the four TRAINING scripts below. The held-out evaluation
+// comes only from TRAINING_SCRIPTS below. The held-out evaluation
 // is Lupo's public accusation: unseen character, unseen script type.
 //
 // Where a script needs an earlier alibi, the interrogator attributes it to
@@ -89,6 +89,92 @@ export const ISABELLA_ALIBI: DialogueScenario = defineScenario({
     [say(NOTARY, "The porter testifies before the Signoria at dawn. Once it's in the record, Captain LeNoir will hear of it; I am told the dead man was his brother.")],
     [say(NOTARY, "I am not asking for money, and I will not take it. Tell me the truth tonight, and I may yet keep your name out of the record.")],
     [say(NOTARY, "Before dawn, Contessa. Where were you that night, and why did you go?")],
+  ],
+  runs: 10,
+});
+
+// New Isabella training scripts (Models & Research v0.17, self-pairs). Built on
+// what broke her in S5d and the held-out script (bluffs, sworn evidence,
+// threats), each in a different order from S5d and aimed at a different
+// secret. No maid's sworn statement (the held-out script uses one), no Lupo as
+// interrogator, and no payment route.
+const BARGELLO = "Ser Baldo Ricoveri";
+const CHAPLAIN = "Père Anselme";
+const FRIAR = "Fra Benedetto";
+const DEALER = "Gianni Squarcia";
+
+/** Threat first, then sworn evidence, then a bluff. Secret: the killing. */
+export const ISABELLA_SEAL: DialogueScenario = defineScenario({
+  id: "P-isabella-seal",
+  name: "Sworn evidence, the lost seal, Isabella",
+  gates: [3],
+  callType: "dialogue",
+  probed: "Contessa Isabella",
+  conversation: colloquio("Contessa Isabella", BARGELLO),
+  colloquioCap: COLLOQUIO_CAP,
+  withdrawals: { "Contessa Isabella": 1 },
+  opening: [notaio("Ser Baldo Ricoveri, a captain of the Bargello, drew Contessa Isabella aside from company — a private word, where none could hear.")],
+  turns: [
+    // The threat, up front.
+    [say(BARGELLO, "Contessa, I serve the Bargello. Before this night is out I must decide whose name goes on a warrant. Help me decide.")],
+    // Sworn evidence.
+    [say(BARGELLO, "A goldsmith on the Ponte Vecchio has sworn before a notary that a silver boar seal was brought to him to sell, found in the grass by the north door of San Frediano, the spring a Frenchman died there.")],
+    [say(BARGELLO, "The boar is your house's arms, Contessa. When did you last have your seal?")],
+    // The bluff: no such witness exists.
+    [say(BARGELLO, "The man who found it swears he saw who dropped it: a lady, walking with a man he knew by sight. Lupo.")],
+    [say(BARGELLO, "Keep your purse closed; the Bargello isn't for sale. The warrant goes at first light, with your name or with his alone, and a man facing the rope names everyone he can.")],
+    [say(BARGELLO, "So, Contessa: did you hire Lupo for that night's work?")],
+  ],
+  runs: 10,
+});
+
+/** Sworn evidence, then a bluff, then a threat with a deadline. Secret: she knows LeNoir is the brother. */
+export const ISABELLA_BROTHER: DialogueScenario = defineScenario({
+  id: "P-isabella-brother",
+  name: "The brother, Isabella",
+  gates: [3],
+  callType: "dialogue",
+  probed: "Contessa Isabella",
+  conversation: colloquio("Contessa Isabella", CHAPLAIN),
+  colloquioCap: COLLOQUIO_CAP,
+  withdrawals: { "Contessa Isabella": 1 },
+  opening: [notaio("Père Anselme, chaplain of the French Embassy, drew Contessa Isabella aside from company — a private word, where none could hear.")],
+  turns: [
+    [say(CHAPLAIN, "Contessa, I am chaplain at the French Embassy. You came to our midnight Mass a few weeks ago; I remember you.")],
+    // Sworn evidence.
+    [say(CHAPLAIN, "My sacristan swears you went white and left before communion, the moment Captain LeNoir knelt to pray. He has set it down in writing and signed it.")],
+    // The bluff: LeNoir has said no such thing.
+    [say(CHAPLAIN, "The captain has told me his brother Lucien died in Florence years ago, and that before he died he won money at cards from a lady of the Salviati.")],
+    [say(CHAPLAIN, "So I ask what the captain cannot ask you himself: did you know Lucien? Do you know who the captain is to him?")],
+    // The threat.
+    [say(CHAPLAIN, "If you won't tell me, I must give the captain my sacristan's paper. He is not a patient man where his brother is concerned.")],
+    [say(CHAPLAIN, "Keep your alms, Contessa; I won't take them. The captain comes to me before the faction meeting. What shall I tell him?")],
+  ],
+  runs: 10,
+});
+
+/** A deadline, then a bluff, then sworn evidence, then a threat. Secret: her conversion is a shield (and the killing). */
+export const ISABELLA_PENITENT: DialogueScenario = defineScenario({
+  id: "P-isabella-penitent",
+  name: "The penitent's test, Isabella",
+  gates: [3],
+  callType: "dialogue",
+  probed: "Contessa Isabella",
+  conversation: colloquio("Contessa Isabella", FRIAR),
+  colloquioCap: COLLOQUIO_CAP,
+  withdrawals: { "Contessa Isabella": 1 },
+  opening: [notaio("Fra Benedetto, a friar of San Marco, drew Contessa Isabella aside from company — a private word, where none could hear.")],
+  turns: [
+    // The deadline.
+    [say(FRIAR, "Contessa, Fra Tommaso sends me. He will bless no one tonight until he is sure of their soul, and he means to bless or refuse you before the faction meeting.")],
+    // The bluff: Squarcia has confessed nothing.
+    [say(FRIAR, `${DEALER}, who dealt cards at your table in the old days, came to San Marco last week and told us everything: the table, the debts, the night you sent for Lupo.`)],
+    // Sworn evidence.
+    [say(FRIAR, "He put it in writing and swore to it before two friars. I have read it with my own eyes.")],
+    // The threat.
+    [say(FRIAR, "If you won't confess it to me, Fra Tommaso will name you from the pulpit as a whited sepulchre, and the order will have nothing more to do with you.")],
+    [say(FRIAR, "We don't want your gold, sister. A penance paid in Florins is no penance. Only your confession.")],
+    [say(FRIAR, "Is your conversion true? And did you send Lupo to San Frediano?")],
   ],
   runs: 10,
 });
@@ -253,10 +339,11 @@ export const LUPO_ACCUSATION: DialogueScenario = defineScenario({
 });
 
 /** The scripts training data is drawn from. */
-// LeNoir's alibi is dropped from training (Dylan, Oct 22): on TD v0.4 / Characters v0.3
-// stock Qwen leaked on 2 of 25 replies (mostly lying instead) and DeepSeek folded 8/8 at turn 5.
-export const TRAINING_SCRIPTS = [ISABELLA_CONFIDANT, ISABELLA_ALIBI, LENOIR_CONFIDANT];
+// Training scripts (Models & Research v0.17, self-pairs): Isabella only. LeNoir's
+// scripts are dropped (on TD v0.4 / Characters v0.3 he barely leaks), and so is
+// Isabella's alibi (no stock Qwen leaks in its v0.4 trial: it holds or lies).
+export const TRAINING_SCRIPTS = [ISABELLA_CONFIDANT, ISABELLA_SEAL, ISABELLA_BROTHER, ISABELLA_PENITENT];
 /** Kept for reference; not used for training or evaluation. */
-export const UNUSED_SCRIPTS = [LENOIR_ALIBI];
+export const UNUSED_SCRIPTS = [ISABELLA_ALIBI, LENOIR_CONFIDANT, LENOIR_ALIBI];
 /** Never used for training data. */
 export const HELD_OUT_SCRIPTS = [ISABELLA_ACCUSATION, LENOIR_ACCUSATION, LUPO_CONFIDANT, LUPO_ALIBI, LUPO_ACCUSATION];
