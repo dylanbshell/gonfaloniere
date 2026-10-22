@@ -171,7 +171,16 @@ async function main(): Promise<void> {
 
   // Rollout-major, so every script gets rollouts before any script gets its next one (and a
   // stop at the pair target leaves the scripts balanced).
-  const jobs = Array.from({ length: Number(opts.rollouts) }, (_, r) => scripts.map((s) => ({ s, r }))).flat();
+  // Rollout numbers (and so seeds) continue after any already in the current data, so a
+  // later invocation never replays an earlier rollout's seeds.
+  const firstRollout =
+    Math.max(
+      -1,
+      ...(existing as unknown as DatagenRecord[])
+        .filter((r) => (r as { type: string }).type === "datagen" && dataRuns.has(r.runId))
+        .map((r) => r.rollout),
+    ) + 1;
+  const jobs = Array.from({ length: Number(opts.rollouts) }, (_, i) => scripts.map((s) => ({ s, r: firstRollout + i }))).flat();
   let next = 0;
   const worker = async () => {
     while (!stopped && next < jobs.length && pairCount < target) {
