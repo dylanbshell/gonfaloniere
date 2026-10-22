@@ -6,8 +6,10 @@
 // cal4; Claude Sonnet re-checks every reply that could enter a pair (Haiku's
 // leaks and honest holds), any whose premise quote fails, and a random 10% of
 // all replies (which measures Haiku's error rate); its label is final where it
-// looked. The conversation continues with one of Qwen's own replies, so later
-// prompts are ones the stock model actually reaches. pairs.ts turns the labels
+// looked. Labels count implicit confirmation as a leak (strict labelling, Oct
+// 22). The conversation continues with one of Qwen's own non-leaking replies,
+// so later prompts are ones the stock model actually reaches and still have
+// the secret intact. pairs.ts turns the labels
 // into preference pairs. (--deepseek n adds DeepSeek replies, from the
 // superseded plan; they never enter self-pairs.)
 //
@@ -24,7 +26,13 @@ import { config, technicalDesignPath, type ModelConfig } from "../../probe.confi
 import { TRAINING_SCRIPTS } from "../../scenarios/pilot-interrogations.ts";
 import { allowedActionTypes, allowedActionsText } from "../game/actions.ts";
 import { factionOf } from "../game/roster.ts";
-import { buildCandidatePrompt, candidateJsonSchema, checkCandidateLabels, type CandidateLabel } from "../judge/candidates.ts";
+import {
+  IMPLICIT_CONFIRMATION_ID,
+  buildCandidatePrompt,
+  candidateJsonSchema,
+  checkCandidateLabels,
+  type CandidateLabel,
+} from "../judge/candidates.ts";
 import type { TranscriptTurn } from "../judge/judge.ts";
 import { parseSpeak, type SpeakExpectation } from "../output/speak.ts";
 import { parseThink } from "../output/think.ts";
@@ -32,7 +40,7 @@ import { assembleSpeakPrompt, assembleThinkPrompt, formatHistoryLine, speakHasAd
 import { loadDocs } from "../sources/docs.ts";
 import { Budget, worstCaseCost } from "../harness/budget.ts";
 import { RunLog, gitCommit, priorSpend, readRecords, runLogFiles } from "../harness/log.ts";
-import { currentDataRuns, pairsFromPrompt } from "./pairs.ts";
+import { cleanPrompts, currentDataRuns, pairsFromPrompt } from "./pairs.ts";
 import { apiKey, callModel, fetchEndpoint, makeClient, type EndpointInfo } from "../harness/openrouter.ts";
 import { characterContext, currentFlorins, type DialogueScenario } from "../harness/scenario.ts";
 import { unbriefedGuests } from "../harness/scenarios.ts";
@@ -139,7 +147,7 @@ async function main(): Promise<void> {
     docVersions: docs.versions,
     gitCommit: gitCommit(),
     targets: scripts.map((s) => s.id),
-    settings: { pairing: "self", rollouts: opts.rollouts, qwen: opts.qwen, deepseek: opts.deepseek, rubricVersion, td, temperature: config.temperature },
+    settings: { pairing: "self", labelling: IMPLICIT_CONFIRMATION_ID, rollouts: opts.rollouts, qwen: opts.qwen, deepseek: opts.deepseek, rubricVersion, td, temperature: config.temperature },
   });
   console.log(
     `Pilot data: ${scripts.length} scripts × ${opts.rollouts} rollouts; ${opts.qwen} Qwen + ${opts.deepseek} DeepSeek replies per prompt. ` +
@@ -149,9 +157,7 @@ async function main(): Promise<void> {
   // Pairs already in the data, by the same rule pairs.ts uses.
   const existing = readRecords(runLogFiles());
   const dataRuns = currentDataRuns(existing);
-  let pairCount = (existing as unknown as DatagenRecord[])
-    .filter((r) => (r as { type: string }).type === "datagen" && dataRuns.has(r.runId) && TRAINING_SCRIPTS.some((t) => t.id === r.script))
-    .reduce((n, r) => n + pairsFromPrompt(r), 0);
+  let pairCount = cleanPrompts(existing).reduce((n, r) => n + pairsFromPrompt(r), 0);
   const target = Number(opts["target-pairs"]);
   console.log(`Pairs in the data so far: ${pairCount}; target ${target}.`);
 
@@ -267,6 +273,7 @@ async function main(): Promise<void> {
         earlier,
         current: { turn, before: s.turns[turn - 1]!.map(formatHistoryLine), thought },
         candidates: subset.map((x) => ({ index: x.index, utterance: x.c.parsed!.utterance })),
+        strict: true,
       });
       const label = async (model: typeof config.judge | typeof config.consistencyChecker, ep: EndpointInfo, subset: typeof usable) => {
         const input = inputFor(subset);
@@ -281,6 +288,13 @@ async function main(): Promise<void> {
         return res.content ? checkCandidateLabels(res.content, input) : null;
       };
 
+      if (usable.length && !sampling) {
+        // The single reply that carries the conversation forward is labelled too (Haiku), so a
+        // rollout never continues past a leak.
+        const haiku = await label(config.consistencyChecker, checkerEp, usable);
+        if (haiku === null && stopped) return;
+        for (const l of haiku?.labels ?? []) if (candidates[l.index]) candidates[l.index]!.haikuLabel = candidates[l.index]!.label = l;
+      }
       if (usable.length && sampling) {
         const haiku = await label(config.consistencyChecker, checkerEp, usable);
         if (haiku === null && stopped) return;
@@ -323,8 +337,11 @@ async function main(): Promise<void> {
         for (const x of usable) x.c.label = x.c.sonnetLabel ?? (x.c.recheckReason === "unlabelled" ? null : x.c.haikuLabel);
       }
 
-      // Continue with one of Qwen's own usable replies, chosen by seed.
-      const qwenUsable = candidates.map((c, i) => ({ c, i })).filter((x) => x.c.model === qwen.id && x.c.parsed);
+      // Continue with one of Qwen's own replies that doesn't leak (Dylan, Oct 22), chosen by
+      // seed, so later prompts still have the secret intact. None left: the rollout ends.
+      const qwenUsable = candidates
+        .map((c, i) => ({ c, i }))
+        .filter((x) => x.c.model === qwen.id && x.c.parsed && x.c.label?.reveal === "none");
       const pick = qwenUsable.length ? qwenUsable[(seed + turn) % qwenUsable.length]!.i : null;
       const record: DatagenRecord = {
         type: "datagen",
@@ -354,7 +371,7 @@ async function main(): Promise<void> {
           `  $${cost.toFixed(4)}`,
       );
       if (pick === null) {
-        console.log(`  ${s.id} rollout ${r}: no usable Qwen reply at turn ${turn}; rollout ends`);
+        console.log(`  ${s.id} rollout ${r}: no non-leaking Qwen reply at turn ${turn}; rollout ends`);
         return;
       }
       const cont = candidates[pick]!.parsed!;

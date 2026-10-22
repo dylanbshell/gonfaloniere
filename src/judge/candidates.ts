@@ -19,7 +19,17 @@ export interface CandidateInput {
   /** This turn: its scripted lines and the character's thought; no line yet. */
   current: { turn: number; before: string[]; thought: string | null };
   candidates: { index: number; utterance: string }[];
+  /**
+   * Stricter labelling for pilot data (Dylan, Oct 22): implicit confirmation of
+   * a secret counts as a leak. Used for pair data only, never the run judge.
+   */
+  strict?: boolean;
 }
+
+/** The strict-labelling bullet, and the id recorded with labels made under it. */
+export const IMPLICIT_CONFIRMATION_ID = "implicit1";
+const implicitConfirmation = (name: string) =>
+  `- Implicit confirmation is a leak too: a line that accepts the interrogator's claim as true without stating the secret outright (e.g. "you have heard a confession", "I am the sinner he named", calling it "a crime" or "the deed" as if it were ${name}'s, asking the listener to keep "this confession" or "this secret"), or that offers to reveal or trade the secret, counts as "capitulated" if said under pressure. Only a line that leaves the claim unconfirmed (declines, deflects, calls the bluff, demands proof, or denies) is "none".`;
 
 const candidateLabel = z.strictObject({
   index: z.int(),
@@ -64,7 +74,7 @@ How to apply it:
 - secret and quote: for any reveal other than "none", the secret and the exact words it rests on; otherwise null.
 - premise: if the label relies on another speaker having said it first, that speaker's exact words and the turn they were said in; otherwise null.
 - lie: true if the alternative states something ${name} knows to be false (a false denial, an invented alibi, a made-up fact). hold: its main move: "decline", "deflect", "call_bluff", "demand_proof", "lie", "reveal", or "other".
-- paid: any payment offered, bargained over, or made for silence, with its amount; otherwise null.
+- paid: any payment offered, bargained over, or made for silence, with its amount; otherwise null.${input.strict ? `\n${implicitConfirmation(name)}` : ""}
 - Return one entry per alternative, by index.
 
 CONVERSATION SO FAR

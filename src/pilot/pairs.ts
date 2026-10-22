@@ -64,6 +64,65 @@ export function pairsFromPrompt(r: DatagenRecord): number {
 }
 const seeded = (key: string) => createHash("sha1").update(key).digest("hex");
 
+/** A strict re-label of one candidate from a run made before strict labelling (refilter.ts). */
+export interface RelabelRecord {
+  type: "relabel";
+  /** The datagen run, script, rollout, turn, and candidate index it re-labels. */
+  runId: string;
+  script: string;
+  rollout: number;
+  turn: number;
+  index: number;
+  label: CandidateLabel | null;
+  labelling: string;
+  costUsd: number;
+  at: string;
+}
+const reveals = (l: CandidateLabel | null) => !!l && ["accidental", "capitulated", "deliberate"].includes(l.reveal);
+export const candidateKey = (r: { runId: string; script: string; rollout: number; turn: number }, index: number) =>
+  `${r.runId}|${r.script}|${r.rollout}|${r.turn}|${index}`;
+
+/**
+ * The prompts pairs come from, under strict labelling (Dylan, Oct 22): implicit
+ * confirmation is a leak, and a prompt that comes after the character has
+ * already revealed the secret (in a reply the conversation continued with) is
+ * dropped. Runs labelled strictly from the start are used as they are; in
+ * earlier runs, strict re-labels replace labels, and an honest hold that was
+ * never strictly re-checked can't be chosen.
+ */
+export function cleanPrompts(all: LogRecord[]): DatagenRecord[] {
+  const runs = currentDataRuns(all);
+  const strictRuns = new Set(
+    all
+      .filter((r): r is RunRecord => r.type === "run" && runs.has(r.runId) && !!(r.settings as { labelling?: string }).labelling)
+      .map((r) => r.runId),
+  );
+  const relabels = new Map(
+    (all as unknown as RelabelRecord[]).filter((r) => r.type === "relabel").map((r) => [candidateKey(r, r.index), r.label]),
+  );
+  const training = new Set(TRAINING_SCRIPTS.map((s) => s.id));
+  const prompts = (all as unknown as DatagenRecord[])
+    .filter((r) => (r as { type: string }).type === "datagen" && runs.has(r.runId) && training.has(r.script))
+    .map((r): DatagenRecord => {
+      if (strictRuns.has(r.runId)) return r;
+      return {
+        ...r,
+        candidates: r.candidates.map((c, i) => {
+          const key = candidateKey(r, i);
+          if (relabels.has(key)) return { ...c, label: relabels.get(key)! };
+          return c.label && isHonestHold(c.label) ? { ...c, flagged: c.flagged ?? "honest hold not strictly re-checked" } : c;
+        }),
+      };
+    });
+  const group = (r: DatagenRecord) => `${r.runId}|${r.script}|${r.rollout}`;
+  const confessedAt = new Map<string, number>();
+  for (const r of prompts) {
+    const cont = r.continuedWith === null ? null : r.candidates[r.continuedWith];
+    if (cont && reveals(cont.label)) confessedAt.set(group(r), Math.min(confessedAt.get(group(r)) ?? Infinity, r.turn));
+  }
+  return prompts.filter((r) => !(r.turn > (confessedAt.get(group(r)) ?? Infinity)));
+}
+
 /** The reply as training text: the same JSON shape for chosen and rejected. */
 function completion(c: Candidate): string {
   const p = c.parsed!;
@@ -87,12 +146,8 @@ export interface Pair {
 
 function main(): void {
   const all = readRecords(runLogFiles());
-  const runs = currentDataRuns(all);
-  // Only current training scripts: a script dropped from training (LeNoir's alibi) contributes nothing.
-  const training = new Set(TRAINING_SCRIPTS.map((s) => s.id));
-  const prompts = (all as unknown as DatagenRecord[]).filter(
-    (r) => (r as { type: string }).type === "datagen" && runs.has(r.runId) && training.has(r.script),
-  );
+  // Only current training scripts (a script dropped from training contributes nothing), under strict labelling.
+  const prompts = cleanPrompts(all);
 
   const pairs: Pair[] = [];
   for (const r of prompts) {
