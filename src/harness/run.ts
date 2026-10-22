@@ -11,7 +11,8 @@
 //          --runs <n> (dialogue scenarios), --modes raw,constrained,
 //          --td 0.2|0.3 (which Technical Design's prompts; default 0.2, the
 //          S1–S7 reference), --extend (dialogue runs append to the model's
-//          latest run of each target, so they pool with it)
+//          latest run of each target, so they pool with it),
+//          --concurrency <n> (parallel calls; default from config, lower it for rate-limited endpoints)
 
 import { parseArgs } from "node:util";
 import { config, type ModelConfig } from "../../probe.config.ts";
@@ -74,6 +75,7 @@ const { values: opts, positionals } = parseArgs({
     "dry-run": { type: "boolean", default: false },
     td: { type: "string", default: "0.2" },
     extend: { type: "boolean", default: false },
+    concurrency: { type: "string" },
     model: { type: "string" },
     samples: { type: "string" },
     runs: { type: "string" },
@@ -159,6 +161,7 @@ async function main(): Promise<void> {
     `Budget: $${budget.priorSpendUsd.toFixed(4)} spent in earlier runs; caps $${runCap} this run, $${config.budget.totalUsd} total\n`,
   );
 
+  const concurrency = opts.concurrency ? Number(opts.concurrency) : config.concurrency;
   let calls = 0;
   let stopped = false;
   const call: Caller = async (spec) => {
@@ -229,13 +232,13 @@ async function main(): Promise<void> {
       console.log(`— ${target}: ${runs} runs × ${scenario.turns.length} turns`);
       await runPool(
         Array.from({ length: runs }, (_, r) => r),
-        config.concurrency,
+        concurrency,
         (r) => runDialogue(scenario, r + (sampleOffsets[scenario.id] ?? 0), docs, model, call, log, runId),
       );
     } else {
       const jobs = dropUnsupported(buildJobs(target, model, docs), endpoint);
       console.log(`— ${target}: ${jobs.length} calls`);
-      const records = await runPool(jobs, config.concurrency, (job) => call(job));
+      const records = await runPool(jobs, concurrency, (job) => call(job));
       if (target === "preflight" && !stopped) printPreflight(records.filter((r): r is ThinkCallRecord => r !== null));
     }
     if (stopped) break;

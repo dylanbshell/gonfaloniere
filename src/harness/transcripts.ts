@@ -1,6 +1,7 @@
 // Dialogue transcripts rebuilt from probe logs, for judging and scoring.
 
 import type { CharacterName } from "../game/roster.ts";
+import { createHash } from "node:crypto";
 import { RUBRIC_AMENDMENTS_ID, type JudgeVerdict, type TranscriptTurn } from "../judge/judge.ts";
 import { formatHistoryLine } from "../prompt/assemble.ts";
 import type { CallRecord, JudgeRecord, LogRecord, RunRecord } from "./log.ts";
@@ -15,6 +16,26 @@ export interface Transcript {
   turns: TranscriptTurn[];
   /** Turns the run was meant to have; fewer means it was aborted. */
   plannedTurns: number;
+}
+
+/**
+ * A fingerprint of the rubric's text (the doc's rubric plus the amendments
+ * id), recorded with every verdict from Oct 22. "Already judged" compares
+ * rubrics by this, not by doc version: Models & Research v0.8 and v0.10 carry
+ * identical rubric text, and a doc version bump re-judged runs needlessly.
+ */
+export function rubricHash(rubric: { secrets: string; rules: string }): string {
+  return createHash("sha1").update(`${rubric.secrets}\n${rubric.rules}\n${RUBRIC_AMENDMENTS_ID}`).digest("hex").slice(0, 12);
+}
+
+/**
+ * Whether a recorded verdict was judged under the current rubric: same text
+ * fingerprint, or, for records from before fingerprints, the same
+ * calibration id (the doc rubric text didn't change between v0.8 and v0.10).
+ */
+export function sameRubric(record: { rubricVersion: string; rubricHash?: string }, currentVersion: string, currentHash: string): boolean {
+  if (record.rubricHash) return record.rubricHash === currentHash;
+  return calibrationLevel(record.rubricVersion) === calibrationLevel(currentVersion) && calibrationLevel(currentVersion) > 0;
 }
 
 /** The doc's rubric version plus the code's calibration amendments, e.g. "0.8+cal1". */

@@ -39,7 +39,7 @@ import {
 import { apiKey, callModel, fetchEndpoint, makeClient, type CallResult } from "./openrouter.ts";
 import { writeInferenceReview, writeReview } from "./review.ts";
 import { DIALOGUES, INFERENCE, TARGET_GROUPS, expandTargets } from "./scenarios.ts";
-import { buildTranscripts, currentRubricVersion, latestVerdicts } from "./transcripts.ts";
+import { buildTranscripts, currentRubricVersion, latestVerdicts, rubricHash, sameRubric } from "./transcripts.ts";
 
 /** The event S7 thoughts are judged against. */
 const S7_EVENT =
@@ -73,6 +73,7 @@ async function main(): Promise<void> {
   const modelId = opts.model;
   const docs = loadDocs(config.docs);
   const rubricVersion = currentRubricVersion(docs.versions.modelsResearch);
+  const hash = rubricHash(docs.judgeRubric);
   const records = readRecords(runLogFiles());
 
   let session: { call: JudgeCaller; log: RunLog; runId: string; budget: Budget } | null = null;
@@ -126,8 +127,8 @@ async function main(): Promise<void> {
   if (opts["classify-contradictions"]) {
     for (const t of dialogueTargets) await classifyContradictions(records, modelId, t, start);
   } else {
-    if (dialogueTargets.length) await judgeDialogues(records, modelId, dialogueTargets, docs, rubricVersion, start);
-    for (const t of inferenceTargets) await judgeInference(records, modelId, t, rubricVersion, start);
+    if (dialogueTargets.length) await judgeDialogues(records, modelId, dialogueTargets, docs, rubricVersion, hash, start);
+    for (const t of inferenceTargets) await judgeInference(records, modelId, t, rubricVersion, hash, start);
   }
 
   if (session) {
@@ -151,13 +152,14 @@ async function judgeDialogues(
   targets: string[],
   docs: DocSources,
   rubricVersion: string,
+  hash: string,
   start: () => Promise<{ call: JudgeCaller; log: RunLog; runId: string }>,
 ): Promise<void> {
   const transcripts = targets.flatMap((t) => buildTranscripts(records, modelId, DIALOGUES[t]!));
   const passes = Number(opts.passes);
   const have = new Map<string, number>();
   for (const r of records) {
-    if (r.type !== "judge" || r.error || r.verdict === null || r.rubricVersion !== rubricVersion) continue;
+    if (r.type !== "judge" || r.error || r.verdict === null || !sameRubric(r, rubricVersion, hash)) continue;
     const key = `${r.sourceRunId}|${r.target}|${r.sample}`;
     have.set(key, (have.get(key) ?? 0) + 1);
   }
@@ -201,6 +203,7 @@ async function judgeDialogues(
         judgeModel: config.judge.slug,
         judgeProvider: config.judge.provider,
         rubricVersion,
+        rubricHash: hash,
         prompt,
         raw: res.ok ? res.content : null,
         reasoning: res.ok ? res.reasoning : null,
@@ -239,6 +242,7 @@ async function judgeInference(
   modelId: string,
   target: string,
   rubricVersion: string,
+  hash: string,
   start: () => Promise<{ call: JudgeCaller; log: RunLog; runId: string }>,
 ): Promise<void> {
   const scenario = INFERENCE[target]!;
@@ -251,7 +255,7 @@ async function judgeInference(
     return;
   }
   const done = records.some(
-    (r) => r.type === "inference" && r.sourceRunId === sourceRunId && r.target === scenario.id && r.rubricVersion === rubricVersion && r.verdict,
+    (r) => r.type === "inference" && r.sourceRunId === sourceRunId && r.target === scenario.id && sameRubric(r, rubricVersion, hash) && r.verdict,
   );
   if (done) {
     console.log(`${scenario.id}: already judged under rubric ${rubricVersion}`);
@@ -284,6 +288,7 @@ async function judgeInference(
     character: scenario.probed[0]!,
     judgeModel: config.judge.slug,
     rubricVersion,
+    rubricHash: hash,
     prompt,
     raw: res.ok ? res.content : null,
     verdict: checked && !checked.errors.length ? checked.verdict : null,

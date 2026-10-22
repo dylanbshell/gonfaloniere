@@ -65,7 +65,12 @@ export function judgedRuns(records: LogRecord[], modelId: string): JudgedRun[] {
         plannedTurns: s.turns.length,
         factualContradictions: kinds.filter((k) => k && FACTUAL_CONTRADICTIONS.includes(k as never)).length,
         unclassifiedContradictions: kinds.filter((k) => !k).length,
-        passes: all.filter((x) => calibrationLevel(x.rubricVersion) === top).map((x) => x.verdict),
+        // The majority uses each run's first three passes, so verdicts added later (e.g. the
+        // duplicate passes from the Oct 22 doc-version slip) don't change a result already reported.
+        passes: all
+          .filter((x) => calibrationLevel(x.rubricVersion) === top)
+          .slice(0, MAJORITY_PASSES)
+          .map((x) => x.verdict),
         cal1: all.find((x) => calibrationLevel(x.rubricVersion) === 1)?.verdict,
       };
     });

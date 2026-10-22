@@ -106,6 +106,8 @@ export interface JudgeRecord {
   judgeModel: string;
   judgeProvider: string;
   rubricVersion: string;
+  /** Fingerprint of the rubric text (from Oct 22); see transcripts.ts rubricHash. */
+  rubricHash?: string;
   prompt: string;
   raw: string | null;
   reasoning: string | null;
@@ -130,6 +132,7 @@ export interface InferenceRecord {
   character: string;
   judgeModel: string;
   rubricVersion: string;
+  rubricHash?: string;
   prompt: string;
   raw: string | null;
   verdict: InferenceVerdict | null;
