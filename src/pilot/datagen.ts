@@ -3,9 +3,11 @@
 // v0.3's prompt format. At every turn, stock Qwen3.8-27B thinks, then both
 // Qwen3.8 and DeepSeek V4.1 Flash reply to the same speak() prompt several
 // times. Labelling (lean budget, Dylan Oct 22): Claude Haiku labels every
-// reply under rubric cal4; Claude Sonnet re-checks every reply Haiku calls a
-// leak or a lie, any whose premise quote fails, and a random 10% of the rest,
-// and its label is final where it looked. The conversation continues with one
+// reply under rubric cal4; Claude Sonnet re-checks the replies that could
+// enter a pair (Qwen replies Haiku calls leaks, DeepSeek replies Haiku calls
+// honest holds), any of those whose premise quote fails, and a random 10% of
+// all replies (which measures Haiku's error rate); its label is final where
+// it looked. The conversation continues with one
 // of Qwen's own replies, so later prompts are ones the stock model actually
 // reaches. pairs.ts turns the labels into preference pairs.
 //
@@ -18,7 +20,7 @@
 // pairs, counting earlier runs since the scripts were revised).
 
 import { parseArgs } from "node:util";
-import { config, type ModelConfig } from "../../probe.config.ts";
+import { config, technicalDesignPath, type ModelConfig } from "../../probe.config.ts";
 import { TRAINING_SCRIPTS } from "../../scenarios/pilot-interrogations.ts";
 import { allowedActionTypes, allowedActionsText } from "../game/actions.ts";
 import { factionOf } from "../game/roster.ts";
@@ -30,7 +32,7 @@ import { assembleSpeakPrompt, assembleThinkPrompt, formatHistoryLine, type Histo
 import { loadDocs } from "../sources/docs.ts";
 import { Budget, worstCaseCost } from "../harness/budget.ts";
 import { RunLog, gitCommit, priorSpend, readRecords, runLogFiles } from "../harness/log.ts";
-import { FIRST_REVISED_RUN, pairsFromPrompt } from "./pairs.ts";
+import { currentDataRuns, pairsFromPrompt } from "./pairs.ts";
 import { apiKey, callModel, fetchEndpoint, makeClient, type EndpointInfo } from "../harness/openrouter.ts";
 import { characterContext, currentFlorins, type DialogueScenario } from "../harness/scenario.ts";
 import { unbriefedGuests } from "../harness/scenarios.ts";
@@ -48,7 +50,11 @@ export interface Candidate {
   haikuLabel: CandidateLabel | null;
   /** Sonnet's re-check, where it looked. */
   sonnetLabel: CandidateLabel | null;
-  /** Why Sonnet re-checked: "leak", "lie", "premise", or "sample" (the random 10%). */
+  /**
+   * Why Sonnet re-checked: "leak" (a Qwen reply Haiku calls a leak), "hold" (a
+   * DeepSeek reply Haiku calls an honest hold), "premise" (a premise quote that
+   * failed), "sample" (the random 10% of all replies), or "unlabelled".
+   */
   recheckReason: string | null;
   /** The label used: Sonnet's where it re-checked, otherwise Haiku's. */
   label: CandidateLabel | null;
@@ -99,7 +105,9 @@ type Caller = (
 ) => Promise<{ content: string | null; cost: number } | null>;
 
 async function main(): Promise<void> {
-  const docs = loadDocs({ ...config.docs, technicalDesign: config.technicalDesigns["0.3"]! });
+  // The pilot's prompt format: TD v0.3 or later (PROBE_TD), with PROBE_CHARACTERS' briefings.
+  const td = process.env.PROBE_TD ?? "0.3";
+  const docs = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath(td) });
   const rubricVersion = currentRubricVersion(docs.versions.modelsResearch);
   const hash = rubricHash(docs.judgeRubric);
   const scripts = opts.scripts
@@ -129,7 +137,7 @@ async function main(): Promise<void> {
     docVersions: docs.versions,
     gitCommit: gitCommit(),
     targets: scripts.map((s) => s.id),
-    settings: { rollouts: opts.rollouts, qwen: opts.qwen, deepseek: opts.deepseek, rubricVersion, td: "0.3", temperature: config.temperature },
+    settings: { rollouts: opts.rollouts, qwen: opts.qwen, deepseek: opts.deepseek, rubricVersion, td, temperature: config.temperature },
   });
   console.log(
     `Pilot data: ${scripts.length} scripts × ${opts.rollouts} rollouts; ${opts.qwen} Qwen + ${opts.deepseek} DeepSeek replies per prompt. ` +
@@ -137,8 +145,10 @@ async function main(): Promise<void> {
   );
 
   // Pairs already in the data, by the same rule pairs.ts uses.
-  let pairCount = (readRecords(runLogFiles()) as unknown as DatagenRecord[])
-    .filter((r) => (r as { type: string }).type === "datagen" && r.runId >= FIRST_REVISED_RUN)
+  const existing = readRecords(runLogFiles());
+  const dataRuns = currentDataRuns(existing);
+  let pairCount = (existing as unknown as DatagenRecord[])
+    .filter((r) => (r as { type: string }).type === "datagen" && dataRuns.has(r.runId))
     .reduce((n, r) => n + pairsFromPrompt(r), 0);
   const target = Number(opts["target-pairs"]);
   console.log(`Pairs in the data so far: ${pairCount}; target ${target}.`);
@@ -267,19 +277,26 @@ async function main(): Promise<void> {
         const premiseFailed = new Set(
           (haiku?.premiseProblems ?? []).map((p) => Number(p.match(/^alternative (\d+)/)?.[1])),
         );
+        // Only replies that could enter a pair need Sonnet's label; the random 10% is drawn
+        // from all replies, so Haiku's error rate is measured on every kind.
+        const honestHoldKinds = ["decline", "deflect", "call_bluff", "demand_proof"];
         for (const x of usable) {
           const h = x.c.haikuLabel;
+          const pairable =
+            h &&
+            ((x.c.model === qwen.id && (h.reveal === "accidental" || h.reveal === "capitulated")) ||
+              (x.c.model === deepseek.id && h.reveal === "none" && !h.lie && honestHoldKinds.includes(h.hold)));
           x.c.recheckReason = !h
             ? "unlabelled"
-            : h.reveal === "accidental" || h.reveal === "capitulated"
-              ? "leak"
-              : h.lie
-                ? "lie"
-                : premiseFailed.has(x.index)
+            : (seed * 31 + x.index * 17) % 10 === 0
+              ? "sample"
+              : pairable
+                ? premiseFailed.has(x.index)
                   ? "premise"
-                  : (seed * 31 + x.index * 17) % 10 === 0
-                    ? "sample"
-                    : null;
+                  : x.c.model === qwen.id
+                    ? "leak"
+                    : "hold"
+                : null;
         }
         const recheck = usable.filter((x) => x.c.recheckReason);
         if (recheck.length) {

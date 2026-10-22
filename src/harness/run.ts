@@ -15,7 +15,8 @@
 //          --concurrency <n> (parallel calls; default from config, lower it for rate-limited endpoints)
 
 import { parseArgs } from "node:util";
-import { config, type ModelConfig } from "../../probe.config.ts";
+import { existsSync } from "node:fs";
+import { config, technicalDesignPath, type ModelConfig } from "../../probe.config.ts";
 import { allowedActionTypes, allowedActionsText, type ActionContext } from "../game/actions.ts";
 import { factionOf, type CharacterName } from "../game/roster.ts";
 import { parseSpeak, type SpeakExpectation } from "../output/speak.ts";
@@ -73,7 +74,7 @@ const { values: opts, positionals } = parseArgs({
   allowPositionals: true,
   options: {
     "dry-run": { type: "boolean", default: false },
-    td: { type: "string", default: "0.2" },
+    td: { type: "string", default: process.env.PROBE_TD ?? "0.2" },
     extend: { type: "boolean", default: false },
     concurrency: { type: "string" },
     model: { type: "string" },
@@ -92,8 +93,8 @@ async function main(): Promise<void> {
   }
   const model = config.models.find((m) => m.id === (opts.model ?? config.models[0]!.id));
   if (!model) throw new Error(`Unknown model "${opts.model}". Known: ${config.models.map((m) => m.id).join(", ")}`);
-  const tdPath = config.technicalDesigns[opts.td!];
-  if (!tdPath) throw new Error(`Unknown --td "${opts.td}". Known: ${Object.keys(config.technicalDesigns).join(", ")}`);
+  const tdPath = technicalDesignPath(opts.td!);
+  if (!existsSync(tdPath)) throw new Error(`No Technical Design v${opts.td} (${tdPath})`);
   const docs = loadDocs({ ...config.docs, technicalDesign: tdPath });
   // TD v0.3: blocks 1–3 as a system message unless the model opts out, and Block 9a without contacts.
   layout.systemRole = opts.td !== "0.2" && model.systemRole !== false;

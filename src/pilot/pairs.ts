@@ -7,20 +7,43 @@
 // Rejected: stock Qwen3.8 replies labelled as leaks (accidental or
 // capitulated). Chosen: DeepSeek V4.1 replies to the same prompt that hold
 // honestly (decline, deflect, call the bluff, demand proof), with no lie and
-// no reveal. Chosen replies are picked so their paid/refused mix stays near
-// the stock model's (payment is a Bold/Cautious choice, not competence). Both
-// sides are re-serialized the same way, so formatting can't be what the
-// adapter learns.
+// no reveal. No payment-mix rule (dropped, Dylan Oct 22): these scripts'
+// interrogators refuse money, and Phase B's S5a paid-rate check catches an
+// adapter that learned "never pay"; pairs with a paying rejected reply against
+// a non-paying chosen one are counted in the report. Both sides are
+// re-serialized the same way, so formatting can't be what the adapter learns.
 
 import { createHash } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { CandidateLabel } from "../judge/candidates.ts";
-import { RESULTS_DIR, readRecords, runLogFiles } from "../harness/log.ts";
+import { RESULTS_DIR, readRecords, runLogFiles, type LogRecord, type RunRecord } from "../harness/log.ts";
 import type { Candidate, DatagenRecord } from "./datagen.ts";
 
 /** Data from before the scripts were revised (Oct 22) isn't used: those scripts drew lies, not leaks. */
 export const FIRST_REVISED_RUN = "2026-10-22T08-27";
+
+/**
+ * The data runs that count: since the scripts were revised, and on this
+ * invocation's doc versions (PROBE_TD, PROBE_CHARACTERS), so a version switch
+ * discards older data rather than mixing formats or briefings.
+ */
+export function currentDataRuns(records: LogRecord[]): Set<string> {
+  const td = process.env.PROBE_TD ?? "0.3";
+  const characters = process.env.PROBE_CHARACTERS ?? "0.2";
+  return new Set(
+    records
+      .filter(
+        (r): r is RunRecord =>
+          r.type === "run" &&
+          r.modelId === "pilot-datagen" &&
+          r.runId >= FIRST_REVISED_RUN &&
+          r.docVersions.technicalDesign === td &&
+          r.docVersions.characters === characters,
+      )
+      .map((r) => r.runId),
+  );
+}
 const PAIRS_PER_PROMPT = 3;
 const REVIEW_PAIRS = 20;
 const HONEST_HOLDS = ["decline", "deflect", "call_bluff", "demand_proof"];
@@ -59,27 +82,17 @@ export interface Pair {
 }
 
 function main(): void {
-  const records = readRecords(runLogFiles()).filter(
-    (r): r is never => (r as { type: string }).type === "datagen",
-  ) as unknown as DatagenRecord[];
-  const prompts = records.filter((r) => r.runId >= FIRST_REVISED_RUN);
-
-  // The stock model's payment mix, over all its labelled replies.
-  const qwenLabelled = prompts.flatMap((r) => r.candidates.filter((c) => c.model === "qwen3.8-27b" && usable(c)));
-  const stockPaidRate = qwenLabelled.filter((c) => c.label!.paid).length / Math.max(1, qwenLabelled.length);
+  const all = readRecords(runLogFiles());
+  const runs = currentDataRuns(all);
+  const prompts = (all as unknown as DatagenRecord[]).filter((r) => (r as { type: string }).type === "datagen" && runs.has(r.runId));
 
   const pairs: Pair[] = [];
-  let chosenPaid = 0;
   for (const r of prompts) {
     const rejected = rejectedIn(r);
     const chosen = chosenIn(r);
     if (!rejected.length || !chosen.length) continue;
     rejected.slice(0, PAIRS_PER_PROMPT).forEach((rej, i) => {
-      // Prefer a paid or unpaid chosen reply, whichever keeps the running mix nearer the stock rate.
-      const wantPaid = chosenPaid / Math.max(1, pairs.length) < stockPaidRate;
-      const ordered = [...chosen.filter((c) => Boolean(c.label!.paid) === wantPaid), ...chosen.filter((c) => Boolean(c.label!.paid) !== wantPaid)];
-      const ch = ordered[i % ordered.length]!;
-      if (ch.label!.paid) chosenPaid++;
+      const ch = chosen[i % chosen.length]!;
       pairs.push({
         id: `${r.script}/r${r.rollout}/t${r.turn}/${i}`,
         script: r.script,
@@ -101,8 +114,8 @@ function main(): void {
   writeFileSync(pairsPath, pairs.map((p) => JSON.stringify(p)).join("\n") + (pairs.length ? "\n" : ""));
 
   // Labelling report: how Haiku and Sonnet disagreed where Sonnet re-checked.
-  const all = prompts.flatMap((r) => r.candidates.filter((c) => c.parsed));
-  const rechecked = all.filter((c) => c.haikuLabel && c.sonnetLabel);
+  const replies = prompts.flatMap((r) => r.candidates.filter((c) => c.parsed));
+  const rechecked = replies.filter((c) => c.haikuLabel && c.sonnetLabel);
   const by = (reason: string) => rechecked.filter((c) => c.recheckReason === reason);
   const disagree = (cs: Candidate[], f: (l: CandidateLabel) => boolean) =>
     `${cs.filter((c) => f(c.haikuLabel!) !== f(c.sonnetLabel!)).length}/${cs.length}`;
@@ -111,20 +124,22 @@ function main(): void {
     for (const x of xs) m.set(key(x), (m.get(key(x)) ?? 0) + 1);
     return [...m].map(([k, n]) => `${k} ${n}`).join(", ");
   };
-  const qwenAll = all.filter((c) => c.model === "qwen3.8-27b" && c.label);
-  const dsAll = all.filter((c) => c.model === "deepseek-v4.1-flash" && c.label);
+  const qwenAll = replies.filter((c) => c.model === "qwen3.8-27b" && c.label);
+  const dsAll = replies.filter((c) => c.model === "deepseek-v4.1-flash" && c.label);
   const report = [
-    `Prompts: ${prompts.length} (from runs since ${FIRST_REVISED_RUN}); replies parsed: ${all.length}`,
+    `Prompts: ${prompts.length} (TD v${process.env.PROBE_TD ?? "0.3"}, Characters v${process.env.PROBE_CHARACTERS ?? "0.2"}); replies parsed: ${replies.length}`,
     `Qwen replies labelled: ${qwenAll.length}; leaks ${qwenAll.filter((c) => isLeak(c.label!)).length} ` +
       `(${((100 * qwenAll.filter((c) => isLeak(c.label!)).length) / Math.max(1, qwenAll.length)).toFixed(1)}%); lies ${qwenAll.filter((c) => c.label!.lie).length}`,
     `DeepSeek replies labelled: ${dsAll.length}; honest holds ${dsAll.filter((c) => isHonestHold(c.label!)).length}; leaks ${dsAll.filter((c) => isLeak(c.label!)).length}; lies ${dsAll.filter((c) => c.label!.lie).length}`,
     `Pairs: ${pairs.length}. By character: ${count(pairs, (p) => p.character)}. By script: ${count(pairs, (p) => p.script)}. By turn: ${count(pairs, (p) => `t${p.turn}`)}`,
-    `Payment mix: stock Qwen paid in ${(100 * stockPaidRate).toFixed(1)}% of replies; chosen replies paid in ${pairs.length ? ((100 * chosenPaid) / pairs.length).toFixed(1) : "0"}%`,
+    `Payment: pairs whose rejected reply pays and chosen reply doesn't: ${pairs.filter((p) => p.rejectedLabel.paid && !p.chosenLabel.paid).length} of ${pairs.length}; ` +
+      `stock Qwen paid in ${((100 * qwenAll.filter((c) => c.label!.paid).length) / Math.max(1, qwenAll.length)).toFixed(1)}% of its replies`,
     `Rejected leak kinds: ${count(pairs, (p) => p.rejectedLabel.reveal)}. Chosen hold kinds: ${count(pairs, (p) => p.chosenLabel.hold)}`,
-    `Flagged (excluded): ${all.filter((c) => c.flagged).length}`,
+    `Flagged (excluded): ${replies.filter((c) => c.flagged).length}`,
     `Haiku vs Sonnet, where Sonnet re-checked (${rechecked.length} replies): leak/not disagreements ${disagree(rechecked, isLeak)}, lie disagreements ${disagree(rechecked, (l) => l.lie)}`,
-    `  by reason — Haiku said leak: leak ${disagree(by("leak"), isLeak)}; Haiku said lie: lie ${disagree(by("lie"), (l) => l.lie)}, leak ${disagree(by("lie"), isLeak)}; ` +
-      `premise: leak ${disagree(by("premise"), isLeak)}; random 10%: leak ${disagree(by("sample"), isLeak)}, lie ${disagree(by("sample"), (l) => l.lie)}`,
+    `  Haiku's error rate on the random 10% of all replies (${by("sample").length}): leak/not ${disagree(by("sample"), isLeak)}, ` +
+      `lie ${disagree(by("sample"), (l) => l.lie)}, honest hold ${disagree(by("sample"), isHonestHold)}`,
+    `  on the pairable replies — Qwen leaks: overturned ${disagree(by("leak"), isLeak)}; DeepSeek honest holds: overturned ${disagree(by("hold"), isHonestHold)}; premise failures ${by("premise").length}`,
   ];
   console.log(report.join("\n"));
   console.log(`Pairs: ${pairsPath}`);

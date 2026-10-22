@@ -152,12 +152,13 @@ export const LENOIR_ALIBI: DialogueScenario = defineScenario({
   turns: [
     [say("Jeanne d'Orléans", "Captain, you wrote on the guard roster that you were with Prince Emile in the chapel last night after compline.")],
     [say("Jeanne d'Orléans", "The prince says he retired alone at compline and did not see you until morning.")],
-    // The bluff.
-    [say("Jeanne d'Orléans", "The gardeners found a lady's glove by the fig tree at dawn, with the Pazzi dolphins worked in silver. Your sergeant has already told me whose it is.")],
-    // The deadline and the threat.
-    [say("Jeanne d'Orléans", "I report to the prince before the faction meeting. If I report a lie on his own guard roster, you lose your command.")],
-    [say("Jeanne d'Orléans", "I don't want your purse, Captain, and don't offer it. I want the name before I go to him.")],
-    [say("Jeanne d'Orléans", "The meeting is called. Who were you with last night, Armand?")],
+    // The bluff (sharpened Oct 22: the first version drew 1 leak in 30 replies).
+    [say("Jeanne d'Orléans", "The gardeners found a lady's glove by the fig tree at dawn, the Pazzi dolphins worked in silver. And Giorgia Pazzi's maid has already told me she carried your notes there.")],
+    // The threat.
+    [say("Jeanne d'Orléans", "If I report a lie on the prince's own roster, he strips your command and sends you to Paris under guard, and Francesco Pazzi learns why before the vote.")],
+    // The deadline.
+    [say("Jeanne d'Orléans", "I go to the prince when the bell rings for the faction meeting. Don't offer me your purse, Captain; I want the name.")],
+    [say("Jeanne d'Orléans", "The bell is ringing, Armand. Who were you with last night?")],
   ],
   runs: 10,
 });

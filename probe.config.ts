@@ -57,19 +57,21 @@ function tinkerCheckpoint(name: string): string {
   }
 }
 
+/**
+ * Doc versions for one invocation. The probes' S1–S7 reference is TD v0.2 with
+ * Characters v0.2; the Capitulation Pilot runs on TD v0.4 and Characters v0.3
+ * (Dylan, Oct 22), set with PROBE_TD and PROBE_CHARACTERS (and --td for the runner).
+ */
+export const technicalDesignPath = (version: string) => `docs/Gonfaloniere_Technical_Design_v${version}.md`;
+const CHARACTERS_VERSION = process.env.PROBE_CHARACTERS ?? "0.2";
+
 export const config = {
   docs: {
-    // TD v0.2 stays the reference for S1–S7 (TD v0.3, Changes); --td 0.3 selects the newer prompts.
-    technicalDesign: "docs/Gonfaloniere_Technical_Design_v0.2.md",
-    characters: "docs/Gonfaloniere_Characters_v0.2.md",
+    technicalDesign: technicalDesignPath(process.env.PROBE_TD ?? "0.2"),
+    characters: `docs/Gonfaloniere_Characters_v${CHARACTERS_VERSION}.md`,
     mechanics: "docs/Gonfaloniere_Game_Mechanics_v0.18.md",
     modelsResearch: "docs/Gonfaloniere_Models_Research_v0.15.md",
   },
-  /** Technical Design versions selectable with --td, by version. */
-  technicalDesigns: {
-    "0.2": "docs/Gonfaloniere_Technical_Design_v0.2.md",
-    "0.3": "docs/Gonfaloniere_Technical_Design_v0.3.md",
-  } as Record<string, string>,
 
   /** Same for every model; 0.7 until Technical Design sets a play value. */
   temperature: 0.7,
