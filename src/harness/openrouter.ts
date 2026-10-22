@@ -110,6 +110,12 @@ export interface CallRequest {
   extra: Record<string, unknown>;
   /** Set for constrained decoding. */
   jsonSchema?: { name: string; schema: Record<string, unknown> };
+  /**
+   * Prompt caching (Anthropic, via OpenRouter's cache_control): the prompt's
+   * first `cachePrefixChars` characters are marked cacheable. The text sent is
+   * unchanged, only split into two blocks.
+   */
+  cachePrefixChars?: number;
 }
 
 export interface Usage {
@@ -118,6 +124,10 @@ export interface Usage {
   reasoningTokens: number;
   /** As charged by OpenRouter (usage.cost). */
   costUsd: number | null;
+  /** Prompt tokens read from the provider's cache, when reported. */
+  cachedTokens?: number;
+  /** Prompt tokens written to the cache, when reported. */
+  cacheWriteTokens?: number;
 }
 
 export type CallResult =
@@ -194,6 +204,16 @@ async function callTinker(client: OpenAI, req: CallRequest): Promise<CallResult 
   }
 }
 
+function userContent(req: CallRequest): string | OpenAI.ChatCompletionContentPartText[] {
+  const at = req.cachePrefixChars;
+  if (!at || at <= 0 || at >= req.prompt.length) return req.prompt;
+  return [
+    // cache_control isn't in the OpenAI types; OpenRouter passes it to Anthropic.
+    { type: "text", text: req.prompt.slice(0, at), cache_control: { type: "ephemeral" } } as OpenAI.ChatCompletionContentPartText,
+    { type: "text", text: req.prompt.slice(at) },
+  ];
+}
+
 async function callOnce(
   client: OpenAI,
   req: CallRequest,
@@ -203,7 +223,7 @@ async function callOnce(
     model: req.model.slug,
     messages: [
       ...(req.system ? [{ role: "system" as const, content: req.system }] : []),
-      { role: "user" as const, content: req.prompt },
+      { role: "user" as const, content: userContent(req) },
     ],
     ...(req.temperature !== undefined && { temperature: req.temperature }),
     ...(req.seed !== undefined && { seed: req.seed }),
@@ -242,6 +262,10 @@ async function callOnce(
         outputTokens: usage?.completion_tokens ?? 0,
         reasoningTokens: usage?.completion_tokens_details?.reasoning_tokens ?? 0,
         costUsd: typeof usage?.cost === "number" ? usage.cost : null,
+        ...(usage?.prompt_tokens_details?.cached_tokens && { cachedTokens: usage.prompt_tokens_details.cached_tokens }),
+        ...((usage?.prompt_tokens_details as { cache_write_tokens?: number } | undefined)?.cache_write_tokens && {
+          cacheWriteTokens: (usage!.prompt_tokens_details as { cache_write_tokens: number }).cache_write_tokens,
+        }),
       },
       provider: (res as { provider?: string }).provider ?? null,
       generationId: res.id,

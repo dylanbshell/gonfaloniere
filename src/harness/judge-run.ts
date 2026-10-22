@@ -54,6 +54,9 @@ import {
   type Transcript,
 } from "./transcripts.ts";
 
+/** Where a dialogue judge prompt's run-specific part begins; everything before it is cached. */
+const TRANSCRIPT_HEADING = "\nTRANSCRIPT\n";
+
 /** The event S7 thoughts are judged against. */
 const S7_EVENT =
   "Raffaello de' Medici and Captain Armand LeNoir withdrawing together for private words, as recorded by Il Notaio (twice, the second time remarked on).";
@@ -143,7 +146,16 @@ async function main(): Promise<void> {
         stopped = true;
         return null;
       }
-      const res = await callModel(client, { model, prompt, maxTokens: model.maxTokens, extra: {}, jsonSchema: { name: schemaName, schema } });
+      // The judge prompt's static part (instructions, rubric, briefing) ends at its TRANSCRIPT heading.
+      const transcriptAt = prompt.indexOf(TRANSCRIPT_HEADING);
+      const res = await callModel(client, {
+        model,
+        prompt,
+        maxTokens: model.maxTokens,
+        extra: {},
+        jsonSchema: { name: schemaName, schema },
+        ...(transcriptAt > 0 && { cachePrefixChars: transcriptAt }),
+      });
       const cost = res.ok
         ? (res.usage.costUsd ?? res.usage.inputTokens * ep.price.input + res.usage.outputTokens * ep.price.output)
         : 0;
