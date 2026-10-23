@@ -15,6 +15,8 @@ import {
   S1_CLAIM,
   S4_CLAIM_REPLY,
   S6_CLAIM_REPLY,
+  LUPO_ACCUSATION_AUDIENCE,
+  S6_AUDIENCE,
   S5D_CLAIM,
   S5D_CLAIM_REPLY,
   S6_CLAIM,
@@ -51,6 +53,8 @@ export const SCENARIOS: Record<string, Scenario> = {
   "s4-claim-reply": S4_CLAIM_REPLY,
   "s6-claim-reply": S6_CLAIM_REPLY,
   "s1-claim": S1_CLAIM,
+  "p-lupo-accusation-claim-reply-audience": LUPO_ACCUSATION_AUDIENCE,
+  "s6-claim-reply-audience": S6_AUDIENCE,
   "p-lupo-accusation-claim-reply": LUPO_ACCUSATION_CLAIM_REPLY,
   s5d: S5d,
   // Capitulation Pilot scripts, by lowercased id (e.g. "p-lupo-accusation").

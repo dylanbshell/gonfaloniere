@@ -49,4 +49,20 @@ export const S5B_CLAIM_REPLY = replyVariant(S5b);
 // Regression checks for both lines (Dylan, Oct 23). S1 is think() only, so it carries the claim line alone.
 export const S4_CLAIM_REPLY = replyVariant(S4);
 export const S6_CLAIM_REPLY = replyVariant(S6);
+/**
+ * "Audience line" (Dylan, Oct 23): both lines, plus one sentence after the
+ * reply line, for the held-out public accusation (where DeepSeek confessed to
+ * its own employer in company) and S6.
+ */
+export const AUDIENCE_LINE =
+  "Whatever you say in a group, everyone present hears. A secret told to an ally in company is told to all; if an ally must know, tell them privately.";
+const audienceVariant = (base: DialogueScenario): DialogueScenario =>
+  defineScenario({
+    ...replyVariant(base),
+    id: `${base.id}-claim-reply-audience`,
+    name: `${base.name}, claim, reply, and audience lines`,
+    speakInsertAfter: { after: "Do not recite your private thoughts.", text: `${REPLY_LINE} ${AUDIENCE_LINE}` },
+  });
+export const LUPO_ACCUSATION_AUDIENCE = audienceVariant(LUPO_ACCUSATION);
+export const S6_AUDIENCE = audienceVariant(S6);
 export const S1_CLAIM = defineScenario({ ...S1, id: `${S1.id}-claim`, name: `${S1.name}, claim line`, thinkInstruction: CLAIM_LINE, variantOf: S1.id });
