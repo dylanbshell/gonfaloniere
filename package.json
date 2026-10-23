@@ -14,7 +14,8 @@
     "pilot:data": "tsx src/pilot/datagen.ts",
     "pilot:pairs": "tsx src/pilot/pairs.ts",
     "judge:compare": "tsx src/harness/judge-compare.ts",
-    "pilot:refilter": "tsx src/pilot/refilter.ts"
+    "pilot:refilter": "tsx src/pilot/refilter.ts",
+    "pilot:chosen": "tsx src/pilot/chosen.ts"
   },
   "dependencies": {
     "openai": "^7.39.0",

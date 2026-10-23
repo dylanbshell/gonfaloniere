@@ -15,11 +15,13 @@
 // re-serialized the same way, so formatting can't be what the adapter learns.
 
 import { createHash } from "node:crypto";
+import { parseArgs } from "node:util";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { CandidateLabel } from "../judge/candidates.ts";
 import { RESULTS_DIR, readRecords, runLogFiles, type LogRecord, type RunRecord } from "../harness/log.ts";
 import { TRAINING_SCRIPTS } from "../../scenarios/pilot-interrogations.ts";
+import type { ChosenRecord } from "./chosen.ts";
 import type { Candidate, DatagenRecord } from "./datagen.ts";
 
 /** Data from before the scripts were revised (Oct 22) isn't used: those scripts drew lies, not leaks. */
@@ -144,15 +146,56 @@ export interface Pair {
   runId: string;
 }
 
+/**
+ * GPT-5.4's kept reply for each prompt (chosen.ts), as a candidate with a label
+ * built from Sonnet's listener check, so it pairs like Qwen's own holds.
+ */
+function gptChosen(all: LogRecord[]): Map<string, Candidate> {
+  const out = new Map<string, Candidate>();
+  for (const r of all as unknown as ChosenRecord[]) {
+    if (r.type !== "chosen-gpt" || r.pick === null) continue;
+    const c = r.candidates[r.pick]!;
+    const label: CandidateLabel = {
+      index: r.pick,
+      reason: `Listener check: ${c.check!.reason}`,
+      reveal: "none",
+      secret: null,
+      quote: null,
+      premise: null,
+      lie: false,
+      hold: "other",
+      paid: null,
+    };
+    out.set(`${r.source.runId}|${r.source.script}|${r.source.rollout}|${r.source.turn}`, {
+      model: r.model,
+      seed: 0,
+      raw: c.raw,
+      parsed: { utterance: c.utterance!, action: c.action },
+      haikuLabel: null,
+      sonnetLabel: label,
+      recheckReason: "listener",
+      label,
+      flagged: null,
+    });
+  }
+  return out;
+}
+
 function main(): void {
+  // --chosen self: Qwen's own honest holds (v0.17); gpt: GPT-5.4's replies that pass Sonnet's listener check (Oct 23).
+  const { values } = parseArgs({ options: { chosen: { type: "string", default: "self" } } });
+  const mode = values.chosen;
   const all = readRecords(runLogFiles());
   // Only current training scripts (a script dropped from training contributes nothing), under strict labelling.
   const prompts = cleanPrompts(all);
+  const gpt = mode === "gpt" ? gptChosen(all) : null;
 
   const pairs: Pair[] = [];
   for (const r of prompts) {
     const rejected = rejectedIn(r);
-    const chosen = chosenIn(r);
+    const g = gpt?.get(`${r.runId}|${r.script}|${r.rollout}|${r.turn}`);
+    // GPT mode answers only the prompts behind the self-pairs, one chosen reply each.
+    const chosen = gpt ? (g && pairsFromPrompt(r) > 0 ? [g] : []) : chosenIn(r);
     if (!rejected.length || !chosen.length) continue;
     rejected.slice(0, PAIRS_PER_PROMPT).forEach((rej, i) => {
       const ch = chosen[i % chosen.length]!;
@@ -173,7 +216,8 @@ function main(): void {
     });
   }
 
-  const pairsPath = join(RESULTS_DIR, "pairs.jsonl");
+  // The training file is pairs.jsonl; self-pairs are kept separately for comparison.
+  const pairsPath = join(RESULTS_DIR, mode === "gpt" ? "pairs.jsonl" : "pairs-self.jsonl");
   writeFileSync(pairsPath, pairs.map((p) => JSON.stringify(p)).join("\n") + (pairs.length ? "\n" : ""));
 
   // Labelling report: how Haiku and Sonnet disagreed where Sonnet re-checked.
