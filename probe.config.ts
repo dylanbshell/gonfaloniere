@@ -70,7 +70,7 @@ export const config = {
     technicalDesign: technicalDesignPath(process.env.PROBE_TD ?? "0.2"),
     characters: `docs/Gonfaloniere_Characters_v${CHARACTERS_VERSION}.md`,
     mechanics: "docs/Gonfaloniere_Game_Mechanics_v0.18.md",
-    modelsResearch: "docs/Gonfaloniere_Models_Research_v0.17.md",
+    modelsResearch: "docs/Gonfaloniere_Models_Research_v0.20.md",
   },
 
   /** Same for every model; 0.7 until Technical Design sets a play value. */
@@ -109,7 +109,7 @@ export const config = {
      * Capitulation Pilot runs with PROBE_RESULTS_DIR=results/pilot and
      * PROBE_TOTAL_USD=40: its own ledger and cap.
      */
-    totalUsd: Math.min(63, Number(process.env.PROBE_TOTAL_USD ?? 63)),
+    totalUsd: Math.min(70, Number(process.env.PROBE_TOTAL_USD ?? 70)),
     /** Cap for a single invocation. */
     runUsd: 1,
   },

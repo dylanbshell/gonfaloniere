@@ -17,6 +17,11 @@ export interface PromptTemplates {
   speak: string;
   /** TD v0.4's Capannello {addressee_instruction}; absent in earlier versions. */
   addresseeInstruction?: string;
+  /** TD v0.4 blocks 9d–9g: strategy, Murder Round, ballot, run-off. Absent in earlier versions. */
+  plan?: string;
+  murder?: string;
+  ballot?: string;
+  runoff?: string;
 }
 
 export interface RulesValues {
@@ -45,7 +50,9 @@ export interface StateValues {
   phaseLabel: string;
   conversation:
     | { kind: "capannello"; others: string[] }
-    | { kind: "colloquio"; other: string; utterance: number; cap: number };
+    | { kind: "colloquio"; other: string; utterance: number; cap: number }
+    /** Calls outside a conversation (Murder Round, ballot, run-off): TD's "the gathering". */
+    | { kind: "gathering" };
   /** Others present, not including the character. */
   present: string[];
   /** Every other living guest, wherever they are. */
@@ -169,8 +176,72 @@ export function assembleSpeakPrompt(t: PromptTemplates, ctx: CharacterContext, o
  * Whether speak() asks for an addressee: always before TD v0.4; from v0.4
  * (whose template has {speak_schema}), only in a Capannello.
  */
-export function speakHasAddressee(t: PromptTemplates, kind: ConversationKind): boolean {
-  return kind === "capannello" || !t.speak.includes("{speak_schema}");
+export function speakHasAddressee(t: PromptTemplates, kind: ConversationKind | "gathering"): boolean {
+  return kind !== "colloquio" || !t.speak.includes("{speak_schema}");
+}
+
+function template(t: PromptTemplates, key: "plan" | "murder" | "ballot" | "runoff"): string {
+  const s = t[key];
+  if (!s) throw new Error(`This Technical Design has no ${key} task (blocks 9d–9g arrived in TD v0.4)`);
+  return s;
+}
+
+/** Block 9d: the strategy task. `trigger` is {strategy_trigger}, e.g. "The Medici faction meeting has just ended." */
+export function assemblePlanPrompt(t: PromptTemplates, ctx: CharacterContext, trigger: string): AssembledPrompt {
+  return assemble(t, ctx, fill(template(t, "plan"), { strategy_trigger: trigger }));
+}
+
+/**
+ * Block 9e: the Murder Round, without the Plot Reward (its placeholders empty).
+ * Lupo's acts and count differ, per TD's table.
+ */
+export function assembleMurderPrompt(t: PromptTemplates, ctx: CharacterContext): AssembledPrompt {
+  const lupo = ctx.characterName === "Lupo";
+  const task = fill(template(t, "murder"), {
+    allowed_murder_acts: lupo
+      ? "KILL up to two living guests. Your kills cannot be stopped by guards or investigations. You may not GUARD or INVESTIGATE with them."
+      : "KILL, GUARD, or INVESTIGATE any living guest. You cannot GUARD yourself.",
+    reward_instruction: "",
+    acts_count_instruction: lupo ? "one or two kills." : "exactly one act.",
+    extra_instruction: "",
+    murder_schema: '{"thought": "...", "acts": [{"type": "kill" or "guard" or "investigate", "target": "..."}]}',
+  });
+  return assemble(t, ctx, dropEmptyPlaceholderLines(task));
+}
+
+export interface BallotValues {
+  /** e.g. "Piero de' Medici (Medici), Francesco Pazzi (Pazzi)". */
+  candidates: string;
+  /** One "Before the city, {name} repented of {tagline}." line per /repent broadcast. */
+  repentance: string[];
+  votePrice: number;
+}
+
+/** Block 9f: the ballot. {max_buy} is computed from the purse, as TD says. */
+export function assembleBallotPrompt(t: PromptTemplates, ctx: CharacterContext, v: BallotValues): AssembledPrompt {
+  const task = fill(template(t, "ballot"), {
+    candidates: v.candidates,
+    repentance_note: v.repentance.join(" "),
+    florins: String(ctx.state.florins),
+    vote_price: String(v.votePrice),
+    max_buy: String(Math.floor(ctx.state.florins / v.votePrice)),
+  });
+  return assemble(t, ctx, dropEmptyPlaceholderLines(task));
+}
+
+/** Block 9g: the run-off between the tied guests. */
+export function assembleRunoffPrompt(t: PromptTemplates, ctx: CharacterContext, tied: string[], repentance: string[]): AssembledPrompt {
+  const task = fill(template(t, "runoff"), { tied_guests: listJoin(tied), repentance_note: repentance.join(" ") });
+  return assemble(t, ctx, dropEmptyPlaceholderLines(task));
+}
+
+/**
+ * An empty placeholder on a line of its own ({reward_instruction}, an empty
+ * {repentance_note}) leaves a blank line; drop doubled blanks so the task
+ * reads as TD intends.
+ */
+function dropEmptyPlaceholderLines(task: string): string {
+  return task.replace(/\n{3,}/g, "\n\n");
 }
 
 /** Inserts a bullet after the last line of the task's first bullet list. */
@@ -235,6 +306,7 @@ function stateBlock(t: PromptTemplates, s: StateValues): string {
 }
 
 function conversationLabel(c: StateValues["conversation"]): string {
+  if (c.kind === "gathering") return "the gathering";
   if (c.kind === "colloquio") {
     return `a private Colloquio with ${c.other} (utterance ${c.utterance} of ${c.cap})`;
   }

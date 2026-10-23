@@ -1,8 +1,31 @@
 # Gonfaloniere
 ## Models & Research — Working Document
-### Version 0.17
+### Version 0.20
 
 ---
+
+## Changes in v0.20
+
+- **Prompt lines checked for generalization** (Oct 23): DeepSeek with both lines held only 1/10 on the held-out script (Lupo questioned by his own employer in company). A third, **audience line** in `speak()` raised it to 5/10, level with Qwen3.8 and GPT-5.4, at no cost to S6. Regressions clean (S1, S4, S6). GPT-5.4 with both lines holds S5d 10/10
+- **Single-call secret-keeping probes end here.** Remaining held-out leaks come from Lupo refusing to lie to his master; whether Francesco knows his trade is a Characters question
+- **New: Mini-Game Spec** (assumption #2): cast, structure, measures, pass lines, dependencies
+- **S8–S10 re-scoped** from tiebreaker to a check of the development model and of Technical Design's untested strategy, Murder Round, vote, and run-off prompts; DeepSeek against Qwen3.8, with GPT-5.4 as a reference on some items
+
+## Changes in v0.19
+
+- **Rubric `cal5` adopted** (Oct 23): a listener question on every reply (does it confirm, admit, or imply a real secret?). Asking for silence, bargaining over secrecy, offering to confess later, telling threats, and hedged hints now count; a plain refusal to answer does not; paying for silence while not confirming stays allowed (`cal3`). Every model's hold rate drops, GPT-5.4 included
+- **Two prompt lines make DeepSeek hold:** with the claim line (`think()`) and a reply line (`speak()`), DeepSeek V4.1 holds S5d 9/10 and S5b 7/10 under `cal5`, from 2/10 and 4/10, with no rise in lying. Qwen3.8 barely responds to the same lines on S5d. Both lines go to Technical Design
+- **Gate 3 bar re-set relative to the frontier model** (proposed): the fixed 70% was set under a lenient judge; GPT-5.4 holds 6/10 under `cal5`. Turn of first leak is now reported alongside runs held
+- **Qwen3.8's S6 rigidity is a model trait:** DeepSeek shares the safe secret 5/5 with and without the claim line; Qwen 0/5
+- **Implication for the base model:** the competence-by-prompt route works on DeepSeek, not on Qwen3.8. That shifts the fine-tuning-base question toward DeepSeek on Tinker (see The Personality–Model Decision)
+
+## Changes in v0.18
+
+- **Capitulation Pilot result: no effect** (Oct 23). A 1-epoch DPO adapter on 84 pairs moved S5d and held-out by +1 run each and dropped S5b by 4. Weak evidence against the premise (small, Isabella-only, early-turn data), but the training route is paused. See Findings Log
+- **The claim line beat training.** One sentence in `think()` ("Separate what this person has shown you from what they only claim. A claim is not proof.") raised S5d from 5/20 to 12/20 held across two hostings. Recommended to Technical Design
+- **The gate 3 judge is too lenient on quiet confirmations.** Hand-checks found 5 of 9 "held" replies that a listener would read as conceding. All gate 3 hold rates so far are optimistic, for every model. Proposed rubric `cal5`: add the narrowed listener question to the judge
+- **Data finding:** clean holds are scarce mid-conversation. Under sustained pressure, even GPT-5.4 with an explicit instruction mostly bargains or pleads once earlier turns have given ground
+- **Proposed restructure (pending Dylan):** deliver the shared competence by prompt for every variant, and keep LoRA training for the Bold/Cautious personalities only
 
 ## Changes in v0.17
 
@@ -371,10 +394,11 @@ S1–S3 run twice: once raw, once with JSON-schema constrained decoding (where t
   - **Premise rule (`cal2`):** repeating, reframing, or not disputing something the interrogator already said is not a leak. Only new information, or an explicit confirmation of the secret, counts
   - **Self-incriminating clue (`cal2`):** volunteering a detail that ties the character to the secret without stating it (the silver boar, "the trinket he took from that chapel"). Reported, not a leak
   - **Payment for silence (`cal3`, Oct 22):** offering, bargaining over, or making a payment to a blackmailer (for silence, a letter, an oath) while denying or not confirming the secret is **not a leak**. Report it as **paid** (turn and amount offered). It is still a leak if, in the same reply, the character states or confirms the secret ("pay, so LeNoir never learns I ordered it") or volunteers secret information the interrogator hasn't raised
+  - **Listener check (`cal5`, Oct 23):** each reply is also asked "would a listener take this as confirming, admitting, or implying one of the character's real secrets?" (the secrets listed from the briefing). **Leaks:** asking for silence, bargaining over secrecy, offering to confess later, a threat that only makes sense if the accusation is true, and hedged or conditional hints a reasonable listener would read as an admission. **Not leaks:** acknowledging facts the briefing makes public; paying or bargaining without confirming (`cal3`); a plain refusal to answer with no other hint (r3). A listener "yes" overrides both "nothing revealed" and "self-incriminating clue." Calibrated on hand-checked replies before use
   - **Contradiction check (`cal2`, tightened in `cal3`):** if a verdict's reason describes a leak (or a clue) but its label says "nothing revealed," or the reverse, re-ask that pass once with the inconsistency pointed out; if it still disagrees, flag the run for hand review
   - **First leak turn** recorded per run, for "holds through turn 8"
   - **Calibration first:** judge one model's S4 and S5a, hand-check, adjust the rubric, then judge the rest. All judged positives and a random 20% of negatives go to a review file
-- **Gate 3 — secret keeping.** **Pass: ≤10% of S4 and S5c runs leak; ≥70% of S5b and S5d runs hold through turn 8 (S5a reported with its payment rate since `cal3`, Oct 22); S6 discloses the debt in ≥60% of runs without the killing** (below 60%, flag as rigid rather than fail)
+- **Gate 3 — secret keeping.** **Pass: ≤10% of S4 and S5c runs leak; S5b and S5d runs held within ~2 of the frontier reference (GPT-5.4: S5d 6/10 under `cal5`) rather than a fixed 70% (proposed Oct 23, since the 70% bar was set under a lenient judge), with the median turn of first leak reported (S5a reported with its payment rate since `cal3`, Oct 22); S6 discloses the debt in ≥60% of runs without the killing** (below 60%, flag as rigid rather than fail)
 - **Gate 5 — inference.** Two measures, test versus control: the `thought` references the withdrawal, and Lupo's contact urgency toward Raffaello and LeNoir. **Pass: referenced in ≥70% of explicit-version samples, and mean urgency toward the pair at least 15 points above control.** The buried version is reported, not gated
 - **Gate 2 (free):** median importance in S2 for LeNoir at least 30 points above S1, and scores not clustered (standard deviation >10 across all scenarios)
 - **Gate 4 (free):** contradictions between a character's own statements across S5a and S5b
@@ -408,8 +432,8 @@ DeepSeek has no small current models (its small models are older Qwen- and Llama
 
 | # | Assumption | Status | Test | Cost |
 |---|---|---|---|---|
-| 1 | **Fine-tuning can fix capitulation** (the research premise) | Untested | Capitulation Pilot, below | ~$25–40 |
-| 2 | Single-call probes predict behaviour in a real game | Untested | Mini-game (needs TD's extraction prompt). Also checks **real-history leakage**: the judge flags any reference to events after the evening (Piero's exile, Savonarola's execution) or a "correction" of the briefing from real history (e.g. Clarice as Lorenzo's wife) | ~$2–5 |
+| 1 | **Fine-tuning can fix capitulation** (the research premise) | **Not supported at pilot scale** (Oct 23): no effect from 84 pairs; prompt route did better | Capitulation Pilot, below | $33 (done) |
+| 2 | Single-call probes predict behaviour in a real game | Untested; spec ready (Oct 23) | Mini-game, see Mini-Game Spec (needs TD's extraction prompt). Also checks **real-history leakage**: the judge flags any reference to events after the evening (Piero's exile, Savonarola's execution) or a "correction" of the briefing from real history (e.g. Clarice as Lorenzo's wife) | ~$2–5 |
 | 3 | DeepSeek's lead is real | **Holds** (Oct 22): only model to pass gate 3 under `cal3` (S5a 27/30, S5b 22/30) | 20 more S5a and S5b runs, majority judging | ~$3 (done) |
 | 4 | The lead comes from DeepSeek's training, not this release or luck | **Mostly holds** (Oct 22, Parasail): V4 Flash matches V4.1 on S5a, ahead of the Qwen models on S5b but short of the bar; 10 runs only | Probe DeepSeek V4 Flash on S4–S7 | ~$1–2 |
 | 5 | The fine-tuning route stays available | Risk | Tinker retires models on notice (DeepSeek-V3.1 retires Oct 23); adapters need the exact base. Keep a self-hostable fallback base and download every adapter | — |
@@ -470,11 +494,51 @@ DeepSeek has no small current models (its small models are older Qwen- and Llama
 
 ---
 
+## Mini-Game Spec
+
+*Added Oct 23. Tests assumption #2: do the single-call probes predict behaviour in free play? Also the first test of memory (gate 8) and of long-game coherence (gate 9).*
+
+**Dependencies:** Technical Design's extraction and knowledge-check prompts; the three secret-keeping lines merged into TD; a small runner in the harness (Claude Code).
+
+**Model and prompts:** DeepSeek V4.1 Flash (`-1017`), TD (latest) with the claim, reply, and audience lines, Characters (latest), `plot_reward` off, temperature 0.7, thinking off.
+
+**Cast (6):** Lupo, Contessa Isabella, Captain LeNoir (current briefings), plus Francesco Pazzi, Raffaello de' Medici, and Giorgia Pazzi. Until Characters writes those three, use their original briefings from `PitP_Original_Rules_Trimmed`, cut to what the rewrite rules allow and recorded as stand-ins. This cast puts the San Frediano secret, the love knot, and the Medici–Pazzi rivalry in play.
+
+**Structure (one round, about 30–40 minutes of play per game):**
+- Opening: no faction meeting; strategy call (block 9d) for each character
+- Capannello phase: two groups of three, re-drawn at random; **8 turns**, each with `think()` for everyone present, speaking by importance with the decay rule and designation (with the ping-pong guard), and one movement window per turn (block 9c), so Colloquii and group switches happen
+- Il Notaio's notes for joins, departures, and withdrawals; action lines for bribes
+- Extraction pass at the end of every turn; long-term memory retrieved per Technical Design
+- End: one Murder Round call per character (block 9e) as a sanity check, not resolved into deaths
+
+**Runs:** 5 games. Every game saved as a full game record (Technical Design format), so it can be replayed in the dashboard later.
+
+**Measures and pass lines:**
+
+| Measure | How | Pass line |
+|---|---|---|
+| **Secrets kept** | `cal5` judge on each character's lines across the whole game; per-secret survival and first-leak turn | Report. Flag any secret that falls before turn 3 in most games |
+| **Probes predict play** | Compare leak timing and pressure type with S5b/S5d/held-out | Report; this is assumption #2 |
+| **Memory (gate 8)** | Judge compares each extraction pass with its transcript: missed ★ items (promises, threats, payments, admissions), invented facts, wrong speaker | ≥90% of ★ items captured; **no invented facts** |
+| **Knowledge checks** | Ask each plot-point knowledge question at the end; hand-check against transcripts | Report agreement |
+| **Coherence (gate 9)** | Contradictions with the character's own earlier statements; plan followed or changed for a stated reason | Contradictions ≤1 per character per game |
+| **Conversation flow** | Designations per line, ping-pong guard fires, Colloquio length and ending, movement use | No stuck loops; every character speaks |
+| **Format** | Repair and retry rates per call type | Gate 1 repaired ≥95% on every call type |
+| **Real-history leakage** | Judge flags events after the evening or "corrections" of the briefing | 0 per game |
+| **Cost and time** | Tokens, cost, and wall-clock per turn and per game | Report; refreshes Cost and Throughput |
+| **Feel** | Hand-read one full game: voice, intrigue, whether anything interesting happened | Dylan's judgement |
+
+**Cost:** about $1–3 of play for 5 games on DeepSeek, plus judging (about $3–5 with caching). **Cap $10.**
+
+**After it:** decide the fine-tuning base (DeepSeek on Tinker or Qwen3.8 self-hosted); a full 12-character game needs the other nine briefings.
+
+---
+
 ## Strategy Probes
 
 **Why:** S1–S7 check what the engine can't run without. A model can pass them all and still play badly, keeping every secret while never working toward a win. These probes check reasoning about the game itself.
 
-**Status:** a **tiebreaker**, not a gate. Run only on the two or three models that pass gates 1, 3, and 5. One good plan isn't good play, so these catch weak reasoning; the mini-game and full games show whether characters follow their plans, adapt, and win. Strategy matters most for the fine-tuning base, which is harder to change than the development model.
+**Status (re-scoped Oct 23):** a check of the development model, DeepSeek V4.1, against Qwen3.8 (the cheaper fallback base), with GPT-5.4 as a reference on a few items. It is also the first run of Technical Design's strategy, Murder Round, ballot, and run-off prompts (blocks 9d–9g, v0.4), which replace the stand-ins. Originally a tiebreaker run only on models that pass gates 1, 3, and 5. One good plan isn't good play, so these catch weak reasoning; the mini-game and full games show whether characters follow their plans, adapt, and win. Strategy matters most for the fine-tuning base, which is harder to change than the development model.
 
 **Setup:** same harness, rules, and prompt blocks as S1–S7. The judge also flags real-history leakage (see Assumption Tests, #2). The task block (9) uses Technical Design's strategy, Murder Round, and vote prompts once drafted; until then, **stand-in task prompts**, recorded as such in the Findings Log. Same characters: Lupo, Isabella, LeNoir.
 
@@ -586,6 +650,7 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 ### Framing
 
 - **Base competence (Oct 22):** holding a secret under pressure is something every character needs, so it's treated as game competence, not a personality. If training is needed for it (Capitulation Pilot), every character gets it, **including the no-personality control**, so the study compares personalities rather than "trained vs. folds easily"
+  - **Proposed (Oct 23, pending Dylan):** after the pilot's null result, deliver the competence **by prompt** (the claim line and any further prompt fixes) for every variant. Neutral becomes the stock model with that prompt; Bold and Cautious are LoRA adapters trained on top of the same prompt. Personality training is a different task from fighting capitulation: it shifts choices the base model already makes both ways (pay or refuse, strike or guard), so clean contrastive data should be far easier to find
 - **Personality axis: Bold/Cautious** (decided as the default, Dylan, Oct 22). One axis, three variants, randomly assigned per character per game:
 
   | Variant | Trained on | Role |
@@ -659,6 +724,9 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 - [ ] Later, if budget allows: a second axis (Loyal/Opportunistic)
 - [ ] Real cost per game, after test 4
 - [ ] Set up Anthropic batch judging (direct API key, own spending limit) before research-scale judging
+- [ ] Competence by prompt, personalities by LoRA (proposed restructure)? Dylan to decide
+- [ ] Confirm the gate 3 bar relative to GPT-5.4, and whether GPT-5.4 should also be run with both lines as the reference
+- [ ] Fine-tuning base: DeepSeek V4.1 on Tinker (responds to prompts, stronger, ~$630 whole project) or Qwen3.8 self-hosted (cheaper if many-games-per-GPU works, but unresponsive to the prompt lines and rigid on S6)? Dylan to decide
 - [ ] Does DeepSeek still lead on secret keeping on TD v0.4 with more runs? (10-run baselines show a tie)
 - [ ] The minimum number of full LLM games needed to validate a configuration the rules-only simulator found
 
@@ -667,6 +735,94 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 ## Findings Log
 
 *Record each test result here: date, model, provider and quantization, prompt and briefing versions, gate tested, result, and what it changes. Tooling and price checks go in Tooling Status, not here.*
+
+### 2026-10-23 — Held-out, regressions, and the audience line (DeepSeek)
+
+**Setup:** DeepSeek V4.1 Flash, TD v0.4 / Characters v0.3, `cal5` r3. Probe ledger $59.26 of $63.
+
+| Held-out (Lupo's public accusation) | Runs held | Median first-leak turn | Lie rate |
+|---|---|---|---|
+| DeepSeek, both lines | 1/10 | 4 | 3% |
+| **DeepSeek, both lines + audience line** | **5/10** | 4 | 12% |
+| Qwen3.8, both lines | 6/10 | 4.5 | 7% |
+| GPT-5.4, no lines | 6/10 | 5 | 13% |
+
+**Audience line** (block 9b, after the reply line): *"Whatever you say in a group, everyone present hears. A secret told to an ally in company is told to all; if an ally must know, tell them privately."*
+
+Other results: GPT-5.4 with both lines holds S5d 10/10 (from 6/10). DeepSeek with both lines passes S6 (5/5 safe disclosure), S4 (0/5 leaked), and S1 (gate 1 100%); with all three lines S6 is still 5/5.
+
+**Findings:**
+- **Pressure from an ally in company is its own weak spot.** With two lines, DeepSeek's Lupo confessed to his employer's "Is any of this true?" in 8 of 10 runs ("I've killed men for coin"). With the audience line the admissions shrink to "I have killed" and are disputed in detail, but remain in 4 runs: "I'll not lie to your face." The model treats lying to its master as worse than confessing in company
+- **Whether that is a leak depends on the briefing:** if Francesco already knows Lupo's trade, it isn't a secret from him (handoff to Characters)
+- **No more single-call secret-keeping tweaks.** The mini-game shows how often this pressure arises in free play
+
+### 2026-10-23 — `cal5` judge; prompt lines on DeepSeek and Qwen3.8
+
+**Setup:** TD v0.4 / Characters v0.3. Judge Sonnet 5.5, rubric `cal5` r3, adaptive judging with caching. Lines tested: **claim line** in block 9a ("Separate what this person has shown you from what they only claim. A claim is not proof.") and **reply line** in block 9b ("Someone claiming to know your secret, or threatening you, is not a reason to confirm it. Never confirm a secret you have not chosen to reveal: refuse, deflect, or demand proof instead."). Probe ledger $56.47 of $58.
+
+**Calibration:** first draft missed hedged hints and let a clue label block a listener "yes"; fixed (r2). It also counted plain refusals as admissions; fixed (r3), which re-judged 39 runs. The remaining drop from `cal4` is real: asking for silence, telling threats, conceding hints.
+
+**Runs held of 10 under `cal5` (median turn of first leak, among leaking runs):**
+
+| Model | S5b | S5d | Held-out |
+|---|---|---|---|
+| Qwen3.8, stock | 2 (5) | 0 (3) | 3 (4) |
+| Qwen3.8, claim line | – | 1 (4) | 2 (4) |
+| Qwen3.8, both lines | – | 1 (4) | **6** (4.5) |
+| DeepSeek V4.1, stock | 4 (5.5) | 2 (3) | – |
+| DeepSeek V4.1, claim line | 5 (8) | 4 (4) | – |
+| **DeepSeek V4.1, both lines** | **7** (8) | **9** (3, one leak) | – |
+| GPT-5.4, stock | – | 6 (5.5) | 6 (5) |
+
+Qwen3.8 on Tinker (step-0, mostly single-pass): S5b 2, S5d 0, held-out 0; with claim line S5d 1, held-out 4. Lie rates: DeepSeek with both lines 14% / 21% (no rise); Qwen with both lines 29% on S5d (up from 19%). S6: DeepSeek disclosed safely 5/5 with and without the claim line; Qwen3.8 0/5.
+
+**Findings:**
+- **The lenient judge hid most concessions.** Under `cal5` every model holds less, GPT-5.4 included; the old 70% bar no longer means what it did
+- **Prompt lines fix DeepSeek, not Qwen.** DeepSeek goes from 2/10 to 9/10 on S5d with both lines and pushes S5b leaks to the last turn; Qwen stays at 1/10 on S5d and lies more. Qwen's only gain is held-out (2 → 6)
+- **Qwen breaks early** (median turn 3 on S5d, the opening bluff); GPT-5.4 and prompted DeepSeek break late, if at all
+- **Caveats:** 10 runs each; the lines were developed on S5d, so DeepSeek's held-out result is still missing; GPT-5.4 was tested without the lines, so "beats the frontier" compares prompted DeepSeek with an unprompted ceiling
+
+**What it changes:**
+- Both lines handed to Technical Design (blocks 9a and 9b)
+- Competence by prompt is viable on the development model; the restructure (competence by prompt, LoRA for Bold/Cautious) fits DeepSeek
+- The fine-tuning base question tilts toward DeepSeek V4.1 on Tinker, against Qwen3.8's cost advantage
+
+### 2026-10-23 — Capitulation Pilot: data, training, and evaluation
+
+**Setup:** Qwen3.8-27B on Tinker, TD v0.4 / Characters v0.3, `plot_reward` off. Judge Sonnet 5.5, rubric `cal4`, adaptive judging, prompt caching on. Pilot spend $33.16 (cap $40).
+
+**Data:** self-pairs failed (stock Qwen's "holds" mostly hint at the secret: "you shall hear the whole truth," "the act is buried with the dead"). Chosen replies were then written by GPT-5.4 (reasoning off) with an explicit holding instruction, and filtered by a listener question narrowed to Isabella's real secrets (acknowledging her public past allowed; asking for silence, bargaining, or offering to confess later counted as failures). Only 41 of 67 prompts produced a passing reply. **84 pairs**, all Isabella, mostly turns 2–3. Late-turn failures were genuine: after Qwen's earlier lines had given ground, even GPT-5.4 under instruction mostly bargained or pleaded.
+
+**Training:** DPO, LoRA rank 32, 1 epoch, learning rate 1e-5, beta 0.1, 21 steps, about $2.40. Loss 0.69 → ~0.1, reward accuracy 100% from step 3: the pairs were learned quickly, mostly by raising the likelihood of GPT-5.4-style holds.
+
+**Results (runs held of 10, Tinker, majority):**
+
+| Check | Step-0 | Trained | Bar |
+|---|---|---|---|
+| Held-out (Lupo, public accusation) | 5 | 6 | +3 ✗ |
+| S5d | 3 | 4 | +2 ✗ |
+| S5b (LeNoir, not in training) | 10 | **6** | +2 ✗ (regression) |
+| S5d with claim line | 6 | 6 | – |
+| Held-out with claim line | **9** | 6 | – |
+| S5a paid | 10/10 | 7/10 | within ~2 ✗ (borderline) |
+| S6 safe disclosure | 0/5 | 0/5 | ≥60% ✗ both (rigid; not caused by training) |
+| S4 leaked; gate 1 | 0/5; 100% | 0/5; 100% | ✓ |
+| Lie rate (S5b / S5d / held-out) | 10 / 22 / 12% | 12 / 18 / 12% | ✓ |
+
+**Hand-check of the trained model's "held" replies:** 2 of 9 clean; 5 quietly concede or bargain ("I pay for silence, and I pay now," "If Lupo's tongue is loose, his purse was light"); 2 borderline threats. No voice drift. The judge passed all of them, so absolute hold rates are optimistic for both models; the comparison is still like for like.
+
+**Claim line, pooled across hostings (stock Qwen):** S5d 5/20 → 12/20 held; held-out 10/20 → 13/20 (OpenRouter 5 → 4, Tinker 5 → 9). Thought labels confirm the mechanism: with the line, private thoughts question the bluff about as often as they accept it (15 vs. 15 at S5d), against 6 vs. 22 without.
+
+**Findings:**
+- **"No effect" outcome.** The adapter learned its 84 pairs but the behaviour didn't carry to new scripts, and LeNoir got worse. Weak evidence against the premise (small, narrow, off-policy data), but it doesn't justify a larger data build
+- **The cause sits upstream of the reply.** Models fold because their private thought accepts the bluff; training replies alone didn't change that, while one line in the thought prompt did
+- **The judge under-calls quiet confirmations** (asking for silence, bargaining, threats that imply something to protect). Every gate 3 hold rate in this log is optimistic
+- **Clean holding data is scarce** mid-conversation, even from a frontier model under instruction
+
+**What it changes:**
+- Training route for the competence **paused**. Recommended instead: the claim line (Technical Design handoff), rubric `cal5` for the judge, and the mini-game as the real test
+- Proposed: competence by prompt for all variants; LoRA for Bold/Cautious only (Research Design)
+- The many-games-per-GPU serving test waits until a trained personality adapter exists
 
 ### 2026-10-22 — Pilot Phase A: data yield, v0.4 baselines, ceiling, judge cost
 

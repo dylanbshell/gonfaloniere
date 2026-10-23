@@ -2,6 +2,7 @@
 
 import { ROSTER, factionOf, type CharacterName } from "../game/roster.ts";
 import type { CharacterContext, ConversationKind, HistoryLine, RulesValues } from "../prompt/assemble.ts";
+import type { ActionContext } from "../game/actions.ts";
 import type { DocSources } from "../sources/docs.ts";
 
 export type DecodingMode = "raw" | "constrained";
@@ -138,4 +139,16 @@ export function characterContext(
 export function currentFlorins(s: Scenario, character: CharacterName, docs: DocSources): number {
   const { tunables } = docs;
   return tunables.starting_florins + tunables.income * s.conversation.round + (s.florinChanges?.[character] ?? 0);
+}
+
+/** What the character may do with a speak() line here (game/actions.ts). */
+export function actionContext(s: Scenario, character: CharacterName, docs: DocSources): ActionContext {
+  return {
+    faction: factionOf(character),
+    florins: currentFlorins(s, character, docs),
+    pensionSize: docs.tunables.pension_size,
+    treasury: docs.tunables.embassy_treasury,
+    colloquioWith:
+      s.conversation.kind === "colloquio" ? (s.conversation.present.find((p) => p !== character) ?? null) : null,
+  };
 }

@@ -17,8 +17,8 @@
 import { parseArgs } from "node:util";
 import { existsSync } from "node:fs";
 import { config, technicalDesignPath, type ModelConfig } from "../../probe.config.ts";
-import { allowedActionTypes, allowedActionsText, type ActionContext } from "../game/actions.ts";
-import { factionOf, type CharacterName } from "../game/roster.ts";
+import { allowedActionTypes, allowedActionsText } from "../game/actions.ts";
+import type { CharacterName } from "../game/roster.ts";
 import { parseSpeak, type SpeakExpectation } from "../output/speak.ts";
 import { parseThink, thinkJsonSchema, type ThinkExpectation } from "../output/think.ts";
 import { assembleSpeakPrompt, assembleThinkPrompt, speakHasAddressee, type HistoryLine } from "../prompt/assemble.ts";
@@ -39,8 +39,8 @@ import { SCENARIOS, TARGET_GROUPS, expandTargets, unbriefedGuests } from "./scen
 import { probePool } from "./transcripts.ts";
 import type { AssembledPrompt } from "../prompt/assemble.ts";
 import {
+  actionContext,
   characterContext,
-  currentFlorins,
   type DecodingMode,
   type DialogueScenario,
   type LiveState,
@@ -356,17 +356,6 @@ async function runDialogue(
     const p = spoken.parsed!;
     history.push({ kind: "speech", speaker: character, addressee: p.addressee ?? undefined, text: p.value!.utterance });
   }
-}
-
-function actionContext(s: Scenario, character: CharacterName, docs: DocSources): ActionContext {
-  return {
-    faction: factionOf(character),
-    florins: currentFlorins(s, character, docs),
-    pensionSize: docs.tunables.pension_size,
-    treasury: docs.tunables.embassy_treasury,
-    colloquioWith:
-      s.conversation.kind === "colloquio" ? (s.conversation.present.find((p) => p !== character) ?? null) : null,
-  };
 }
 
 type ThinkSpec = Extract<CallSpec, { callType: "think" }>;

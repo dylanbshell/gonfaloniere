@@ -72,6 +72,11 @@ export function loadDocs(paths: DocPaths): DocSources {
     think: only(fencesUnder(td, "### Block 9a — think() task"), "Block 9a"),
     speak: only(fencesUnder(td, "### Block 9b — speak() task"), "Block 9b"),
     ...(addresseeInstruction && { addresseeInstruction }),
+    // TD v0.4's strategy, Murder Round, ballot, and run-off tasks (blocks 9d–9g); absent before v0.4.
+    ...optionalTemplate(td, "### Block 9d — Strategy task", "plan"),
+    ...optionalTemplate(td, "### Block 9e — Murder Round task", "murder"),
+    ...optionalTemplate(td, "### Block 9f — Ballot task", "ballot"),
+    ...optionalTemplate(td, "### Block 9g — Run-off task", "runoff"),
   };
 
   const socialAwareness = standardSocialAwareness(chars);
@@ -134,6 +139,16 @@ function fencesUnder(md: string, heading: string, opts: { indented?: boolean } =
     }
   }
   return fences;
+}
+
+/** A task template that only later TD versions have: its first code block, under `key`, or nothing. */
+function optionalTemplate(td: string, heading: string, key: string): Record<string, string> {
+  try {
+    const [first] = fencesUnder(td, heading);
+    return first ? { [key]: first } : {};
+  } catch {
+    return {};
+  }
 }
 
 function only(fences: string[], label: string): string {
