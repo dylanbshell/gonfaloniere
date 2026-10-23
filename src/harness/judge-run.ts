@@ -25,7 +25,15 @@ import { config } from "../../probe.config.ts";
 import { buildContradictionPrompt, contradictionKindsJsonSchema, ContradictionKinds } from "../judge/contradictions.ts";
 import { buildInferencePrompt, checkInference, inferenceJsonSchema } from "../judge/inference.ts";
 import { buildConsistencyPrompt, labelMismatches, reasonConclusionsJsonSchema } from "../judge/consistency.ts";
-import { buildJudgePrompt, checkVerdict, isLeak, judgeJsonSchema, premiseProblems, verdictInconsistencies } from "../judge/judge.ts";
+import {
+  applyListenerOverride,
+  buildJudgePrompt,
+  checkVerdict,
+  isLeak,
+  judgeJsonSchema,
+  premiseProblems,
+  verdictInconsistencies,
+} from "../judge/judge.ts";
 import { formatHistoryLine } from "../prompt/assemble.ts";
 import { loadDocs, type DocSources } from "../sources/docs.ts";
 import { Budget, worstCaseCost } from "./budget.ts";
@@ -333,7 +341,7 @@ async function judgeDialogues(
         reasoning: res.ok ? res.reasoning : null,
         reasked,
         flagged,
-        verdict: checked && !checked.errors.length ? checked.verdict : null,
+        verdict: checked && !checked.errors.length && checked.verdict ? applyListenerOverride(checked.verdict) : null,
         parseErrors: checked ? [...checked.errors, ...checked.warnings] : [],
         usage: res.ok ? res.usage : null,
         costUsd: cost,
