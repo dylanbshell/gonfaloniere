@@ -322,6 +322,7 @@ async function runDialogue(
       assembleSpeakPrompt(docs.templates, speakCtx, {
         allowedActions: allowedActionsText(actions),
         extraInstruction: s.speakInstruction,
+        insertAfter: s.speakInsertAfter,
       }),
     );
 
@@ -536,7 +537,11 @@ function printDryRun(model: ModelConfig, docs: DocSources, targets: string[]): v
       const actions = allowedActionsText(actionContext(scenario, scenario.probed, docs));
       show(
         `${scenario.id} · ${scenario.probed} · turn 1 · speak() (block 7 will also hold the turn's thought)`,
-        assembleSpeakPrompt(docs.templates, ctx, { allowedActions: actions, extraInstruction: scenario.speakInstruction }).text,
+        assembleSpeakPrompt(docs.templates, ctx, {
+          allowedActions: actions,
+          extraInstruction: scenario.speakInstruction,
+          insertAfter: scenario.speakInsertAfter,
+        }).text,
       );
       continue;
     }

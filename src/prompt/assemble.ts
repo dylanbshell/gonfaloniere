@@ -128,6 +128,11 @@ export interface SpeakOptions {
    * labelled prompt variants (e.g. the "bluff line" test). Omitted for TD's text.
    */
   extraInstruction?: string;
+  /**
+   * A sentence inserted into Block 9b right after another one (e.g. after "Do
+   * not recite your private thoughts."), for labelled prompt variants.
+   */
+  insertAfter?: { after: string; text: string };
 }
 
 export function assembleSpeakPrompt(t: PromptTemplates, ctx: CharacterContext, opts: SpeakOptions): AssembledPrompt {
@@ -151,7 +156,13 @@ export function assembleSpeakPrompt(t: PromptTemplates, ctx: CharacterContext, o
       : '{"utterance": "...", "action": null or {...}}',
   })
     .replace("It is your turn to speak. \n", "It is your turn to speak.\n");
-  return assemble(t, ctx, opts.extraInstruction ? addBullet(task, opts.extraInstruction) : task);
+  let out = opts.extraInstruction ? addBullet(task, opts.extraInstruction) : task;
+  if (opts.insertAfter) {
+    const { after, text } = opts.insertAfter;
+    if (!out.includes(after)) throw new Error(`speak() task has no "${after}" to insert after`);
+    out = out.replace(after, `${after} ${text}`);
+  }
+  return assemble(t, ctx, out);
 }
 
 /**

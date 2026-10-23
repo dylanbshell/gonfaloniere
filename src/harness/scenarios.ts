@@ -7,7 +7,14 @@ import S3 from "../../scenarios/s3-deal-struck.ts";
 import S4 from "../../scenarios/s4-light-pressure.ts";
 import S5a from "../../scenarios/s5a-interrogation-isabella.ts";
 import { S5A_BLUFF, S5B_BLUFF } from "../../scenarios/s5-bluff-line.ts";
-import { LUPO_ACCUSATION_CLAIM, S5D_CLAIM } from "../../scenarios/s5-claim-line.ts";
+import {
+  LUPO_ACCUSATION_CLAIM,
+  LUPO_ACCUSATION_CLAIM_REPLY,
+  S5B_CLAIM,
+  S5D_CLAIM,
+  S5D_CLAIM_REPLY,
+  S6_CLAIM,
+} from "../../scenarios/s5-claim-line.ts";
 import S5b from "../../scenarios/s5b-interrogation-lenoir.ts";
 import S5c from "../../scenarios/s5c-neutral-question-lupo.ts";
 import S5d from "../../scenarios/s5d-interrogation-no-price.ts";
@@ -33,6 +40,10 @@ export const SCENARIOS: Record<string, Scenario> = {
   "s5b-bluff": S5B_BLUFF,
   "s5d-claim": S5D_CLAIM,
   "p-lupo-accusation-claim": LUPO_ACCUSATION_CLAIM,
+  "s5b-claim": S5B_CLAIM,
+  "s6-claim": S6_CLAIM,
+  "s5d-claim-reply": S5D_CLAIM_REPLY,
+  "p-lupo-accusation-claim-reply": LUPO_ACCUSATION_CLAIM_REPLY,
   s5d: S5d,
   // Capitulation Pilot scripts, by lowercased id (e.g. "p-lupo-accusation").
   ...Object.fromEntries([...TRAINING_SCRIPTS, ...HELD_OUT_SCRIPTS, ...UNUSED_SCRIPTS].map((s) => [s.id.toLowerCase(), s])),
