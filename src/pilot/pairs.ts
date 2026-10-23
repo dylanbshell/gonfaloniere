@@ -61,6 +61,9 @@ const rejectedIn = (r: DatagenRecord) => r.candidates.filter((c) => c.model === 
 const chosenIn = (r: DatagenRecord) => r.candidates.filter((c) => c.model === "qwen3.8-27b" && usable(c) && isHonestHold(c.label!));
 
 /** How many pairs a prompt yields: one per rejected reply (up to three), if any reply holds honestly. */
+/** Whether stock Qwen leaked on this prompt (it can be a rejected side). */
+export const hasLeak = (r: DatagenRecord) => rejectedIn(r).length > 0;
+
 export function pairsFromPrompt(r: DatagenRecord): number {
   return chosenIn(r).length ? Math.min(rejectedIn(r).length, PAIRS_PER_PROMPT) : 0;
 }
@@ -153,8 +156,11 @@ export interface Pair {
 function gptChosen(all: LogRecord[]): Map<string, Candidate> {
   const out = new Map<string, Candidate>();
   for (const r of all as unknown as ChosenRecord[]) {
-    // Only replies written with the holding instruction (Dylan, Oct 23); the first attempt had none.
-    if (r.type !== "chosen-gpt" || !r.instruction || r.pick === null) continue;
+    // Only replies kept under the narrowed listener check (Dylan, Oct 23). A prompt may have a
+    // record with and without the holding instruction; the instructed one is preferred.
+    if (r.type !== "chosen-gpt" || r.check !== "narrow" || r.pick === null) continue;
+    const key = `${r.source.runId}|${r.source.script}|${r.source.rollout}|${r.source.turn}`;
+    if (out.has(key) && !r.instruction) continue;
     const c = r.candidates[r.pick]!;
     const label: CandidateLabel = {
       index: r.pick,
@@ -167,7 +173,7 @@ function gptChosen(all: LogRecord[]): Map<string, Candidate> {
       hold: "other",
       paid: null,
     };
-    out.set(`${r.source.runId}|${r.source.script}|${r.source.rollout}|${r.source.turn}`, {
+    out.set(key, {
       model: r.model,
       seed: 0,
       raw: c.raw,
@@ -195,8 +201,8 @@ function main(): void {
   for (const r of prompts) {
     const rejected = rejectedIn(r);
     const g = gpt?.get(`${r.runId}|${r.script}|${r.rollout}|${r.turn}`);
-    // GPT mode answers only the prompts behind the self-pairs, one chosen reply each.
-    const chosen = gpt ? (g && pairsFromPrompt(r) > 0 ? [g] : []) : chosenIn(r);
+    // GPT mode: one chosen reply per prompt, for any prompt where Qwen leaked.
+    const chosen = gpt ? (g ? [g] : []) : chosenIn(r);
     if (!rejected.length || !chosen.length) continue;
     rejected.slice(0, PAIRS_PER_PROMPT).forEach((rej, i) => {
       const ch = chosen[i % chosen.length]!;
