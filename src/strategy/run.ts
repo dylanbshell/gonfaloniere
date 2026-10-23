@@ -162,7 +162,9 @@ async function main(): Promise<void> {
     if (kind === "think") {
       const r = parseThink(raw, { conversation: sit.scenario.conversation.kind, livingOthers: ctx.state.livingOthers, ignoreNames: [], format: "td0.3" });
       thought = r.repaired.value?.thought ?? null;
-      parsed = { verdict: r.repaired.verdict, fenced: r.fenced, repairs: Object.entries(r.repairs ?? {}).filter(([, v]) => v).map(([k]) => k), illegal: [], value: r.repaired.value };
+      parsed = { verdict: r.repaired.verdict, fenced: r.fenced, repairs: Object.entries(r.repairs ?? {})
+        .filter(([, v]) => (Array.isArray(v) ? v.length > 0 : Boolean(v)))
+        .map(([k]) => k), illegal: [], value: r.repaired.value };
     } else {
       const r: StrategyParseResult = parseStrategy(kind, raw, {
         character: sit.character,
