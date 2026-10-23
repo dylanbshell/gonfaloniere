@@ -425,7 +425,7 @@ function buildJobs(target: string, model: ModelConfig, docs: DocSources): ThinkS
 function thinkPrompt(s: ThinkScenario, character: CharacterName, docs: DocSources) {
   const ctx = characterContext(s, character, docs, config);
   return {
-    ...messages(assembleThinkPrompt(docs.templates, ctx)),
+    ...messages(assembleThinkPrompt(docs.templates, ctx, { extraInstruction: s.thinkInstruction })),
     expect: {
       conversation: s.conversation.kind,
       livingOthers: ctx.state.livingOthers,

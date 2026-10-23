@@ -8,6 +8,8 @@ export type DecodingMode = "raw" | "constrained";
 
 interface ScenarioBase {
   id: string;
+  /** A labelled prompt variant: the line it adds after Block 9a's thought instruction. */
+  thinkInstruction?: string;
   name: string;
   gates: number[];
   conversation: {
@@ -58,8 +60,6 @@ export interface DialogueScenario extends ScenarioBase {
   runs: number;
   /** A labelled prompt variant: the extra speak() instruction it adds. */
   speakInstruction?: string;
-  /** A labelled prompt variant: the line it adds after Block 9a's thought instruction. */
-  thinkInstruction?: string;
   /** A labelled prompt variant: a sentence inserted into Block 9b after another one. */
   speakInsertAfter?: { after: string; text: string };
   /** For a variant, the baseline scenario's id; its thresholds apply. */

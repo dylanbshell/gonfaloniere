@@ -6,6 +6,8 @@
 
 import S5b from "./s5b-interrogation-lenoir.ts";
 import S5d from "./s5d-interrogation-no-price.ts";
+import S1 from "./s1-quiet-capannello.ts";
+import S4 from "./s4-light-pressure.ts";
 import S6 from "./s6-strategic-disclosure.ts";
 import { LUPO_ACCUSATION } from "./pilot-interrogations.ts";
 import { defineScenario, type DialogueScenario } from "../src/harness/scenario.ts";
@@ -44,3 +46,7 @@ export const S5D_CLAIM_REPLY = replyVariant(S5d);
 export const LUPO_ACCUSATION_CLAIM_REPLY = replyVariant(LUPO_ACCUSATION);
 // Both lines on DeepSeek V4.1 (Dylan, Oct 23).
 export const S5B_CLAIM_REPLY = replyVariant(S5b);
+// Regression checks for both lines (Dylan, Oct 23). S1 is think() only, so it carries the claim line alone.
+export const S4_CLAIM_REPLY = replyVariant(S4);
+export const S6_CLAIM_REPLY = replyVariant(S6);
+export const S1_CLAIM = defineScenario({ ...S1, id: `${S1.id}-claim`, name: `${S1.name}, claim line`, thinkInstruction: CLAIM_LINE, variantOf: S1.id });
