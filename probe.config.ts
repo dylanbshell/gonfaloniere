@@ -109,7 +109,7 @@ export const config = {
      * Capitulation Pilot runs with PROBE_RESULTS_DIR=results/pilot and
      * PROBE_TOTAL_USD=40: its own ledger and cap.
      */
-    totalUsd: Math.min(45, Number(process.env.PROBE_TOTAL_USD ?? 45)),
+    totalUsd: Math.min(58, Number(process.env.PROBE_TOTAL_USD ?? 58)),
     /** Cap for a single invocation. */
     runUsd: 1,
   },
