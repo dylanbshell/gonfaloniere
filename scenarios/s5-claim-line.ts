@@ -42,3 +42,5 @@ const replyVariant = (base: DialogueScenario): DialogueScenario =>
   });
 export const S5D_CLAIM_REPLY = replyVariant(S5d);
 export const LUPO_ACCUSATION_CLAIM_REPLY = replyVariant(LUPO_ACCUSATION);
+// Both lines on DeepSeek V4.1 (Dylan, Oct 23).
+export const S5B_CLAIM_REPLY = replyVariant(S5b);

@@ -20,6 +20,7 @@
 // verdicts in the logs. --passes N judges each dialogue run until it has N
 // verdicts under the current rubric (for majority-of-three judging).
 
+import { basename } from "node:path";
 import { parseArgs } from "node:util";
 import { config } from "../../probe.config.ts";
 import { buildContradictionPrompt, contradictionKindsJsonSchema, ContradictionKinds } from "../judge/contradictions.ts";
@@ -41,6 +42,8 @@ import {
   RunLog,
   gitCommit,
   priorSpend,
+  JUDGE_DIR,
+  RESULTS_DIR,
   readRecords,
   runLogFiles,
   type ContradictionKindsRecord,
@@ -116,7 +119,9 @@ async function main(): Promise<void> {
   const docs = loadDocs(config.docs);
   const rubricVersion = currentRubricVersion(docs.versions.modelsResearch);
   const hash = rubricHash(docs.judgeRubric);
-  const records = readRecords(runLogFiles());
+  // Runs come from RESULTS_DIR; judge logs may live in another ledger (JUDGE_DIR), so read both.
+  const judgeFiles = () => (JUDGE_DIR === RESULTS_DIR ? [] : runLogFiles(JUDGE_DIR).filter((f) => basename(f).startsWith("judge-")));
+  const records = readRecords([...runLogFiles(), ...judgeFiles()]);
 
   let session: { call: JudgeCaller; check: JudgeCaller; log: RunLog; runId: string; budget: Budget } | null = null;
   const start = async () => {
@@ -127,8 +132,8 @@ async function main(): Promise<void> {
     const endpoint = await fetchEndpoint(judge);
     const checkerEndpoint = await fetchEndpoint(checker);
     const runId = `${new Date().toISOString().replace(/[:.]/g, "-")}-${modelId}`;
-    const log = new RunLog(runId, "judge-");
-    const budget = new Budget(config.judge.runUsd, config.budget.totalUsd, priorSpend());
+    const log = new RunLog(runId, "judge-", JUDGE_DIR);
+    const budget = new Budget(config.judge.runUsd, config.budget.totalUsd, priorSpend(JUDGE_DIR));
     log.write({
       type: "run",
       runId,
@@ -189,7 +194,7 @@ async function main(): Promise<void> {
     console.log(`Judging spent $${s.budget.spentUsd.toFixed(4)}. Log: ${s.log.path}`);
   }
   if (opts["classify-contradictions"]) return;
-  const fresh = readRecords(runLogFiles());
+  const fresh = readRecords([...runLogFiles(), ...judgeFiles()]);
   if (dialogueTargets.length) {
     const transcripts = dialogueTargets.flatMap((t) => buildTranscripts(fresh, modelId, DIALOGUES[t]!));
     console.log(`Review file: ${writeReview(modelId, dialogueTargets.map((t) => DIALOGUES[t]!.id), transcripts, rubricVersion)}`);

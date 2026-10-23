@@ -16,6 +16,12 @@ import type { EndpointInfo, Usage } from "./openrouter.ts";
  * with its own $40 cap via PROBE_TOTAL_USD), so its spend never mixes with the probes'.
  */
 export const RESULTS_DIR = process.env.PROBE_RESULTS_DIR ?? "results";
+/**
+ * Where judging logs (and so their spend) go: RESULTS_DIR unless
+ * PROBE_JUDGE_DIR names another ledger (Dylan, Oct 23: pilot runs re-judged on
+ * the probe ledger).
+ */
+export const JUDGE_DIR = process.env.PROBE_JUDGE_DIR ?? RESULTS_DIR;
 
 export interface RunRecord {
   type: "run";
@@ -206,9 +212,9 @@ export class RunLog {
   readonly path: string;
 
   /** `prefix` separates judging logs ("judge-…") from probe runs. */
-  constructor(runId: string, prefix = "") {
-    mkdirSync(RESULTS_DIR, { recursive: true });
-    this.path = join(RESULTS_DIR, `${prefix}${runId}.jsonl`);
+  constructor(runId: string, prefix = "", dir = RESULTS_DIR) {
+    mkdirSync(dir, { recursive: true });
+    this.path = join(dir, `${prefix}${runId}.jsonl`);
   }
 
   write(record: LogRecord): void {
@@ -216,12 +222,12 @@ export class RunLog {
   }
 }
 
-export function runLogFiles(): string[] {
-  if (!existsSync(RESULTS_DIR)) return [];
-  return readdirSync(RESULTS_DIR)
+export function runLogFiles(dir = RESULTS_DIR): string[] {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
     .filter((f) => f.endsWith(".jsonl"))
     .sort()
-    .map((f) => join(RESULTS_DIR, f));
+    .map((f) => join(dir, f));
 }
 
 export function readRecords(files: string[]): LogRecord[] {
@@ -234,8 +240,8 @@ export function readRecords(files: string[]): LogRecord[] {
 }
 
 /** Total spent across every logged run and judging batch, for the probe-wide cap. */
-export function priorSpend(): number {
-  return readRecords(runLogFiles())
+export function priorSpend(dir = RESULTS_DIR): number {
+  return readRecords(runLogFiles(dir))
     .filter((r): r is CostRecord => "costUsd" in r)
     .reduce((sum, r) => sum + r.costUsd, 0);
 }
