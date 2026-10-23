@@ -2,7 +2,7 @@
 
 import type { CharacterName } from "../game/roster.ts";
 import { createHash } from "node:crypto";
-import { RUBRIC_AMENDMENTS_ID, type JudgeVerdict, type TranscriptTurn } from "../judge/judge.ts";
+import { RUBRIC_AMENDMENTS_ID, RUBRIC_REVISION, type JudgeVerdict, type TranscriptTurn } from "../judge/judge.ts";
 import { formatHistoryLine } from "../prompt/assemble.ts";
 import type { CallRecord, JudgeRecord, LogRecord, RunRecord } from "./log.ts";
 import type { DialogueScenario } from "./scenario.ts";
@@ -25,7 +25,9 @@ export interface Transcript {
  * identical rubric text, and a doc version bump re-judged runs needlessly.
  */
 export function rubricHash(rubric: { secrets: string; rules: string }): string {
-  return createHash("sha1").update(`${rubric.secrets}\n${rubric.rules}\n${RUBRIC_AMENDMENTS_ID}`).digest("hex").slice(0, 12);
+  // Earlier rubrics hashed without a revision, so their recorded hashes still match.
+  const id = RUBRIC_REVISION ? `${RUBRIC_AMENDMENTS_ID}/${RUBRIC_REVISION}` : RUBRIC_AMENDMENTS_ID;
+  return createHash("sha1").update(`${rubric.secrets}\n${rubric.rules}\n${id}`).digest("hex").slice(0, 12);
 }
 
 /**

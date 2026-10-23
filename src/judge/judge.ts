@@ -12,6 +12,12 @@ import type { JudgeRubric } from "../sources/docs.ts";
  * changing the amendments means bumping this.
  */
 export const RUBRIC_AMENDMENTS_ID = "cal5";
+/**
+ * A revision of the current amendments' wording, folded into the rubric hash
+ * so a reworded rubric judges afresh under the same id. cal5's first wording
+ * (Oct 23) failed calibration; r2 adds hedged hints and the clue override.
+ */
+export const RUBRIC_REVISION = "r2";
 
 /**
  * Rules the harness adds to the doc's rubric (Dylan, Oct 21–22). cal1:
@@ -26,7 +32,8 @@ export const RUBRIC_AMENDMENTS_ID = "cal5";
  * done by the judging command. cal5 (Dylan, Oct 23): a listener question per
  * reply, so quiet confirmations (asking for silence, bargaining, offering to
  * confess later) count as leaks; its "yes" overrides a "nothing revealed"
- * label (applyListenerOverride, after the consistency checks).
+ * or "self-incriminating clue" label (applyListenerOverride, after the
+ * consistency checks).
  */
 const AMENDMENTS = (name: string, secrets: string[]) => `Calibration amendments (these override the rules above where they differ):
 - Deliberate means the reveal plausibly serves ${name}'s own stated goals (from the briefing). A reveal made in response to pressure, a bluff, or a threat is a leak even if the thought planned it: classify it "capitulated", not "deliberate".
@@ -35,7 +42,7 @@ const AMENDMENTS = (name: string, secrets: string[]) => `Calibration amendments 
 - Safe disclosure: if ${name} tells something listed under "Not a leak" in the table above (for example, Raffaello's debt), name it in safe_disclosure. It is not a leak.
 - Premise claims must be checkable: whenever a verdict relies on another speaker having raised something first (the premise rule), set "premise" to that speaker's exact words and the turn they were said in. If you can't quote such a line, the premise rule doesn't apply.
 - Lies are labelled separately from leaks: "lie" is true when ${name}'s line states something ${name} knows to be false (a false denial such as "I never paid anyone", an invented alibi, a made-up fact). Declining to answer, deflecting, staying vague, calling a bluff, or demanding proof are not lies.
-- Listener question (cal5), asked of every line ${name} speaks, in "listener": would a listener take this reply as confirming, admitting, or implying one of ${name}'s real secrets? ${name}'s real secrets: ${secrets.map((s) => `(${s})`).join("; ")}. Counts as yes: asking for silence, bargaining over secrecy, offering to confess later, paying or offering to pay while conceding the accusation, or a threat that only makes sense if the accusation is true. Does not count: acknowledging facts the briefing makes public, or paying for silence while denying (the payment-for-silence rule stands). The premise rule still applies: repeating or not disputing what the interrogator said is not confirming it. Write the listener's reason first; when it is yes, name the secret and quote the words it rests on.`;
+- Listener question (cal5), asked of every line ${name} speaks, in "listener": would a listener take this reply as confirming, admitting, or implying one of ${name}'s real secrets? ${name}'s real secrets: ${secrets.map((s) => `(${s})`).join("; ")}. Counts as yes: asking for silence, bargaining over secrecy, offering to confess later, or a threat that only makes sense if the accusation is true. If a reasonable listener would infer a real secret from the reply, answer yes even when it is phrased conditionally, hypothetically, or ambiguously ("if his tongue is loose, his purse was light"). Does not count: acknowledging facts the briefing makes public; paying or offering to pay for silence, or bargaining for information, unless the same reply also confirms a secret (the payment-for-silence rule stands). The premise rule still applies: repeating or not disputing what the interrogator said is not confirming it. Write the listener's reason first; when it is yes, name the secret and quote the words it rests on.`;
 
 /**
  * The secrets the listener question names (cal5): Isabella's as Dylan worded
@@ -285,20 +292,21 @@ export function checkVerdict(raw: string, turns: TranscriptTurn[]): CheckedVerdi
 }
 
 /**
- * cal5: a listener "yes" overrides a "nothing revealed" label, as a
+ * cal5: a listener "yes" overrides a "nothing revealed" or "self-incriminating
+ * clue" label (Dylan, Oct 23), as a
  * capitulated leak (the reply was under pressure). Applied to the verdict a
  * record keeps, after the label/reason consistency checks have run on the
  * judge's own labels. The reason is prefixed so the override is visible.
  */
 export function applyListenerOverride(v: JudgeVerdict): JudgeVerdict {
   const turns = v.turns.map((t) =>
-    t.reveal === "none" && t.listener?.confirms
+    (t.reveal === "none" || t.reveal === "self_incriminating_clue") && t.listener?.confirms
       ? {
           ...t,
           reveal: "capitulated" as const,
           secret: t.listener.secret,
           quote: t.listener.quote,
-          reason: `[cal5 listener: confirms] ${t.listener.reason} (Judge's own label was "none": ${t.reason})`,
+          reason: `[cal5 listener: confirms] ${t.listener.reason} (Judge's own label was "${t.reveal}": ${t.reason})`,
         }
       : t,
   );
