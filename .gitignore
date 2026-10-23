@@ -13,3 +13,4 @@ results/
 pilot/.venv/
 pilot/adapters/
 __pycache__/
+pilot/runs/

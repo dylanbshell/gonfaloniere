@@ -214,6 +214,24 @@ export const config = {
       thinkingOff: {},
     },
     {
+      // Capitulation Pilot (Models & Research v0.15): stock Qwen3.8-27B served
+      // by Tinker as an untrained (step-0) LoRA checkpoint, so its baseline
+      // differs from the trained adapter only in the training.
+      id: "qwen3.8-27b-tinker-dpo1",
+      slug: "Qwen/Qwen3.8-27B",
+      provider: "tinker",
+      // Capitulation Pilot adapter: DPO, 1 epoch on 84 pairs (Oct 23).
+      runUsd: 2,
+      tinker: {
+        samplerPath: tinkerCheckpoint("dpo1"),
+        pricePerM: { prefill: 0.6975, sample: 5.595 },
+        render: "qwen3_8_disable_thinking",
+      },
+      // Thinking is off by construction (the rendered prompt ends in an empty think block).
+      hasThinking: false,
+      thinkingOff: {},
+    },
+    {
       // Frontier ceiling for S5a/S5b (Dylan, Oct 21): not a candidate. GPT-5.4
       // accepts no temperature, so it runs at its default, not 0.7.
       id: "gpt-5.4",

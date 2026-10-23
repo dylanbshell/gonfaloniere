@@ -1,3 +1,4 @@
 {
-  "step0": "tinker://a4901f4c-673d-5dbc-8709-cd7b6ca424cd:train:0/sampler_weights/step0"
+  "step0": "tinker://a4901f4c-673d-5dbc-8709-cd7b6ca424cd:train:0/sampler_weights/step0",
+  "dpo1": "tinker://496fd7d8-8c20-5d31-9d1e-6e5f26e7287e:train:0/sampler_weights/final"
 }
