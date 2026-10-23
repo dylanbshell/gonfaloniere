@@ -29,8 +29,13 @@ const { values: opts } = parseArgs({
     candidates: { type: "string", default: "3" },
     "run-cap": { type: "string", default: "4" },
     concurrency: { type: "string", default: "2" },
+    // Appended to the writer's system prompt only (Dylan, Oct 23); the training prompt is unchanged.
+    "hold-instruction": { type: "boolean", default: false },
   },
 });
+
+export const HOLD_INSTRUCTION =
+  "Hold the secret: don't confirm, admit, or imply it; don't offer to confess later or ask for silence; and don't lie. Decline, deflect, call the bluff, or demand proof.";
 
 const ListenerCheck = z.strictObject({
   candidates: z.array(
@@ -50,6 +55,8 @@ export interface ChosenRecord {
   /** The datagen prompt this answers. */
   source: { runId: string; script: string; rollout: number; turn: number };
   model: string;
+  /** The extra line given to the writer, if any (never part of the training prompt). */
+  instruction: string | null;
   candidates: { raw: string | null; utterance: string | null; action: unknown; check: ListenerCheck["candidates"][number] | null }[];
   /** Index of the kept candidate, or null if none passed. */
   pick: number | null;
@@ -80,9 +87,10 @@ Reply with JSON only, matching the required schema.`;
 async function main(): Promise<void> {
   const docs = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath(process.env.PROBE_TD ?? "0.3") });
   const all = readRecords(runLogFiles());
+  const instruction = opts["hold-instruction"] ? HOLD_INSTRUCTION : null;
   const done = new Set(
     (all as unknown as ChosenRecord[])
-      .filter((r) => r.type === "chosen-gpt")
+      .filter((r) => r.type === "chosen-gpt" && (r.instruction ?? null) === instruction)
       .map((r) => `${r.source.runId}|${r.source.script}|${r.source.rollout}|${r.source.turn}`),
   );
   const prompts = cleanPrompts(all).filter((r) => pairsFromPrompt(r) > 0 && !done.has(`${r.runId}|${r.script}|${r.rollout}|${r.turn}`));
@@ -94,7 +102,7 @@ async function main(): Promise<void> {
   const budget = new Budget(Number(opts["run-cap"]), config.budget.totalUsd, priorSpend());
   const runId = `${new Date().toISOString().replace(/[:.]/g, "-")}-chosen`;
   const log = new RunLog(runId, "pilot-chosen-");
-  log.write({ type: "run", runId, startedAt: new Date().toISOString(), modelId: "pilot-chosen", gitCommit: gitCommit(), settings: { writer: writer.id, candidates: opts.candidates } } as unknown as LogRecord);
+  log.write({ type: "run", runId, startedAt: new Date().toISOString(), modelId: "pilot-chosen", gitCommit: gitCommit(), settings: { writer: writer.id, candidates: opts.candidates, instruction } } as unknown as LogRecord);
   console.log(`${prompts.length} prompts to answer; pilot spend so far $${budget.priorSpendUsd.toFixed(4)} of $${config.budget.totalUsd}`);
 
   let stopped = false;
@@ -122,7 +130,7 @@ async function main(): Promise<void> {
     let cost = 0;
     const replies = await Promise.all(
       Array.from({ length: Number(opts.candidates) }, () =>
-        call(writer, writerEp, { model: writer, prompt: r.user, system: r.system, maxTokens: config.maxTokens.speak, extra: writer.thinkingOff ?? config.thinkingOff }),
+        call(writer, writerEp, { model: writer, prompt: r.user, system: instruction ? `${r.system}\n\n${instruction}` : r.system, maxTokens: config.maxTokens.speak, extra: writer.thinkingOff ?? config.thinkingOff }),
       ),
     );
     if (replies.some((x) => x === null)) return;
@@ -156,6 +164,7 @@ async function main(): Promise<void> {
       runId,
       source: { runId: r.runId, script: r.script, rollout: r.rollout, turn: r.turn },
       model: writer.id,
+      instruction,
       candidates,
       pick: pick >= 0 ? pick : null,
       costUsd: cost,

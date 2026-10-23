@@ -153,7 +153,8 @@ export interface Pair {
 function gptChosen(all: LogRecord[]): Map<string, Candidate> {
   const out = new Map<string, Candidate>();
   for (const r of all as unknown as ChosenRecord[]) {
-    if (r.type !== "chosen-gpt" || r.pick === null) continue;
+    // Only replies written with the holding instruction (Dylan, Oct 23); the first attempt had none.
+    if (r.type !== "chosen-gpt" || !r.instruction || r.pick === null) continue;
     const c = r.candidates[r.pick]!;
     const label: CandidateLabel = {
       index: r.pick,
