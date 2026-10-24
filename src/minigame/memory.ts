@@ -161,6 +161,14 @@ export class MemoryStore {
       }
       const speakers = [...new Set(lines.map((l) => l.speaker!))];
       const audience = lines.reduce<CharacterName[]>((acc, l) => acc.filter((c) => l.heardBy.includes(c)), [...lines[0]!.heardBy]);
+      const speaker = lines.at(-1)!.speaker;
+      let toward = e.toward ? (resolveName(e.toward) ?? e.toward) : null;
+      // Seen in the mini-game full run: a deal's "toward" naming the acceptor, who is also the speaker.
+      const others = speakers.filter((s) => s !== speaker);
+      if (e.type === "deal" && toward === speaker && others.length === 1) {
+        this.repairs.push({ pass: "10a", turn, scope: conversation, repair: `deal toward ${toward} (the speaker) → ${others[0]}` });
+        toward = others[0]!;
+      }
       stored.push(
         this.addEntry({
           turn,
@@ -168,9 +176,9 @@ export class MemoryStore {
           where: lines[0]!.where,
           type: e.type as EntryType,
           // A deal names every party; whoever spoke the last cited line accepted it.
-          speaker: lines.at(-1)!.speaker,
+          speaker,
           ...(e.type === "deal" && { parties: speakers }),
-          toward: e.toward ? (resolveName(e.toward) ?? e.toward) : null,
+          toward,
           about: e.about.map((a) => resolveName(a) ?? a),
           summary: e.summary,
           quote: e.quote,

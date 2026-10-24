@@ -11,7 +11,8 @@ export const STANDIN_FILE = "scenarios/minigame-standin-briefings.md";
 
 /** Who knows each plot-point fact at the start: their checks are a sanity check, not spread. */
 export const KNOWS_AT_START: Record<string, CharacterName[]> = {
-  F2: ["Contessa Isabella"],
+  // Raffaello's plot point is to tell LeNoir this, so his briefing gives it to him.
+  F2: ["Contessa Isabella", "Raffaello de' Medici"],
   F3: ["Giorgia Pazzi", "Captain Armand LeNoir"],
   F4: ["Contessa Isabella", "Lupo"],
   F5: ["Lupo", "Contessa Isabella"],

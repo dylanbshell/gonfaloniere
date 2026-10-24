@@ -37,10 +37,31 @@ const OUT = "results/minigame";
 /** The Shared Canon's starting knowledge, as the secrets judge reads it. */
 const STARTING_KNOWLEDGE = `- Lupo is a contract killer: Lupo and Contessa Isabella know (Francesco does not).
 - Contessa Isabella hired Lupo for the San Frediano killing: Lupo and Contessa Isabella know.
-- The man killed at San Frediano was Captain LeNoir's brother: only Contessa Isabella knows (LeNoir knows his brother died there, not who ordered it; Lupo doesn't know whom he killed).
+- Contessa Isabella ordered the killing of Captain LeNoir's brother: Contessa Isabella knows, and Raffaello de' Medici (his plot point is to tell LeNoir); LeNoir knows his brother died there, not who ordered it; Lupo doesn't know whom he killed.
 - Giorgia Pazzi and Captain LeNoir are lovers: only the two of them know.
 - Francesco Pazzi and Clarice Orsini are lovers: Francesco knows (Clarice isn't here).
 - Raffaello de' Medici owes Contessa Isabella for a gambling loss: the two of them know.`;
+
+/**
+ * Who knew a secret at the start, by the speaker and the judge's wording of the secret. A leak
+ * heard only by people who already knew is reported apart from the spread; the judge is told the
+ * rule (MINI-GAME NOTES) but in the full run still flagged private lines to Lupo about his own job.
+ */
+const SECRET_KNOWERS: { speaker: CharacterName; match: RegExp; knowers: CharacterName[] }[] = [
+  { speaker: "Contessa Isabella", match: /San Frediano|hired Lupo|contract killer/i, knowers: ["Contessa Isabella", "Lupo"] },
+  { speaker: "Contessa Isabella", match: /LeNoir'?s brother|Lucien/i, knowers: ["Contessa Isabella", "Raffaello de' Medici"] },
+  { speaker: "Contessa Isabella", match: /debt|gambling/i, knowers: ["Contessa Isabella", "Raffaello de' Medici"] },
+  { speaker: "Lupo", match: /San Frediano|Isabella|client|contract killer|kills? for/i, knowers: ["Contessa Isabella", "Lupo"] },
+  { speaker: "Raffaello de' Medici", match: /debt|gambling/i, knowers: ["Contessa Isabella", "Raffaello de' Medici"] },
+  { speaker: "Giorgia Pazzi", match: /affair|lover|LeNoir/i, knowers: ["Giorgia Pazzi", "Captain Armand LeNoir"] },
+  { speaker: "Captain Armand LeNoir", match: /affair|lover|Giorgia/i, knowers: ["Giorgia Pazzi", "Captain Armand LeNoir"] },
+];
+
+/** True when everyone else who heard the line knew the secret at the start. */
+function knownToListeners(speaker: string, leak: { heardBy: string[]; secret: string | null }): boolean {
+  const rule = SECRET_KNOWERS.find((r) => r.speaker === speaker && r.match.test(leak.secret ?? ""));
+  return !!rule && leak.heardBy.filter((h) => h !== speaker).every((h) => rule.knowers.includes(h as CharacterName));
+}
 
 interface GameRecord {
   header: { game_id: string; briefings: Record<string, string>; docs: Record<string, string> };
@@ -327,8 +348,10 @@ function report(results: Result[]): void {
         out.push(`- ${c}: judge error`);
         continue;
       }
-      out.push(`- ${c}: ${s.lines} lines, ${s.leaks!.length} leak line(s)${s.leaks!.length ? `, first at game turn ${Math.min(...s.leaks!.map((l) => l.gameTurn))}` : ""}; lies ${s.lies}; factual contradictions ${s.contradictions!.length}`);
-      for (const l of s.leaks!) out.push(`  - ${l.line} T${l.gameTurn} (${l.where}; heard by ${l.heardBy.join(", ")}) ${l.reveal}: ${l.secret} — "${l.quote}"`);
+      const spread = s.leaks!.filter((l) => !knownToListeners(c, l));
+      const known = s.leaks!.length - spread.length;
+      out.push(`- ${c}: ${s.lines} lines, ${spread.length} leak line(s)${spread.length ? `, first at game turn ${Math.min(...spread.map((l) => l.gameTurn))}` : ""}${known ? ` (+${known} heard only by people who already knew)` : ""}; lies ${s.lies}; factual contradictions ${s.contradictions!.length}`);
+      for (const l of s.leaks!) out.push(`  - ${knownToListeners(c, l) ? "(already known) " : ""}${l.line} T${l.gameTurn} (${l.where}; heard by ${l.heardBy.join(", ")}) ${l.reveal}: ${l.secret} — "${l.quote}"`);
     }
     // Memory
     const audits = Object.values(r.memory).filter((m) => !m.error);
