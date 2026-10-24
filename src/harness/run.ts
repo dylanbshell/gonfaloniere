@@ -9,8 +9,8 @@
 // s7-buried, s7-control (default: all, in that order); "s7" means all three.
 // Options: --model <id>, --samples <n> (single-moment scenarios, per mode),
 //          --runs <n> (dialogue scenarios), --modes raw,constrained,
-//          --td 0.2|0.3 (which Technical Design's prompts; default 0.2, the
-//          S1–S7 reference), --extend (dialogue runs append to the model's
+//          --td <version> (which Technical Design's prompts; default 0.4, or
+//          PROBE_TD; older versions are in git history), --extend (dialogue runs append to the model's
 //          latest run of each target, so they pool with it),
 //          --concurrency <n> (parallel calls; default from config, lower it for rate-limited endpoints)
 
@@ -74,7 +74,7 @@ const { values: opts, positionals } = parseArgs({
   allowPositionals: true,
   options: {
     "dry-run": { type: "boolean", default: false },
-    td: { type: "string", default: process.env.PROBE_TD ?? "0.2" },
+    td: { type: "string", default: process.env.PROBE_TD ?? "0.4" },
     extend: { type: "boolean", default: false },
     concurrency: { type: "string" },
     model: { type: "string" },

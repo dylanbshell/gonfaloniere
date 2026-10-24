@@ -63,14 +63,14 @@ function tinkerCheckpoint(name: string): string {
  * (Dylan, Oct 22), set with PROBE_TD and PROBE_CHARACTERS (and --td for the runner).
  */
 export const technicalDesignPath = (version: string) => `docs/Gonfaloniere_Technical_Design_v${version}.md`;
-const CHARACTERS_VERSION = process.env.PROBE_CHARACTERS ?? "0.2";
+const CHARACTERS_VERSION = process.env.PROBE_CHARACTERS ?? "0.3";
 
 export const config = {
   docs: {
-    technicalDesign: technicalDesignPath(process.env.PROBE_TD ?? "0.2"),
+    technicalDesign: technicalDesignPath(process.env.PROBE_TD ?? "0.4"),
     characters: `docs/Gonfaloniere_Characters_v${CHARACTERS_VERSION}.md`,
-    mechanics: "docs/Gonfaloniere_Game_Mechanics_v0.18.md",
-    modelsResearch: "docs/Gonfaloniere_Models_Research_v0.20.md",
+    mechanics: "docs/Gonfaloniere_Game_Mechanics_v0.20.md",
+    modelsResearch: "docs/Gonfaloniere_Models_Research_v0.21.md",
   },
 
   /** Same for every model; 0.7 until Technical Design sets a play value. */

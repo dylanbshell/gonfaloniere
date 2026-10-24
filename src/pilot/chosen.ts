@@ -103,7 +103,7 @@ Reply with JSON only, matching the required schema.`;
 }
 
 async function main(): Promise<void> {
-  const docs = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath(process.env.PROBE_TD ?? "0.3") });
+  const docs = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath(process.env.PROBE_TD ?? "0.4") });
   const all = readRecords(runLogFiles());
   const instruction = opts["hold-instruction"] ? HOLD_INSTRUCTION : null;
   const version = opts.check as CheckVersion;

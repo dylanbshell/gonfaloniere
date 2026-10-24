@@ -33,7 +33,7 @@ const { values: opts } = parseArgs({
 const HONEST_HOLDS = ["decline", "deflect", "call_bluff", "demand_proof"];
 
 async function main(): Promise<void> {
-  const docs = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath(process.env.PROBE_TD ?? "0.3") });
+  const docs = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath(process.env.PROBE_TD ?? "0.4") });
   const all = readRecords(runLogFiles());
   const runs = currentDataRuns(all);
   const strict = new Set(
