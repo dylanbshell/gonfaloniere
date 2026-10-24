@@ -5,7 +5,7 @@ This repository is under two licenses.
 Applies to the source code: src/, pilot/*.py, probe.config.ts, package.json,
 tsconfig.json, and other build and configuration files.
 
-Copyright (c) 2026 dylanbshell
+Copyright (c) 2026 Dylan Shell
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
