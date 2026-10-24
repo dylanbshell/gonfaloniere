@@ -6,8 +6,9 @@
 # Dependencies
 node_modules/
 
-# Probe logs and reports
-results/
+# Probe logs and reports: all ignored except the curated, published slice
+results/*
+!results/published/
 
 # Capitulation Pilot: Python environment and downloaded adapters
 pilot/.venv/

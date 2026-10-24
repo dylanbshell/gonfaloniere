@@ -1,97 +1,53 @@
 # Gonfaloniere
 
-A text-based political intrigue game where every character is an AI agent.
+A political intrigue game played by AI agents, and a testbed for how language models keep secrets, bargain, and plot.
 
-Florence, 1492. Lorenzo de' Medici is dead and the city needs a new Gonfaloniere. Twelve characters from four factions spend one evening in a palazzo scheming, bribing, and betraying one another through group conversations and private words in corners. The evening ends with a murder round and an election.
+Florence, 1492. Twelve characters from four factions scheme for one evening over who becomes Gonfaloniere. Each is a separate agent that knows only its own briefing and what it has seen and heard; code, not the model, tracks money, pensions, and who said what in front of whom.
 
-- The **Medici** and the **Pazzi** each want their own candidate in the chair.
-- The **French Embassy** wants to own whoever wins, by putting their family on France's payroll.
-- The **Dominicans** want the winner to publicly repent before the city.
+> **Status: work in progress.** The game engine isn't built yet. What exists is a probe harness that tests models on scripted moments of the game, plus a small fine-tuning pilot.
 
-> **Status: design phase.** The rules and architecture are specified; code is just starting. The first piece is a probe harness that tests whether candidate models can handle the game before the engine is built. See [Roadmap](#roadmap).
+## The research question
 
----
+Can an open model play a character who holds a secret under real pressure (bluffs, sworn evidence, threats, a loyal master's direct question) without folding, while still planning and dealing well? And is that competence better delivered by **fine-tuning** (LoRA/DPO) or by **prompting**?
 
-## Why it's interesting
+## Headline results so far
 
-**Every character knows only what it has seen and heard.** Each one is a separate AI agent with its own private briefing, thoughts, and memory. No prompt ever contains two characters' private material, so a secret can only spread by someone saying it out loud, in front of the right people. Hidden information is enforced by the architecture, not by asking a model to pretend.
+Secret-keeping numbers are runs held of 10, scored by a Claude Sonnet judge whose rubric has tightened over time; compare only within one rubric version. See [results/published/](results/published/).
 
-**The model never keeps score.** Money, pensions, who's alive, and who's standing where all live in code. On every call, the engine tells a character what it needs to know, and checks whatever the character says before anything changes.
+- **Every open model folds under sustained pressure.** Under the strictest rubric (cal5, which counts quiet confirmations like "keep it buried" or "I'll confess to Fra Tommaso later"), the no-price interrogation S5d is held 0/10 by Qwen3.8-27B, 2/10 by DeepSeek V4.1 Flash, and 6/10 by GPT-5.4.
+- **Prompt lines work on the development model.** One line in the private-thought call ("A claim is not proof") and one in the reply call ("Never confirm a secret you have not chosen to reveal") take DeepSeek V4.1 to **9/10 on S5d** and 7/10 on S5b; a third, about speaking in company, lifts its held-out score from 1/10 to 5/10. No regressions. Qwen3.8 barely responds.
+- **The DPO pilot found no effect.** A 1-epoch LoRA on 84 preference pairs moved Qwen3.8 by +1 run on held-out and S5d and cost 4 on S5b. Clean "chosen" replies were the bottleneck. See [results/published/pilot/](results/published/pilot/).
+- **Strategy is fine.** Rules reasoning (S8) is 100% for all three models (the items need to be harder). Side by side, DeepSeek beats Qwen3.8 on plans (85%) and deals (75%); Murder Round choices are about even.
 
-**It doubles as a study.** Characters are dealt personalities at random, planned as fine-tuned LoRA adapters on a 2×2 grid of honest or deceptive and trusting or suspicious. Running many games asks how personality shapes deception, loyalty, and strategy in an adversarial setting.
+**Cost so far:** about $100 in API and training spend, mostly judging.
 
----
+## Running the probes
 
-## How a game runs
+Requires Node 22+ and an [OpenRouter](https://openrouter.ai) key. Tinker is needed only for the pilot.
 
-The evening moves through faction meetings and three rounds of mingling, then a murder round, candidate speeches, and a secret ballot.
+```sh
+npm install
+cp .env.example .env          # fill in your keys; .env is gitignored
+set -a; . ./.env; set +a      # load the keys into the shell
 
-During mingling, characters talk in small groups (a *Capannello*, up to four people) or slip away for a private word (a *Colloquio*, two people, no one may join). Il Notaio, the evening's notary, records who joins, who leaves, and who withdraws privately, and everyone present hears his notes. Slipping away too often invites suspicion.
+export PROBE_TD=0.4 PROBE_CHARACTERS=0.3
+npm run probe -- --dry-run s5d --model qwen3.8-27b        # print the prompts, no calls
+npm run probe -- s5d --model deepseek-v4.1-flash --td 0.4 # 10 scripted interrogations
+npm run judge -- s5d --model deepseek-v4.1-flash --passes adaptive
+npm run score                                             # gate report
+npm run strategy -- --model deepseek-v4.1-flash --lines   # S8–S10
+npm run publish:results                                   # rebuild results/published/
+```
 
-Each line of conversation is one loop:
-
-1. A character speaks (`speak()`).
-2. The engine copies the line to everyone present and applies any action, such as a bribe, if it's legal.
-3. Every listener thinks privately (`think()`), producing a thought, how urgently they want to speak, and who they'd like to talk to next.
-4. The engine picks the next speaker: whoever was directly addressed, otherwise the most urgent.
-
-At the end of each turn, a neutral model writes up memory notes for every character, and one character gets the chance to move.
-
----
-
-## Architecture
-
-| Part | What it does | AI? |
-|---|---|---|
-| **Orchestrator** | Runs each conversation: speaking order, ending private talks, counting turns | No |
-| **Stage Manager** | Runs everything around conversations: positions, movement, money, pensions, validating actions | No |
-| **Character calls** | `think()`, `speak()`, strategy, movement, murder-round choice, vote | Yes, with the character's personality |
-| **System calls** | Memory extraction, knowledge checks | Yes, on a neutral model |
-
-**Memory**, since models forget everything between calls:
-
-- **History:** the exact last few lines a character heard
-- **Recent thoughts:** their own private reasoning, so their story stays straight
-- **Notebook:** structured notes on the whole evening, with promises and threats flagged
-- **Strategy:** their current plan, rewritten at checkpoints
-
-**Model-agnostic by design.** The model, provider, and adapters are run settings, not code, so the play model can change without touching the engine. Development runs on open-weight models through a hosted API; self-hosting comes in only to serve fine-tuned adapters.
-
-Planned stack: React, Node/Express, PostgreSQL.
-
----
+Models and spending caps are in [`probe.config.ts`](probe.config.ts), scenarios in [`scenarios/`](scenarios/); every call is logged to `results/`. The pilot's training script is [`pilot/train_dpo.py`](pilot/train_dpo.py).
 
 ## Design docs
 
-The full design lives in [`docs/`](docs/):
+Full design and research log in [`docs/`](docs/): Game Mechanics, Technical Design (architecture and every prompt), Characters, and Models & Research (probe plan and findings). The docs win any disagreement with this README.
 
-| Doc | Covers |
-|---|---|
-| [Game Mechanics](docs/Gonfaloniere_Game_Mechanics_v0.18.md) | The rules: phases, conversations, economy, murder round, win conditions, tunable values |
-| [Technical Design](docs/Gonfaloniere_Technical_Design_v0.2.md) | How the software runs it: architecture, memory, prompts, balancing method |
-| [Models & Research](docs/Gonfaloniere_Models_Research_v0.5.md) | Capability tests, cost per game, fine-tuning plans |
-| [Characters](docs/Gonfaloniere_Characters_v0.2.md) | Character briefings and shared story canon |
+## Licensing
 
-If the docs and this README disagree, the docs are right.
+- **Code** (`src/`, `pilot/*.py`, configuration): MIT.
+- **Game content** (setting, characters, briefings, rules, and scenes in `docs/`, `scenarios/`, and `results/published/`): CC BY-NC-SA 4.0, adapted from **[Plots in the Palazzo](https://www.matthewclifford.com/)** by Matt Clifford ([CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)). The rules have been substantially reworked for AI play.
 
----
-
-## Roadmap
-
-Each step runs only if the one before it passed. Model capability decides a lot of the design, so it gets tested before anything expensive is built.
-
-- [ ] **Capability probes:** single calls on scripted scenarios, run across several candidate models. Can they return valid structured output, keep a secret under questioning, and notice circumstantial clues?
-- [ ] **Mini-game:** one group and one private conversation for a few turns
-- [ ] **Developer dashboard:** live conversation panels, a knowledge inspector, an event log, and a timeline to scrub back through a game
-- [ ] **First full game:** real call counts and cost per game
-- [ ] **Rules-only simulator:** scripted players, no AI, thousands of games to balance the rules so each faction wins about a quarter of the time
-- [ ] **Personality adapters:** fine-tune and compare
-- [ ] **Playable version:** a human takes one seat, in a chat interface with woodcut-style portraits
-
----
-
-## Credits and license
-
-Adapted from **[Plots in the Palazzo](https://www.matthewclifford.com/)** by Matt Clifford, licensed under [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/). The setting, factions, and characters derive from the original game; the rules have been substantially reworked for AI play.
-
-This project is non-commercial. License for this repository: *to be decided.*
+See [LICENSE](LICENSE). This project is non-commercial.

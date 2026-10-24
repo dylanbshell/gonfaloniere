@@ -1,0 +1,44 @@
+This repository is under two licenses.
+
+1. CODE: MIT License
+
+Applies to the source code: src/, pilot/*.py, probe.config.ts, package.json,
+tsconfig.json, and other build and configuration files.
+
+Copyright (c) 2026 dylanbshell
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+2. CONTENT: Creative Commons Attribution-NonCommercial-ShareAlike 4.0
+   International (CC BY-NC-SA 4.0)
+
+Applies to the game content: the setting, factions, characters, briefings,
+rules, and scripted scenes, wherever they appear. That includes docs/,
+scenarios/, and results/published/ (which quote briefings and scenes), and
+the prompt text these files supply to the code.
+
+This content is adapted from "Plots in the Palazzo" by Matt Clifford
+(https://www.matthewclifford.com/), licensed under CC BY-NC-SA 4.0. The
+setting, factions, and characters derive from the original game; the rules
+and briefings have been substantially reworked for play by AI agents.
+
+You may share and adapt this content for non-commercial purposes, with
+attribution to Matt Clifford's original work and to this project, provided
+you distribute your adaptations under the same license. Full terms:
+https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode
