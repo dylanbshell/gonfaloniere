@@ -89,10 +89,19 @@ export interface DroppedEntry {
   entry: unknown;
 }
 
+/** A code repair to an extraction entry, logged like the call repairs (TD, Output Validation & Repair). */
+export interface ExtractionRepair {
+  pass: "10a" | "10b";
+  turn: number;
+  scope: string;
+  repair: string;
+}
+
 export class MemoryStore {
   entries: MemoryEntry[] = [];
   beliefs: Belief[] = [];
   dropped: DroppedEntry[] = [];
+  repairs: ExtractionRepair[] = [];
   private nextM = 1;
   private nextB = 1;
 
@@ -191,7 +200,18 @@ export class MemoryStore {
       return { changed, dropped };
     }
     const byId = new Map(thoughts.map((t) => [t.id, t]));
-    for (const b of parsed.data.beliefs) {
+    for (const raw of parsed.data.beliefs) {
+      // Seen in the mini-game dry run: a new belief's text in "belief" (meant for a B… ID) and no statement.
+      const b = { ...raw, statement: raw.statement ?? "" };
+      if (!raw.statement && raw.change === "new" && raw.belief && !/^B\d+$/.test(raw.belief)) {
+        b.statement = raw.belief;
+        b.belief = null;
+        this.repairs.push({ pass: "10b", turn, scope: character, repair: "statement given in the belief field" });
+      }
+      if (!b.statement) {
+        drop("no statement", raw);
+        continue;
+      }
       const t = byId.get(b.thought.replace(/[[\]]/g, ""));
       if (!t) {
         drop(`cites a thought not in this turn (${b.thought})`, b);
@@ -287,7 +307,7 @@ const ThoughtPass = z.object({
       kind: z.enum(["conclusion", "suspicion"]),
       change: z.enum(["new", "firmer", "dropped"]),
       belief: z.string().nullable(),
-      statement: z.string(),
+      statement: z.string().optional(),
       thought: z.string(),
       quote: z.string(),
     }),

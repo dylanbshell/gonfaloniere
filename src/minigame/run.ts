@@ -20,6 +20,7 @@ import { Budget, worstCaseCost } from "../harness/budget.ts";
 import { RunLog, gitCommit, priorSpend, type LogRecord } from "../harness/log.ts";
 import { apiKey, callModel, fetchEndpoint, makeClient } from "../harness/openrouter.ts";
 import { loadDocs, loadStandinBriefings } from "../sources/docs.ts";
+import { CAST, STANDINS, STANDIN_FILE } from "./cast.ts";
 import { MiniGame, formatLine, type Caller, type GameSettings } from "./engine.ts";
 import { renderBelief, renderEntry, whereLabel } from "./memory.ts";
 
@@ -34,21 +35,15 @@ const { values: opts } = parseArgs({
 });
 
 const OUT = process.env.PROBE_RESULTS_DIR ?? "results/minigame";
-const CAST: CharacterName[] = ["Lupo", "Contessa Isabella", "Captain Armand LeNoir", "Francesco Pazzi", "Raffaello de' Medici", "Giorgia Pazzi"];
-const STANDINS: CharacterName[] = ["Francesco Pazzi", "Raffaello de' Medici", "Giorgia Pazzi"];
-const STANDIN_FILE = "scenarios/minigame-standin-briefings.md";
 
-/** Knowledge checks at game end: (LeNoir, F2) for the plot points, plus the secret-spread grid. */
+/**
+ * Knowledge checks at game end: the secret-spread grid, F2–F5 for every cast member (Dylan,
+ * Oct 24). (LeNoir, F2) is the one that settles Isabella's, LeNoir's, and Raffaello's plot points.
+ */
 function checks(): GameSettings["checks"] {
-  // Who knows each fact at the start (Characters v0.4, Shared Canon), so isn't checked.
-  const knows: Record<string, CharacterName[]> = {
-    F2: ["Contessa Isabella", "Lupo"],
-    F3: ["Giorgia Pazzi", "Captain Armand LeNoir"],
-    F4: ["Contessa Isabella", "Lupo"],
-    F5: ["Lupo", "Contessa Isabella"],
-  };
-  return Object.entries(knows).flatMap(([fact, holders]) => CAST.filter((c) => !holders.includes(c)).map((character) => ({ character, fact })));
+  return ["F2", "F3", "F4", "F5"].flatMap((fact) => CAST.map((character) => ({ character, fact })));
 }
+
 
 async function main(): Promise<void> {
   // The run's spend goes to the mini-game ledger.
@@ -145,6 +140,12 @@ function buildRecord(game: MiniGame, x: { gameId: string; seed: number; docs: Re
       aliases: ALIASES,
       cast: CAST,
       personality: "none: stock model; the secret-keeping lines are part of TD v0.5's prompts",
+      // Test-setup choices for the mini-game, not the game's rules (Dylan, Oct 24).
+      minigame_settings: [
+        "Il Notaio's opening line: a smaller gathering of six; the other guests are alive but elsewhere and can't be reached",
+        "Interim lone-guest rule: a guest left alone in a Capannello joins the other Capannello at once (permanent rule with Mechanics)",
+        "Block 9c's {target} in the choice lines reads 'your target' (TD fix pending)",
+      ],
       standins: { characters: STANDINS, source: `${STANDIN_FILE} (adapted from PitP_Original_Rules_Trimmed)` },
       tunables: x.docs.tunables,
       briefings: x.briefings,
@@ -154,7 +155,7 @@ function buildRecord(game: MiniGame, x: { gameId: string; seed: number; docs: Re
     lines: game.lines,
     thoughts: game.thoughts,
     calls: game.calls,
-    memory: { entries: game.memory.entries, beliefs: game.memory.beliefs, dropped: game.memory.dropped },
+    memory: { entries: game.memory.entries, beliefs: game.memory.beliefs, dropped: game.memory.dropped, repairs: game.memory.repairs },
     snapshots: game.snapshots,
     murder_round: { resolved: false, acts: game.murderActs },
     knowledge_checks: game.knowledgeChecks,

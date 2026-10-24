@@ -8,7 +8,7 @@
 
 import type { ActionType } from "../game/actions.ts";
 import { allowedActionTypes, allowedActionsText, type ActionContext } from "../game/actions.ts";
-import { factionOf, type CharacterName } from "../game/roster.ts";
+import { ROSTER, factionOf, type CharacterName } from "../game/roster.ts";
 import { parseSpeak } from "../output/speak.ts";
 import { parseStrategy } from "../output/strategy.ts";
 import { parseThink } from "../output/think.ts";
@@ -225,8 +225,13 @@ export class MiniGame {
   private openCapannelli(): void {
     const order = shuffle([...this.s.cast], this.rng);
     this.rotation = shuffle([...this.s.cast], this.rng);
+    // Mini-game setting (Dylan, Oct 24): six of the twelve attend. Without this, characters read the
+    // absent guests' missing names under "All living guests" as deaths.
+    const absent = ROSTER.map((r) => r.name).filter((n) => !this.s.cast.includes(n));
+    const smaller = `Tonight is a smaller gathering than most: only ${listJoin(this.s.cast)} attend. ${listJoin(absent)} are alive, but elsewhere tonight, and can't be reached.`;
     for (let i = 0; i < order.length; i += 3) {
       const conv = this.newConversation("capannello", order.slice(i, i + 3));
+      this.notaio(conv, smaller);
       this.notaio(conv, `The guests drifted into company: ${listJoin(conv.members)}.`);
     }
     this.events.push({ turn: 0, type: "capannelli", groups: [...this.convs.values()].map((c) => c.members), rotation: this.rotation });
@@ -479,6 +484,28 @@ export class MiniGame {
       this.enter(from, bumped);
     }
     this.enter(to, mover);
+    this.fixLoneGuests();
+  }
+
+  /**
+   * Interim mini-game rule (Dylan, Oct 24; the permanent rule is with Mechanics): a guest left
+   * alone in a Capannello joins the other Capannello at once, with Il Notaio's join note.
+   */
+  private fixLoneGuests(): void {
+    for (const conv of this.convs.values()) {
+      if (!conv.open || conv.kind !== "capannello" || conv.members.length !== 1) continue;
+      const other = [...this.convs.values()]
+        .filter((x) => x.open && x.kind === "capannello" && x.id !== conv.id && x.members.length >= 1 && x.members.length < this.s.maxCapannello)
+        .sort((a, b) => b.members.length - a.members.length)[0];
+      if (!other) continue;
+      const lone = conv.members[0]!;
+      conv.members = [];
+      conv.importance.clear();
+      conv.lastSpeaker = null;
+      conv.designated = null;
+      this.enter(other, lone);
+      this.events.push({ turn: this.turn, type: "lone-guest-join", character: lone, from: conv.id, to: other.id });
+    }
   }
 
   private leave(conv: Conversation, c: CharacterName, note: string): void {
@@ -523,6 +550,7 @@ export class MiniGame {
     }
     // The pair already heard the note in the Capannello they left; the Colloquio starts from it.
     this.events.push({ turn: this.turn, type: "colloquio-open", conversation: colloquio.id, mover, target });
+    this.fixLoneGuests();
   }
 
   private closeColloquio(conv: Conversation, why: "ended" | "cap"): void {
@@ -541,6 +569,7 @@ export class MiniGame {
       this.notaio(dest, others.length ? `${c} returned to company and rejoined ${listJoin(others)}.` : `${c} returned to company.`);
       dest.needsThink = true;
     }
+    this.fixLoneGuests();
   }
 
   /** TD v0.5 Memory Writing: a conversation pass per conversation active this turn, a thought pass per character. */
