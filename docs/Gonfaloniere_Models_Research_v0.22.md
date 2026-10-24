@@ -1,8 +1,17 @@
 # Gonfaloniere
 ## Models & Research — Working Document
-### Version 0.21
+### Version 0.22
 
 ---
+
+## Changes in v0.22
+
+- **Merged "TD v0.5 ready for the mini-game"** (Oct 24): every dependency of the Mini-Game Spec is met except the runner. The spec now pins TD v0.5 and Characters v0.4 and adopts TD's memory design: two extraction passes per turn (conversation, thought), IDs cited by the model, speaker and turn filled in by code, quotes checked word for word, dropped entries logged for gate 8. Knowledge checks use TD's four verdicts; the (LeNoir, F2) check settles three plot points. **Secret-spread checks adopted** as a report-only measure
+- **S10 isn't comparable across versions:** TD v0.5 changed block 9e to a single `act` (Lupo: `kills`). The S10 results in the Findings Log are on v0.4; any rerun is a new baseline
+- **Francesco doesn't know Lupo kills for hire** (Dylan, Oct 24; now in Characters v0.4). Lupo's confessions to his master count as leaks; the held-out result (DeepSeek with three lines, 5/10) stands as measured
+- **Published** (Oct 24): the repo is public with curated results (`results/published/`), current docs, and licensing (MIT code; CC BY-NC-SA 4.0 game content). The `cal5` r3 rubric fingerprint is mapped to its v0.21 doc text, so earlier verdicts still count
+- **Tinker research grant applied for** (Oct 24): $1,000 for two experiments on DeepSeek-V4.1-Flash (capitulation training on reasoning and reply; Bold/Cautious variants). Public proposal at `docs/grant-proposal.pdf` in the repo
+- **Judging through a Claude subscription considered and rejected:** it would change the calibrated judge, hurt reproducibility, and share the developer's own usage limits; batch API judging remains the plan
 
 ## Changes in v0.21
 
@@ -440,7 +449,7 @@ DeepSeek has no small current models (its small models are older Qwen- and Llama
 | # | Assumption | Status | Test | Cost |
 |---|---|---|---|---|
 | 1 | **Fine-tuning can fix capitulation** (the research premise) | **Not supported at pilot scale** (Oct 23): no effect from 84 pairs; prompt route did better | Capitulation Pilot, below | $33 (done) |
-| 2 | Single-call probes predict behaviour in a real game | Untested; spec ready (Oct 23) | Mini-game, see Mini-Game Spec (needs TD's extraction prompt). Also checks **real-history leakage**: the judge flags any reference to events after the evening (Piero's exile, Savonarola's execution) or a "correction" of the briefing from real history (e.g. Clarice as Lorenzo's wife) | ~$2–5 |
+| 2 | Single-call probes predict behaviour in a real game | Untested; spec ready, prompts ready (TD v0.5, Oct 24); runner next | Mini-game, see Mini-Game Spec. Also checks **real-history leakage**: the judge flags any reference to events after the evening (Piero's exile, Savonarola's execution) or a "correction" of the briefing from real history (e.g. Clarice as Lorenzo's wife) | ~$2–5 |
 | 3 | DeepSeek's lead is real | **Holds** (Oct 22): only model to pass gate 3 under `cal3` (S5a 27/30, S5b 22/30) | 20 more S5a and S5b runs, majority judging | ~$3 (done) |
 | 4 | The lead comes from DeepSeek's training, not this release or luck | **Mostly holds** (Oct 22, Parasail): V4 Flash matches V4.1 on S5a, ahead of the Qwen models on S5b but short of the bar; 10 runs only | Probe DeepSeek V4 Flash on S4–S7 | ~$1–2 |
 | 5 | The fine-tuning route stays available | Risk | Tinker retires models on notice (DeepSeek-V3.1 retires Oct 23); adapters need the exact base. Keep a self-hostable fallback base and download every adapter | — |
@@ -505,9 +514,9 @@ DeepSeek has no small current models (its small models are older Qwen- and Llama
 
 *Added Oct 23. Tests assumption #2: do the single-call probes predict behaviour in free play? Also the first test of memory (gate 8) and of long-game coherence (gate 9).*
 
-**Dependencies:** Technical Design's extraction and knowledge-check prompts; the three secret-keeping lines merged into TD; a small runner in the harness (Claude Code).
+**Dependencies:** met (Oct 24) except the runner. TD v0.5 has the three secret-keeping lines, the S8–S10 fixes, the extraction passes (blocks 10a–10b), and the knowledge check with its plot-point fact table (block 10c). **Remaining:** the runner in the harness (Claude Code). It starts with a dry run (one game, 2 turns, cap $1) and a hand-read of its transcript and game record before the full 5 games.
 
-**Model and prompts:** DeepSeek V4.1 Flash (`-1017`), TD (latest) with the claim, reply, and audience lines, Characters (latest), `plot_reward` off, temperature 0.7, thinking off.
+**Model and prompts:** DeepSeek V4.1 Flash (`-1017`), TD v0.5 (with the claim, reply, and audience lines), Characters v0.4 (Francesco doesn't know Lupo's trade), `plot_reward` off, temperature 0.7, thinking off.
 
 **Cast (6):** Lupo, Contessa Isabella, Captain LeNoir (current briefings), plus Francesco Pazzi, Raffaello de' Medici, and Giorgia Pazzi. Until Characters writes those three, use their original briefings from `PitP_Original_Rules_Trimmed`, cut to what the rewrite rules allow and recorded as stand-ins. This cast puts the San Frediano secret, the love knot, and the Medici–Pazzi rivalry in play.
 
@@ -515,8 +524,8 @@ DeepSeek has no small current models (its small models are older Qwen- and Llama
 - Opening: no faction meeting; strategy call (block 9d) for each character
 - Capannello phase: two groups of three, re-drawn at random; **8 turns**, each with `think()` for everyone present, speaking by importance with the decay rule and designation (with the ping-pong guard), and one movement window per turn (block 9c), so Colloquii and group switches happen
 - Il Notaio's notes for joins, departures, and withdrawals; action lines for bribes
-- Extraction pass at the end of every turn; long-term memory retrieved per Technical Design
-- End: one Murder Round call per character (block 9e) as a sanity check, not resolved into deaths
+- Two extraction passes at the end of every turn, per Technical Design: a **conversation pass** (one call per conversation) and a **thought pass** (one call per character). The model cites line and thought IDs; code fills in speaker and turn, checks every quote word for word, and logs dropped entries. Payments, Il Notaio's events, and private actions are written by code. Long-term memory retrieved per Technical Design
+- End: one Murder Round call per character (block 9e, single `act`; Lupo `kills`) as a sanity check, not resolved into deaths
 
 **Runs:** 5 games. Every game saved as a full game record (Technical Design format), so it can be replayed in the dashboard later.
 
@@ -526,8 +535,9 @@ DeepSeek has no small current models (its small models are older Qwen- and Llama
 |---|---|---|
 | **Secrets kept** | `cal5` judge on each character's lines across the whole game; per-secret survival and first-leak turn | Report. Flag any secret that falls before turn 3 in most games |
 | **Probes predict play** | Compare leak timing and pressure type with S5b/S5d/held-out | Report; this is assumption #2 |
-| **Memory (gate 8)** | Judge compares each extraction pass with its transcript: missed ★ items (promises, threats, payments, admissions), invented facts, wrong speaker | ≥90% of ★ items captured; **no invented facts** |
-| **Knowledge checks** | Ask each plot-point knowledge question at the end; hand-check against transcripts | Report agreement |
+| **Memory (gate 8)** | Judge compares both extraction passes with the transcript and thoughts: missed ★ items (promises, threats, payments, admissions), invented facts, and conclusions or suspicions the thoughts don't support. Code-dropped entries (bad ID, quote mismatch) reported by type | ≥90% of ★ items captured; **no invented facts** |
+| **Knowledge checks** | TD block 10c at the end of each game, four verdicts (told, firm conclusion, suspicion, none); the (LeNoir, F2) check settles Isabella's, LeNoir's, and Raffaello's plot points. Hand-check against transcripts | Report agreement by verdict |
+| **Secret spread** | TD block 10c at the end of each game, for every other cast member on each core secret: F2 (Isabella ordered the killing), F3 (Giorgia and LeNoir), F4 (Isabella hired Lupo), and TD's optional F5 (Lupo kills for hire) | Report only: who learned what, how, and when; pairs with "Secrets kept" |
 | **Coherence (gate 9)** | Contradictions with the character's own earlier statements; plan followed or changed for a stated reason | Contradictions ≤1 per character per game |
 | **Conversation flow** | Designations per line, ping-pong guard fires, Colloquio length and ending, movement use | No stuck loops; every character speaks |
 | **Format** | Repair and retry rates per call type | Gate 1 repaired ≥95% on every call type |
@@ -712,8 +722,8 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 - [ ] **Development model:** one of the six probe candidates; decided by the probes
 - [ ] **Fine-tuning base and personality option (1, 2, or 3):** deferred until fine-tuning is near; revisit The Personality–Model Decision with fresh prices
 - [ ] Should paying a blackmailer count toward plot points in the game (does Bartolo "learn" the secret)? A Technical Design question under its deduced-knowledge rule, separate from gate 3
-- [ ] Run the Capitulation Pilot (Assumption Tests)
-- [ ] Strategy probes (S8–S10): deferred until after the pilot; run on the fine-tuning bases it qualifies, with DeepSeek as the reference
+- [x] Run the Capitulation Pilot (Assumption Tests): no effect, Oct 23
+- [x] Strategy probes (S8–S10): run Oct 23 on TD v0.4 (see Findings Log)
 - [ ] **How many research games** the study needs (the largest cost line)
 - [ ] How much should strategy (S8–S10, mini-game, full games) weigh in choosing the fine-tuning base, compared with passing the basic gates?
 - [ ] Later: mixed-model games, where different models play against each other, to compare strategy directly
@@ -743,6 +753,13 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 ## Findings Log
 
 *Record each test result here: date, model, provider and quantization, prompt and briefing versions, gate tested, result, and what it changes. Tooling and price checks go in Tooling Status, not here.*
+
+### 2026-10-24 — Publication, grant application, and mini-game readiness
+
+- **Repo public** with curated results: 147 judged run sets, rubric history, 3 transcripts per scenario, the pilot's config and metrics, and full scorer reports. Gitleaks found no secrets in any commit. Raw logs (267 MB) stay private
+- **Rubric fingerprint:** v0.20 added the `cal5` listener rule to this doc's judging section, changing the rubric fingerprint. The only text difference from the v0.17 rubric is that bullet, which restates what the judge code applies, so the new fingerprint is registered as `cal5` r3. A test re-judge made no calls
+- **Grant:** application submitted to Tinker's research grant program for $1,000 in credits (two experiments on DeepSeek-V4.1-Flash; budget ~$710 plus more research games). Judging stays self-funded on Claude Sonnet with batch pricing
+- **Mini-game:** TD v0.5 and Characters v0.4 cover every prompt and briefing the spec needs. Left: copy both into the repo's `docs/`, point the harness config at them, and build the runner
 
 ### 2026-10-23 — Strategy probes S8–S10
 

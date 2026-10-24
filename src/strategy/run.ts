@@ -2,12 +2,13 @@
 // Design v0.4's real task prompts, and logs every call as a "strategy"
 // record for strategy/judge.ts.
 //
-//   PROBE_TD=0.4 PROBE_CHARACTERS=0.3 npm run strategy -- --model deepseek-v4.1-flash --lines
-//   PROBE_TD=0.4 PROBE_CHARACTERS=0.3 npm run strategy -- --model gpt-5.4 --items S8
+//   npm run strategy -- --model deepseek-v4.1-flash --lines
+//   npm run strategy -- --model gpt-5.4 --items S8
 //
 // Options: --model <id>, --items S8,S9a,S9b,S10 (default all), --lines (the
 // claim line in think(), the reply and audience lines in speak(); Dylan,
-// Oct 23), --dry-run (print one prompt per situation), --concurrency <n>.
+// Oct 23; TD v0.5 builds them in, so --lines is for TD v0.4 only), --dry-run
+// (print one prompt per situation), --concurrency <n>.
 // plot_reward stays off (config), so Block 9e has no extra act.
 
 import { parseArgs } from "node:util";
@@ -73,7 +74,7 @@ export interface StrategyRecord {
 async function main(): Promise<void> {
   const model = config.models.find((m) => m.id === opts.model);
   if (!model) throw new Error(`Unknown --model ${opts.model}`);
-  const td = process.env.PROBE_TD ?? "0.4";
+  const td = process.env.PROBE_TD ?? "0.5";
   const docs = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath(td) });
   const wanted = opts.items.split(",");
   const items = STRATEGY_ITEMS.filter((i) => wanted.some((w) => i.probe === w || i.id === w));
@@ -84,9 +85,10 @@ async function main(): Promise<void> {
     const sit = item.situations[n % item.situations.length]!;
     const ctx = characterContext(sit.scenario, sit.character, docs, config);
     if (sit.gathering) {
-      // TD: Murder Round, ballot, and run-off happen at "the gathering"; everyone living is there.
+      // TD: Murder Round, ballot, and run-off happen at "the gathering", with no one
+      // present (v0.5: "no one; you decide alone"); targets come from the living guests.
       ctx.state.conversation = { kind: "gathering" };
-      ctx.state.present = [...ctx.state.livingOthers];
+      ctx.state.present = [];
     }
     if (sit.embassyPensions && ctx.state.embassyLedger) ctx.state.embassyLedger.pensions = sit.embassyPensions;
     return ctx;
@@ -172,7 +174,7 @@ async function main(): Promise<void> {
         ...(item.task.kind === "ballot" && { maxBuy: Math.floor(ctx.state.florins / item.task.votePrice) }),
         ...(item.task.kind === "runoff" && { tied: item.task.tied }),
       });
-      parsed = { verdict: r.verdict, fenced: r.fenced, repairs: r.aliasRepairs ? [`alias×${r.aliasRepairs}`] : [], illegal: r.illegal, value: r.value };
+      parsed = { verdict: r.verdict, fenced: r.fenced, repairs: [...(r.aliasRepairs ? [`alias×${r.aliasRepairs}`] : []), ...(r.truncated ? ["planTruncated"] : [])], illegal: r.illegal, value: r.value };
       if (r.errors.length) parsed.illegal = [...r.errors];
     }
     record({ ...base, call: kind, raw, verdict: parsed.verdict as StrategyRecord["verdict"], fenced: parsed.fenced, repairs: parsed.repairs, illegal: parsed.illegal, value: parsed.value, costUsd: made.cost, error: null });

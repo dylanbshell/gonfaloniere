@@ -74,7 +74,7 @@ const { values: opts, positionals } = parseArgs({
   allowPositionals: true,
   options: {
     "dry-run": { type: "boolean", default: false },
-    td: { type: "string", default: process.env.PROBE_TD ?? "0.4" },
+    td: { type: "string", default: process.env.PROBE_TD ?? "0.5" },
     extend: { type: "boolean", default: false },
     concurrency: { type: "string" },
     model: { type: "string" },

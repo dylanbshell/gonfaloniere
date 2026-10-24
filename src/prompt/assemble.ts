@@ -100,6 +100,9 @@ export function assembleThinkPrompt(
   opts: { extraInstruction?: string } = {},
 ): AssembledPrompt {
   const colloquio = ctx.state.conversation.kind === "colloquio";
+  if (opts.extraInstruction && t.think.includes(opts.extraInstruction)) {
+    throw new Error("This Technical Design's think() task already has that line (TD v0.5 builds in the secret-keeping lines)");
+  }
   const task = fill(t.think, {
     character_name: ctx.characterName,
     done_instruction: colloquio
@@ -166,6 +169,9 @@ export function assembleSpeakPrompt(t: PromptTemplates, ctx: CharacterContext, o
   let out = opts.extraInstruction ? addBullet(task, opts.extraInstruction) : task;
   if (opts.insertAfter) {
     const { after, text } = opts.insertAfter;
+    if (out.includes(text.slice(0, 60))) {
+      throw new Error("This Technical Design's speak() task already has that line (TD v0.5 builds in the secret-keeping lines)");
+    }
     if (!out.includes(after)) throw new Error(`speak() task has no "${after}" to insert after`);
     out = out.replace(after, `${after} ${text}`);
   }
@@ -193,20 +199,35 @@ export function assemblePlanPrompt(t: PromptTemplates, ctx: CharacterContext, tr
 
 /**
  * Block 9e: the Murder Round, without the Plot Reward (its placeholders empty).
- * Lupo's acts and count differ, per TD's table.
+ * Lupo's acts differ, per TD's table. TD v0.5 asks for a single `act` (Lupo: a
+ * `kills` list) and adds {distinct_targets_note}; TD v0.4 asked for an `acts` list.
  */
 export function assembleMurderPrompt(t: PromptTemplates, ctx: CharacterContext): AssembledPrompt {
   const lupo = ctx.characterName === "Lupo";
-  const task = fill(template(t, "murder"), {
-    allowed_murder_acts: lupo
-      ? "KILL up to two living guests. Your kills cannot be stopped by guards or investigations. You may not GUARD or INVESTIGATE with them."
-      : "KILL, GUARD, or INVESTIGATE any living guest. You cannot GUARD yourself.",
-    reward_instruction: "",
-    acts_count_instruction: lupo ? "one or two kills." : "exactly one act.",
-    extra_instruction: "",
-    murder_schema: '{"thought": "...", "acts": [{"type": "kill" or "guard" or "investigate", "target": "..."}]}',
-  });
-  return assemble(t, ctx, dropEmptyPlaceholderLines(task));
+  const murder = template(t, "murder");
+  const allowed = lupo
+    ? "KILL up to two living guests. Your kills cannot be stopped by guards or investigations. You may not GUARD or INVESTIGATE with them."
+    : "KILL, GUARD, or INVESTIGATE any living guest. You cannot GUARD yourself.";
+  const values: Record<string, string> = murder.includes("{acts_instruction}")
+    ? {
+        allowed_murder_acts: allowed,
+        reward_instruction: "",
+        acts_instruction: lupo ? "2. kills — the one or two guests you will kill." : "2. act — your one act: a single choice, not a list.",
+        extra_instruction: "",
+        // Without the Plot Reward, only Lupo has more than one act.
+        distinct_targets_note: lupo ? "Each of your acts must name a different guest. " : "",
+        murder_schema: lupo
+          ? '{"thought": "...", "kills": ["...", "..."]}'
+          : '{"thought": "...", "act": {"type": "kill" or "guard" or "investigate", "target": "..."}}',
+      }
+    : {
+        allowed_murder_acts: allowed,
+        reward_instruction: "",
+        acts_count_instruction: lupo ? "one or two kills." : "exactly one act.",
+        extra_instruction: "",
+        murder_schema: '{"thought": "...", "acts": [{"type": "kill" or "guard" or "investigate", "target": "..."}]}',
+      };
+  return assemble(t, ctx, dropEmptyPlaceholderLines(fill(murder, values)));
 }
 
 export interface BallotValues {
@@ -284,7 +305,8 @@ function stateBlock(t: PromptTemplates, s: StateValues): string {
   const filled = fill(t.state, {
     phase_label: s.phaseLabel,
     conversation_label: conversationLabel(s.conversation),
-    present_characters: s.present.join(", "),
+    // TD v0.5: outside a conversation (Murder Round, ballot, run-off) no one is present.
+    present_characters: s.conversation.kind === "gathering" && !s.present.length ? "no one; you decide alone" : s.present.join(", "),
     living_others: s.livingOthers.join(", "),
     dead_list: s.dead.length ? s.dead.join(", ") : "none",
     florins: String(s.florins),

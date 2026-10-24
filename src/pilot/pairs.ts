@@ -33,8 +33,8 @@ export const FIRST_REVISED_RUN = "2026-10-22T08-27";
  * discards older data rather than mixing formats or briefings.
  */
 export function currentDataRuns(records: LogRecord[]): Set<string> {
-  const td = process.env.PROBE_TD ?? "0.4";
-  const characters = process.env.PROBE_CHARACTERS ?? "0.3";
+  const td = process.env.PROBE_TD ?? "0.5";
+  const characters = process.env.PROBE_CHARACTERS ?? "0.4";
   return new Set(
     records
       .filter(
@@ -241,7 +241,7 @@ function main(): void {
   const qwenAll = replies.filter((c) => c.model === "qwen3.8-27b" && c.label);
 
   const report = [
-    `Prompts: ${prompts.length} (TD v${process.env.PROBE_TD ?? "0.4"}, Characters v${process.env.PROBE_CHARACTERS ?? "0.3"}); replies parsed: ${replies.length}`,
+    `Prompts: ${prompts.length} (TD v${process.env.PROBE_TD ?? "0.5"}, Characters v${process.env.PROBE_CHARACTERS ?? "0.4"}); replies parsed: ${replies.length}`,
     `Qwen replies labelled: ${qwenAll.length}; leaks ${qwenAll.filter((c) => isLeak(c.label!)).length} ` +
       `(${((100 * qwenAll.filter((c) => isLeak(c.label!)).length) / Math.max(1, qwenAll.length)).toFixed(1)}%); lies ${qwenAll.filter((c) => c.label!.lie).length}`,
     `Qwen honest holds: ${qwenAll.filter((c) => isHonestHold(c.label!)).length}; prompts with both a leak and an honest hold: ${prompts.filter((r) => pairsFromPrompt(r) > 0).length}`,

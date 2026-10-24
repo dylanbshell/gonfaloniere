@@ -6,7 +6,7 @@
 // and a rollout stops being checked once its conversation has revealed the
 // secret (everything after is dropped anyway). Writes "relabel" records.
 //
-//   PROBE_TD=0.4 PROBE_CHARACTERS=0.3 PROBE_RESULTS_DIR=results/pilot PROBE_TOTAL_USD=30 \
+//   PROBE_RESULTS_DIR=results/pilot PROBE_TOTAL_USD=30 \
 //     op run --env-file=.env -- npm run pilot:refilter -- --run-cap 3
 
 import { parseArgs } from "node:util";
@@ -33,7 +33,7 @@ const { values: opts } = parseArgs({
 const HONEST_HOLDS = ["decline", "deflect", "call_bluff", "demand_proof"];
 
 async function main(): Promise<void> {
-  const docs = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath(process.env.PROBE_TD ?? "0.4") });
+  const docs = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath(process.env.PROBE_TD ?? "0.5") });
   const all = readRecords(runLogFiles());
   const runs = currentDataRuns(all);
   const strict = new Set(

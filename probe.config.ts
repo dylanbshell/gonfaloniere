@@ -58,19 +58,21 @@ function tinkerCheckpoint(name: string): string {
 }
 
 /**
- * Doc versions for one invocation. The probes' S1–S7 reference is TD v0.2 with
- * Characters v0.2; the Capitulation Pilot runs on TD v0.4 and Characters v0.3
- * (Dylan, Oct 22), set with PROBE_TD and PROBE_CHARACTERS (and --td for the runner).
+ * Doc versions for one invocation: the current TD and Characters by default,
+ * or others with PROBE_TD and PROBE_CHARACTERS (and --td for the runner).
+ * docs/ holds only current versions; earlier ones (S1–S7 ran on TD v0.2 and
+ * Characters v0.2, the Capitulation Pilot on TD v0.4 and Characters v0.3) are
+ * in git history, and every logged result records the versions it ran on.
  */
 export const technicalDesignPath = (version: string) => `docs/Gonfaloniere_Technical_Design_v${version}.md`;
 const CHARACTERS_VERSION = process.env.PROBE_CHARACTERS ?? "0.4";
 
 export const config = {
   docs: {
-    technicalDesign: technicalDesignPath(process.env.PROBE_TD ?? "0.4"),
+    technicalDesign: technicalDesignPath(process.env.PROBE_TD ?? "0.5"),
     characters: `docs/Gonfaloniere_Characters_v${CHARACTERS_VERSION}.md`,
     mechanics: "docs/Gonfaloniere_Game_Mechanics_v0.20.md",
-    modelsResearch: "docs/Gonfaloniere_Models_Research_v0.21.md",
+    modelsResearch: "docs/Gonfaloniere_Models_Research_v0.22.md",
   },
 
   /** Same for every model; 0.7 until Technical Design sets a play value. */
