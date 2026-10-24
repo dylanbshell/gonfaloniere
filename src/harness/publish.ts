@@ -24,7 +24,7 @@ const LEDGERS = [
   { dir: "results/pilot", name: "pilot" },
 ];
 /** cal5 shares one id across revisions; the hash tells them apart (judge.ts RUBRIC_REVISION). */
-const CAL5_REVISIONS: Record<string, string> = { "5d094e1706aa": "cal5 r2", deeb41c5bd0a: "cal5 r3" };
+const CAL5_REVISIONS: Record<string, string> = { "5d094e1706aa": "cal5 r2", deeb41c5bd0a: "cal5 r3", "105a45ddb9b7": "cal5 r3" };
 
 const rubricLabel = (r: JudgeRecord) => {
   const cal = r.rubricVersion.match(/\+(cal\d+)$/)?.[1] ?? "uncalibrated";

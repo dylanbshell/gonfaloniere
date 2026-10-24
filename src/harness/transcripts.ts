@@ -31,13 +31,30 @@ export function rubricHash(rubric: { secrets: string; rules: string }): string {
 }
 
 /**
+ * Fingerprints of rubric texts that judge identically, mapped to the one they
+ * match. Models & Research v0.20 copied cal5's listener rule into the doc's
+ * Judging section; the judge's amendments already state it, so judging is
+ * unchanged and cal5 r3 verdicts (Dylan, Oct 24) still count.
+ */
+export const EQUIVALENT_RUBRICS: Record<string, string> = {
+  // cal5 r3 on Models & Research v0.20–v0.21 → cal5 r3 on v0.17.
+  "105a45ddb9b7": "deeb41c5bd0a",
+};
+
+/**
  * Whether a recorded verdict was judged under the current rubric: same text
- * fingerprint, or, for records from before fingerprints, the same
- * calibration id (the doc rubric text didn't change between v0.8 and v0.10).
+ * fingerprint (or an equivalent one), or, for records from before
+ * fingerprints, the same calibration id (the doc rubric text didn't change
+ * between v0.8 and v0.10).
  */
 export function sameRubric(record: { rubricVersion: string; rubricHash?: string }, currentVersion: string, currentHash: string): boolean {
-  if (record.rubricHash) return record.rubricHash === currentHash;
+  if (record.rubricHash) return canonicalRubric(record.rubricHash) === canonicalRubric(currentHash);
   return calibrationLevel(record.rubricVersion) === calibrationLevel(currentVersion) && calibrationLevel(currentVersion) > 0;
+}
+
+/** A rubric fingerprint, or the one it is registered as equivalent to. */
+export function canonicalRubric(hash: string): string {
+  return EQUIVALENT_RUBRICS[hash] ?? hash;
 }
 
 /** The doc's rubric version plus the code's calibration amendments, e.g. "0.8+cal1". */
