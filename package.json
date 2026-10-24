@@ -18,7 +18,8 @@
     "pilot:chosen": "tsx src/pilot/chosen.ts",
     "strategy": "tsx src/strategy/run.ts",
     "strategy:judge": "tsx src/strategy/judge.ts",
-    "publish:results": "tsx src/harness/publish.ts && npm run -s score > results/published/score-report-probe.md && PROBE_RESULTS_DIR=results/pilot npm run -s score > results/published/score-report-pilot.md && npm run -s strategy:judge -- --a deepseek-v4.1-flash --b qwen3.8-27b --ref gpt-5.4 --report > results/published/strategy-probes.md"
+    "publish:results": "tsx src/harness/publish.ts && npm run -s score > results/published/score-report-probe.md && PROBE_RESULTS_DIR=results/pilot npm run -s score > results/published/score-report-pilot.md && npm run -s strategy:judge -- --a deepseek-v4.1-flash --b qwen3.8-27b --ref gpt-5.4 --report > results/published/strategy-probes.md",
+    "minigame": "tsx src/minigame/run.ts"
   },
   "dependencies": {
     "openai": "^7.39.0",

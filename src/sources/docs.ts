@@ -38,12 +38,32 @@ export interface JudgeRubric {
   rules: string;
 }
 
+/** A system prompt (blocks 10a–10c): the cached instructions, and the per-call data template. */
+export interface SystemPrompt {
+  system: string;
+  user: string;
+}
+
+/** A plot-point fact the knowledge check tests (TD v0.5, Plot Point Checks). */
+export interface PlotFact {
+  id: string;
+  fact: string;
+  mustInclude: string;
+  doesNotCount: string;
+}
+
 export interface DocSources {
   versions: DocVersions;
   judgeRubric: JudgeRubric;
   templates: PromptTemplates;
   briefings: Partial<Record<CharacterName, string>>;
   tunables: Tunables;
+  /** Characters' standard social awareness text, filled into every briefing. */
+  socialAwareness: string;
+  /** TD v0.5's system prompts; absent before v0.5. */
+  systemPrompts?: { conversationPass: SystemPrompt; thoughtPass: SystemPrompt; knowledgeCheck: SystemPrompt };
+  /** TD v0.5's plot-point facts (F1–F4, and the optional F5); empty before v0.5. */
+  plotFacts: PlotFact[];
 }
 
 // Heading each written briefing sits under in the Characters doc.
@@ -73,6 +93,7 @@ export function loadDocs(paths: DocPaths): DocSources {
     speak: only(fencesUnder(td, "### Block 9b — speak() task"), "Block 9b"),
     ...(addresseeInstruction && { addresseeInstruction }),
     // TD v0.4's strategy, Murder Round, ballot, and run-off tasks (blocks 9d–9g); absent before v0.4.
+    ...optionalTemplate(td, "### Block 9c — Movement task", "move"),
     ...optionalTemplate(td, "### Block 9d — Strategy task", "plan"),
     ...optionalTemplate(td, "### Block 9e — Murder Round task", "murder"),
     ...optionalTemplate(td, "### Block 9f — Ballot task", "ballot"),
@@ -96,7 +117,58 @@ export function loadDocs(paths: DocPaths): DocSources {
     briefings,
     tunables: parseTunables(mech),
     judgeRubric: judgeRubric(mr),
+    socialAwareness,
+    ...(systemPrompts(td) && { systemPrompts: systemPrompts(td)! }),
+    plotFacts: plotFacts(td),
   };
+}
+
+/** Blocks 10a–10c: each heading holds the system message's code block, then the user message's. */
+function systemPrompts(td: string): DocSources["systemPrompts"] | null {
+  const pair = (heading: string): SystemPrompt | null => {
+    try {
+      const [system, user] = fencesUnder(td, heading);
+      return system && user ? { system, user } : null;
+    } catch {
+      return null;
+    }
+  };
+  const conversationPass = pair("### Block 10a — Conversation pass");
+  const thoughtPass = pair("### Block 10b — Thought pass");
+  const knowledgeCheck = pair("### Block 10c — Knowledge check");
+  return conversationPass && thoughtPass && knowledgeCheck ? { conversationPass, thoughtPass, knowledgeCheck } : null;
+}
+
+/**
+ * The plot-point facts table (TD v0.5), plus the optional F5 the same section
+ * describes in prose ("Lupo kills for hire").
+ */
+function plotFacts(td: string): PlotFact[] {
+  let lines: string[];
+  try {
+    lines = section(td, "### Plot-point facts");
+  } catch {
+    return [];
+  }
+  const cells = (l: string) => l.split("|").slice(1, -1).map((c) => c.trim());
+  const facts = lines
+    .filter((l) => /^\| \*\*F\d\*\* \|/.test(l))
+    .map((l) => {
+      const [id, fact, mustInclude, doesNotCount] = cells(l);
+      return { id: id!.replace(/\*/g, ""), fact: fact!, mustInclude: mustInclude!, doesNotCount: doesNotCount! };
+    });
+  const f5 = lines.join("\n").match(/\*\*F5\*\* "([^"]+)" \(must include: ([^;]+); doesn't count: ([^)]+)\)/);
+  if (f5) facts.push({ id: "F5", fact: `${f5[1]}.`, mustInclude: f5[2]!.trim(), doesNotCount: f5[3]!.trim() });
+  return facts;
+}
+
+/**
+ * Briefings from a stand-in file written in Characters' briefing format
+ * (e.g. the mini-game's stand-ins), with the standard social awareness text.
+ */
+export function loadStandinBriefings(path: string, names: CharacterName[], socialAwareness: string): Partial<Record<CharacterName, string>> {
+  const md = readFileSync(path, "utf8");
+  return Object.fromEntries(names.map((n) => [n, extractBriefing(md, `### ${n}`, socialAwareness)]));
 }
 
 function docVersion(md: string, path: string): string {
