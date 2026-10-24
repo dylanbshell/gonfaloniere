@@ -107,11 +107,18 @@ function main(): void {
   );
 
   // ---- Up to three transcripts per scenario --------------------------------------------
-  const rank = (rubric: string) => (rubric.includes("cal5 r3") ? 5.3 : rubric.includes("cal5") ? 5 : Number(rubric.match(/cal(\d)/)?.[1] ?? 0));
+  // cal5 r1 failed calibration and was never used for results, so it never supplies examples.
+  const rank = (rubric: string) =>
+    rubric.includes("cal5 r1") ? -1 : rubric.includes("cal5 r3") ? 5.3 : rubric.includes("cal5") ? 5 : Number(rubric.match(/cal(\d)/)?.[1] ?? 0);
   const byTarget = new Map<string, (typeof rows)[number]>();
   for (const r of rows) {
     const best = byTarget.get(r.target);
-    if (!best || rank(r.rubric) > rank(best.rubric) || (rank(r.rubric) === rank(best.rubric) && r.sourceRunId > best.sourceRunId)) byTarget.set(r.target, r);
+    // Prefer a full run set (a re-judged subset may hold a single run) from a model still under test, then the newest rubric, then the newest run.
+    // The pilot's trained adapter was dropped from testing; its runs supply examples only as a last resort.
+    const score = (x: typeof r) => [(x.n >= 3 ? 2 : 0) - (x.model.includes("dpo1") ? 1 : 0), rank(x.rubric), x.sourceRunId] as const;
+    const [fa, ra, sa] = score(r);
+    const better = !best || (([fb, rb, sb]) => fa > fb || (fa === fb && (ra > rb || (ra === rb && sa > sb)))) (score(best));
+    if (better) byTarget.set(r.target, r);
   }
   for (const [target, r] of byTarget) {
     const samples = [...r.samples.entries()].map(([n, rs]) => ({ n, rec: [...rs].sort((a, b) => a.at.localeCompare(b.at))[0]! }));
