@@ -63,7 +63,7 @@ function tinkerCheckpoint(name: string): string {
  * (Dylan, Oct 22), set with PROBE_TD and PROBE_CHARACTERS (and --td for the runner).
  */
 export const technicalDesignPath = (version: string) => `docs/Gonfaloniere_Technical_Design_v${version}.md`;
-const CHARACTERS_VERSION = process.env.PROBE_CHARACTERS ?? "0.3";
+const CHARACTERS_VERSION = process.env.PROBE_CHARACTERS ?? "0.4";
 
 export const config = {
   docs: {

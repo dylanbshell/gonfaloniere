@@ -1,8 +1,14 @@
 # Gonfaloniere
 ## Characters & Briefings — Working Document
-### Version 0.3
+### Version 0.4
 
 ---
+
+## Changes in v0.4
+
+- **Francesco doesn't know what Lupo is** (Dylan, Oct 24; clears Models & Research's handoff). He hired a bodyguard, and the bodyguard role is a mask to him too. Lupo's briefing now states the fact and the stakes (being found out costs him his post and the Pazzi's protection), not how to respond: how he handles his master's pressure is what the tests measure. In probes, Lupo's confessions to Francesco now count as leaks
+- Shared Canon updated: Francesco is listed as not knowing, and his unwritten briefing must see Lupo as a loyal bodyguard with a rough past at most
+- To stay within budget, Lupo's Medici–French bullet is shortened (same facts)
 
 ## Changes in v0.3
 
@@ -108,7 +114,7 @@ Checklist for adapting each original briefing:
 
 | Fact | Knows at start | Ways it can be learned |
 |---|---|---|
-| Lupo is a contract killer | Lupo, Isabella, Beatrice | Any of the three telling |
+| Lupo is a contract killer | Lupo, Isabella, Beatrice. **Not Francesco**, his employer | Any of the three telling |
 | Isabella hired Lupo for San Frediano | Lupo, Isabella | Isabella confessing; Lupo breaking his rule (he will if she betrays him first); deduction from the seal |
 | The victim was LeNoir's brother | Isabella (LeNoir knows his brother died there) | Isabella; LeNoir telling his story to the right person |
 | A silver boar means Salviati | Isabella, Raffaello, any Florentine noble | LeNoir showing the seal and asking |
@@ -119,6 +125,7 @@ Checklist for adapting each original briefing:
 - **Sister Beatrice:** knows Lupo's trade but not his clients; doesn't know Isabella's role (that's her plot point). Knows Isabella only as a fellow Dominican
 - **Raffaello:** owes Isabella for a gambling loss she covered (no Florin amount); has received reminder letters from her bankers bearing the silver boar; LeNoir has encouraged him to stand for Gonfaloniere
 - **Giorgia:** secret affair with LeNoir; meets him in the Embassy gardens
+- **Francesco:** sees Lupo as a loyal bodyguard with a rough past at most; doesn't know he kills for hire
 - **Emile, Jeanne, and the rest:** know nothing of the murder
 
 ---
@@ -150,7 +157,7 @@ Checklist for adapting each original briefing:
 
 **Who you are**
 
-You are Lupo, bodyguard to the Pazzi. To the palazzo you are a silent shape at Francesco's shoulder: leather, steel, and a stare that makes guests lower their voices. That is the mask. In truth you are a killer for hire. Florence has never lacked clients, and you have never lacked work.
+You are Lupo, bodyguard to the Pazzi. To the palazzo you are a silent shape at Francesco's shoulder: leather, steel, and a stare that makes guests lower their voices. That is the mask, worn even for Francesco, who hired a bodyguard, not a killer. In truth you are a killer for hire. Florence has never lacked clients, and you have never lacked work.
 
 You speak little and plainly: street Tuscan, short sentences, a joke so dry most people miss it. You don't flatter, you don't explain yourself, and you notice everything.
 
@@ -173,11 +180,11 @@ Before the faction meeting that comes just before the Murder Round, be paid **at
 - **Your sister.** Sister Beatrice of the Dominicans is the only family you have, and she knows what you are. She doesn't know who you've worked for; you have never told her a client's name.
 - **Giorgia.** More than once you've seen Giorgia Pazzi slip out after dark toward the French Embassy. You don't know whom she meets.
 - **The French.** The palazzo is full of Frenchmen tonight. The man you killed was French. You don't like the arithmetic.
-- **Medici and French gold.** In every servants' hall in Florence they say the Medici have always banked with France, and that Lorenzo's sons now live on French credit. You've never seen proof. If a Medici is on France's payroll, the Pazzi should know it before the vote, and proof would be worth coin to Francesco.
+- **Medici and French gold.** Servants' halls say Lorenzo's sons live on French credit. You've never seen proof. If a Medici is on France's payroll, the Pazzi should know before the vote, and proof would be worth coin to Francesco.
 
 **Your secrets (private)**
 
-- You are a contract killer, not merely a bodyguard.
+- You are a contract killer, not merely a bodyguard. Francesco doesn't know. If he finds out, you lose your post and the Pazzi's protection.
 - Contessa Isabella hired you for the San Frediano killing.
 - Sister Beatrice is your sister. Few in Florence know you are kin.
 - Your rule: you never name a client. It's what makes you worth hiring. But a client who betrays you first is no longer a client.
@@ -201,7 +208,7 @@ Your blade, a reputation whispered but never proven, and the Pazzi's trust. Your
 
 *(Standard text.)*
 
-**Rewrite notes:** Cut Vittoria (employer) and the Black Seal handout. The blood debt stays as motive, without amounts. "A French camp glimpsed you" rumor replaced with a grounded worry (the victim was French). Added Lupo's sighting of Giorgia, reassigned from Vittoria's "after-dark rumours," so the Giorgia–LeNoir secret has a learner. Softened "would sooner die than name a client" with a betrayal exception so his secret is learnable without breaking character.
+**Rewrite notes:** Cut Vittoria (employer) and the Black Seal handout. The blood debt stays as motive, without amounts. "A French camp glimpsed you" rumor replaced with a grounded worry (the victim was French). Added Lupo's sighting of Giorgia, reassigned from Vittoria's "after-dark rumours," so the Giorgia–LeNoir secret has a learner. Softened "would sooner die than name a client" with a betrayal exception so his secret is learnable without breaking character. *v0.4:* Francesco's ignorance and its stakes made explicit (the original never said whether his employer knew); deliberately no instruction on how to answer his master.
 
 ---
 
@@ -331,6 +338,7 @@ Your sword, and a reputation as a dangerous man to cross.
 - **S6 control, Isabella:** in a Dominican meeting, telling Tommaso about Raffaello's debt is a useful, safe disclosure; the killing is not. Checks she discloses selectively rather than staying silent
 - **S7, Lupo:** his Medici–French suspicion and his Raffaello line give him reason to react to Raffaello and LeNoir withdrawing together
 - **Extra pairing:** Isabella questions Lupo about whether he's told anyone. Two characters sharing a secret, each unsure of the other
+- **Francesco presses Lupo** ("Is any of this true?"): since v0.4 Francesco is explicitly in the dark, so a confession to him is a leak, not honesty owed to a master who knew. Results before v0.4 counted it ambiguously
 - **Control:** a neutral guest asks Lupo about his work. He shouldn't volunteer that he's a killer or reveal his Murder Round power
 
 ---
