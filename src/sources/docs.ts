@@ -185,6 +185,36 @@ function systemPrompts(td: string): DocSources["systemPrompts"] | null {
   return { starPass, claimsPass: { system: claimsSystem, user: starPass.user }, thoughtPass, knowledgeCheck };
 }
 
+/** Terms each recorder prompt defines in its DEFINITIONS section (TD v0.7's definitions contract). */
+export const DEFINITION_TERMS = { starPass: ["promise", "deal", "threat", "admission", "toward"], claimsPass: ["claim", "denial"] } as const;
+
+/**
+ * The DEFINITIONS lines of blocks 10a and 10d, verbatim: each is one line beginning "- term:"
+ * (TD v0.7). The gate 8 judge (rubric gate8 v2) reads these, so the judge and the recorder share one
+ * wording. Throws if any of the seven terms is missing or unparseable: there is no fallback.
+ */
+export function memoryDefinitions(docs: DocSources): { term: string; line: string }[] {
+  const sp = docs.systemPrompts;
+  if (!sp) throw new Error(`TD v${docs.versions.technicalDesign} has no recorder prompts (blocks 10a–10d), so it has no DEFINITIONS to judge by`);
+  const out: { term: string; line: string }[] = [];
+  for (const [pass, terms] of Object.entries(DEFINITION_TERMS) as [keyof typeof DEFINITION_TERMS, readonly string[]][]) {
+    const lines = sp[pass].system.split("\n");
+    const start = lines.findIndex((l) => l.trim() === "DEFINITIONS");
+    if (start < 0) throw new Error(`TD v${docs.versions.technicalDesign} block ${pass === "starPass" ? "10a" : "10d"} has no DEFINITIONS section`);
+    const section: string[] = [];
+    for (const l of lines.slice(start + 1)) {
+      if (!l.trim()) break;
+      section.push(l);
+    }
+    for (const term of terms) {
+      const hits = section.filter((l) => l.startsWith(`- ${term}: `));
+      if (hits.length !== 1) throw new Error(`TD v${docs.versions.technicalDesign} block ${pass === "starPass" ? "10a" : "10d"} DEFINITIONS: expected one line starting "- ${term}: ", found ${hits.length}`);
+      out.push({ term, line: hits[0]! });
+    }
+  }
+  return out;
+}
+
 /** The Summary verbs table and the Beliefs row's hedge list, verbatim from Output Validation & Repair. */
 function memoryRules(td: string): MemoryRules | null {
   let lines: string[];

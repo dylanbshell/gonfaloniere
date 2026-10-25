@@ -23,9 +23,10 @@ export function apiKey(): string {
   return key;
 }
 
-export function makeClient(key: string): OpenAI {
+/** OpenRouter by default; `baseURL` for another OpenAI-compatible endpoint (e.g. RECORDER_MODEL_BASE_URL). */
+export function makeClient(key: string, baseURL = BASE_URL): OpenAI {
   return new OpenAI({
-    baseURL: BASE_URL,
+    baseURL,
     apiKey: key,
     // Retries are handled in callModel, with longer backoff for provider rate limits.
     maxRetries: 0,

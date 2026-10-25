@@ -13,6 +13,7 @@
 //
 //   npm run minigame:measures -- results/minigame/game-…full.json.gz [more…] --cap 3
 
+import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { gunzipSync } from "node:zlib";
@@ -23,14 +24,14 @@ import { Budget, worstCaseCost } from "../harness/budget.ts";
 import { RunLog, gitCommit, priorSpend, type LogRecord } from "../harness/log.ts";
 import { apiKey, callModel, fetchEndpoint, makeClient } from "../harness/openrouter.ts";
 import { RUBRIC_AMENDMENTS_ID, RUBRIC_REVISION, applyListenerOverride, buildJudgePrompt, checkVerdict, isLeak, judgeJsonSchema, type JudgeVerdict, type TranscriptTurn } from "../judge/judge.ts";
-import { loadDocs } from "../sources/docs.ts";
+import { loadDocs, memoryDefinitions } from "../sources/docs.ts";
 import { CAST, KNOWS_AT_START } from "./cast.ts";
 import { formatLine, type CallRecord } from "./engine.ts";
 import { memoryCounts, whereLabel, type Belief, type GameLine, type MemoryEntry, type Thought } from "./memory.ts";
 
 const { values: opts, positionals } = parseArgs({
   allowPositionals: true,
-  options: { cap: { type: "string", default: "3" }, concurrency: { type: "string", default: "3" }, report: { type: "string" }, notes: { type: "string", default: "v2" }, only: { type: "string" } },
+  options: { cap: { type: "string", default: "3" }, concurrency: { type: "string", default: "3" }, report: { type: "string" }, notes: { type: "string", default: "v2" }, only: { type: "string" }, "dry-run": { type: "boolean", default: false } },
 });
 const OUT = "results/minigame";
 
@@ -100,14 +101,18 @@ async function main(): Promise<void> {
   if (opts.report) return report(JSON.parse(readFileSync(opts.report, "utf8")));
   if (!positionals.length) throw new Error("Pass one or more game records (…full.json.gz)");
   const docs = loadDocs(config.docs);
+  // Rubric gate8 v2: the definitions come from this TD, word for word; missing ones stop the run here.
+  const definitions = memoryDefinitions(docs);
+  const gate8 = gate8Rubric(definitions);
+  if (opts["dry-run"]) return gate8DryRun(docs, definitions, positionals[0]!);
   const judge = config.judge as ModelConfig & { maxTokens: number };
   const client = makeClient(apiKey());
   const endpoint = await fetchEndpoint(judge);
   const budget = new Budget(Number(opts.cap), config.budget.totalUsd, priorSpend(OUT));
   const runId = `${new Date().toISOString().replace(/[:.]/g, "-")}-measures`;
   const log = new RunLog(runId, "minigame-", OUT);
-  log.write({ type: "run", runId, startedAt: new Date().toISOString(), modelId: judge.id, gitCommit: gitCommit(), settings: { records: positionals } } as unknown as LogRecord);
-  console.log(`Measures: ${positionals.length} game(s); judge ${judge.slug}; cap $${opts.cap}; ledger $${budget.priorSpendUsd.toFixed(2)} spent before this`);
+  log.write({ type: "run", runId, startedAt: new Date().toISOString(), modelId: judge.id, gitCommit: gitCommit(), gate8, docVersions: docs.versions, settings: { records: positionals } } as unknown as LogRecord);
+  console.log(`Measures: ${positionals.length} game(s); judge ${judge.slug}; gate 8 rubric ${gate8.name} (${gate8.fingerprint}, definitions from TD v${docs.versions.technicalDesign}); cap $${opts.cap}; ledger $${budget.priorSpendUsd.toFixed(2)} spent before this`);
 
   let stopped = false;
   const ask = async (kind: string, prompt: string, schema: Record<string, unknown>, cacheAt: number): Promise<string | null> => {
@@ -162,7 +167,7 @@ async function main(): Promise<void> {
     const turnsPlayed = [...new Set(rec.lines.map((l) => l.turn))].filter((t) => t > 0);
     for (const t of turnsPlayed) {
       jobs.push(async () => {
-        const prompt = memoryPrompt(rec, t);
+        const prompt = memoryPrompt(rec, t, definitions);
         const raw = await ask("memory", prompt, schemaOf(MemoryAudit), prompt.indexOf("\nTURN "));
         const parsed = raw ? MemoryAudit.safeParse(JSON.parse(raw)) : null;
         memory[t] = parsed?.success ? parsed.data : { error: "unusable" };
@@ -173,7 +178,7 @@ async function main(): Promise<void> {
         for (let j = jobs.shift(); j && !stopped; j = jobs.shift()) await j();
       }),
     );
-    const result = { game: rec.header.game_id, path, complete: rec.complete, judgeNotes: opts.notes, secrets, coherence, memory, code: codeMeasures(rec) };
+    const result = { game: rec.header.game_id, path, complete: rec.complete, judgeNotes: opts.notes, gate8: { ...gate8, technicalDesign: docs.versions.technicalDesign }, secrets, coherence, memory, code: codeMeasures(rec) };
     writeFileSync(path.replace(".full.json.gz", ".measures.json"), JSON.stringify(result, null, 2));
     results.push(result);
     console.log(`  measured ${rec.header.game_id}`);
@@ -264,20 +269,22 @@ ${thoughts.join("\n") || "(none)"}`;
 
 // ---- Memory (gate 8) ----------------------------------------------------------------------------
 
-function memoryPrompt(rec: GameRecord, turn: number): string {
+/**
+ * Gate 8 judge, rubric gate8 v2 (Models & Research v0.27; TD v0.7's definitions contract): the
+ * definitions of the ★ kinds, toward, claim, and denial are the recorder prompts' own DEFINITIONS
+ * lines, inserted word for word. ★ items are only the kinds 10a records; requests, bare offers, and
+ * code-written payments aren't items. An invented entry is one its line doesn't support under those
+ * definitions. Beliefs are judged as before.
+ */
+function memoryPrompt(rec: GameRecord, turn: number, definitions: { line: string }[]): string {
   const lines = rec.lines.filter((l) => l.turn === turn && l.kind !== "private");
   const byConv = new Map<string, GameLine[]>();
   for (const l of lines) byConv.set(l.conversation, [...(byConv.get(l.conversation) ?? []), l]);
-  const entries = rec.memory.entries.filter((e) => e.turn === turn && e.type !== "event");
+  // Only the clerks' entries: payments are written by code and aren't judged.
+  const entries = rec.memory.entries.filter((e) => e.turn === turn && e.source !== "code");
   const beliefs = rec.memory.beliefs.filter((b) => b.firstTurn === turn || b.lastTurn === turn);
   const thoughtText = new Map(rec.thoughts.map((t) => [t.id, t.text]));
-  return `You are auditing the memory records of a political intrigue game played by AI characters (Florence, 1492). A clerk read each conversation's lines for one turn and recorded entries; code recorded payments. Another pass recorded each character's beliefs from their private thoughts. Check the records against the source.
-
-1. salient_items: list every promise, deal, threat, admission (a speaker confirming something about themselves they'd want hidden, including partial or implied confirmations), and payment in THIS TURN'S LINES. Greetings, flattery, questions that state nothing, and Il Notaio's notes are not items. For each, give the line IDs, the type, a short description, and captured_by: the ID of an entry that records it (a deal, promise, or payment entry counts if it records the same commitment), or null if no entry does.
-2. invented: entries whose summary says something the cited lines don't support: a wrong speaker or target, a statement no one made, or a summary that goes beyond its lines. Recording a lie as something said is correct, not invented.
-3. unsupported_beliefs: beliefs that their source thought doesn't support (a suspicion recorded as a conclusion, or a belief the thought doesn't hold).
-
-Return empty lists where nothing qualifies. Reply with JSON only, matching the required schema.
+  return `${gate8Header(definitions)}
 
 TURN ${turn}
 
@@ -285,10 +292,47 @@ THIS TURN'S LINES
 ${[...byConv.values()].map((ls) => `${whereLabel(ls.at(-1)!.where)}:\n${ls.map((l) => `[${l.id}] ${formatLine(l)}`).join("\n")}`).join("\n\n")}
 
 ENTRIES RECORDED THIS TURN
-${entries.map((e) => `[${e.id}] ${e.type} (${e.source}); speaker ${e.speaker ?? "–"}; toward ${e.toward ?? "–"}; lines ${e.lines.join(", ")}: ${e.summary}${e.quote ? ` ("${e.quote}")` : ""}`).join("\n") || "None."}
+${entries.map((e) => `[${e.id}] ${e.type} (${e.source}); speaker ${e.speaker ?? "–"}; toward ${e.toward ?? "–"}; line ${e.line ?? e.lines[0]}${e.context?.length ? `, context ${e.context.join(", ")}` : ""}: ${e.summary}${e.quote ? ` ("${e.quote}")` : ""}`).join("\n") || "None."}
 
 BELIEFS RECORDED OR CHANGED THIS TURN
 ${beliefs.map((b) => `[${b.id}] ${b.character} · ${b.kind} (${b.status}): ${b.statement}\n  source thought ${b.thought}: ${thoughtText.get(b.thought) ?? "?"}`).join("\n") || "None."}`;
+}
+
+/** The fixed part of the gate8 v2 prompt (cached, and fingerprinted as the rubric). */
+function gate8Header(definitions: { line: string }[]): string {
+  return `You are auditing the memory records of a political intrigue game played by AI characters (Florence, 1492). One clerk read each conversation's lines for one turn and recorded promises, deals, threats, and admissions; a second recorded claims and denials. Another pass recorded each character's beliefs from their private thoughts. Check the records against the source.
+
+DEFINITIONS (the clerks' own, word for word; judge by these and nothing else)
+${definitions.map((d) => d.line).join("\n")}
+
+1. salient_items: list every promise, deal, threat, and admission in THIS TURN'S LINES, by the definitions above. Only these four kinds are items. A request or order to someone else, and an offer nobody has accepted, are not items, as the definitions say. Payments (bracketed lines) are recorded by code and are not items. Claims, denials, greetings, flattery, questions, and Il Notaio's notes are not items. For each item, give the line IDs, the type, a short description, and captured_by: the ID of an entry that records it (an entry of the same kind for the same commitment, exchange, threat, or confession), or null if no entry does.
+2. invented: entries that their line doesn't support under the definitions above: a wrong speaker; a wrong "toward" by its definition; a type the definitions don't give that line; a statement no one made; or a summary that goes beyond its line. Recording a lie as something said is correct, not invented.
+3. unsupported_beliefs: beliefs that their source thought doesn't support (a suspicion recorded as a conclusion, or a belief the thought doesn't hold).
+
+Return empty lists where nothing qualifies. Reply with JSON only, matching the required schema.`;
+}
+
+/** Registered gate 8 rubric fingerprints (the fixed prompt, definitions included). */
+const GATE8_RUBRICS: Record<string, string> = {
+  // gate8 v2 (Models & Research v0.27): this prompt with TD v0.7's seven DEFINITIONS lines.
+  "9d2280f19795": "gate8 v2",
+};
+
+/** The gate 8 rubric in force: its fingerprint must be registered, so the judge can't change silently. */
+function gate8Rubric(definitions: { line: string }[]): { name: string; fingerprint: string } {
+  const fingerprint = createHash("sha1").update(gate8Header(definitions)).digest("hex").slice(0, 12);
+  const name = GATE8_RUBRICS[fingerprint];
+  if (!name && !opts["dry-run"]) throw new Error(`Gate 8 rubric fingerprint ${fingerprint} isn't registered (GATE8_RUBRICS in measures.ts); register it before judging`);
+  return { name: name ?? "unregistered", fingerprint };
+}
+
+/** --dry-run: the seven definitions and one turn's gate8 v2 prompt, no calls. */
+function gate8DryRun(docs: ReturnType<typeof loadDocs>, definitions: { term: string; line: string }[], path: string): void {
+  const rec = JSON.parse(gunzipSync(readFileSync(path)).toString()) as GameRecord;
+  const g = gate8Rubric(definitions);
+  console.log(`DRY RUN: no calls. Definitions from TD v${docs.versions.technicalDesign}; rubric ${g.name} (${g.fingerprint})\n`);
+  console.log(definitions.map((d) => `[${d.term}] ${d.line}`).join("\n\n"));
+  console.log(`\n========== gate8 v2 judge prompt, ${rec.header.game_id}, turn 1 ==========\n${memoryPrompt(rec, 1, definitions)}`);
 }
 
 // ---- Code measures ------------------------------------------------------------------------------
@@ -337,6 +381,7 @@ function codeMeasures(rec: GameRecord) {
 type Result = {
   game: string;
   complete: boolean;
+  gate8?: { name: string; fingerprint: string; technicalDesign: string };
   secrets: Record<string, { lines?: number; leaks?: { line: string; gameTurn: number; where: string; heardBy: string[]; secret: string | null; quote: string | null; reveal: string }[]; contradictions?: unknown[]; lies?: number; deliberate?: unknown[]; error?: string }>;
   coherence: Record<string, { plan?: string; reason?: string; history_leaks?: { quote: string; why: string }[]; error?: string }>;
   memory: Record<string, { salient_items?: { captured_by: string | null; type: string; description: string; lines: string[] }[]; invented?: { entry: string; reason: string }[]; unsupported_beliefs?: { belief: string; reason: string }[]; error?: string }>;
@@ -372,7 +417,7 @@ function report(results: Result[]): void {
     const unsupported = audits.flatMap((m) => m.unsupported_beliefs ?? []);
     out.push(
       "",
-      `**Memory (gate 8):** ★ items captured ${captured}/${items.length} (${items.length ? Math.round((100 * captured) / items.length) : 100}%; pass ≥90%); invented entries ${invented.length} (pass 0); unsupported beliefs ${unsupported.length}; code-dropped ${r.code.memory.dropped} ${JSON.stringify(r.code.memory.droppedByReason)}; code-repaired ${r.code.memory.repairs}`,
+      `**Memory (gate 8${r.gate8 ? `, rubric ${r.gate8.name} on TD v${r.gate8.technicalDesign}` : ""}):** ★ items captured ${captured}/${items.length} (${items.length ? Math.round((100 * captured) / items.length) : 100}%; pass ≥90%); invented entries ${invented.length} (pass 0); unsupported beliefs ${unsupported.length}; code-dropped ${r.code.memory.dropped} ${JSON.stringify(r.code.memory.droppedByReason)}; code-repaired ${r.code.memory.repairs}`,
       ...(r.code.memory.counts ? [`  - code counts (TD v0.6): dropped by reason ${JSON.stringify(r.code.memory.counts.dropped_by_reason)}; sweep re-asks ${r.code.memory.counts.notes["sweep re-ask"] ?? 0}, sweep gaps left ${r.code.memory.counts.notes["sweep gap"] ?? 0}, lines the sweep left out ${r.code.memory.counts.notes["sweep missing line"] ?? 0}, unflagged entries ${r.code.memory.counts.notes["unflagged entry"] ?? 0}; hedge downgrades ${r.code.memory.counts.notes["hedge downgrade"] ?? 0}; toward set to null ${r.code.memory.counts.notes["toward was speaker"] ?? 0}; deal toward set ${r.code.memory.counts.notes["deal toward set"] ?? 0}; repeated thoughts dropped ${r.code.memory.counts.repeated_thoughts}`] : []),
     );
     for (const i of items.filter((x) => !x.captured_by)) out.push(`  - missed ${i.type} ${i.lines.join(",")}: ${i.description}`);

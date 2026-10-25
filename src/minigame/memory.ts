@@ -1,4 +1,4 @@
-// Memory for the mini-game (Technical Design v0.6, Memory Architecture and
+// Memory for the mini-game (Technical Design v0.7, Memory Architecture and
 // Memory Writing): the game's lines and thoughts with IDs, longTermHistory
 // entries and beliefs, the checks every extraction entry must pass before it
 // is stored (Output Validation & Repair: Memory entries, Sweep, Beliefs),
@@ -118,7 +118,16 @@ export interface MemoryNote {
   pass: "10a" | "10b" | "10d";
   turn: number;
   scope: string;
-  kind: "sweep re-ask" | "sweep gap" | "sweep missing line" | "unflagged entry" | "toward was speaker" | "deal toward set" | "hedge downgrade";
+  kind:
+    | "sweep re-ask"
+    | "sweep gap"
+    | "sweep missing line"
+    | "unflagged entry"
+    | "self, no admission"
+    | "toward was speaker"
+    | "deal toward set"
+    | "10d toward ignored"
+    | "hedge downgrade";
   detail: string;
 }
 
@@ -206,7 +215,9 @@ export class MemoryStore {
         drop(`type/summary mismatch (${e.type}: "${e.summary.slice(0, 60)}")`, e);
         continue;
       }
-      let toward: string | null = e.toward ? (resolveName(e.toward) ?? e.toward) : null;
+      // TD v0.7: 10d has no toward (the person accused is in "about"); one that comes back is ignored and logged.
+      if (pass === "10d" && e.toward) note("10d toward ignored", `${line.id} ${e.type}: toward ${e.toward}`);
+      let toward: string | null = pass === "10a" && e.toward ? (resolveName(e.toward) ?? e.toward) : null;
       if (toward === speaker) {
         note("toward was speaker", `${line.id} ${e.type}: toward ${speaker} set to null`);
         toward = null;
@@ -255,26 +266,34 @@ export class MemoryStore {
   }
 
   /**
-   * The ★ pass's sweep against its entries (TD v0.6, Output Validation & Repair, Sweep): spoken
-   * lines the sweep left out (logged), (line, kind) pairs it flagged with no entry written (these
-   * trigger the one re-ask), and entries whose kind it didn't flag (kept, logged).
+   * The ★ pass's sweep against {sweep_ids} and its entries (TD v0.7, Output Validation & Repair,
+   * Sweep): listed lines the sweep left out, and (line, kind) pairs it flagged with no entry
+   * written, both covered by the one re-ask; entries whose kind it didn't flag are kept and logged.
    */
-  sweepCheck(sweep: unknown, entries: unknown[], x: { turn: number; conversation: string; turnLines: GameLine[] }): { gaps: { line: string; kind: string }[] } {
-    const items = z.array(z.object({ line: z.string(), kinds: z.array(z.string()) })).safeParse(sweep);
-    const flagged = (items.success ? items.data : []).flatMap((i) => i.kinds.filter((k) => (PASS_TYPES["10a"] as readonly string[]).includes(k)).map((k) => ({ line: i.line.replace(/[[\]\s]/g, ""), kind: k })));
+  sweepCheck(sweep: unknown, entries: unknown[], x: { turn: number; conversation: string; turnLines: GameLine[] }): { items: SweepItem[]; missing: string[]; gaps: { line: string; kind: string }[] } {
+    const items = parseSweep(sweep);
+    const flagged = items.flatMap((i) => i.kinds.filter((k) => (PASS_TYPES["10a"] as readonly string[]).includes(k)).map((k) => ({ line: i.line, kind: k })));
     // Written means written, whatever its later checks say: a re-ask is only for lines with no entry at all.
     const written = entries
       .map((e) => e as { line?: unknown; type?: unknown })
       .filter((e) => typeof e.line === "string" && typeof e.type === "string")
-      .map((e) => ({ line: (e.line as string).replace(/[[\]\s]/g, ""), kind: e.type as string }));
-    const swept = new Set((items.success ? items.data : []).map((i) => i.line.replace(/[[\]\s]/g, "")));
-    for (const l of x.turnLines.filter((l) => l.kind === "speech" && !swept.has(l.id))) {
-      this.notes.push({ pass: "10a", turn: x.turn, scope: x.conversation, kind: "sweep missing line", detail: l.id });
-    }
+      .map((e) => ({ line: lineId(e.line as string), kind: e.type as string }));
+    const swept = new Set(items.map((i) => i.line));
+    const missing = sweepIds(x.turnLines).filter((id) => !swept.has(id));
+    for (const id of missing) this.notes.push({ pass: "10a", turn: x.turn, scope: x.conversation, kind: "sweep missing line", detail: id });
     for (const w of written.filter((w) => !flagged.some((f) => f.line === w.line && f.kind === w.kind))) {
       this.notes.push({ pass: "10a", turn: x.turn, scope: x.conversation, kind: "unflagged entry", detail: `${w.line} ${w.kind}` });
     }
-    return { gaps: flagged.filter((f) => !written.some((w) => w.line === f.line && w.kind === f.kind)) };
+    return { items, missing, gaps: flagged.filter((f) => !written.some((w) => w.line === f.line && w.kind === f.kind)) };
+  }
+
+  /** TD v0.7: lines the sweep marked `self: true` with no admission entry stored on them. Counted, not re-asked. */
+  countSelfNoAdmission(items: SweepItem[], stored: MemoryEntry[], x: { turn: number; conversation: string }): void {
+    for (const i of items.filter((i) => i.self === true)) {
+      if (!stored.some((e) => e.type === "admission" && e.line === i.line)) {
+        this.notes.push({ pass: "10a", turn: x.turn, scope: x.conversation, kind: "self, no admission", detail: i.line });
+      }
+    }
   }
 
   // ---- 10b: thought pass ------------------------------------------------------------
@@ -396,11 +415,34 @@ const EntrySchema = z.object({
   speaker: z.string(),
   quote: z.string(),
   type: z.string(),
-  toward: z.string().nullable(),
+  toward: z.string().nullable().optional(),
   about: z.array(z.string()).default([]),
   summary: z.string(),
 });
-/** 10a's reply: the sweep, then the entries (TD v0.6). */
+/** One sweep item (TD v0.7): the line, the `self` answer, the kinds found. */
+export interface SweepItem {
+  line: string;
+  self: boolean | null;
+  kinds: string[];
+}
+
+const lineId = (s: string) => s.replace(/[[\]\s]/g, "");
+
+/** Sweep items that parse; anything else is skipped (and its line then counts as left out). */
+export function parseSweep(sweep: unknown): SweepItem[] {
+  if (!Array.isArray(sweep)) return [];
+  return sweep.flatMap((i) => {
+    const p = z.object({ line: z.string(), self: z.boolean().nullable().optional(), kinds: z.array(z.string()).default([]) }).safeParse(i);
+    return p.success ? [{ line: lineId(p.data.line), self: p.data.self ?? null, kinds: p.data.kinds }] : [];
+  });
+}
+
+/** 10a's {sweep_ids}: this turn's spoken lines, in order (no bracketed or Il Notaio lines). */
+export function sweepIds(turnLines: GameLine[]): string[] {
+  return turnLines.filter((l) => l.kind === "speech").map((l) => l.id);
+}
+
+/** 10a's reply: the sweep, then the entries (TD v0.6–v0.7). */
 export const StarPass = z.object({ sweep: z.array(z.unknown()), entries: z.array(z.unknown()) });
 /** 10d's reply. */
 export const ClaimsPass = z.object({ entries: z.array(z.unknown()) });

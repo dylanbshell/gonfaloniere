@@ -9,7 +9,8 @@
 //
 // Spend is logged to results/minigame/ (its own ledger; PROBE_TOTAL_USD caps
 // the total). Character calls go to --model (temperature 0.7), system calls
-// (both extraction passes, knowledge checks) to --system-model (temperature 0),
+// (the memory passes and knowledge checks) to the recorder model (TD v0.7; see recorder.ts:
+// --recorder-model, RECORDER_MODEL_* in .env, all defaulting to the play model; temperature 0),
 // thinking off, on TD v0.5 and Characters v0.4 with the Mini-Game Spec's
 // stand-in briefings.
 //
@@ -31,11 +32,12 @@ import { config, type ModelConfig } from "../../probe.config.ts";
 import { ALIASES, ROSTER, type CharacterName } from "../game/roster.ts";
 import { Budget, worstCaseCost } from "../harness/budget.ts";
 import { RunLog, gitCommit, priorSpend, type LogRecord } from "../harness/log.ts";
-import { apiKey, callModel, fetchEndpoint, makeClient, type EndpointInfo, type RetryPolicy } from "../harness/openrouter.ts";
+import { callModel, type EndpointInfo, type RetryPolicy } from "../harness/openrouter.ts";
 import { loadDocs, loadStandinBriefings } from "../sources/docs.ts";
 import { CAST, STANDINS, STANDIN_FILE } from "./cast.ts";
 import { MiniGame, formatLine, type CallKind, type Caller, type GameSettings } from "./engine.ts";
 import { memoryCounts, renderBelief, renderEntry, whereLabel } from "./memory.ts";
+import { describeRoute, messages, playRoute, recorderRoute, type ModelRoute } from "./recorder.ts";
 
 const { values: opts } = parseArgs({
   options: {
@@ -44,7 +46,9 @@ const { values: opts } = parseArgs({
     cap: { type: "string", default: "1" },
     seed: { type: "string", default: "1492" },
     model: { type: "string", default: "deepseek-v4.1-flash" },
-    "system-model": { type: "string", default: "deepseek-v4.1-flash" },
+    // The recorder (TD v0.7): defaults to the play model. --system-model is the old name.
+    "recorder-model": { type: "string" },
+    "system-model": { type: "string" },
     parallel: { type: "string", default: "1" },
     replacements: { type: "string", default: "0" },
     preflight: { type: "string", default: "0" },
@@ -81,6 +85,7 @@ function workingTree(): { tracked_changes: string[]; untracked: string[] } {
 class GameFailure extends Error {}
 
 interface Served {
+  route: ModelRoute;
   model: ModelConfig;
   endpoint: EndpointInfo;
   /** The model ID OpenRouter reports serving, seen in pre-flight. */
@@ -93,17 +98,13 @@ async function main(): Promise<void> {
   const docs = loadDocs(config.docs);
   if (!docs.systemPrompts) throw new Error("This Technical Design has no extraction or knowledge-check prompts (TD v0.5+)");
   const briefings = { ...docs.briefings, ...loadStandinBriefings(STANDIN_FILE, STANDINS, docs.socialAwareness) };
-  const pick = (id: string) => {
-    const m = config.models.find((x) => x.id === id);
-    if (!m) throw new Error(`No model "${id}" in probe.config.ts`);
-    return m;
-  };
-  const charModel = pick(opts.model!);
-  const sysModel = pick(opts["system-model"]!);
-  const client = makeClient(apiKey());
+  const play = await playRoute(opts.model!, 0.7);
+  const recorder = await recorderRoute(opts.model!, opts["recorder-model"] ?? opts["system-model"]);
+  const charModel = play.model;
+  const sysModel = recorder.model;
   const served: Record<"character" | "system", Served> = {
-    character: { model: charModel, endpoint: await fetchEndpoint(charModel), servedId: null },
-    system: { model: sysModel, endpoint: await fetchEndpoint(sysModel), servedId: null },
+    character: { route: play, model: play.model, endpoint: play.endpoint, servedId: null },
+    system: { route: recorder, model: recorder.model, endpoint: recorder.endpoint, servedId: null },
   };
   const budget = new Budget(Number(opts.cap), config.budget.totalUsd, priorSpend(OUT));
   const runId = `${new Date().toISOString().replace(/[:.]/g, "-")}-minigame`;
@@ -118,9 +119,10 @@ async function main(): Promise<void> {
     thoughtWindow: 4,
     maxCapannello: 4,
     // TD v0.6 Run Configuration: ★ pass ~1,500 including the sweep, claims pass ~1,000, thought pass ~600, knowledge check ~300.
-    maxTokens: { plan: 400, think: 250, speak: 200, move: 500, murder: 300, "star-pass": 1500, "claims-pass": 1000, "sweep-reask": 1500, "thought-pass": 600, "knowledge-check": 300 },
+    maxTokens: { plan: 400, think: 250, speak: 200, move: 500, murder: 300, "star-pass": 1800, "claims-pass": 1000, "sweep-reask": 1800, "thought-pass": 600, "knowledge-check": 300 },
     playTemperature: 0.7,
-    systemTemperature: 0,
+    // The engine's nominal value; what is actually sent comes from the recorder route, recorded as config.recorder.temperature_sent.
+    systemTemperature: recorder.temperature ?? 0,
     checks: checks(),
     ...(opts["speak-append"] && { speakAppend: opts["speak-append"] }),
     dropRepeatedThoughts: !opts["keep-repeated-thoughts"],
@@ -138,7 +140,7 @@ async function main(): Promise<void> {
     for (let i = 1; i <= n; i++) {
       const worst = worstCaseCost(200, 40, sv.endpoint.price);
       if (!budget.tryReserve(worst)) throw new Error("Pre-flight would exceed the cap");
-      const res = await callModel(client, { model: sv.model, prompt: `Pre-flight check ${i}. Reply with the single word: ready.`, temperature: 0.7, maxTokens: 40, extra: sv.model.thinkingOff ?? config.thinkingOff }, { ...RETRY });
+      const res = await callModel(sv.route.client, { model: sv.model, prompt: `Pre-flight check ${i}. Reply with the single word: ready.`, temperature: sv.route.temperature, maxTokens: 40, extra: sv.route.thinking }, { ...RETRY });
       const cost = res.ok ? (res.usage.costUsd ?? 0) : 0;
       budget.settle(worst, cost);
       runLog.write({ type: "minigame-preflight", runId, role, model: sv.model.id, i, ok: res.ok, costUsd: cost, ...(res.ok && { provider: res.provider, servedModel: res.model, reasoningTokens: res.usage.reasoningTokens, reasoningText: !!res.reasoning, content: res.content.slice(0, 40) }), ...(!res.ok && { error: res.error, status: res.status }), at: new Date().toISOString() } as unknown as LogRecord);
@@ -154,7 +156,7 @@ async function main(): Promise<void> {
   if (preN > 0) {
     await preflight("character", preN);
     // The system model is the same one for every system call; one check of its provider and ID.
-    if (sysModel.id !== charModel.id) await preflight("system", 1);
+    if (sysModel.id !== charModel.id || recorder.endpointLabel !== play.endpointLabel || sysModel.provider !== charModel.provider) await preflight("system", 1);
     else served.system.servedId = served.character.servedId;
   }
   if (opts["preflight-only"]) {
@@ -212,9 +214,10 @@ async function main(): Promise<void> {
       // Synchronous check-and-reserve: no other game's call can slip in between.
       if (!budget.tryReserve(worst)) return null;
       let retried = false;
+      // The route decides what is sent: play temperature or the recorder's (0, or none if rejected), thinking off, message layout.
       const res = await callModel(
-        client,
-        { model: sv.model, prompt: req.user, system: req.system, temperature: req.temperature, maxTokens: req.maxTokens, extra: sv.model.thinkingOff ?? config.thinkingOff },
+        sv.route.client,
+        { model: sv.model, ...messages(sv.route, req.system, req.user), temperature: sv.route.temperature, maxTokens: req.maxTokens, extra: sv.route.thinking },
         {
           ...RETRY,
           onRetry: (r) => {
@@ -353,6 +356,8 @@ function buildRecord(
         system_provider: x.served.system.endpoint.providerName,
         system_quantization: x.served.system.endpoint.quantization,
         system_served_model: x.served.system.servedId,
+        // TD v0.7: the recorder model and the temperature actually sent, for every game.
+        recorder: describeRoute(x.served.system.route, x.served.system.servedId),
         thinking: "off",
         fallbacks: false,
         retry: "429 or timeout: up to 5 tries, exponential backoff; any other failure ends the game",

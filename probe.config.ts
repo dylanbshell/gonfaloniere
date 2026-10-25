@@ -72,7 +72,7 @@ export const config = {
     technicalDesign: technicalDesignPath(process.env.PROBE_TD ?? "0.7"),
     characters: `docs/Gonfaloniere_Characters_v${CHARACTERS_VERSION}.md`,
     mechanics: "docs/Gonfaloniere_Game_Mechanics_v0.20.md",
-    modelsResearch: "docs/Gonfaloniere_Models_Research_v0.22.md",
+    modelsResearch: "docs/Gonfaloniere_Models_Research_v0.27.md",
   },
 
   /** Same for every model; 0.7 until Technical Design sets a play value. */

@@ -1,4 +1,4 @@
-// The recorder (Technical Design v0.6, End-of-Turn Extraction Pass and
+// The recorder (Technical Design v0.7, End-of-Turn Extraction Pass and
 // Memory Writing): at the end of each turn, a ★ pass (10a) and a claims pass
 // (10d) per conversation active that turn, with the ★ pass's one sweep
 // re-ask, and a thought pass (10b) per character who thought; at the end of
@@ -8,7 +8,7 @@
 
 import type { CharacterName } from "../game/roster.ts";
 import type { DocSources, PlotFact } from "../sources/docs.ts";
-import { KnowledgeVerdict, MemoryStore, StarPass, ClaimsPass, rosterText, whereLabel, type Belief, type GameLine, type MemoryEntry, type Thought } from "./memory.ts";
+import { ClaimsPass, KnowledgeVerdict, MemoryStore, StarPass, parseSweep, rosterText, sweepIds, whereLabel, type Belief, type GameLine, type MemoryEntry, type Thought } from "./memory.ts";
 
 export type SystemCallKind = "star-pass" | "claims-pass" | "sweep-reask" | "thought-pass" | "knowledge-check";
 /** One system call; null when it failed twice (or the cap stopped it). */
@@ -62,7 +62,7 @@ export class Recorder {
     await Promise.all([...conversations, ...thinkers.map((c) => this.thoughtPass(turn, c, thoughts.filter((t) => t.character === c)))]);
   }
 
-  /** 10a/10d's user message: roster, conversation, context lines with IDs, this turn's lines with IDs. */
+  /** 10a/10d's user message: roster, conversation, context lines and this turn's lines with IDs, and the IDs to sweep. */
   private passUser(turn: number, mine: GameLine[], context: GameLine[]): string {
     return fill(this.docs.systemPrompts!.starPass.user, {
       roster: rosterText(),
@@ -71,6 +71,8 @@ export class Recorder {
       participants: this.listJoin([...new Set(mine.flatMap((l) => l.heardBy))]),
       context_lines: context.length ? context.map((l) => `[${l.id}] ${this.formatLine(l)}`).join("\n") : "None.",
       turn_lines: mine.map((l) => `[${l.id}] ${this.formatLine(l)}`).join("\n"),
+      // TD v0.7: this turn's spoken lines, comma-separated, in order (10d receives the same message).
+      sweep_ids: sweepIds(mine).join(", "),
     });
   }
 
@@ -84,29 +86,43 @@ export class Recorder {
       this.events.push({ turn, type: "extraction-failed", pass: "10a", conversation, ...(reply && { reason: reply.error.issues[0]?.message }) });
       return;
     }
-    const { gaps } = this.memory.sweepCheck(reply.data.sweep, reply.data.entries, x);
+    const { items, missing, gaps } = this.memory.sweepCheck(reply.data.sweep, reply.data.entries, x);
     const first = this.memory.applyEntries("10a", reply.data.entries, x);
-    let reasked: { stored: MemoryEntry[]; left: { line: string; kind: string }[] } | null = null;
-    if (gaps.length) {
-      // TD: one re-ask naming the lines flagged with a kind but left without an entry.
-      const note = gaps.map((g) => `You flagged ${g.line} as ${article(g.kind)} ${g.kind} but wrote no entry for it.`).join(" ");
-      this.memory.notes.push({ pass: "10a", turn, scope: conversation, kind: "sweep re-ask", detail: gaps.map((g) => `${g.line} ${g.kind}`).join(", ") });
+    let sweep = items;
+    let reasked: { stored: MemoryEntry[]; stillMissing: string[]; left: { line: string; kind: string }[] } | null = null;
+    if (missing.length || gaps.length) {
+      // TD v0.7: one re-ask covers both lines left out of the sweep and lines flagged with no entry.
+      const parts = [
+        ...(missing.length ? [`You left out ${missing.join(", ")}`] : []),
+        ...gaps.map((g) => `you flagged ${g.line} as ${article(g.kind)} ${g.kind} but wrote no entry for it`),
+      ];
+      const note = `${parts.join("; ").replace(/^y/, "Y")}.`;
+      this.memory.notes.push({ pass: "10a", turn, scope: conversation, kind: "sweep re-ask", detail: [...missing.map((m) => `${m} left out`), ...gaps.map((g) => `${g.line} ${g.kind}`)].join(", ") });
       const again = await this.call("sweep-reask", null, sp.system, `${user}\n\n${note} Reply again with the full JSON.`);
       const r = again === null ? null : StarPass.safeParse(again);
-      const fresh = r?.success ? r.data.entries.filter((e) => gaps.some((g) => sameEntry(e, g))) : [];
+      const reSweep = r?.success ? parseSweep(r.data.sweep) : [];
+      // Keep from the re-ask only what it was asked for: the left-out lines and the flagged gaps.
+      const fresh = r?.success ? r.data.entries.filter((e) => gaps.some((g) => sameEntry(e, g)) || missing.includes(lineOf(e))) : [];
       const stored = this.memory.applyEntries("10a", fresh, x).stored;
+      sweep = [...items, ...reSweep.filter((i) => missing.includes(i.line))];
+      const stillMissing = missing.filter((m) => !reSweep.some((i) => i.line === m));
       const left = gaps.filter((g) => !fresh.some((e) => sameEntry(e, g)));
+      for (const m of stillMissing) this.memory.notes.push({ pass: "10a", turn, scope: conversation, kind: "sweep gap", detail: `${m} still left out` });
       for (const g of left) this.memory.notes.push({ pass: "10a", turn, scope: conversation, kind: "sweep gap", detail: `${g.line} ${g.kind}` });
-      reasked = { stored, left };
+      reasked = { stored, stillMissing, left };
     }
+    const stored = [...first.stored, ...(reasked?.stored ?? [])];
+    this.memory.countSelfNoAdmission(sweep, stored, { turn, conversation });
     this.events.push({
       turn,
       type: "star-pass",
       conversation,
-      stored: [...first.stored, ...(reasked?.stored ?? [])].map((e) => e.id),
+      stored: stored.map((e) => e.id),
       dropped: first.dropped.length,
+      sweepMissing: missing,
       sweepGaps: gaps.map((g) => `${g.line} ${g.kind}`),
-      ...(reasked && { reaskStored: reasked.stored.map((e) => e.id), stillMissing: reasked.left.map((g) => `${g.line} ${g.kind}`) }),
+      self: sweep.filter((i) => i.self === true).map((i) => i.line),
+      ...(reasked && { reaskStored: reasked.stored.map((e) => e.id), stillMissing: [...reasked.stillMissing.map((m) => `${m} left out`), ...reasked.left.map((g) => `${g.line} ${g.kind}`)] }),
     });
   }
 
@@ -204,6 +220,11 @@ export class Recorder {
 export function sameThought(a: string, b: string): boolean {
   const norm = (s: string) => s.trim().replace(/\s+/g, " ");
   return norm(a) === norm(b);
+}
+
+function lineOf(e: unknown): string {
+  const x = e as { line?: unknown };
+  return typeof x.line === "string" ? x.line.replace(/[[\]\s]/g, "") : "";
 }
 
 function sameEntry(e: unknown, g: { line: string; kind: string }): boolean {
