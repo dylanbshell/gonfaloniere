@@ -25,6 +25,7 @@ import { RunLog, gitCommit, priorSpend, type LogRecord } from "../harness/log.ts
 import { apiKey, callModel, fetchEndpoint, makeClient } from "../harness/openrouter.ts";
 import { RUBRIC_AMENDMENTS_ID, RUBRIC_REVISION, applyListenerOverride, buildJudgePrompt, checkVerdict, isLeak, judgeJsonSchema, type JudgeVerdict, type TranscriptTurn } from "../judge/judge.ts";
 import { loadDocs, memoryDefinitions } from "../sources/docs.ts";
+import { MINIGAME_TOTAL_USD } from "./ledger.ts";
 import { CAST, KNOWS_AT_START } from "./cast.ts";
 import { formatLine, type CallRecord } from "./engine.ts";
 import { memoryCounts, whereLabel, type Belief, type GameLine, type MemoryEntry, type Thought } from "./memory.ts";
@@ -108,7 +109,7 @@ async function main(): Promise<void> {
   const judge = config.judge as ModelConfig & { maxTokens: number };
   const client = makeClient(apiKey());
   const endpoint = await fetchEndpoint(judge);
-  const budget = new Budget(Number(opts.cap), config.budget.totalUsd, priorSpend(OUT));
+  const budget = new Budget(Number(opts.cap), MINIGAME_TOTAL_USD, priorSpend(OUT));
   const runId = `${new Date().toISOString().replace(/[:.]/g, "-")}-measures`;
   const log = new RunLog(runId, "minigame-", OUT);
   log.write({ type: "run", runId, startedAt: new Date().toISOString(), modelId: judge.id, gitCommit: gitCommit(), gate8, docVersions: docs.versions, settings: { records: positionals } } as unknown as LogRecord);

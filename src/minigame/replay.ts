@@ -17,7 +17,11 @@
 // failure, or a reply from another provider or model, stops the replay. Spend
 // goes to the mini-game ledger (PROBE_TOTAL_USD caps it).
 //
-//   npm run minigame:replay -- <one record> --dry-run   one turn's 10a and 10d prompts and the recorder settings; no calls
+//   npm run minigame:replay -- <one record> --dry-run   one turn's 10a, 10d, and 10e prompts and the recorder settings; no calls
+//   npm run minigame:replay -- <records> --only perception --estimate   projected calls and cost; no calls
+//   npm run minigame:replay -- <td0.7 records> --only perception   TD v0.8: add readings (10e) to an existing
+//     replay, keeping its reference record, beliefs, and knowledge checks; thoughts get `after_line`
+//     rebuilt from event order where the record has none
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
@@ -26,21 +30,22 @@ import { config } from "../../probe.config.ts";
 import type { CharacterName } from "../game/roster.ts";
 import { Budget, worstCaseCost } from "../harness/budget.ts";
 import { RunLog, gitCommit, priorSpend, type LogRecord } from "../harness/log.ts";
-import { callModel } from "../harness/openrouter.ts";
+import { callModel, fetchEndpoint } from "../harness/openrouter.ts";
 import { parseJson } from "../output/json.ts";
 import { loadDocs } from "../sources/docs.ts";
+import { MINIGAME_TOTAL_USD } from "./ledger.ts";
 import { formatLine, type CallRecord, type GameEvent } from "./engine.ts";
-import { Recorder, sameThought, type SystemCallKind } from "./extract.ts";
+import { Recorder, rebuildAfterLine, sameThought, type SystemCallKind } from "./extract.ts";
 import { MemoryStore, memoryCounts, type GameLine, type MemoryEntry, type Thought } from "./memory.ts";
 import { DEFAULT_PLAY_MODEL, describeRoute, messages, recorderRoute } from "./recorder.ts";
 
 const { values: opts, positionals } = parseArgs({
   allowPositionals: true,
-  options: { cap: { type: "string", default: "2" }, "recorder-model": { type: "string" }, concurrency: { type: "string", default: "3" }, "dry-run": { type: "boolean", default: false }, rpm: { type: "string" } },
+  options: { cap: { type: "string", default: "2" }, "recorder-model": { type: "string" }, concurrency: { type: "string", default: "3" }, "dry-run": { type: "boolean", default: false }, rpm: { type: "string" }, only: { type: "string" }, estimate: { type: "boolean", default: false } },
 });
 const OUT = "results/minigame";
 /** TD v0.7 Run Configuration, recorder calls. */
-const MAX_TOKENS: Record<SystemCallKind, number> = { "star-pass": 1800, "claims-pass": 1000, "sweep-reask": 1800, "thought-pass": 600, "knowledge-check": 300 };
+const MAX_TOKENS: Record<SystemCallKind, number> = { "star-pass": 1800, "claims-pass": 1000, "sweep-reask": 1800, "thought-pass": 600, "perception-pass": 800, "knowledge-check": 300 };
 const EXTRACTION_EVENTS = new Set(["conversation-pass", "star-pass", "claims-pass", "thought-pass", "extraction-failed"]);
 const CHARACTER_KINDS = new Set(["plan", "think", "speak", "move", "murder"]);
 
@@ -51,7 +56,7 @@ interface SavedGame {
   events: GameEvent[];
   calls: CallRecord[];
   prefixes: Record<string, string>;
-  memory: { entries: MemoryEntry[] };
+  memory: { entries: MemoryEntry[]; beliefs?: unknown[]; dropped?: unknown[]; repairs?: unknown[]; notes?: unknown[] };
   knowledge_checks: { character: CharacterName; fact: string }[];
   summary: Record<string, unknown>;
   [k: string]: unknown;
@@ -64,13 +69,19 @@ async function main(): Promise<void> {
   if (!positionals.length) throw new Error("Give the saved game records to replay");
   const docs = loadDocs(config.docs);
   if (opts["dry-run"]) return dryRun(docs, positionals[0]!);
+  if (opts.only && opts.only !== "perception") throw new Error(`--only takes "perception"`);
+  const perceptionOnly = opts.only === "perception";
+  // TD v0.8: replays record readings (notebook: perceived) whenever the TD has the perception pass.
+  const notebook = docs.systemPrompts?.perceptionPass ? "perceived" : "shared";
+  if (perceptionOnly && notebook !== "perceived") throw new Error("--only perception needs TD v0.8's block 10e");
+  if (opts.estimate) return estimate(docs, positionals, perceptionOnly);
   const route = await recorderRoute(DEFAULT_PLAY_MODEL, opts["recorder-model"]);
   const { model, client, endpoint } = route;
-  const budget = new Budget(Number(opts.cap), config.budget.totalUsd, priorSpend(OUT));
+  const budget = new Budget(Number(opts.cap), MINIGAME_TOTAL_USD, priorSpend(OUT));
   const runId = `${new Date().toISOString().replace(/[:.]/g, "-")}-replay`;
   const log = new RunLog(runId, "minigame-", OUT);
   log.write({ type: "run", runId, startedAt: new Date().toISOString(), modelId: model.id, endpoint, docVersions: docs.versions, gitCommit: gitCommit(), games: positionals } as unknown as LogRecord);
-  console.log(`Replay: ${positionals.length} game(s); extraction and knowledge checks on TD v${docs.versions.technicalDesign}; recorder ${JSON.stringify(describeRoute(route, null))}; cap $${opts.cap}; ledger $${budget.priorSpendUsd.toFixed(2)} spent before this (total cap $${config.budget.totalUsd})`);
+  console.log(`Replay: ${positionals.length} game(s); extraction and knowledge checks on TD v${docs.versions.technicalDesign}; recorder ${JSON.stringify(describeRoute(route, null))}; cap $${opts.cap}; ledger $${budget.priorSpendUsd.toFixed(2)} spent before this (total cap $${MINIGAME_TOTAL_USD})`);
 
   let servedId: string | null = null;
   // --rpm: keep under a provider's requests-per-minute limit (e.g. OpenRouter's 20/min for GPT-5.4 on new accounts).
@@ -118,6 +129,10 @@ async function main(): Promise<void> {
     const rec = JSON.parse(gunzipSync(readFileSync(path)).toString()) as SavedGame;
     const started = Date.now();
     const memory = new MemoryStore();
+    if (perceptionOnly) {
+      // Keep the record's memory as it is (the reference record, beliefs, logs); readings are added.
+      Object.assign(memory, { entries: rec.memory.entries, beliefs: rec.memory.beliefs ?? [], dropped: rec.memory.dropped ?? [], repairs: rec.memory.repairs ?? [], notes: rec.memory.notes ?? [] });
+    }
     const events: GameEvent[] = [];
     const calls: CallRecord[] = [];
     let turn = 0;
@@ -153,16 +168,8 @@ async function main(): Promise<void> {
       }
       return null;
     };
-    const recorder = new Recorder(docs, memory, caller, events, formatLine, (xs) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")}, and ${xs.at(-1)}`));
-
-    // TD v0.6 shortTermHistory: mark exact repeats of each character's previous thought.
-    const lastBy = new Map<CharacterName, string>();
-    const thoughts: Thought[] = rec.thoughts.map((t) => {
-      const prev = lastBy.get(t.character);
-      lastBy.set(t.character, t.text);
-      const { repeat: _old, ...rest } = t;
-      return prev !== undefined && sameThought(prev, t.text) ? { ...rest, repeat: true } : rest;
-    });
+    const recorder = new Recorder(docs, memory, caller, events, formatLine, listJoin, notebook, perceptionOnly ? ["10e"] : undefined);
+    const thoughts = prepareThoughts(rec);
 
     // Code-written entries (payments, events, private actions) carry over, each before its turn's passes.
     const codeEntries = rec.memory.entries.filter((e) => e.source === "code");
@@ -172,16 +179,17 @@ async function main(): Promise<void> {
         memory.addEntry(rest);
       }
     };
-    const turns = [...new Set(rec.events.filter((e) => e.type === "turn-end").map((e) => e.turn))].sort((a, b) => a - b);
-    addCode(0);
+    const turns = turnsOf(rec);
+    if (!perceptionOnly) addCode(0);
     for (const t of turns) {
       turn = t;
-      addCode(t);
+      if (!perceptionOnly) addCode(t);
       // The engine ran each turn's passes before the Murder Round, so its thoughts aren't read.
       await recorder.turn(t, rec.lines, thoughts.filter((x) => x.turn === t && !x.repeat && x.call !== "murder"));
     }
     const checks = rec.knowledge_checks.map((k) => ({ character: k.character, fact: k.fact }));
-    const knowledgeChecks = await recorder.knowledge(checks, rec.header.cast);
+    // Perception only: knowledge checks never read readings (TD v0.8), so they carry over unchanged.
+    const knowledgeChecks = perceptionOnly ? rec.knowledge_checks : await recorder.knowledge(checks, rec.header.cast);
 
     const version = docs.versions.technicalDesign;
     // A non-default recorder is named in the file and game ID, so its records sit beside the default's.
@@ -190,10 +198,13 @@ async function main(): Promise<void> {
       ...rec,
       header: {
         ...rec.header,
-        game_id: `${rec.header.game_id}-${tag}`,
+        game_id: perceptionOnly ? `${String(rec.header.game_id).replace(/-td[\d.]+$/, "")}-${tag}` : `${rec.header.game_id}-${tag}`,
+        notebook,
         replay: {
           of: rec.header.game_id,
-          what: "extraction passes and knowledge checks re-run on the saved transcript; play unchanged",
+          what: perceptionOnly
+            ? "perception pass (10e) added to an earlier replay; its reference record (10a, 10d), beliefs (10b), and knowledge checks carried over unchanged; play unchanged"
+            : "extraction passes and knowledge checks re-run on the saved transcript; play unchanged",
           technical_design: version,
           docs: docs.versions,
           system_model: model.slug,
@@ -205,21 +216,22 @@ async function main(): Promise<void> {
         },
       },
       thoughts,
-      prefixes: { ...Object.fromEntries(Object.entries(rec.prefixes).filter(([k]) => !k.startsWith("system:"))), ...recorder.prefixes },
-      events: [...rec.events.filter((e) => !EXTRACTION_EVENTS.has(e.type)), ...events],
-      calls: [...rec.calls.filter((c) => CHARACTER_KINDS.has(c.kind)), ...calls],
-      memory: { entries: memory.entries, beliefs: memory.beliefs, dropped: memory.dropped, repairs: memory.repairs, notes: memory.notes } as unknown as SavedGame["memory"],
+      prefixes: perceptionOnly ? { ...rec.prefixes, ...recorder.prefixes } : { ...Object.fromEntries(Object.entries(rec.prefixes).filter(([k]) => !k.startsWith("system:"))), ...recorder.prefixes },
+      events: perceptionOnly ? [...rec.events, ...events] : [...rec.events.filter((e) => !EXTRACTION_EVENTS.has(e.type)), ...events],
+      calls: perceptionOnly ? [...rec.calls, ...calls] : [...rec.calls.filter((c) => CHARACTER_KINDS.has(c.kind)), ...calls],
+      memory: { entries: memory.entries, beliefs: memory.beliefs, readings: memory.readings, dropped: memory.dropped, repairs: memory.repairs, notes: memory.notes } as unknown as SavedGame["memory"],
       knowledge_checks: knowledgeChecks,
       summary: {
         ...rec.summary,
         replay: { calls: calls.length, cost_usd: calls.reduce((s, c) => s + c.costUsd, 0), wall_ms: Date.now() - started, memory: memoryCounts(memory, thoughts) },
       },
     };
-    const dest = path.replace(".full.json.gz", `-${tag}.full.json.gz`);
+    const dest = perceptionOnly ? path.replace(/-td[\d.]+\.full\.json\.gz$/, `-${tag}.full.json.gz`) : path.replace(".full.json.gz", `-${tag}.full.json.gz`);
+    if (dest === path) throw new Error(`Refusing to overwrite ${path}`);
     writeFileSync(dest, gzipSync(JSON.stringify(out)));
     const c = memoryCounts(memory, thoughts);
     console.log(
-      `${rec.header.game_id}: ${calls.length} calls, $${calls.reduce((s, x) => s + x.costUsd, 0).toFixed(4)}, ${((Date.now() - started) / 60000).toFixed(1)} min; entries ${memory.entries.filter((e) => e.source !== "code").length}, beliefs ${memory.beliefs.length}; dropped ${c.dropped} ${JSON.stringify(c.dropped_by_reason)}; notes ${JSON.stringify(c.notes)}; repeated thoughts ${c.repeated_thoughts}\n  ${dest}`,
+      `${rec.header.game_id}: ${calls.length} calls, $${calls.reduce((s, x) => s + x.costUsd, 0).toFixed(4)}, ${((Date.now() - started) / 60000).toFixed(1)} min; entries ${memory.entries.filter((e) => e.source !== "code").length}, beliefs ${memory.beliefs.length}, readings ${memory.readings.length}; dropped ${c.dropped} ${JSON.stringify(c.dropped_by_reason)}; notes ${JSON.stringify(c.notes)}; repeated thoughts ${c.repeated_thoughts}\n  ${dest}`,
     );
   };
 
@@ -251,15 +263,68 @@ async function dryRun(docs: ReturnType<typeof loadDocs>, path: string): Promise<
   console.log(`DRY RUN: no calls. TD v${docs.versions.technicalDesign}; game ${rec.header.game_id}\nRecorder: ${JSON.stringify(describeRoute(route, null), null, 2)}\n`);
   const shown = new Set<string>();
   const capture = async (kind: SystemCallKind, _c: CharacterName | null, system: string, user: string): Promise<unknown> => {
-    if ((kind === "star-pass" || kind === "claims-pass") && !shown.has(kind)) {
+    if ((kind === "star-pass" || kind === "claims-pass" || kind === "perception-pass") && !shown.has(kind)) {
       shown.add(kind);
       const m = messages(route, system, user);
-      console.log(`========== ${kind === "star-pass" ? "10a ★ pass" : "10d claims pass"}, turn 1, max_tokens ${MAX_TOKENS[kind]} ==========\n${m.system ? `--- system ---\n${m.system}\n` : ""}--- user ---\n${m.prompt}\n`);
+      const label = { "star-pass": "10a ★ pass", "claims-pass": "10d claims pass", "perception-pass": `10e perception pass (${_c})` }[kind];
+      console.log(`========== ${label}, turn 1, max_tokens ${MAX_TOKENS[kind]} ==========\n${m.system ? `--- system ---\n${m.system}\n` : ""}--- user ---\n${m.prompt}\n`);
     }
-    return kind === "star-pass" ? { sweep: [], entries: [] } : kind === "claims-pass" ? { entries: [] } : kind === "thought-pass" ? { beliefs: [] } : null;
+    return kind === "star-pass" ? { sweep: [], entries: [] } : kind === "claims-pass" ? { entries: [] } : kind === "thought-pass" ? { beliefs: [] } : kind === "perception-pass" ? { notes: [] } : null;
   };
-  const recorder = new Recorder(docs, new MemoryStore(), capture, [], formatLine, (xs) => xs.join(", "));
-  await recorder.turn(1, rec.lines, []);
+  const notebook = docs.systemPrompts?.perceptionPass ? "perceived" : "shared";
+  const recorder = new Recorder(docs, new MemoryStore(), capture, [], formatLine, listJoin, notebook);
+  const thoughts = prepareThoughts(rec);
+  await recorder.turn(1, rec.lines, thoughts.filter((x) => x.turn === 1 && !x.repeat && x.call !== "murder"));
+}
+
+/** Exact repeats marked (TD v0.6), and `after_line` rebuilt from event order where a record has none (TD v0.8). */
+function prepareThoughts(rec: SavedGame): Thought[] {
+  const rebuilt = rebuildAfterLine(rec);
+  const lastBy = new Map<CharacterName, string>();
+  return rec.thoughts.map((t) => {
+    const prev = lastBy.get(t.character);
+    lastBy.set(t.character, t.text);
+    const { repeat: _old, ...rest } = t;
+    const after_line = t.after_line !== undefined ? t.after_line : (rebuilt.get(t.id)?.after_line ?? null);
+    return { ...rest, after_line, ...(prev !== undefined && sameThought(prev, t.text) && { repeat: true }) };
+  });
+}
+
+function turnsOf(rec: SavedGame): number[] {
+  return [...new Set(rec.events.filter((e) => e.type === "turn-end").map((e) => e.turn))].sort((a, b) => a - b);
+}
+
+const listJoin = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")}, and ${xs.at(-1)}`);
+
+/**
+ * --estimate: runs the recorder over every turn with empty replies, counting the calls it would make
+ * and their prompt sizes, and prices them at the recorder's listed rates. No model calls.
+ */
+async function estimate(docs: ReturnType<typeof loadDocs>, paths: string[], perceptionOnly: boolean): Promise<void> {
+  // Offline: no key needed; the price comes from OpenRouter's public endpoint listing.
+  const route = await recorderRoute(DEFAULT_PLAY_MODEL, opts["recorder-model"], { offline: true });
+  route.endpoint = await fetchEndpoint(route.model);
+  let calls = 0;
+  let chars = 0;
+  let maxOut = 0;
+  const capture = async (kind: SystemCallKind, _c: CharacterName | null, system: string, user: string): Promise<unknown> => {
+    calls++;
+    chars += system.length + user.length;
+    maxOut += MAX_TOKENS[kind];
+    return kind === "star-pass" ? { sweep: [], entries: [] } : kind === "claims-pass" ? { entries: [] } : kind === "thought-pass" ? { beliefs: [] } : kind === "perception-pass" ? { notes: [] } : null;
+  };
+  for (const path of paths) {
+    const rec = JSON.parse(gunzipSync(readFileSync(path)).toString()) as SavedGame;
+    const recorder = new Recorder(docs, new MemoryStore(), capture, [], formatLine, listJoin, "perceived", perceptionOnly ? ["10e"] : undefined);
+    const thoughts = prepareThoughts(rec);
+    for (const t of turnsOf(rec)) await recorder.turn(t, rec.lines, thoughts.filter((x) => x.turn === t && !x.repeat && x.call !== "murder"));
+  }
+  const tokensIn = chars / 3.5;
+  const p = route.endpoint.price;
+  // Output: about 300 tokens a call is typical for these passes; the worst case is every call at max_tokens.
+  console.log(
+    `Estimate (no calls): ${calls} calls, ~${Math.round(tokensIn).toLocaleString()} input tokens (chars ÷ 3.5); typical cost $${(tokensIn * p.input + calls * 300 * p.output).toFixed(3)}, worst case (every reply at max_tokens) $${(tokensIn * p.input + maxOut * p.output).toFixed(3)} on ${route.model.id} via ${route.endpoint.providerName}`,
+  );
 }
 
 main();

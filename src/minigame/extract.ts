@@ -1,16 +1,17 @@
-// The recorder (Technical Design v0.7, End-of-Turn Extraction Pass and
+// The recorder (Technical Design v0.8, End-of-Turn Extraction Pass and
 // Memory Writing): at the end of each turn, a ★ pass (10a) and a claims pass
 // (10d) per conversation active that turn, with the ★ pass's one sweep
-// re-ask, and a thought pass (10b) per character who thought; at the end of
-// the game, the knowledge checks (10c). Used by the engine during play and by
+// re-ask, a thought pass (10b) per character who thought, and, when readings
+// are recorded (`notebook: perceived`), a perception pass (10e) per character
+// who heard or spoke a line; at the end of the game, the knowledge checks (10c). Used by the engine during play and by
 // replay.ts to re-run extraction on saved games. The caller makes the system
 // calls (temperature 0, TD's retry once on unusable JSON).
 
 import type { CharacterName } from "../game/roster.ts";
 import type { DocSources, PlotFact } from "../sources/docs.ts";
-import { ClaimsPass, KnowledgeVerdict, MemoryStore, StarPass, parseSweep, rosterText, sweepIds, whereLabel, type Belief, type GameLine, type MemoryEntry, type Thought } from "./memory.ts";
+import { ClaimsPass, KnowledgeVerdict, MemoryStore, StarPass, parseSweep, rosterText, sweepIds, whereLabel, type Belief, type GameLine, type MemoryEntry, type Thought, type TimelineItem } from "./memory.ts";
 
-export type SystemCallKind = "star-pass" | "claims-pass" | "sweep-reask" | "thought-pass" | "knowledge-check";
+export type SystemCallKind = "star-pass" | "claims-pass" | "sweep-reask" | "thought-pass" | "perception-pass" | "knowledge-check";
 /** One system call; null when it failed twice (or the cap stopped it). */
 export type SystemCaller = (kind: SystemCallKind, character: CharacterName | null, system: string, user: string) => Promise<unknown | null>;
 export type RecorderEvent = { turn: number; type: string; [k: string]: unknown };
@@ -37,6 +38,10 @@ export class Recorder {
     /** How a line reads in History (TD, History Line Formats). */
     private formatLine: (l: GameLine) => string,
     private listJoin: (xs: string[]) => string,
+    /** TD v0.8 `notebook`: readings (10e) are written only in "perceived". */
+    private notebook: "shared" | "perceived" = "shared",
+    /** Which passes run: all by default; ["10e"] adds readings to an existing record (replay). */
+    private passes: ("10a" | "10b" | "10d" | "10e")[] = ["10a", "10b", "10d", "10e"],
   ) {
     if (!docs.systemPrompts || !docs.memoryRules) throw new Error("This Technical Design has no v0.6 memory passes (blocks 10a–10d)");
     const sp = docs.systemPrompts;
@@ -44,6 +49,10 @@ export class Recorder {
     this.prefixes["system:claims-pass"] = sp.claimsPass.system;
     this.prefixes["system:thought-pass"] = sp.thoughtPass.system;
     this.prefixes["system:knowledge-check"] = sp.knowledgeCheck.system;
+    if (notebook === "perceived") {
+      if (!sp.perceptionPass) throw new Error("notebook: perceived needs TD v0.8's perception pass (block 10e)");
+      this.prefixes["system:perception-pass"] = sp.perceptionPass.system;
+    }
   }
 
   /**
@@ -56,10 +65,66 @@ export class Recorder {
     const conversations = active.flatMap((id) => {
       const mine = turnLines.filter((l) => l.conversation === id);
       const context = lines.filter((l) => l.conversation === id && l.turn < turn && l.kind !== "private").slice(-CONTEXT_LINES);
-      return [this.starPass(turn, id, mine, context), this.claimsPass(turn, id, mine, context)];
+      return [...(this.passes.includes("10a") ? [this.starPass(turn, id, mine, context)] : []), ...(this.passes.includes("10d") ? [this.claimsPass(turn, id, mine, context)] : [])];
     });
-    const thinkers = [...new Set(thoughts.map((t) => t.character))];
-    await Promise.all([...conversations, ...thinkers.map((c) => this.thoughtPass(turn, c, thoughts.filter((t) => t.character === c)))]);
+    const thinkers = this.passes.includes("10b") ? [...new Set(thoughts.map((t) => t.character))] : [];
+    // TD v0.8: one perception pass per character who heard or spoke a line this turn, alongside 10b.
+    const perceivers =
+      this.notebook === "perceived" && this.passes.includes("10e") ? [...new Set(lines.filter((l) => l.turn === turn).flatMap((l) => l.heardBy))] : [];
+    await Promise.all([
+      ...conversations,
+      ...thinkers.map((c) => this.thoughtPass(turn, c, thoughts.filter((t) => t.character === c))),
+      ...perceivers.map((c) => this.perceptionPass(turn, c, lines, thoughts)),
+    ]);
+  }
+
+  /**
+   * 10e's {timeline} (TD v0.8): every line the character heard or spoke this turn, in order, with
+   * IDs, their own lines marked "(you…)"; each think() thought indented after the line it followed
+   * (after_line); a separator when the conversation changes. Other calls' thoughts and exact
+   * repeats are left out.
+   */
+  timeline(turn: number, c: CharacterName, lines: GameLine[], thoughts: Thought[]): TimelineItem[] {
+    const heard = lines.filter((l) => l.turn === turn && l.heardBy.includes(c));
+    const mine = thoughts.filter((t) => t.character === c && t.turn === turn && t.call === "think" && !t.repeat);
+    const ids = new Set(heard.map((l) => l.id));
+    // A thought whose line came before this turn (e.g. a join note at the last movement window) opens the timeline.
+    const items: TimelineItem[] = mine.filter((t) => !t.after_line || !ids.has(t.after_line)).map((t) => ({ kind: "thought", thought: t }));
+    for (const l of heard) {
+      items.push({ kind: "line", line: l });
+      for (const t of mine.filter((t) => t.after_line === l.id)) items.push({ kind: "thought", thought: t });
+    }
+    return items;
+  }
+
+  private renderTimeline(c: CharacterName, items: TimelineItem[]): string {
+    const out: string[] = [];
+    let conv: string | null = null;
+    for (const it of items) {
+      if (it.kind === "thought") {
+        out.push(`  [${it.thought.id}] thought: ${it.thought.text}`);
+        continue;
+      }
+      const l = it.line;
+      if (conv !== null && l.conversation !== conv) out.push(`— ${whereLabel(l.where, c)} —`);
+      conv = l.conversation;
+      const own = l.kind === "speech" && l.speaker === c;
+      out.push(`[${l.id}] ${own ? `${c} (you${l.addressee ? `, to ${l.addressee}` : ""}): ${l.text}` : this.formatLine(l)}`);
+    }
+    return out.join("\n");
+  }
+
+  private async perceptionPass(turn: number, c: CharacterName, lines: GameLine[], thoughts: Thought[]): Promise<void> {
+    const sp = this.docs.systemPrompts!.perceptionPass!;
+    const items = this.timeline(turn, c, lines, thoughts);
+    const user = fill(sp.user, { roster: rosterText(), character_name: c, timeline: this.renderTimeline(c, items) });
+    const raw = await this.call("perception-pass", c, sp.system, user);
+    if (raw === null) {
+      this.events.push({ turn, type: "extraction-failed", pass: "10e", character: c });
+      return;
+    }
+    const r = this.memory.applyPerceptionPass(raw, { turn, character: c, timeline: items });
+    this.events.push({ turn, type: "perception-pass", character: c, stored: r.stored.map((x) => x.id), dropped: r.dropped.length });
   }
 
   /** 10a/10d's user message: roster, conversation, context lines and this turn's lines with IDs, and the IDs to sweep. */
@@ -236,4 +301,75 @@ const article = (kind: string) => (/^[aeiou]/.test(kind) ? "an" : "a");
 
 function fill(template: string, values: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (m, k: string) => values[k] ?? m);
+}
+
+export type AfterLineStatus = "clean-speech" | "clean-notaio" | "ambiguous" | "none";
+
+/**
+ * Rebuilds each thought's `after_line` from a saved game's event order (TD v0.8; Models &
+ * Research v0.29 check a): the last line the character heard before the thought. For a think()
+ * thought, the lines heard since the character's previous think() say how clean the pairing is:
+ * one speech line (with at most its own action line after it) is clean; only Il Notaio or action
+ * lines is clean too (a join, a departure, a new group); a speech line followed by an Il Notaio
+ * line is ambiguous (the thought may react to either); no new line is none.
+ */
+export function rebuildAfterLine(rec: { lines: GameLine[]; events: { type: string; line?: unknown; thought?: unknown }[]; thoughts: Thought[] }): Map<string, { after_line: string | null; status: AfterLineStatus | null; reason: string }> {
+  const byId = new Map(rec.lines.map((l) => [l.id, l]));
+  const seq: { kind: "L" | "T"; id: string }[] = [];
+  const seen = new Set<string>();
+  for (const e of rec.events) {
+    if (typeof e.line === "string" && byId.has(e.line) && !seen.has(e.line)) {
+      seq.push({ kind: "L", id: e.line });
+      seen.add(e.line);
+    }
+    if (e.type === "thought" && typeof e.thought === "string") seq.push({ kind: "T", id: e.thought });
+  }
+  // Lines without an event of their own (private action lines) go straight after the line created before them.
+  for (const l of rec.lines.filter((l) => !seen.has(l.id))) {
+    const prev = `L${Number(l.id.slice(1)) - 1}`;
+    const at = seq.findIndex((x) => x.kind === "L" && x.id === prev);
+    seq.splice(at < 0 ? seq.length : at + 1, 0, { kind: "L", id: l.id });
+  }
+  const thoughts = new Map(rec.thoughts.map((t) => [t.id, t]));
+  const lastHeard = new Map<string, string>();
+  const sinceThink = new Map<string, GameLine[]>();
+  const out = new Map<string, { after_line: string | null; status: AfterLineStatus | null; reason: string }>();
+  for (const x of seq) {
+    if (x.kind === "L") {
+      const l = byId.get(x.id)!;
+      for (const c of l.heardBy) {
+        lastHeard.set(c, l.id);
+        sinceThink.set(c, [...(sinceThink.get(c) ?? []), l]);
+      }
+      continue;
+    }
+    const t = thoughts.get(x.id);
+    if (!t) continue;
+    const after = lastHeard.get(t.character) ?? null;
+    if (t.call !== "think") {
+      out.set(t.id, { after_line: after, status: null, reason: `${t.call} thought (not paired)` });
+      continue;
+    }
+    const fresh = sinceThink.get(t.character) ?? [];
+    sinceThink.set(t.character, []);
+    const speech = fresh.filter((l) => l.kind === "speech");
+    let status: AfterLineStatus;
+    let reason: string;
+    if (!fresh.length) [status, reason] = ["none", "no new line heard since the previous think()"];
+    else if (!speech.length) [status, reason] = ["clean-notaio", `only Il Notaio or action lines (${fresh.length})`];
+    else if (speech.length > 1) [status, reason] = ["ambiguous", `${speech.length} speech lines since the previous think()`];
+    else {
+      const sp = speech[0]!;
+      const after = fresh.slice(fresh.indexOf(sp) + 1);
+      // A speech line's own action line (a bribe) comes straight after it and is part of what was said.
+      const ownAction = after.length === 1 && after[0]!.kind === "event" && Number(after[0]!.id.slice(1)) === Number(sp.id.slice(1)) + 1;
+      if (!after.length) [status, reason] = ["clean-speech", fresh.length > 1 ? "one speech line, after Il Notaio lines" : "one speech line"];
+      else if (ownAction) [status, reason] = ["clean-speech", "one speech line and its action line"];
+      else [status, reason] = ["ambiguous", `a speech line, then ${after.map((l) => l.kind).join(", ")}`];
+    }
+    // For a clean speech pairing, the thought reacts to the speech line, not to an action line after it.
+    const pick = status === "clean-speech" ? speech[0]!.id : after;
+    out.set(t.id, { after_line: pick, status, reason });
+  }
+  return out;
 }

@@ -32,7 +32,7 @@ import { MemoryStore, renderBelief, resolveName, whereLabel, type GameLine, type
 
 // ---- Calls -----------------------------------------------------------------------------
 
-export type CallKind = "plan" | "think" | "speak" | "move" | "murder" | "star-pass" | "claims-pass" | "sweep-reask" | "thought-pass" | "knowledge-check";
+export type CallKind = "plan" | "think" | "speak" | "move" | "murder" | "star-pass" | "claims-pass" | "sweep-reask" | "thought-pass" | "perception-pass" | "knowledge-check";
 
 export interface CallRequest {
   kind: CallKind;
@@ -780,10 +780,12 @@ export class MiniGame {
     // TD v0.6 shortTermHistory: an exact repeat of the previous thought is logged and counted, not shown again.
     const previous = this.thoughts.findLast((t) => t.character === c);
     const repeat = (this.s.dropRepeatedThoughts ?? true) && !!previous && sameThought(previous.text, text);
-    const t: Thought = { id: `T${this.nextThought++}`, turn: this.turn, character: c, call, text, ...(repeat && { repeat: true }) };
+    // TD v0.8: every thought keeps the line the character had last heard; for think(), the line it reacts to.
+    const after_line = this.char(c).lines.at(-1)?.id ?? null;
+    const t: Thought = { id: `T${this.nextThought++}`, turn: this.turn, character: c, call, text, after_line, ...(repeat && { repeat: true }) };
     this.thoughts.push(t);
     if (!repeat) this.char(c).thoughts.push(text);
-    this.events.push({ turn: this.turn, type: "thought", thought: t.id, character: c, call, text, ...(repeat && { repeat: true }), ...extra });
+    this.events.push({ turn: this.turn, type: "thought", thought: t.id, character: c, call, text, after_line, ...(repeat && { repeat: true }), ...extra });
   }
 
   private snapshot(label: string): void {

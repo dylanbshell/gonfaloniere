@@ -34,6 +34,7 @@ import { Budget, worstCaseCost } from "../harness/budget.ts";
 import { RunLog, gitCommit, priorSpend, type LogRecord } from "../harness/log.ts";
 import { callModel, type EndpointInfo, type RetryPolicy } from "../harness/openrouter.ts";
 import { loadDocs, loadStandinBriefings } from "../sources/docs.ts";
+import { MINIGAME_TOTAL_USD } from "./ledger.ts";
 import { CAST, STANDINS, STANDIN_FILE } from "./cast.ts";
 import { MiniGame, formatLine, type CallKind, type Caller, type GameSettings } from "./engine.ts";
 import { memoryCounts, renderBelief, renderEntry, whereLabel } from "./memory.ts";
@@ -62,7 +63,7 @@ const { values: opts } = parseArgs({
 });
 
 const OUT = process.env.PROBE_RESULTS_DIR ?? "results/minigame";
-const SYSTEM_KINDS: CallKind[] = ["star-pass", "claims-pass", "sweep-reask", "thought-pass", "knowledge-check"];
+const SYSTEM_KINDS: CallKind[] = ["star-pass", "claims-pass", "sweep-reask", "thought-pass", "perception-pass", "knowledge-check"];
 const RETRY: Omit<RetryPolicy, "onRetry"> = { maxAttempts: 5, retryable: (status) => status === 429 || status === null };
 const WINDOW_MS = 10 * 60_000;
 const WINDOW_MIN_CALLS = 30;
@@ -106,7 +107,7 @@ async function main(): Promise<void> {
     character: { route: play, model: play.model, endpoint: play.endpoint, servedId: null },
     system: { route: recorder, model: recorder.model, endpoint: recorder.endpoint, servedId: null },
   };
-  const budget = new Budget(Number(opts.cap), config.budget.totalUsd, priorSpend(OUT));
+  const budget = new Budget(Number(opts.cap), MINIGAME_TOTAL_USD, priorSpend(OUT));
   const runId = `${new Date().toISOString().replace(/[:.]/g, "-")}-minigame`;
   const runLog = new RunLog(runId, "minigame-", OUT);
   const tree = workingTree();
@@ -119,7 +120,7 @@ async function main(): Promise<void> {
     thoughtWindow: 4,
     maxCapannello: 4,
     // TD v0.6 Run Configuration: ★ pass ~1,500 including the sweep, claims pass ~1,000, thought pass ~600, knowledge check ~300.
-    maxTokens: { plan: 400, think: 250, speak: 200, move: 500, murder: 300, "star-pass": 1800, "claims-pass": 1000, "sweep-reask": 1800, "thought-pass": 600, "knowledge-check": 300 },
+    maxTokens: { plan: 400, think: 250, speak: 200, move: 500, murder: 300, "star-pass": 1800, "claims-pass": 1000, "sweep-reask": 1800, "thought-pass": 600, "perception-pass": 800, "knowledge-check": 300 },
     playTemperature: 0.7,
     // The engine's nominal value; what is actually sent comes from the recorder route, recorded as config.recorder.temperature_sent.
     systemTemperature: recorder.temperature ?? 0,
@@ -131,7 +132,7 @@ async function main(): Promise<void> {
   const replacements = Number(opts.replacements);
   const wanted = Number(opts.games);
   runLog.write({ type: "run", runId, startedAt: new Date().toISOString(), modelId: charModel.id, systemModelId: sysModel.id, endpoint: served.character.endpoint, systemEndpoint: served.system.endpoint, docVersions: docs.versions, gitCommit: gitCommit(), workingTree: tree, settings: { ...settingsBase, games: wanted, cap: opts.cap, parallel, replacements, seed: opts.seed } } as unknown as LogRecord);
-  console.log(`Mini-game: ${wanted} game(s) × ${opts.turns} turns; characters on ${charModel.id} via ${served.character.endpoint.providerName}, system calls on ${sysModel.id} via ${served.system.endpoint.providerName}; up to ${parallel} at a time; cap $${opts.cap}; ledger $${budget.priorSpendUsd.toFixed(2)} spent before this (total cap $${config.budget.totalUsd})`);
+  console.log(`Mini-game: ${wanted} game(s) × ${opts.turns} turns; characters on ${charModel.id} via ${served.character.endpoint.providerName}, system calls on ${sysModel.id} via ${served.system.endpoint.providerName}; up to ${parallel} at a time; cap $${opts.cap}; ledger $${budget.priorSpendUsd.toFixed(2)} spent before this (total cap $${MINIGAME_TOTAL_USD})`);
   console.log(`Docs: TD v${docs.versions.technicalDesign}, Characters v${docs.versions.characters}, Mechanics v${docs.versions.mechanics}, Models & Research v${docs.versions.modelsResearch}. Stand-ins: ${STANDINS.join(", ")}. Commit ${gitCommit()}; untracked: ${tree.untracked.join(", ") || "none"}`);
 
   // ---- Pre-flight: thinking off and the pinned provider, on both models -------------------------
@@ -360,6 +361,8 @@ function buildRecord(
         recorder: describeRoute(x.served.system.route, x.served.system.servedId),
         thinking: "off",
         fallbacks: false,
+        // TD v0.8 run setting. Live play runs "shared": perceived retrieval isn't built into the runner yet, so no readings are written.
+        notebook: "shared",
         retry: "429 or timeout: up to 5 tries, exponential backoff; any other failure ends the game",
         ...x.settings,
         plot_reward: false,
@@ -385,7 +388,7 @@ function buildRecord(
     lines: game.lines,
     thoughts: game.thoughts,
     calls: game.calls,
-    memory: { entries: game.memory.entries, beliefs: game.memory.beliefs, dropped: game.memory.dropped, repairs: game.memory.repairs, notes: game.memory.notes },
+    memory: { entries: game.memory.entries, beliefs: game.memory.beliefs, readings: game.memory.readings, dropped: game.memory.dropped, repairs: game.memory.repairs, notes: game.memory.notes },
     snapshots: game.snapshots,
     murder_round: { resolved: false, acts: game.murderActs },
     knowledge_checks: game.knowledgeChecks,

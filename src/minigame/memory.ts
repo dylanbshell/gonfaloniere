@@ -1,4 +1,4 @@
-// Memory for the mini-game (Technical Design v0.7, Memory Architecture and
+// Memory for the mini-game (Technical Design v0.8, Memory Architecture and
 // Memory Writing): the game's lines and thoughts with IDs, longTermHistory
 // entries and beliefs, the checks every extraction entry must pass before it
 // is stored (Output Validation & Repair: Memory entries, Sweep, Beliefs),
@@ -46,6 +46,8 @@ export interface Thought {
   text: string;
   /** TD v0.6 shortTermHistory: an exact repeat of the character's previous thought, logged but not shown again or passed to 10b. */
   repeat?: boolean;
+  /** TD v0.8: the line the character had last heard when the thought was made; for think(), the line it reacted to. */
+  after_line?: string | null;
 }
 
 export const ENTRY_TYPES = ["promise", "deal", "threat", "admission", "claim", "denial"] as const;
@@ -77,6 +79,35 @@ export interface MemoryEntry {
   source: "10a" | "10d" | "code";
 }
 
+/** What a character took a line as (TD v0.8, block 10e): the six kinds, as the character sees them. */
+export const READING_KINDS = ["promise", "deal", "threat", "admission", "claim", "denial"] as const;
+const SALIENT_READINGS = ["promise", "deal", "threat", "admission"];
+
+/**
+ * A reading (R…), TD v0.8's perceived notebook: how one character took a line, with the speaker's
+ * exact words and the character's own reaction quoted from their thought. No recorder summary.
+ */
+export interface Reading {
+  id: string;
+  character: CharacterName;
+  turn: number;
+  conversation: string;
+  where: Where;
+  speaker: CharacterName;
+  line: string;
+  quote: string;
+  took: (typeof READING_KINDS)[number];
+  thought: string | null;
+  reaction: string | null;
+  about: string[];
+  /** The character spoke the line. */
+  own: boolean;
+  salient: boolean;
+}
+
+/** One item of 10e's timeline: a line the character heard or spoke, or a think() thought after its line. */
+export type TimelineItem = { kind: "line"; line: GameLine } | { kind: "thought"; thought: Thought };
+
 /** A belief (B…) from the thought pass. Nothing is deleted; "dropped" sets the status. */
 export interface Belief {
   id: string;
@@ -94,7 +125,7 @@ export interface Belief {
 
 /** An extraction entry that failed a check, kept for the gate 8 report. */
 export interface DroppedEntry {
-  pass: "10a" | "10b" | "10d";
+  pass: "10a" | "10b" | "10d" | "10e";
   turn: number;
   scope: string;
   reason: string;
@@ -137,6 +168,8 @@ export class MemoryStore {
   dropped: DroppedEntry[] = [];
   repairs: ExtractionRepair[] = [];
   notes: MemoryNote[] = [];
+  readings: Reading[] = [];
+  private nextR = 1;
   private nextM = 1;
   private nextB = 1;
 
@@ -370,6 +403,95 @@ export class MemoryStore {
     return { changed, dropped };
   }
 
+  // ---- 10e: perception pass ---------------------------------------------------------
+
+  /**
+   * Checks a perception pass reply against one character's timeline this turn and stores readings
+   * (TD v0.8, Output Validation & Repair, Readings): the line must be a spoken line in the timeline;
+   * the quote must be in that line; the reaction must be in a thought from the timeline; for someone
+   * else's line that thought must come after the line, and for the character's own line thought and
+   * reaction may both be null. Unknown kinds are dropped; a repeated (line, kind) keeps the first.
+   */
+  applyPerceptionPass(raw: unknown, x: { turn: number; character: CharacterName; timeline: TimelineItem[] }): { stored: Reading[]; dropped: DroppedEntry[] } {
+    const stored: Reading[] = [];
+    const dropped: DroppedEntry[] = [];
+    const drop = (reason: string, entry: unknown) => {
+      const d: DroppedEntry = { pass: "10e", turn: x.turn, scope: x.character, reason, entry };
+      dropped.push(d);
+      this.dropped.push(d);
+    };
+    const parsed = PerceptionPass.safeParse(raw);
+    if (!parsed.success) {
+      drop(`reply shape: ${parsed.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`, raw);
+      return { stored, dropped };
+    }
+    const position = new Map<string, number>();
+    x.timeline.forEach((it, i) => position.set(it.kind === "line" ? it.line.id : it.thought.id, i));
+    const lines = new Map(x.timeline.flatMap((it) => (it.kind === "line" ? [[it.line.id, it.line] as const] : [])));
+    const thoughts = new Map(x.timeline.flatMap((it) => (it.kind === "thought" ? [[it.thought.id, it.thought] as const] : [])));
+    const seen = new Set<string>();
+    for (const n of parsed.data.notes) {
+      const line = lines.get(lineId(n.line));
+      if (!line || line.kind !== "speech") {
+        drop(`line not a spoken line in the input (${n.line})`, n);
+        continue;
+      }
+      if (!quoteIn(n.quote, line.text)) {
+        drop(`quote not in line (${line.id}: "${n.quote}")`, n);
+        continue;
+      }
+      if (!(READING_KINDS as readonly string[]).includes(n.took)) {
+        drop(`unknown took (${n.took})`, n);
+        continue;
+      }
+      const own = line.speaker === x.character;
+      let thought: Thought | null = null;
+      if (n.thought || n.reaction) {
+        thought = n.thought ? (thoughts.get(lineId(n.thought)) ?? null) : null;
+        if (!thought) {
+          drop(`thought not in input (${n.thought})`, n);
+          continue;
+        }
+        if (!n.reaction || !quoteIn(n.reaction, thought.text)) {
+          drop(`reaction not in thought (${thought.id}: "${n.reaction}")`, n);
+          continue;
+        }
+        if (!own && position.get(thought.id)! < position.get(line.id)!) {
+          drop(`thought before line (${thought.id} precedes ${line.id})`, n);
+          continue;
+        }
+      } else if (!own) {
+        drop(`no thought for another's line (${line.id})`, n);
+        continue;
+      }
+      const key = `${line.id}|${n.took}`;
+      if (seen.has(key)) {
+        drop(`duplicate (${line.id} ${n.took})`, n);
+        continue;
+      }
+      seen.add(key);
+      const reading: Reading = {
+        id: `R${this.nextR++}`,
+        character: x.character,
+        turn: x.turn,
+        conversation: line.conversation,
+        where: line.where,
+        speaker: line.speaker!,
+        line: line.id,
+        quote: n.quote,
+        took: n.took as Reading["took"],
+        thought: thought?.id ?? null,
+        reaction: thought ? n.reaction! : null,
+        about: n.about.map((a) => resolveName(a) ?? a),
+        own,
+        salient: SALIENT_READINGS.includes(n.took),
+      };
+      this.readings.push(reading);
+      stored.push(reading);
+    }
+    return { stored, dropped };
+  }
+
   // ---- Retrieval (TD v0.5, Memory Writing → Retrieval) --------------------------------
 
   /**
@@ -442,6 +564,20 @@ export function sweepIds(turnLines: GameLine[]): string[] {
   return turnLines.filter((l) => l.kind === "speech").map((l) => l.id);
 }
 
+/** 10e's reply (TD v0.8). */
+const PerceptionPass = z.object({
+  notes: z.array(
+    z.object({
+      line: z.string(),
+      quote: z.string(),
+      took: z.string(),
+      thought: z.string().nullable(),
+      reaction: z.string().nullable(),
+      about: z.array(z.string()).default([]),
+    }),
+  ),
+});
+
 /** 10a's reply: the sweep, then the entries (TD v0.6–v0.7). */
 export const StarPass = z.object({ sweep: z.array(z.unknown()), entries: z.array(z.unknown()) });
 /** 10d's reply. */
@@ -482,6 +618,25 @@ const turnOf = (x: MemoryEntry | Belief) => ("summary" in x ? x.turn : x.firstTu
 /** TD's block 6 line: `T4 · Colloquio with Lupo · ★ deal: … ("quote")`. */
 export function renderEntry(e: MemoryEntry, forChar?: CharacterName): string {
   return `T${e.turn} · ${whereLabel(e.where, forChar)} · ${e.salient ? "★ " : ""}${e.type}: ${e.summary}${e.quote ? ` ("${e.quote}")` : ""}`;
+}
+
+/**
+ * TD v0.8's block 6 line for a reading: the speaker's exact words, then the character's reaction.
+ * `T4 · Colloquio with Lupo · ★ you took it as a deal · Lupo: "…" · you thought: "…"`, or for the
+ * character's own line `… · ★ your own promise · you said: "…" · you thought: "…"`.
+ */
+export function renderReading(r: Reading): string {
+  const head = `T${r.turn} · ${whereLabel(r.where, r.character)} · ${r.salient ? "★ " : ""}`;
+  const said = r.own ? `your own ${r.took} · you said: "${r.quote}"` : `you took it as ${article(r.took)} ${r.took} · ${r.speaker}: "${r.quote}"`;
+  return `${head}${said}${r.reaction ? ` · you thought: "${r.reaction}"` : ""}`;
+}
+
+const article = (kind: string) => (/^[aeiou]/.test(kind) ? "an" : "a");
+
+/** A code-written entry from the character's own side, in the second person ("You gave Lupo 3 Florins."). */
+export function renderCodeEntryFor(e: MemoryEntry, c: CharacterName): string {
+  const summary = e.summary.startsWith(`${c} `) ? `You ${e.summary.slice(c.length + 1)}` : e.summary;
+  return `T${e.turn} · ${whereLabel(e.where, c)} · ${e.salient ? "★ " : ""}${summary}`;
 }
 
 export function renderBelief(b: Belief): string {

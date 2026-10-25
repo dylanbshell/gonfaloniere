@@ -68,8 +68,8 @@ export interface DocSources {
   tunables: Tunables;
   /** Characters' standard social awareness text, filled into every briefing. */
   socialAwareness: string;
-  /** TD v0.6's system prompts (★ pass, claims pass, thought pass, knowledge check); absent before v0.6. */
-  systemPrompts?: { starPass: SystemPrompt; claimsPass: SystemPrompt; thoughtPass: SystemPrompt; knowledgeCheck: SystemPrompt };
+  /** TD v0.6's system prompts (★ pass, claims pass, thought pass, knowledge check), and from v0.8 the perception pass; absent before v0.6. */
+  systemPrompts?: { starPass: SystemPrompt; claimsPass: SystemPrompt; thoughtPass: SystemPrompt; knowledgeCheck: SystemPrompt; perceptionPass?: SystemPrompt };
   /** TD v0.6's checks on memory writing (Output Validation & Repair); absent before v0.6. */
   memoryRules?: MemoryRules;
   /** TD v0.5's plot-point facts (F1–F4, and the optional F5); empty before v0.5. */
@@ -162,7 +162,7 @@ export function loadDocs(paths: DocPaths): DocSources {
 }
 
 /**
- * Blocks 10a–10d (TD v0.6): each heading holds the system message's code block, then the user
+ * Blocks 10a–10e (TD v0.6–v0.8): each heading holds the system message's code block, then the user
  * message's; 10d (claims pass) uses 10a's user message.
  */
 function systemPrompts(td: string): DocSources["systemPrompts"] | null {
@@ -182,7 +182,9 @@ function systemPrompts(td: string): DocSources["systemPrompts"] | null {
   const knowledgeCheck = pair("### Block 10c — Knowledge check");
   const [claimsSystem] = blocks("### Block 10d — Claims pass");
   if (!starPass || !thoughtPass || !knowledgeCheck || !claimsSystem) return null;
-  return { starPass, claimsPass: { system: claimsSystem, user: starPass.user }, thoughtPass, knowledgeCheck };
+  // TD v0.8: the perception pass (block 10e); absent before v0.8.
+  const perceptionPass = pair("### Block 10e — Perception pass");
+  return { starPass, claimsPass: { system: claimsSystem, user: starPass.user }, thoughtPass, knowledgeCheck, ...(perceptionPass && { perceptionPass }) };
 }
 
 /** Terms each recorder prompt defines in its DEFINITIONS section (TD v0.7's definitions contract). */
