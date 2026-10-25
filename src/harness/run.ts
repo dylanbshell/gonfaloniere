@@ -9,20 +9,19 @@
 // s7-buried, s7-control (default: all, in that order); "s7" means all three.
 // Options: --model <id>, --samples <n> (single-moment scenarios, per mode),
 //          --runs <n> (dialogue scenarios), --modes raw,constrained,
-//          --td <version> (which Technical Design's prompts; default 0.4, or
+//          --td <version> (which Technical Design's prompts; default 0.6, or
 //          PROBE_TD; older versions are in git history), --extend (dialogue runs append to the model's
 //          latest run of each target, so they pool with it),
 //          --concurrency <n> (parallel calls; default from config, lower it for rate-limited endpoints)
 
 import { parseArgs } from "node:util";
-import { existsSync } from "node:fs";
 import { config, technicalDesignPath, type ModelConfig } from "../../probe.config.ts";
 import { allowedActionTypes, allowedActionsText } from "../game/actions.ts";
 import type { CharacterName } from "../game/roster.ts";
 import { parseSpeak, type SpeakExpectation } from "../output/speak.ts";
 import { parseThink, thinkJsonSchema, type ThinkExpectation } from "../output/think.ts";
 import { assembleSpeakPrompt, assembleThinkPrompt, speakHasAddressee, type HistoryLine } from "../prompt/assemble.ts";
-import { loadDocs, type DocSources } from "../sources/docs.ts";
+import { docAvailable, loadDocs, type DocSources } from "../sources/docs.ts";
 import { Budget, worstCaseCost } from "./budget.ts";
 import {
   RunLog,
@@ -74,7 +73,7 @@ const { values: opts, positionals } = parseArgs({
   allowPositionals: true,
   options: {
     "dry-run": { type: "boolean", default: false },
-    td: { type: "string", default: process.env.PROBE_TD ?? "0.5" },
+    td: { type: "string", default: process.env.PROBE_TD ?? "0.6" },
     extend: { type: "boolean", default: false },
     concurrency: { type: "string" },
     model: { type: "string" },
@@ -94,7 +93,7 @@ async function main(): Promise<void> {
   const model = config.models.find((m) => m.id === (opts.model ?? config.models[0]!.id));
   if (!model) throw new Error(`Unknown model "${opts.model}". Known: ${config.models.map((m) => m.id).join(", ")}`);
   const tdPath = technicalDesignPath(opts.td!);
-  if (!existsSync(tdPath)) throw new Error(`No Technical Design v${opts.td} (${tdPath})`);
+  if (!docAvailable(tdPath)) throw new Error(`No Technical Design v${opts.td} (${tdPath}), in docs/ or in git history`);
   const docs = loadDocs({ ...config.docs, technicalDesign: tdPath });
   // TD v0.3: blocks 1–3 as a system message unless the model opts out, and Block 9a without contacts.
   layout.systemRole = opts.td !== "0.2" && model.systemRole !== false;
