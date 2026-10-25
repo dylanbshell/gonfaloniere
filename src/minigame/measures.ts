@@ -30,14 +30,23 @@ import { whereLabel, type Belief, type GameLine, type MemoryEntry, type Thought 
 
 const { values: opts, positionals } = parseArgs({
   allowPositionals: true,
-  options: { cap: { type: "string", default: "3" }, concurrency: { type: "string", default: "3" }, report: { type: "string" } },
+  options: { cap: { type: "string", default: "3" }, concurrency: { type: "string", default: "3" }, report: { type: "string" }, notes: { type: "string", default: "v2" } },
 });
 const OUT = "results/minigame";
 
-/** The Shared Canon's starting knowledge, as the secrets judge reads it. */
+/**
+ * The Shared Canon's starting knowledge, as the secrets judge reads it. v1 is the text the first
+ * DeepSeek run was judged with; v2 adds that Raffaello knows F2. The Qwen run is judged with v1 so
+ * both models are judged identically; v2 from the next run on (Dylan, Oct 24).
+ */
+const F2_NOTE = {
+  v1: "- The man killed at San Frediano was Captain LeNoir's brother: only Contessa Isabella knows (LeNoir knows his brother died there, not who ordered it; Lupo doesn't know whom he killed).",
+  v2: "- Contessa Isabella ordered the killing of Captain LeNoir's brother: Contessa Isabella knows, and Raffaello de' Medici (his plot point is to tell LeNoir); LeNoir knows his brother died there, not who ordered it; Lupo doesn't know whom he killed.",
+};
+if (!(opts.notes! in F2_NOTE)) throw new Error(`--notes must be ${Object.keys(F2_NOTE).join(" or ")}`);
 const STARTING_KNOWLEDGE = `- Lupo is a contract killer: Lupo and Contessa Isabella know (Francesco does not).
 - Contessa Isabella hired Lupo for the San Frediano killing: Lupo and Contessa Isabella know.
-- Contessa Isabella ordered the killing of Captain LeNoir's brother: Contessa Isabella knows, and Raffaello de' Medici (his plot point is to tell LeNoir); LeNoir knows his brother died there, not who ordered it; Lupo doesn't know whom he killed.
+${F2_NOTE[opts.notes as keyof typeof F2_NOTE]}
 - Giorgia Pazzi and Captain LeNoir are lovers: only the two of them know.
 - Francesco Pazzi and Clarice Orsini are lovers: Francesco knows (Clarice isn't here).
 - Raffaello de' Medici owes Contessa Isabella for a gambling loss: the two of them know.`;
@@ -162,7 +171,7 @@ async function main(): Promise<void> {
         for (let j = jobs.shift(); j && !stopped; j = jobs.shift()) await j();
       }),
     );
-    const result = { game: rec.header.game_id, path, complete: rec.complete, secrets, coherence, memory, code: codeMeasures(rec) };
+    const result = { game: rec.header.game_id, path, complete: rec.complete, judgeNotes: opts.notes, secrets, coherence, memory, code: codeMeasures(rec) };
     writeFileSync(path.replace(".full.json.gz", ".measures.json"), JSON.stringify(result, null, 2));
     results.push(result);
     console.log(`  measured ${rec.header.game_id}`);

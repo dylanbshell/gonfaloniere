@@ -60,6 +60,8 @@ export interface CallResponse {
   outputTokens: number;
   latencyMs: number;
   provider: string | null;
+  /** The model the provider reports serving the call. */
+  model: string | null;
 }
 /** Null when the spending cap stops the call. */
 export type Caller = (req: CallRequest) => Promise<CallResponse | null>;
@@ -82,6 +84,12 @@ export interface CallRecord {
   outputTokens: number;
   latencyMs: number;
   provider: string | null;
+  model: string | null;
+}
+
+/** Runner hooks: a turn-end report, for progress lines. */
+export interface GameHooks {
+  turnEnd?: (e: { turn: number; calls: number; costUsd: number; ms: number }) => void;
 }
 
 // ---- Settings ----------------------------------------------------------------------------
@@ -175,6 +183,7 @@ export class MiniGame {
     private docs: DocSources,
     private s: GameSettings,
     private call: Caller,
+    private hooks: GameHooks = {},
   ) {
     this.rng = mulberry32(s.seed);
     this.treasury = docs.tunables.embassy_treasury;
@@ -215,6 +224,7 @@ export class MiniGame {
         costUsd: turnCalls.reduce((s, c) => s + c.costUsd, 0),
         tokens: turnCalls.reduce((s, c) => s + c.inputTokens + c.outputTokens, 0),
       });
+      this.hooks.turnEnd?.({ turn: this.turn, calls: this.calls.length, costUsd: this.calls.reduce((s, c) => s + c.costUsd, 0), ms: Date.now() - started });
     }
     this.turn = Math.min(this.turn, this.s.turns);
     if (!this.stopped) await this.murderRound();
@@ -812,6 +822,7 @@ export class MiniGame {
       outputTokens: res.outputTokens,
       latencyMs: res.latencyMs,
       provider: res.provider,
+      model: res.model,
     });
   }
 
