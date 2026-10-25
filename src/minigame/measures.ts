@@ -26,11 +26,11 @@ import { RUBRIC_AMENDMENTS_ID, RUBRIC_REVISION, applyListenerOverride, buildJudg
 import { loadDocs } from "../sources/docs.ts";
 import { CAST, KNOWS_AT_START } from "./cast.ts";
 import { formatLine, type CallRecord } from "./engine.ts";
-import { whereLabel, type Belief, type GameLine, type MemoryEntry, type Thought } from "./memory.ts";
+import { memoryCounts, whereLabel, type Belief, type GameLine, type MemoryEntry, type Thought } from "./memory.ts";
 
 const { values: opts, positionals } = parseArgs({
   allowPositionals: true,
-  options: { cap: { type: "string", default: "3" }, concurrency: { type: "string", default: "3" }, report: { type: "string" }, notes: { type: "string", default: "v2" } },
+  options: { cap: { type: "string", default: "3" }, concurrency: { type: "string", default: "3" }, report: { type: "string" }, notes: { type: "string", default: "v2" }, only: { type: "string" } },
 });
 const OUT = "results/minigame";
 
@@ -79,7 +79,7 @@ interface GameRecord {
   lines: GameLine[];
   thoughts: Thought[];
   calls: CallRecord[];
-  memory: { entries: MemoryEntry[]; beliefs: Belief[]; dropped: { pass: string; turn: number; reason: string }[]; repairs?: { repair: string }[] };
+  memory: { entries: MemoryEntry[]; beliefs: Belief[]; dropped: { pass: string; turn: number; reason: string }[]; repairs?: { repair: string }[]; notes?: { kind: string }[] };
   knowledge_checks: { character: string; fact: string; verdict: { verdict: string; told_by: string[]; reasoning: string } | null; flags: string[] }[];
   summary: { wall_ms: number; cost_usd: number; tokens: number; turns: { turn: number; ms: number; costUsd: number; calls: number }[] };
 }
@@ -131,8 +131,10 @@ async function main(): Promise<void> {
     const secrets: Record<string, unknown> = {};
     const coherence: Record<string, unknown> = {};
     const memory: Record<number, unknown> = {};
+    // --only memory: gate 8 alone (TD v0.6 re-test on replayed extraction; Models & Research: judging only).
+    const judgeAll = opts.only !== "memory";
 
-    for (const c of CAST) {
+    for (const c of judgeAll ? CAST : []) {
       jobs.push(async () => {
         const { prompt, turns } = secretsPrompt(rec, c, docs);
         if (!turns.length) {
@@ -323,7 +325,7 @@ function codeMeasures(rec: GameRecord) {
       stalls: rec.events.filter((e) => e.type === "stall").length,
     },
     format,
-    memory: { entries: rec.memory.entries.filter((e) => e.type !== "event").length, beliefs: rec.memory.beliefs.length, dropped: rec.memory.dropped.length, droppedByReason, repairs: rec.memory.repairs?.length ?? 0 },
+    memory: { entries: rec.memory.entries.filter((e) => e.type !== "event").length, beliefs: rec.memory.beliefs.length, dropped: rec.memory.dropped.length, droppedByReason, repairs: rec.memory.repairs?.length ?? 0, counts: memoryCounts(rec.memory, rec.thoughts) },
     knowledge: rec.knowledge_checks.map((k) => ({ character: k.character, fact: k.fact, verdict: k.verdict?.verdict ?? "none", toldBy: k.verdict?.told_by ?? [], flags: k.flags, knewAtStart: (KNOWS_AT_START[k.fact] ?? []).includes(k.character as CharacterName) })),
     cost: { usd: rec.summary.cost_usd, tokens: rec.summary.tokens, wallMinutes: rec.summary.wall_ms / 60000, perTurn: rec.summary.turns.map((t) => ({ turn: t.turn, usd: t.costUsd, seconds: t.ms / 1000, calls: t.calls })) },
   };
@@ -348,8 +350,8 @@ function report(results: Result[]): void {
   const out: string[] = [`# Mini-game measures (${results.length} game${results.length === 1 ? "" : "s"}; rubric ${RUBRIC_AMENDMENTS_ID} ${RUBRIC_REVISION})`, ""];
   for (const r of results) {
     out.push(`## ${r.game}${r.complete ? "" : " (incomplete)"}`, "");
-    // Secrets
-    out.push("**Secrets kept (cal5):**");
+    // Secrets (absent when only gate 8 was judged)
+    if (Object.keys(r.secrets).length) out.push("**Secrets kept (cal5):**");
     for (const c of CAST) {
       const s = r.secrets[c];
       if (!s) continue;
@@ -371,13 +373,14 @@ function report(results: Result[]): void {
     out.push(
       "",
       `**Memory (gate 8):** ★ items captured ${captured}/${items.length} (${items.length ? Math.round((100 * captured) / items.length) : 100}%; pass ≥90%); invented entries ${invented.length} (pass 0); unsupported beliefs ${unsupported.length}; code-dropped ${r.code.memory.dropped} ${JSON.stringify(r.code.memory.droppedByReason)}; code-repaired ${r.code.memory.repairs}`,
+      ...(r.code.memory.counts ? [`  - code counts (TD v0.6): dropped by reason ${JSON.stringify(r.code.memory.counts.dropped_by_reason)}; sweep re-asks ${r.code.memory.counts.notes["sweep re-ask"] ?? 0}, sweep gaps left ${r.code.memory.counts.notes["sweep gap"] ?? 0}, lines the sweep left out ${r.code.memory.counts.notes["sweep missing line"] ?? 0}, unflagged entries ${r.code.memory.counts.notes["unflagged entry"] ?? 0}; hedge downgrades ${r.code.memory.counts.notes["hedge downgrade"] ?? 0}; toward set to null ${r.code.memory.counts.notes["toward was speaker"] ?? 0}; deal toward set ${r.code.memory.counts.notes["deal toward set"] ?? 0}; repeated thoughts dropped ${r.code.memory.counts.repeated_thoughts}`] : []),
     );
     for (const i of items.filter((x) => !x.captured_by)) out.push(`  - missed ${i.type} ${i.lines.join(",")}: ${i.description}`);
     for (const i of invented) out.push(`  - invented ${i.entry}: ${i.reason}`);
     for (const i of unsupported) out.push(`  - unsupported ${i.belief}: ${i.reason}`);
     // Coherence and history
-    out.push("", "**Coherence (gate 9) and real history:**");
-    for (const c of CAST) {
+    if (Object.keys(r.coherence).length) out.push("", "**Coherence (gate 9) and real history:**");
+    for (const c of Object.keys(r.coherence).length ? CAST : []) {
       const k = r.coherence[c];
       const s = r.secrets[c];
       out.push(`- ${c}: plan ${k?.plan ?? "?"}; contradictions ${s?.contradictions?.length ?? "?"} (pass ≤1); history leaks ${k?.history_leaks?.length ?? "?"}${k?.history_leaks?.length ? `: ${k.history_leaks.map((h) => `"${h.quote}"`).join("; ")}` : ""}`);

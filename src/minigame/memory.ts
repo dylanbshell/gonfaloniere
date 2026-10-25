@@ -1,11 +1,13 @@
-// Memory for the mini-game (Technical Design v0.5, Memory Architecture and
+// Memory for the mini-game (Technical Design v0.6, Memory Architecture and
 // Memory Writing): the game's lines and thoughts with IDs, longTermHistory
 // entries and beliefs, the checks every extraction entry must pass before it
-// is stored, retrieval for block 6, and rendering for prompts and checks.
-// Pure: the engine makes the model calls.
+// is stored (Output Validation & Repair: Memory entries, Sweep, Beliefs),
+// retrieval for block 6, and rendering for prompts and checks. Pure: the
+// recorder (extract.ts) makes the model calls.
 
 import { z } from "zod";
-import { ROSTER, resolveAlias, type CharacterName } from "../game/roster.ts";
+import { ALIASES, ROSTER, resolveAlias, type CharacterName } from "../game/roster.ts";
+import type { MemoryRules } from "../sources/docs.ts";
 import { nearMiss } from "../output/think.ts";
 
 /** One line of the evening, with a game-wide ID (L…). */
@@ -42,9 +44,13 @@ export interface Thought {
   character: CharacterName;
   call: string;
   text: string;
+  /** TD v0.6 shortTermHistory: an exact repeat of the character's previous thought, logged but not shown again or passed to 10b. */
+  repeat?: boolean;
 }
 
 export const ENTRY_TYPES = ["promise", "deal", "threat", "admission", "claim", "denial"] as const;
+/** Which types each pass records (TD v0.6: 10a ★ pass, 10d claims pass). */
+export const PASS_TYPES = { "10a": ["promise", "deal", "threat", "admission"], "10d": ["claim", "denial"] } as const;
 export type EntryType = (typeof ENTRY_TYPES)[number] | "payment" | "pension" | "event";
 const SALIENT: EntryType[] = ["promise", "deal", "threat", "admission", "payment", "pension"];
 
@@ -61,10 +67,14 @@ export interface MemoryEntry {
   about: string[];
   summary: string;
   quote: string | null;
+  /** The line the entry rests on, then its context lines (TD v0.6); for code-written entries, the action line. */
   lines: string[];
+  /** TD v0.6: the one line the entry rests on, and its supporting lines (model entries only). */
+  line?: string;
+  context?: string[];
   audience: CharacterName[];
   salient: boolean;
-  source: "10a" | "code";
+  source: "10a" | "10d" | "code";
 }
 
 /** A belief (B…) from the thought pass. Nothing is deleted; "dropped" sets the status. */
@@ -78,11 +88,13 @@ export interface Belief {
   lastTurn: number;
   thought: string;
   quote: string;
+  /** TD v0.6 hedge rule: the model said "conclusion" but the quote's sentence hedges, so code stored a suspicion. */
+  downgraded?: boolean;
 }
 
 /** An extraction entry that failed a check, kept for the gate 8 report. */
 export interface DroppedEntry {
-  pass: "10a" | "10b";
+  pass: "10a" | "10b" | "10d";
   turn: number;
   scope: string;
   reason: string;
@@ -91,10 +103,23 @@ export interface DroppedEntry {
 
 /** A code repair to an extraction entry, logged like the call repairs (TD, Output Validation & Repair). */
 export interface ExtractionRepair {
-  pass: "10a" | "10b";
+  pass: "10a" | "10b" | "10d";
   turn: number;
   scope: string;
   repair: string;
+}
+
+/**
+ * Logged, not dropped (TD v0.6): sweep re-asks and their outcome, lines the sweep left out,
+ * entries whose kind the sweep didn't flag, toward set to null, deal toward set to the other party,
+ * hedge downgrades. Counted for gate 8.
+ */
+export interface MemoryNote {
+  pass: "10a" | "10b" | "10d";
+  turn: number;
+  scope: string;
+  kind: "sweep re-ask" | "sweep gap" | "sweep missing line" | "unflagged entry" | "toward was speaker" | "deal toward set" | "hedge downgrade";
+  detail: string;
 }
 
 export class MemoryStore {
@@ -102,6 +127,7 @@ export class MemoryStore {
   beliefs: Belief[] = [];
   dropped: DroppedEntry[] = [];
   repairs: ExtractionRepair[] = [];
+  notes: MemoryNote[] = [];
   private nextM = 1;
   private nextB = 1;
 
@@ -119,82 +145,146 @@ export class MemoryStore {
     return this.beliefs.filter((b) => b.character === c && (!held || b.status === "held"));
   }
 
-  // ---- 10a: conversation pass -------------------------------------------------------
+  // ---- 10a ★ pass and 10d claims pass ----------------------------------------------
 
   /**
-   * Checks a conversation pass reply and stores what passes. Speaker, turn, and
-   * audience come from the cited lines; every quote must appear word for word
-   * in a cited line; names resolve through the alias table.
+   * Checks the entries of a ★ pass (10a) or claims pass (10d) and stores what passes (TD v0.6,
+   * Output Validation & Repair, Memory entries). Each entry rests on one spoken line of this
+   * conversation this turn; the model's speaker must match that line's speaker; the quote must
+   * appear in that line; the summary must begin with the speaker's name and a verb allowed for the
+   * type; toward is never the speaker, and a deal's toward is the other party. Audience: everyone
+   * present at the line and at every context line from this turn.
    */
-  applyConversationPass(raw: unknown, turn: number, conversation: string, turnLines: GameLine[]): { stored: MemoryEntry[]; dropped: DroppedEntry[] } {
+  applyEntries(
+    pass: "10a" | "10d",
+    raw: unknown[],
+    x: { turn: number; conversation: string; turnLines: GameLine[]; contextLines: GameLine[]; rules: MemoryRules },
+  ): { stored: MemoryEntry[]; dropped: DroppedEntry[] } {
     const stored: MemoryEntry[] = [];
     const dropped: DroppedEntry[] = [];
     const drop = (reason: string, entry: unknown) => {
-      const d: DroppedEntry = { pass: "10a", turn, scope: conversation, reason, entry };
+      const d: DroppedEntry = { pass, turn: x.turn, scope: x.conversation, reason, entry };
       dropped.push(d);
       this.dropped.push(d);
     };
-    const parsed = ConversationPass.safeParse(raw);
-    if (!parsed.success) {
-      drop(`reply shape: ${parsed.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`, raw);
-      return { stored, dropped };
-    }
-    const byId = new Map(turnLines.map((l) => [l.id, l]));
-    for (const e of parsed.data.entries) {
-      if (!(ENTRY_TYPES as readonly string[]).includes(e.type)) {
-        drop(`unknown type "${e.type}"`, e);
+    const note = (kind: MemoryNote["kind"], detail: string) => this.notes.push({ pass, turn: x.turn, scope: x.conversation, kind, detail });
+    const thisTurn = new Map(x.turnLines.map((l) => [l.id, l]));
+    const known = new Map([...x.contextLines, ...x.turnLines].map((l) => [l.id, l]));
+    const id = (s: string) => s.replace(/[[\]\s]/g, "");
+    for (const r of raw) {
+      const p = EntrySchema.safeParse(r);
+      if (!p.success) {
+        drop(`entry shape: ${p.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`, r);
         continue;
       }
-      const cited = e.lines.map((id) => byId.get(id.replace(/[[\]]/g, "")));
-      if (!cited.length || cited.some((l) => !l)) {
-        drop(`cites a line not in this turn (${e.lines.join(", ")})`, e);
+      const e = p.data;
+      if (!(PASS_TYPES[pass] as readonly string[]).includes(e.type)) {
+        drop(`unknown type (${e.type})`, e);
         continue;
       }
-      const lines = cited as GameLine[];
-      if (lines.some((l) => l.kind !== "speech")) {
-        drop("cites an Il Notaio or bracketed line", e);
+      const line = thisTurn.get(id(e.line));
+      if (!line || line.kind !== "speech") {
+        drop(`line is not a spoken line from this turn (${e.line})`, e);
         continue;
       }
-      if (!e.quote || !lines.some((l) => quoteIn(e.quote!, l.text))) {
-        drop(`quote not found word for word in a cited line: "${e.quote}"`, e);
+      const context = e.context.map((c) => known.get(id(c)));
+      if (context.some((c) => !c)) {
+        drop(`context ID not found (${e.context.join(", ")})`, e);
         continue;
       }
-      const speakers = [...new Set(lines.map((l) => l.speaker!))];
-      const audience = lines.reduce<CharacterName[]>((acc, l) => acc.filter((c) => l.heardBy.includes(c)), [...lines[0]!.heardBy]);
-      const speaker = lines.at(-1)!.speaker;
-      let toward = e.toward ? (resolveName(e.toward) ?? e.toward) : null;
-      // Seen in the mini-game full run: a deal's "toward" naming the acceptor, who is also the speaker.
-      const others = speakers.filter((s) => s !== speaker);
-      if (e.type === "deal" && toward === speaker && others.length === 1) {
-        this.repairs.push({ pass: "10a", turn, scope: conversation, repair: `deal toward ${toward} (the speaker) → ${others[0]}` });
-        toward = others[0]!;
+      const ctx = context as GameLine[];
+      const speaker = line.speaker!;
+      if (resolveName(e.speaker) !== speaker) {
+        drop(`speaker mismatch (${e.speaker}; ${line.id} is ${speaker}'s)`, e);
+        continue;
       }
+      if (!quoteIn(e.quote, line.text)) {
+        drop(`quote not in line (${line.id}: "${e.quote}")`, e);
+        continue;
+      }
+      if (!summaryVerbOk(e.summary, speaker, e.type, x.rules)) {
+        drop(`type/summary mismatch (${e.type}: "${e.summary.slice(0, 60)}")`, e);
+        continue;
+      }
+      let toward: string | null = e.toward ? (resolveName(e.toward) ?? e.toward) : null;
+      if (toward === speaker) {
+        note("toward was speaker", `${line.id} ${e.type}: toward ${speaker} set to null`);
+        toward = null;
+      }
+      let parties: CharacterName[] | undefined;
+      if (e.type === "deal") {
+        // The other party: a context line's speaker, or the other name in a cited payment line.
+        const others = [
+          ...new Set(
+            ctx.flatMap((c) => (c.kind === "speech" ? [c.speaker!] : c.kind === "event" && / gave .* Florins/.test(c.text) ? namesIn(c.text) : [])).filter((n) => n !== speaker),
+          ),
+        ];
+        if (!toward || !others.includes(toward as CharacterName)) {
+          if (others.length !== 1) {
+            drop(`deal toward is not the other party (toward ${toward ?? "null"}; context parties ${others.join(", ") || "none"})`, e);
+            continue;
+          }
+          note("deal toward set", `${line.id}: toward ${toward ?? "null"} set to ${others[0]}`);
+          toward = others[0]!;
+        }
+        parties = [speaker, toward as CharacterName];
+      }
+      const fromThisTurn = [line, ...ctx.filter((c) => thisTurn.has(c.id))];
+      const audience = fromThisTurn.reduce<CharacterName[]>((acc, l) => acc.filter((c) => l.heardBy.includes(c)), [...line.heardBy]);
       stored.push(
         this.addEntry({
-          turn,
-          conversation,
-          where: lines[0]!.where,
+          turn: x.turn,
+          conversation: x.conversation,
+          where: line.where,
           type: e.type as EntryType,
-          // A deal names every party; whoever spoke the last cited line accepted it.
           speaker,
-          ...(e.type === "deal" && { parties: speakers }),
+          ...(parties && { parties }),
           toward,
           about: e.about.map((a) => resolveName(a) ?? a),
           summary: e.summary,
           quote: e.quote,
-          lines: lines.map((l) => l.id),
+          lines: [line.id, ...ctx.map((c) => c.id)],
+          line: line.id,
+          context: ctx.map((c) => c.id),
           audience,
-          source: "10a",
+          source: pass,
         }),
       );
     }
     return { stored, dropped };
   }
 
+  /**
+   * The ★ pass's sweep against its entries (TD v0.6, Output Validation & Repair, Sweep): spoken
+   * lines the sweep left out (logged), (line, kind) pairs it flagged with no entry written (these
+   * trigger the one re-ask), and entries whose kind it didn't flag (kept, logged).
+   */
+  sweepCheck(sweep: unknown, entries: unknown[], x: { turn: number; conversation: string; turnLines: GameLine[] }): { gaps: { line: string; kind: string }[] } {
+    const items = z.array(z.object({ line: z.string(), kinds: z.array(z.string()) })).safeParse(sweep);
+    const flagged = (items.success ? items.data : []).flatMap((i) => i.kinds.filter((k) => (PASS_TYPES["10a"] as readonly string[]).includes(k)).map((k) => ({ line: i.line.replace(/[[\]\s]/g, ""), kind: k })));
+    // Written means written, whatever its later checks say: a re-ask is only for lines with no entry at all.
+    const written = entries
+      .map((e) => e as { line?: unknown; type?: unknown })
+      .filter((e) => typeof e.line === "string" && typeof e.type === "string")
+      .map((e) => ({ line: (e.line as string).replace(/[[\]\s]/g, ""), kind: e.type as string }));
+    const swept = new Set((items.success ? items.data : []).map((i) => i.line.replace(/[[\]\s]/g, "")));
+    for (const l of x.turnLines.filter((l) => l.kind === "speech" && !swept.has(l.id))) {
+      this.notes.push({ pass: "10a", turn: x.turn, scope: x.conversation, kind: "sweep missing line", detail: l.id });
+    }
+    for (const w of written.filter((w) => !flagged.some((f) => f.line === w.line && f.kind === w.kind))) {
+      this.notes.push({ pass: "10a", turn: x.turn, scope: x.conversation, kind: "unflagged entry", detail: `${w.line} ${w.kind}` });
+    }
+    return { gaps: flagged.filter((f) => !written.some((w) => w.line === f.line && w.kind === f.kind)) };
+  }
+
   // ---- 10b: thought pass ------------------------------------------------------------
 
-  /** Checks a thought pass reply against the character's thoughts this turn and records beliefs. */
-  applyThoughtPass(raw: unknown, turn: number, character: CharacterName, thoughts: Thought[]): { changed: Belief[]; dropped: DroppedEntry[] } {
+  /**
+   * Checks a thought pass reply against the character's thoughts this turn and records beliefs.
+   * Hedge rule (TD v0.6): a "conclusion" whose quote's sentence(s) contain a question mark or a
+   * hedge word is stored as a suspicion and logged; code never upgrades a belief.
+   */
+  applyThoughtPass(raw: unknown, turn: number, character: CharacterName, thoughts: Thought[], rules: MemoryRules): { changed: Belief[]; dropped: DroppedEntry[] } {
     const changed: Belief[] = [];
     const dropped: DroppedEntry[] = [];
     const drop = (reason: string, entry: unknown) => {
@@ -209,14 +299,14 @@ export class MemoryStore {
     }
     const byId = new Map(thoughts.map((t) => [t.id, t]));
     for (const raw of parsed.data.beliefs) {
-      // Seen in the mini-game dry run: a new belief's text in "belief" (meant for a B… ID) and no statement.
+      // Seen in the mini-game dry run (v0.5): a new belief's text in "belief" (meant for a B… ID) and no statement.
       const b = { ...raw, statement: raw.statement ?? "" };
       if (!raw.statement && raw.change === "new" && raw.belief && !/^B\d+$/.test(raw.belief)) {
         b.statement = raw.belief;
         b.belief = null;
         this.repairs.push({ pass: "10b", turn, scope: character, repair: "statement given in the belief field" });
       }
-      if (!b.statement) {
+      if (!b.statement && b.change === "new") {
         drop("no statement", raw);
         continue;
       }
@@ -226,32 +316,35 @@ export class MemoryStore {
         continue;
       }
       if (!quoteIn(b.quote, t.text)) {
-        drop(`quote not found word for word in ${t.id}: "${b.quote}"`, b);
+        drop(`quote not in thought (${t.id}: "${b.quote}")`, b);
         continue;
       }
-      if (b.change === "new") {
-        const belief: Belief = {
-          id: `B${this.nextB++}`,
-          character,
-          kind: b.kind,
-          status: "held",
-          statement: b.statement,
-          firstTurn: turn,
-          lastTurn: turn,
-          thought: t.id,
-          quote: b.quote,
-        };
+      const prior = b.change === "new" ? null : this.beliefs.find((x) => x.id === b.belief && x.character === character);
+      if (b.change !== "new" && !prior) {
+        drop(`${b.change} names no recorded belief (${b.belief})`, b);
+        continue;
+      }
+      // "firmer" makes a conclusion; the hedge rule applies to it too.
+      const claimed: Belief["kind"] = b.change === "firmer" ? "conclusion" : b.kind;
+      const hedged = claimed === "conclusion" && isHedged(b.quote, t.text, rules.hedges);
+      if (hedged) this.notes.push({ pass: "10b", turn, scope: character, kind: "hedge downgrade", detail: `${t.id}${prior ? ` (${prior.id} firmer)` : ""}: "${b.quote.slice(0, 80)}"` });
+      const kind: Belief["kind"] = hedged ? "suspicion" : claimed;
+      if (!prior) {
+        const belief: Belief = { id: `B${this.nextB++}`, character, kind, status: "held", statement: b.statement, firstTurn: turn, lastTurn: turn, thought: t.id, quote: b.quote, ...(hedged && { downgraded: true }) };
         this.beliefs.push(belief);
         changed.push(belief);
         continue;
       }
-      const prior = this.beliefs.find((x) => x.id === b.belief && x.character === character);
-      if (!prior) {
-        drop(`"${b.change}" names no recorded belief of ${character} (${b.belief})`, b);
-        continue;
-      }
-      if (b.change === "firmer") prior.kind = "conclusion";
-      else prior.status = "dropped";
+      if (b.change === "firmer") {
+        if (hedged) {
+          prior.downgraded = true;
+        } else {
+          // The conclusion's own sentence becomes the belief's quote, so 10c reads the settled form.
+          prior.kind = "conclusion";
+          prior.thought = t.id;
+          prior.quote = b.quote;
+        }
+      } else prior.status = "dropped";
       prior.lastTurn = turn;
       changed.push(prior);
     }
@@ -297,27 +390,29 @@ export class MemoryStore {
   }
 }
 
-const ConversationPass = z.object({
-  entries: z.array(
-    z.object({
-      type: z.string(),
-      lines: z.array(z.string()),
-      toward: z.string().nullable(),
-      about: z.array(z.string()),
-      summary: z.string(),
-      quote: z.string().nullable(),
-    }),
-  ),
+const EntrySchema = z.object({
+  line: z.string(),
+  context: z.array(z.string()).default([]),
+  speaker: z.string(),
+  quote: z.string(),
+  type: z.string(),
+  toward: z.string().nullable(),
+  about: z.array(z.string()).default([]),
+  summary: z.string(),
 });
+/** 10a's reply: the sweep, then the entries (TD v0.6). */
+export const StarPass = z.object({ sweep: z.array(z.unknown()), entries: z.array(z.unknown()) });
+/** 10d's reply. */
+export const ClaimsPass = z.object({ entries: z.array(z.unknown()) });
 const ThoughtPass = z.object({
   beliefs: z.array(
     z.object({
+      thought: z.string(),
+      quote: z.string(),
       kind: z.enum(["conclusion", "suspicion"]),
       change: z.enum(["new", "firmer", "dropped"]),
       belief: z.string().nullable(),
       statement: z.string().optional(),
-      thought: z.string(),
-      quote: z.string(),
     }),
   ),
 });
@@ -327,6 +422,18 @@ export const KnowledgeVerdict = z.object({
   evidence: z.array(z.string()),
   told_by: z.array(z.string()),
 });
+
+/** Gate 8's code counts (TD v0.6): dropped entries by reason, sweep re-asks and gaps, hedge downgrades, repeated thoughts. */
+export function memoryCounts(memory: { dropped: { pass: string; reason: string }[]; notes?: { kind: string }[]; repairs?: unknown[] }, thoughts: { repeat?: boolean }[]) {
+  const by = <T>(xs: T[], key: (x: T) => string) => xs.reduce<Record<string, number>>((acc, x) => ((acc[key(x)] = (acc[key(x)] ?? 0) + 1), acc), {});
+  return {
+    dropped: memory.dropped.length,
+    dropped_by_reason: by(memory.dropped, (d) => `${d.pass}: ${d.reason.replace(/\s*\(.*$|:\s.*$/s, "").trim()}`),
+    notes: by(memory.notes ?? [], (n) => n.kind),
+    repairs: memory.repairs?.length ?? 0,
+    repeated_thoughts: thoughts.filter((t) => t.repeat).length,
+  };
+}
 
 const turnOf = (x: MemoryEntry | Belief) => ("summary" in x ? x.turn : x.firstTurn);
 
@@ -363,6 +470,41 @@ export function quoteIn(quote: string, text: string): boolean {
       .trim();
   const q = norm(quote);
   return q.length > 0 && norm(text).includes(q);
+}
+
+/** Roster names (full or alias) written in a line, e.g. both parties of "Contessa Isabella gave Lupo 3 Florins." */
+function namesIn(text: string): CharacterName[] {
+  return ROSTER.map((r) => r.name).filter((n) => [n, ...ALIASES[n]].some((a) => new RegExp(`\\b${escapeRe(a)}\\b`).test(text)));
+}
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** TD v0.6 verb check: the summary begins with the speaker's name (any alias), then a verb allowed for the type. */
+export function summaryVerbOk(summary: string, speaker: CharacterName, type: string, rules: MemoryRules): boolean {
+  const s = summary.trim().toLowerCase();
+  const names = [speaker, ...ALIASES[speaker]].map((n) => n.toLowerCase()).sort((a, b) => b.length - a.length);
+  const name = names.find((n) => s.startsWith(`${n} `));
+  if (!name) return false;
+  const verb = s.slice(name.length).trim().split(/\s+/)[0]!.replace(/[^a-z]/g, "");
+  return (rules.verbs[type] ?? []).includes(verb);
+}
+
+/** The sentence or sentences of a thought that contain the quote (the whole thought if they can't be found). */
+export function sentencesWith(quote: string, text: string): string {
+  const sentences = text.split(/(?<=[.!?…])\s+/);
+  for (let n = 1; n <= sentences.length; n++) {
+    for (let i = 0; i + n <= sentences.length; i++) {
+      const span = sentences.slice(i, i + n).join(" ");
+      if (quoteIn(quote, span)) return span;
+    }
+  }
+  return text;
+}
+
+/** TD v0.6 hedge rule: a question mark, or any hedge from 10b's list as whole words, case-insensitive. */
+export function isHedged(quote: string, thought: string, hedges: string[]): boolean {
+  const span = sentencesWith(quote, thought);
+  return span.includes("?") || hedges.some((h) => new RegExp(`\\b${escapeRe(h).replace(/ /g, "\\s+")}\\b`, "i").test(span));
 }
 
 const STOP = new Set("the a an and or of to in on at for is was be he she it his her they them i you that this with as by not no from but have has had are were will would".split(" "));

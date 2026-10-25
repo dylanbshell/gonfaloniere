@@ -1,5 +1,5 @@
 // The mini-game engine (Models & Research v0.22, Mini-Game Spec), on
-// Technical Design v0.5's prompts and rules and Game Mechanics v0.20's
+// Technical Design v0.6's prompts and rules and Game Mechanics v0.20's
 // numbers. One evening round for six characters: an opening strategy call,
 // N turns of Capannelli and Colloquii, end-of-turn extraction passes, a
 // Murder Round call per character (logged, not resolved), and knowledge
@@ -24,24 +24,15 @@ import {
   type CharacterContext,
   type HistoryLine,
 } from "../prompt/assemble.ts";
-import type { DocSources, PlotFact } from "../sources/docs.ts";
+import type { DocSources } from "../sources/docs.ts";
 import { parseJson } from "../output/json.ts";
 import { z } from "zod";
-import {
-  KnowledgeVerdict,
-  MemoryStore,
-  renderBelief,
-  resolveName,
-  rosterText,
-  whereLabel,
-  type GameLine,
-  type Thought,
-  type Where,
-} from "./memory.ts";
+import { Recorder, sameThought } from "./extract.ts";
+import { MemoryStore, renderBelief, resolveName, whereLabel, type GameLine, type Thought, type Where } from "./memory.ts";
 
 // ---- Calls -----------------------------------------------------------------------------
 
-export type CallKind = "plan" | "think" | "speak" | "move" | "murder" | "conversation-pass" | "thought-pass" | "knowledge-check";
+export type CallKind = "plan" | "think" | "speak" | "move" | "murder" | "star-pass" | "claims-pass" | "sweep-reask" | "thought-pass" | "knowledge-check";
 
 export interface CallRequest {
   kind: CallKind;
@@ -109,6 +100,8 @@ export interface GameSettings {
   systemTemperature: number;
   /** A line appended at the end of every character's Block 9b (labelled variants only). */
   speakAppend?: string;
+  /** TD v0.6 `drop_repeated_thoughts` (default true): an exact repeat of a character's previous thought is logged but kept out of shortTermHistory and the thought pass. */
+  dropRepeatedThoughts?: boolean;
   /** Knowledge checks at the end: (character, fact id). */
   checks: { character: CharacterName; fact: string }[];
 }
@@ -156,6 +149,7 @@ export interface GameEvent {
 
 export class MiniGame {
   readonly memory = new MemoryStore();
+  private recorder: Recorder;
   readonly lines: GameLine[] = [];
   readonly thoughts: Thought[] = [];
   readonly events: GameEvent[] = [];
@@ -188,6 +182,8 @@ export class MiniGame {
     private hooks: GameHooks = {},
   ) {
     this.rng = mulberry32(s.seed);
+    this.recorder = new Recorder(docs, this.memory, (kind, c, system, user) => this.systemCall(kind, c, system, user), this.events, formatLine, listJoin);
+    Object.assign(this.prefixes, this.recorder.prefixes);
     this.treasury = docs.tunables.embassy_treasury;
     for (const c of s.cast) {
       this.chars.set(c, {
@@ -584,52 +580,10 @@ export class MiniGame {
     this.fixLoneGuests();
   }
 
-  /** TD v0.5 Memory Writing: a conversation pass per conversation active this turn, a thought pass per character. */
+  /** TD v0.6 Memory Writing: ★ pass and claims pass per conversation active this turn, thought pass per character. */
   private async extraction(): Promise<void> {
-    const sp = this.docs.systemPrompts!;
-    this.prefixes["system:conversation-pass"] = sp.conversationPass.system;
-    this.prefixes["system:thought-pass"] = sp.thoughtPass.system;
-    const turnLines = this.lines.filter((l) => l.turn === this.turn && l.kind !== "private");
-    const active = [...new Set(turnLines.filter((l) => l.kind === "speech").map((l) => l.conversation))];
-    const convPasses = active.map(async (id) => {
-      const mine = turnLines.filter((l) => l.conversation === id);
-      const before = this.lines.filter((l) => l.conversation === id && l.turn < this.turn && l.kind !== "private").slice(-4);
-      const where = mine.at(-1)!.where;
-      const user = fill(sp.conversationPass.user, {
-        roster: rosterText(),
-        conversation_label: whereLabel(where),
-        turn: String(this.turn),
-        participants: listJoin([...new Set(mine.flatMap((l) => l.heardBy))]),
-        context_lines: before.length ? before.map((l) => formatLine(l)).join("\n") : "None.",
-        turn_lines: mine.map((l) => `[${l.id}] ${formatLine(l)}`).join("\n"),
-      });
-      const raw = await this.systemCall("conversation-pass", null, sp.conversationPass.system, user);
-      if (raw === null) {
-        this.events.push({ turn: this.turn, type: "extraction-failed", pass: "10a", conversation: id });
-        return;
-      }
-      const r = this.memory.applyConversationPass(raw, this.turn, id, mine);
-      this.events.push({ turn: this.turn, type: "conversation-pass", conversation: id, stored: r.stored.map((e) => e.id), dropped: r.dropped.length });
-    });
-    const thinkers = [...new Set(this.thoughts.filter((t) => t.turn === this.turn).map((t) => t.character))];
-    const thoughtPasses = thinkers.map(async (c) => {
-      const ts = this.thoughts.filter((t) => t.turn === this.turn && t.character === c);
-      const prior = this.memory.beliefsOf(c);
-      const user = fill(sp.thoughtPass.user, {
-        roster: rosterText(),
-        character_name: c,
-        prior_beliefs: prior.length ? prior.map((b) => `[${b.id}] ${b.kind} — ${b.statement}`).join("\n") : "None.",
-        thoughts: ts.map((t) => `[${t.id}] ${t.text}`).join("\n"),
-      });
-      const raw = await this.systemCall("thought-pass", c, sp.thoughtPass.system, user);
-      if (raw === null) {
-        this.events.push({ turn: this.turn, type: "extraction-failed", pass: "10b", character: c });
-        return;
-      }
-      const r = this.memory.applyThoughtPass(raw, this.turn, c, ts);
-      this.events.push({ turn: this.turn, type: "thought-pass", character: c, changed: r.changed.map((b) => b.id), dropped: r.dropped.length });
-    });
-    await Promise.all([...convPasses, ...thoughtPasses]);
+    const thoughts = this.thoughts.filter((t) => t.turn === this.turn && !t.repeat);
+    await this.recorder.turn(this.turn, this.lines, thoughts);
   }
 
   // ---- End of game: Murder Round calls, knowledge checks ------------------------------------------
@@ -653,61 +607,7 @@ export class MiniGame {
   }
 
   private async knowledge(): Promise<void> {
-    const sp = this.docs.systemPrompts!;
-    this.prefixes["system:knowledge-check"] = sp.knowledgeCheck.system;
-    await Promise.all(
-      this.s.checks.map(async ({ character, fact }) => {
-        const f = this.docs.plotFacts.find((x) => x.id === fact)!;
-        const { entries, beliefs } = this.evidence(character, f);
-        const user = fill(sp.knowledgeCheck.user, {
-          character_name: character,
-          deadline_label: "the end of the game",
-          fact: f.fact,
-          must_include: f.mustInclude,
-          does_not_count: f.doesNotCount,
-          memory_entries: entries.length ? entries.map((e) => `[${e.id}] T${e.turn} · ${whereLabel(e.where, character)} · ${e.type} · ${e.summary}${e.quote ? ` ("${e.quote}")` : ""}`).join("\n") : "None.",
-          beliefs: beliefs.length ? beliefs.map((b) => `[${b.id}] T${b.firstTurn} · ${b.kind} (${b.status}) · ${b.statement}`).join("\n") : "None.",
-        });
-        const raw = await this.systemCall("knowledge-check", character, sp.knowledgeCheck.system, user);
-        const parsed = raw === null ? null : KnowledgeVerdict.safeParse(raw);
-        let verdict = parsed?.success ? parsed.data : null;
-        const flags: string[] = [];
-        if (!verdict) flags.push("call failed or reply unusable; verdict none");
-        if (verdict) {
-          // TD: cited IDs must be in the evidence; told cites someone else's entry; a conclusion cites the character's own.
-          const ids = new Set([...entries.map((e) => e.id), ...beliefs.map((b) => b.id)]);
-          const bad = verdict.evidence.filter((id) => !ids.has(id));
-          const toldOk = verdict.verdict !== "told" || verdict.evidence.some((id) => entries.find((e) => e.id === id && e.speaker && e.speaker !== character));
-          const conclOk =
-            verdict.verdict !== "conclusion" ||
-            verdict.evidence.some((id) => beliefs.find((b) => b.id === id) || entries.find((e) => e.id === id && e.speaker === character));
-          if (bad.length) flags.push(`cites IDs not in the evidence: ${bad.join(", ")}`);
-          if (!toldOk) flags.push("'told' without an entry spoken by someone else");
-          if (!conclOk) flags.push("'conclusion' without the character's own belief or claim");
-          if (flags.length) verdict = { ...verdict, verdict: "none" };
-        }
-        this.knowledgeChecks.push({ character, fact, verdict, flags, evidenceShown: { entries: entries.map((e) => e.id), beliefs: beliefs.map((b) => b.id) } });
-      }),
-    );
-  }
-
-  /** TD block 10c: entries naming the fact's key people plus the 10 most similar, capped at 60 (★ first); all beliefs. */
-  private evidence(c: CharacterName, f: PlotFact) {
-    const mine = this.memory.entriesFor(c);
-    const key = this.s.cast.filter((n) => f.fact.includes(n) || f.fact.includes(n.split(" ").at(-1)!) || (n === "Contessa Isabella" && f.fact.includes("Isabella")));
-    const names = (e: (typeof mine)[number]) => [e.speaker, e.toward, ...e.about, ...(e.parties ?? [])];
-    const named = mine.filter((e) => names(e).some((n) => key.includes(n as CharacterName)));
-    const factWords = new Set(f.fact.toLowerCase().split(/\W+/).filter((w) => w.length > 3));
-    const similar = mine
-      .filter((e) => !named.includes(e))
-      .map((e) => ({ e, s: e.summary.toLowerCase().split(/\W+/).filter((w) => factWords.has(w)).length }))
-      .sort((a, b) => b.s - a.s)
-      .slice(0, 10)
-      .map((x) => x.e);
-    let entries = [...named, ...similar];
-    if (entries.length > 60) entries = [...entries.filter((e) => e.salient), ...entries.filter((e) => !e.salient)].slice(0, 60);
-    entries.sort((a, b) => a.turn - b.turn);
-    return { entries, beliefs: this.memory.beliefsOf(c, false) };
+    this.knowledgeChecks.push(...(await this.recorder.knowledge(this.s.checks, this.s.cast)));
   }
 
   // ---- Prompts ---------------------------------------------------------------------------------
@@ -877,10 +777,13 @@ export class MiniGame {
   }
 
   private addThought(c: CharacterName, call: string, text: string, extra: Record<string, unknown> = {}): void {
-    const t: Thought = { id: `T${this.nextThought++}`, turn: this.turn, character: c, call, text };
+    // TD v0.6 shortTermHistory: an exact repeat of the previous thought is logged and counted, not shown again.
+    const previous = this.thoughts.findLast((t) => t.character === c);
+    const repeat = (this.s.dropRepeatedThoughts ?? true) && !!previous && sameThought(previous.text, text);
+    const t: Thought = { id: `T${this.nextThought++}`, turn: this.turn, character: c, call, text, ...(repeat && { repeat: true }) };
     this.thoughts.push(t);
-    this.char(c).thoughts.push(text);
-    this.events.push({ turn: this.turn, type: "thought", thought: t.id, character: c, call, text, ...extra });
+    if (!repeat) this.char(c).thoughts.push(text);
+    this.events.push({ turn: this.turn, type: "thought", thought: t.id, character: c, call, text, ...(repeat && { repeat: true }), ...extra });
   }
 
   private snapshot(label: string): void {

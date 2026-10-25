@@ -35,7 +35,7 @@ import { apiKey, callModel, fetchEndpoint, makeClient, type EndpointInfo, type R
 import { loadDocs, loadStandinBriefings } from "../sources/docs.ts";
 import { CAST, STANDINS, STANDIN_FILE } from "./cast.ts";
 import { MiniGame, formatLine, type CallKind, type Caller, type GameSettings } from "./engine.ts";
-import { renderBelief, renderEntry, whereLabel } from "./memory.ts";
+import { memoryCounts, renderBelief, renderEntry, whereLabel } from "./memory.ts";
 
 const { values: opts } = parseArgs({
   options: {
@@ -52,11 +52,13 @@ const { values: opts } = parseArgs({
     "ref-calls": { type: "string" },
     progress: { type: "string" },
     "speak-append": { type: "string" },
+    // TD v0.6 drop_repeated_thoughts is on by default for every model; this turns it off.
+    "keep-repeated-thoughts": { type: "boolean", default: false },
   },
 });
 
 const OUT = process.env.PROBE_RESULTS_DIR ?? "results/minigame";
-const SYSTEM_KINDS: CallKind[] = ["conversation-pass", "thought-pass", "knowledge-check"];
+const SYSTEM_KINDS: CallKind[] = ["star-pass", "claims-pass", "sweep-reask", "thought-pass", "knowledge-check"];
 const RETRY: Omit<RetryPolicy, "onRetry"> = { maxAttempts: 5, retryable: (status) => status === 429 || status === null };
 const WINDOW_MS = 10 * 60_000;
 const WINDOW_MIN_CALLS = 30;
@@ -115,11 +117,13 @@ async function main(): Promise<void> {
     historyWindow: 10,
     thoughtWindow: 4,
     maxCapannello: 4,
-    maxTokens: { plan: 400, think: 250, speak: 200, move: 500, murder: 300, "conversation-pass": 1200, "thought-pass": 400, "knowledge-check": 300 },
+    // TD v0.6 Run Configuration: ★ pass ~1,500 including the sweep, claims pass ~1,000, thought pass ~600, knowledge check ~300.
+    maxTokens: { plan: 400, think: 250, speak: 200, move: 500, murder: 300, "star-pass": 1500, "claims-pass": 1000, "sweep-reask": 1500, "thought-pass": 600, "knowledge-check": 300 },
     playTemperature: 0.7,
     systemTemperature: 0,
     checks: checks(),
     ...(opts["speak-append"] && { speakAppend: opts["speak-append"] }),
+    dropRepeatedThoughts: !opts["keep-repeated-thoughts"],
   };
   const parallel = Number(opts.parallel);
   const replacements = Number(opts.replacements);
@@ -376,7 +380,7 @@ function buildRecord(
     lines: game.lines,
     thoughts: game.thoughts,
     calls: game.calls,
-    memory: { entries: game.memory.entries, beliefs: game.memory.beliefs, dropped: game.memory.dropped, repairs: game.memory.repairs },
+    memory: { entries: game.memory.entries, beliefs: game.memory.beliefs, dropped: game.memory.dropped, repairs: game.memory.repairs, notes: game.memory.notes },
     snapshots: game.snapshots,
     murder_round: { resolved: false, acts: game.murderActs },
     knowledge_checks: game.knowledgeChecks,
@@ -385,6 +389,7 @@ function buildRecord(
       calls: game.calls.length,
       cost_usd: game.calls.reduce((s, c) => s + c.costUsd, 0),
       rate_limit_retries: x.retries,
+      memory: memoryCounts(game.memory, game.thoughts),
       tokens: game.calls.reduce((s, c) => s + c.inputTokens + c.outputTokens, 0),
       by_call_kind: Object.fromEntries(byKind),
       turns: game.events.filter((e) => e.type === "turn-end"),
@@ -408,12 +413,13 @@ function transcript(game: MiniGame, gameId: string): string {
       const l = lineById.get(e.line as string)!;
       out.push(`- \`${l.id}\` *${whereLabel(l.where)}* — ${formatLine(l)}`);
     }
-    if (e.type === "thought" && e.call !== "plan") out.push(`  - *${e.character} thinks (${e.call}${e.importance !== undefined ? `, importance ${e.importance}` : ""}${e.done ? ", done" : ""}):* ${e.text}`);
+    if (e.type === "thought" && e.call !== "plan") out.push(`  - *${e.character} thinks (${e.call}${e.importance !== undefined ? `, importance ${e.importance}` : ""}${e.done ? ", done" : ""}${e.repeat ? ", exact repeat: not shown again" : ""}):* ${e.text}`);
     if (e.type === "bribe") out.push(`  - **[${e.from} gave ${e.to} ${e.amount} Florins.]**`);
     if (e.type === "borrow" || e.type === "repay") out.push(`  - **[${e.character}: ${e.type}${e.holder ? ` for ${e.holder}` : ""}]** (private)`);
     if (e.type === "move") out.push(`- **Movement window: ${e.character}** → ${e.choice}${e.target ? ` ${e.target}` : ""}${e.note ? ` (${e.note})` : ""}`);
     if (["colloquio-open", "colloquio-close", "colloquio-done", "colloquio-waits", "ping-pong-guard", "stall", "move-noop"].includes(e.type)) out.push(`- *${e.type}: ${JSON.stringify(Object.fromEntries(Object.entries(e).filter(([k]) => !["turn", "type"].includes(k))))}*`);
-    if (e.type === "conversation-pass") out.push(`- *conversation pass ${e.conversation}: stored ${(e.stored as string[]).join(", ") || "nothing"}; dropped ${e.dropped}*`);
+    if (e.type === "star-pass") out.push(`- *★ pass ${e.conversation}: stored ${(e.stored as string[]).join(", ") || "nothing"}; dropped ${e.dropped}${(e.sweepGaps as string[]).length ? `; sweep re-ask for ${(e.sweepGaps as string[]).join(", ")}${(e.stillMissing as string[] | undefined)?.length ? ` (still missing ${(e.stillMissing as string[]).join(", ")})` : ""}` : ""}*`);
+    if (e.type === "claims-pass") out.push(`- *claims pass ${e.conversation}: stored ${(e.stored as string[]).join(", ") || "nothing"}; dropped ${e.dropped}*`);
     if (e.type === "thought-pass") out.push(`- *thought pass ${e.character}: beliefs ${(e.changed as string[]).join(", ") || "none"}; dropped ${e.dropped}*`);
     if (e.type === "turn-end") out.push(`- *end of turn: ${e.calls} calls, $${(e.costUsd as number).toFixed(4)}, ${((e.ms as number) / 1000).toFixed(0)}s*`);
     if (e.type === "murder-act") out.push(`- **Murder Round (not resolved): ${e.character}** → ${JSON.stringify(e.acts)}`);

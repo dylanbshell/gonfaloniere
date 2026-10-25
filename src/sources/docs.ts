@@ -39,10 +39,17 @@ export interface JudgeRubric {
   rules: string;
 }
 
-/** A system prompt (blocks 10a–10c): the cached instructions, and the per-call data template. */
+/** A system prompt (blocks 10a–10d): the cached instructions, and the per-call data template. */
 export interface SystemPrompt {
   system: string;
   user: string;
+}
+
+/** TD v0.6, Output Validation & Repair: the Summary verbs table and the Beliefs row's hedge list. */
+export interface MemoryRules {
+  /** Allowed first verb after the speaker's name, by entry type. */
+  verbs: Record<string, string[]>;
+  hedges: string[];
 }
 
 /** A plot-point fact the knowledge check tests (TD v0.5, Plot Point Checks). */
@@ -61,8 +68,10 @@ export interface DocSources {
   tunables: Tunables;
   /** Characters' standard social awareness text, filled into every briefing. */
   socialAwareness: string;
-  /** TD v0.5's system prompts; absent before v0.5. */
-  systemPrompts?: { conversationPass: SystemPrompt; thoughtPass: SystemPrompt; knowledgeCheck: SystemPrompt };
+  /** TD v0.6's system prompts (★ pass, claims pass, thought pass, knowledge check); absent before v0.6. */
+  systemPrompts?: { starPass: SystemPrompt; claimsPass: SystemPrompt; thoughtPass: SystemPrompt; knowledgeCheck: SystemPrompt };
+  /** TD v0.6's checks on memory writing (Output Validation & Repair); absent before v0.6. */
+  memoryRules?: MemoryRules;
   /** TD v0.5's plot-point facts (F1–F4, and the optional F5); empty before v0.5. */
   plotFacts: PlotFact[];
 }
@@ -147,24 +156,53 @@ export function loadDocs(paths: DocPaths): DocSources {
     judgeRubric: judgeRubric(mr),
     socialAwareness,
     ...(systemPrompts(td) && { systemPrompts: systemPrompts(td)! }),
+    ...(memoryRules(td) && { memoryRules: memoryRules(td)! }),
     plotFacts: plotFacts(td),
   };
 }
 
-/** Blocks 10a–10c: each heading holds the system message's code block, then the user message's. */
+/**
+ * Blocks 10a–10d (TD v0.6): each heading holds the system message's code block, then the user
+ * message's; 10d (claims pass) uses 10a's user message.
+ */
 function systemPrompts(td: string): DocSources["systemPrompts"] | null {
-  const pair = (heading: string): SystemPrompt | null => {
+  const blocks = (heading: string): string[] => {
     try {
-      const [system, user] = fencesUnder(td, heading);
-      return system && user ? { system, user } : null;
+      return fencesUnder(td, heading);
     } catch {
-      return null;
+      return [];
     }
   };
-  const conversationPass = pair("### Block 10a — Conversation pass");
+  const pair = (heading: string): SystemPrompt | null => {
+    const [system, user] = blocks(heading);
+    return system && user ? { system, user } : null;
+  };
+  const starPass = pair("### Block 10a — ★ pass");
   const thoughtPass = pair("### Block 10b — Thought pass");
   const knowledgeCheck = pair("### Block 10c — Knowledge check");
-  return conversationPass && thoughtPass && knowledgeCheck ? { conversationPass, thoughtPass, knowledgeCheck } : null;
+  const [claimsSystem] = blocks("### Block 10d — Claims pass");
+  if (!starPass || !thoughtPass || !knowledgeCheck || !claimsSystem) return null;
+  return { starPass, claimsPass: { system: claimsSystem, user: starPass.user }, thoughtPass, knowledgeCheck };
+}
+
+/** The Summary verbs table and the Beliefs row's hedge list, verbatim from Output Validation & Repair. */
+function memoryRules(td: string): MemoryRules | null {
+  let lines: string[];
+  try {
+    lines = section(td, "## Output Validation & Repair");
+  } catch {
+    return null;
+  }
+  const verbs: Record<string, string[]> = {};
+  const start = lines.findIndex((l) => l.startsWith("**Summary verbs**"));
+  if (start < 0) return null;
+  for (const l of lines.slice(start)) {
+    const m = l.match(/^\| (promise|deal|threat|admission|claim|denial) \| ([^|]+) \|$/);
+    if (m) verbs[m[1]!] = m[2]!.split(",").map((v) => v.trim().toLowerCase());
+  }
+  const hedge = lines.join("\n").match(/any hedge from 10b's list \(([^)]+)\)/);
+  if (!hedge || Object.keys(verbs).length !== 6) return null;
+  return { verbs, hedges: hedge[1]!.split(",").map((h) => h.trim().toLowerCase()) };
 }
 
 /**
