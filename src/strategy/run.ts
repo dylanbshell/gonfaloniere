@@ -74,7 +74,7 @@ export interface StrategyRecord {
 async function main(): Promise<void> {
   const model = config.models.find((m) => m.id === opts.model);
   if (!model) throw new Error(`Unknown --model ${opts.model}`);
-  const td = process.env.PROBE_TD ?? "0.7";
+  const td = process.env.PROBE_TD ?? "0.8";
   const docs = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath(td) });
   const wanted = opts.items.split(",");
   const items = STRATEGY_ITEMS.filter((i) => wanted.some((w) => i.probe === w || i.id === w));
