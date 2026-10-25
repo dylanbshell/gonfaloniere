@@ -1,22 +1,27 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.5
+### Version 0.6
 
 ---
 
+## Changes in v0.6
+
+*Clears Models & Research's "Memory extraction fails gate 8" handoff. Evidence: 13 mini-games (5 DeepSeek, 5 Qwen3.8, 3 Qwen3.8 with a boldness line), all recorded by DeepSeek V4.1 Flash. Gate 8 failed the same way on every run: ★ capture 87–89% (bar 90%) and invented entries in every game (bar 0). See Models & Research, Findings Log, Oct 24–25.*
+
+- **Conversation pass split in two:**
+  - **10a (★ pass):** promises, deals, threats, and admissions only. A **line sweep** first classifies every spoken line; code re-asks once for any flagged line left without an entry
+  - **10d (claims pass):** claims and denials
+  - This is TD's own fallback from v0.5, adopted because a consistent 87–89% across 13 games suggests one pass can't reach 90% by wording alone
+- **Who did it:** every entry now rests on **one line**, where the speaker does the thing. Requests ("Swear it") are explicitly not promises, with a worked example. The model names the `speaker`, and code checks it against the line. `toward` can't be the speaker
+- **Summaries tied to quotes:** the quote is written first. The summary must begin with the speaker's name and the verb for its type, and may say only what the quote says. Code drops an entry whose summary verb doesn't match its type
+- **Thought pass (10b): suspicion is the default.** A conclusion must pass a three-part test with a listed set of hedge words, and its quote must be the whole sentence. **Code downgrades** any "conclusion" whose sentence contains a hedge word. The knowledge check (10c) also judges beliefs by their quotes
+- **Repeated thoughts dropped from shortTermHistory** for every model: a thought that exactly repeats the same character's previous thought isn't shown again in block 7 (Qwen did this 67 times in 5 games, DeepSeek 2). It is still logged
+- **Rule for prompt additions:** anything added to a task block goes **before** its JSON schema line, never after. A line after the schema in 9b made Qwen misspell the `utterance` key in 7.6% of `speak()` calls
+- Validation, defaults, run configuration, Memory Writing, and health metrics updated to match
+
 ## Changes in v0.5
 
-*Merges three handoffs (Models & Research ×2, Hub ×1) and writes the two prompts the Mini-Game Spec (Models & Research v0.21) depends on.*
-
-- **Three secret-keeping lines** (Models & Research, Oct 23): the **claim line** in block 9a, and the **reply line** and **audience line** in block 9b. On DeepSeek V4.1 they took S5d from 2/10 to 9/10 runs held, and the held-out script from 1/10 to 5/10, with clean regressions
-- **Four task-prompt fixes from S8–S10:**
-  - Block 9e uses a single `act` object when only one act is allowed. Lupo's standard kills become a `kills` list, and the Plot Reward stays a separate `extra`
-  - "Present" outside a conversation (Murder Round, ballot, run-off) now reads "no one; you decide alone"
-  - The 150-word plan limit in 9d is stated harder and enforced by code truncation
-  - 9f's printed vote-buying limit is noted, so tests don't treat arithmetic as a model skill there
-- **New: extraction pass prompts** (blocks 10a and 10b). A **conversation pass** (one call per conversation per turn) records promises, deals, threats, admissions, claims, and denials. A **thought pass** (one call per character per turn) records firm conclusions and suspicions. The model cites line or thought IDs; **code fills in speaker and turn** from those IDs and checks every quote word for word, so a wrong speaker or an invented quote can't reach memory. Payments, Il Notaio's events, and private actions are written to memory by code, not the model
-- **New: knowledge-check prompt** (block 10c) and a **plot-point fact table.** Each check asks about one character and one fact, classifies the evidence as *told*, *firm conclusion*, *suspicion*, or *none*, and gives its reasoning before the verdict. One check can answer several plot points: LeNoir's knowledge of Isabella settles LeNoir's, Isabella's, and Raffaello's
-- **Lore store** noted under Deferred (Hub, Oct 23)
+- Three secret-keeping lines (claim line in 9a; reply and audience lines in 9b); four S8–S10 fixes (single `act` in 9e, "Present" outside a conversation, plan truncation, 9f testing note); first extraction prompts (10a conversation pass, 10b thought pass) with IDs cited by the model and speaker, turn, and quotes checked by code; knowledge check (10c) and the plot-point fact table; lore store deferred
 
 ## Changes in v0.4
 
@@ -137,12 +142,13 @@ Checks whether the last utterance directly addressed a specific character. If so
 
 ### End-of-Turn Extraction Pass
 
-At the end of every turn, the turn's events are written into each character's longTermHistory. *Rebuilt in v0.5; full design in **Memory Writing** below, prompts in blocks 10a–10b.*
+At the end of every turn, the turn's events are written into each character's longTermHistory. *Rebuilt in v0.5, split in v0.6; full design in **Memory Writing** below, prompts in blocks 10a, 10b, and 10d.*
 
 - **Code writes the exact facts:** payments (from the transaction log), private actions, and Il Notaio's witnessed events. No model call
-- **Conversation pass** (block 10a): one system call per conversation active this turn. It reads that turn's lines and records promises, deals, threats, admissions (★), plus claims and denials. Each entry is stored for every character who heard the lines it cites
-- **Thought pass** (block 10b): one system call per character who thought this turn. It records that character's firm conclusions and suspicions from their own private thoughts, stored for that character only
-- **The model cites IDs; code fills in the rest.** Speaker, turn, conversation, and audience come from the cited line IDs, and every quote is checked word for word against its line. An entry that fails is dropped and logged
+- **★ pass** (block 10a): one system call per conversation active this turn. It sweeps every spoken line, then records promises, deals, threats, and admissions (★). Each entry is stored for every character who heard the lines it cites
+- **Claims pass** (block 10d): one system call per conversation, run alongside 10a. It records claims and denials, stored the same way
+- **Thought pass** (block 10b): one system call per character who thought this turn. It records that character's suspicions and conclusions from their own private thoughts, stored for that character only. Suspicion is the default
+- **The model cites IDs; code checks them.** Each entry rests on one line, and the model names that line's speaker. Code checks the speaker against the line, checks the quote word for word, and fills in turn, conversation, and audience. Failures are dropped and logged by reason (see Output Validation & Repair)
 - Runs on a fixed turn cadence, independent of movement and conversation changes, on the **system model** at temperature 0 (see Model Routing)
 
 ### Strategy Generation
@@ -190,10 +196,23 @@ Every character call returns raw JSON. Code checks and repairs it before use, so
 | **Murder Round acts** | Everyone except Lupo: one `act` object. Lupo: a `kills` list of one or two names. **All of a character's acts name different living guests.** No self-guard, in any act. `extra` used only if the Plot Reward was earned, otherwise ignored. If a non-Lupo answer returns a list instead of one `act` (or Lupo returns more than two kills), keep the first and log it as a repair. A remaining illegal act triggers the retry; if still illegal, that act is dropped |
 | **Plan length** | A 9d `plan` over 150 words is cut at the last sentence end before word 150 (or at word 150 if there's none), and logged as a repair |
 | **Votes** | Ballot target must be a living guest; `buy` clamped to 0–`{max_buy}`. Run-off target must be one of the tied guests |
-| **Extraction entries** (10a, 10b) | Cited line or thought IDs must exist in this turn's input; the `quote` must appear in one cited line or thought, matched word for word after normalizing spaces, quote marks, and case. Speaker, turn, and audience are filled in by code from the IDs. Names resolve through the alias table. Unknown `type`s are dropped. Any entry that fails is dropped and logged; the rest of the call is kept |
+| **Memory entries** (10a, 10d) | `line` must be a spoken line from this turn; `context` IDs must exist (this turn or the context lines). **Speaker check:** the model's `speaker` must match the speaker of `line` (through the alias table), or the entry is dropped ("speaker mismatch"). **Quote check:** the `quote` must appear in `line` itself (not only in context), word for word after normalizing spaces, quote marks, and case, or the entry is dropped. **Verb check:** the `summary` must begin with the speaker's name (any alias) followed by a verb allowed for the type (table below), or the entry is dropped ("type/summary mismatch"), since the model's own words then disagree with its label. **`toward`:** if it equals the speaker, it's set to null and logged; for a deal it must be the other party (the speaker of a context line, or the other name in a cited payment line). Unknown types are dropped. Turn, conversation, and audience are filled in by code. The rest of the call is kept |
+| **Sweep** (10a) | Each spoken line of the turn should appear once; missing lines are logged. **A line the sweep flagged with a kind but no matching entry triggers one re-ask** naming those lines ("You flagged L57 as a threat but wrote no entry for it"). An entry whose kind the sweep didn't flag is kept and logged. Both counts are reported for gate 8 |
+| **Beliefs** (10b) | `thought` must exist in this turn's input, and the quote must appear in that thought. **Hedge rule:** a `conclusion` is stored as a `suspicion` (logged as "hedge downgrade") if the sentence or sentences containing its quote include a question mark or any hedge from 10b's list (perhaps, maybe, might, may, could, likely, probably, possibly, surely, must be, I think, I suspect, I wonder, it seems, appears, if, unless, whether), matched as whole words, case-insensitively. Beliefs are never upgraded by code. `firmer` and `dropped` must name an existing belief ID, or the change is ignored |
 | **Knowledge checks** (10c) | Cited memory IDs must exist in the evidence given. A *told* verdict must cite an entry spoken by someone other than the character; a *firm conclusion* must cite the character's own conclusion or claim. A failed citation turns the verdict into *none* and flags the check for hand review |
 
 **Alias table:** one entry per character, maintained alongside the roster: full name, short name, title forms (e.g. "Captain Armand LeNoir", "Captain LeNoir", "LeNoir", "Armand LeNoir"; "Contessa Isabella di Salviati", "Contessa Isabella", "Isabella"; "Emile de Valois", "Prince Emile", "Emile"). Shared by name matching everywhere.
+
+**Summary verbs** for the verb check (the first word after the speaker's name; extend the list only if re-tests show true entries being dropped):
+
+| Type | Allowed verbs |
+|---|---|
+| promise | promised, swore, vowed, pledged |
+| deal | agreed, accepted |
+| threat | threatened, warned |
+| admission | admitted, confirmed, conceded |
+| claim | said, claimed, accused, alleged, revealed, showed, told |
+| denial | denied |
 
 **Defaults when a call fails twice:**
 
@@ -204,7 +223,7 @@ Every character call returns raw JSON. Code checks and repairs it before use, so
 | Movement | Stay |
 | Strategy | Keep the previous plan |
 | Murder Round | No action, Plot Reward act included (Mechanics v0.20). Logged as an engine failure |
-| Extraction (10a, 10b) | No model entries for that conversation or character this turn (code-written facts are still stored); flagged, since a gap in memory affects later play |
+| Extraction (10a, 10b, 10d) | No model entries from that pass for that conversation or character this turn (code-written facts are still stored); flagged, since a gap in memory affects later play |
 | Knowledge check | *None*, flagged for hand review |
 | Ballot | One vote for the voter's own faction's candidate if any, otherwise a blank ballot; buy none |
 | Run-off | One vote for a tied guest from the voter's own faction if any, otherwise a blank ballot |
@@ -220,7 +239,7 @@ Every character call returns raw JSON. Code checks and repairs it before use, so
 | Kind | Calls | Runs on |
 |---|---|---|
 | **Character calls** | `think()`, `speak()`, movement, strategy, Murder Round, ballot, run-off | The play model **plus that character's personality adapter** (Neutral, Bold, or Cautious, once trained) |
-| **System calls** | Conversation pass and thought pass (10a, 10b), knowledge checks (10c); later, jailbreak detection | The **stock play model with no adapter**, as a neutral recorder |
+| **System calls** | ★ pass, thought pass, and claims pass (10a, 10b, 10d), knowledge checks (10c); later, jailbreak detection | The **stock play model with no adapter**, as a neutral recorder |
 | **No model** | `detectDesignation()`, Il Notaio's lines, action lines, tallies and the draw by lot, validation, all bookkeeping | Code and templates |
 
 - **`think()` is a character call, not bookkeeping.** It's where the character decides whether to speak and what they're hiding. On another model, personality adapters would change only how characters *sound*, not what they *do*
@@ -257,7 +276,8 @@ Nothing about the model is hard-coded. Each run reads a config file, and the ful
 | Adapter | From an adapter map: `neutral`, `bold`, `cautious` → adapter ID, or `none` for stock or prompted play | None |
 | Thinking | Off (`thinking: false`, mapped to each provider's control) | Off |
 | Temperature | **0.7** | **0** |
-| Max output tokens | Per call type (`think()` ~250, `speak()` ~200, movement ~500, strategy ~400, Murder Round ~300, ballot ~250, run-off ~200) | Per call type (conversation pass ~1,200, thought pass ~400, knowledge check ~300) |
+| Max output tokens | Per call type (`think()` ~250, `speak()` ~200, movement ~500, strategy ~400, Murder Round ~300, ballot ~250, run-off ~200) | Per call type (★ pass ~1,500 including the sweep, claims pass ~1,000, thought pass ~600, knowledge check ~300) |
+| Repeated thoughts | `drop_repeated_thoughts: true` (default, every model): see shortTermHistory | – |
 | Message layout | `system_role: true` (blocks 1–3 as system message) or `false` (all blocks in one user message), per model | Same |
 | Prompt caching | On where the provider supports it | Same |
 
@@ -290,6 +310,7 @@ Every character call is built from the same blocks in the same order, **most sta
 - **Long-term memory is retrieved once per character per utterance** and reused for that character's `think()` and `speak()`. Movement, strategy, Murder Round, and vote calls retrieve their own, with queries suited to the decision (e.g. Murder Round retrieves threats and deals)
 - **Sizes:** ~3,300 input tokens per call. Measured `think()` output on TD v0.3 is ~103 tokens (DeepSeek). `speak()` ~100. Models & Research replaces these with measurements
 - **No constrained decoding.** Raw JSON plus code validation (see Output Validation & Repair)
+- **The JSON schema line comes last** *(rule since v0.6)*. Every task block ends with "Reply with only this JSON:" and its schema, and anything added to a task block (a new instruction, a personality line, a probe variant) goes **before** that line, never after. In the Oct 25 boldness test, one line placed after the schema in 9b made Qwen3.8 misspell the `utterance` key in 7.6% of `speak()` calls (1.0% without it). Placeholders that may hold extra instructions, such as `{done_instruction}` and `{addressee_instruction}`, already sit above the schema
 
 ### History Line Formats
 
@@ -311,7 +332,7 @@ Every line in block 8 is one of four kinds. All non-speech lines are written by 
 
 ## Prompt Drafts
 
-*Status: drafts. Blocks 1–3, 9a, 9b, and 9d–9g ran on TD v0.4 in Models & Research's probes (S1–S10); 9c has not run. v0.5 adds the three secret-keeping lines (9a, 9b) and the S8–S10 wording fixes (Block 5 "Present," 9d, 9e, 9f). Blocks 10a–10c are system prompts for memory and plot checks, new and untested; they run on the system model and don't use blocks 1–8. Placeholders in `{braces}` are filled by code; values come from mechanics' Tunable Values.*
+*Status: drafts. Blocks 1–3, 9a, 9b, and 9d–9g ran on TD v0.4 in Models & Research's probes (S1–S10); 9c has not run. v0.5 adds the three secret-keeping lines (9a, 9b) and the S8–S10 wording fixes (Block 5 "Present," 9d, 9e, 9f). Blocks 10a–10d are system prompts for memory and plot checks, which run on the system model and don't use blocks 1–8. 10a–10c ran in their v0.5 form in 13 mini-games; v0.6 rewrites 10a and 10b, adjusts 10c, and adds 10d, all untested in their new form. Placeholders in `{braces}` are filled by code; values come from mechanics' Tunable Values.*
 
 **For probes:** blocks 4, 6, and 7 may be stubbed ("No plan yet." / "Nothing yet." / empty) unless the scenario needs them. Blocks 2 and 9 should be used as written so results transfer to the real engine.
 
@@ -623,45 +644,73 @@ Reply with only this JSON:
 - A tied guest may vote for themselves
 - If the run-off ties: code draws by lot (seeded), and Il Notaio announces it, e.g. `[Il Notaio] The city is divided still. By lot, as Florence has long chosen her officers, the office falls to Francesco Pazzi.`
 
-### System prompts (blocks 10a–10c) *(new in v0.5)*
+### System prompts (blocks 10a–10d) *(rewritten in v0.6)*
 
-These run on the **system model** (stock, no adapter, temperature 0) and never on a character's behalf. Each is a **system message** holding the instructions, which stay the same on every call so they can be cached, plus a **user message** holding that call's data. None of them sees a character briefing: the recorder works only from what was said and thought, so it can't fill gaps with what a character "should" know. How the outputs are stored is in **Memory Writing**; how checks are scored is in **Plot Point Checks**.
+These run on the **system model** (stock, no adapter, temperature 0) and never on a character's behalf. Each is a **system message** holding the instructions, which stay the same on every call so they can be cached, plus a **user message** holding that call's data. None of them sees a character briefing: the recorder works only from what was said and thought, so it can't fill gaps with what a character "should" know. How the outputs are stored is in **Memory Writing**; how they're checked is in **Output Validation & Repair**; how checks are scored is in **Plot Point Checks**.
 
-### Block 10a — Conversation pass
+**What changed in v0.6, and why.** In 13 mini-games (Models & Research, Findings Log, Oct 24–25), v0.5's single conversation pass caught 87–89% of ★ items against a 90% bar and wrote invented entries in every game. The thought pass recorded 10–13 suspicions per game as firm conclusions. The rewrite answers each error pattern:
+
+| Error seen in the mini-games | Fix |
+|---|---|
+| ~1 in 9 ★ items missed | **★ items get their own pass (10a)** with a **line sweep**: the model must classify every spoken line before writing entries, and code re-asks once for any line it flagged but didn't record. Claims and denials, the bulk of v0.5's entries, move to a separate **claims pass (10d)** |
+| A request recorded as a promise by the person asking ("Swear it") | **Every entry rests on one line**, the line where the speaker does the thing. A WHO DID IT section says outright that a request binds no one, with a worked example |
+| A promise's target recorded as its own speaker | The model names the `speaker` and code checks it against the line. `toward` can never be the speaker |
+| Summaries that say more than their quote | The quote is written before the summary. The summary must start with the speaker's name and the verb for its kind, and may say only what the quote says. Code drops an entry whose summary verb doesn't match its type |
+| Suspicions recorded as firm conclusions | **Suspicion is the default.** A conclusion must pass a three-part test with a listed set of hedge words, and its quote must be the whole sentence. **Code downgrades** any conclusion whose sentence contains a hedge word. The knowledge check (10c) re-reads the quote as a second guard |
+
+**Numbering:** 10a, 10b, and 10c keep their v0.5 jobs (★ conversation pass, thought pass, knowledge check), so existing references still point the right way. The new claims pass is 10d.
+
+**Every prompt here ends with its JSON schema line.** Nothing is appended after it (see Prompt Assembly).
+
+### Block 10a — ★ pass (promises, deals, threats, admissions)
 
 One call per conversation active this turn (Capannelli, Colloquii, faction meetings).
 
 **System message:**
 
 ```
-You are the clerk who keeps the record of a game of political intrigue set at a gathering in Florence, 1492. Each time, you read one conversation's lines from one turn and record the statements that will matter later. You record what was said and who said it. You never decide whether it is true.
+You are the clerk who keeps the record of a game of political intrigue set at a gathering in Florence, 1492. You read one conversation's lines from one turn and record every PROMISE, DEAL, THREAT, and ADMISSION in them. Another clerk records everything else, so record only these four kinds. You record what was said and who said it. You never decide whether it is true.
 
-WHAT TO RECORD
-- promise: a speaker commits to do, or not to do, something. ("I will vote for your brother." "Not a word of this will pass my lips.")
-- deal: two people agree an exchange of Florins, votes, silence, information, or help in the Murder Round. Record it once, citing both the offer and the acceptance. If a bracketed line shows Florins changing hands, record what the money was said to be for; the transfer itself is recorded elsewhere.
-- threat: a speaker says they will harm, expose, or act against someone, openly or by plain implication. ("Pay, or the city hears of San Frediano.")
-- admission: a speaker confirms something about themselves that they would want hidden, or that could be used against them. Partial or implied confirmations count, such as begging for silence about an accusation instead of denying it.
-- claim: a speaker states as fact something about another person or a past event that others present may not have known: an accusation, a rumour, a revelation, or evidence shown.
-- denial: a speaker denies an accusation or a claim.
+THE FOUR KINDS
+- promise: the speaker binds themselves to do, or not to do, something. ("I will vote for your brother." "Not a word of this will pass my lips." "Guard me tonight and I'll pay you.")
+- deal: two people agree an exchange of Florins, votes, silence, information, or help in the Murder Round. One side offers; the other accepts, in words or by paying.
+- threat: the speaker says they will harm, expose, or act against someone, openly or by plain implication. ("Pay, or the city hears of San Frediano.")
+- admission: the speaker confirms something about themselves that they would want hidden, or that could be used against them. Partial or implied confirmations count, such as begging for silence about an accusation instead of denying it.
 
-WHAT NOT TO RECORD
-- Greetings, flattery, small talk, opinions, feelings, and questions that state nothing.
-- Il Notaio's lines and bracketed lines as entries of their own. They are recorded separately; use them only to understand the conversation.
-- Anything from EARLIER IN THIS CONVERSATION. It was recorded last turn.
+WHO DID IT
+Every entry rests on one line: the line where the speaker does the thing, by promising, accepting, threatening, or admitting.
+- A request is not a promise. "Swear it." "Promise me." "Will you keep silent?" bind no one. If the other person answers "I swear it," that answer is the promise: cite the answer as "line" and the request in "context".
+- An offer alone is not a deal. Record the deal on the line where it was accepted, with the offer in "context". If the only acceptance was a payment (a bracketed line), cite the offer as "line" and the payment in "context".
+- "toward" is the person promised to, dealt with, threatened, or confessed to. It is never the speaker.
+
+EXAMPLE
+[L40] Lupo: Swear on your mother's grave you'll keep my name out of it.
+[L41] Contessa Isabella: I swear it. No one will hear your name from me.
+Right: one promise. line "L41", context ["L40"], speaker "Contessa Isabella", toward "Lupo", summary "Contessa Isabella swore that no one would hear Lupo's name from her."
+Wrong: a promise on L40 by Lupo. Wrong: toward "Contessa Isabella". Wrong: a summary saying she promised to protect him from someone.
+
+STEP 1: SWEEP
+Go through every spoken line in THIS TURN, in order, and list which of the four kinds it contains. Most lines contain none. Leave out bracketed lines and Il Notaio's lines.
+
+STEP 2: ENTRIES
+Write one entry for each kind your sweep found, and no others. A line holding both a threat and a promise gets two entries.
+- line: the ID of the one line the entry rests on.
+- context: the IDs of any other lines needed to understand it, or an empty list.
+- speaker: the full name of whoever spoke "line".
+- quote: the words from "line" that show it, at most 25 words, copied exactly.
+- type: promise, deal, threat, or admission.
+- toward: as above, or null.
+- about: everyone the entry concerns, including people not present.
+- summary: one sentence, past tense, at most 20 words. Begin with the speaker's name and the verb for the kind: "promised" (or "swore", "vowed"), "agreed" for a deal, "threatened" (or "warned"), "admitted" (or "confirmed"). Say only what the quote says: no motives, no consequences, and no meaning read into a hint. If the line is vague, the summary is vague.
 
 RULES
-- Attribute everything. Write "Lupo said Contessa Isabella hired him," never "Contessa Isabella hired Lupo." Nothing in an entry may go beyond what the lines say.
-- Record lies exactly as you record truths. You are recording speech, not facts.
-- One entry per distinct statement. Don't split one statement into several entries, and don't merge separate statements. A line holding both a threat and a promise gets two entries.
-- lines: the ID or IDs of the lines the entry rests on, such as "L57". For a deal, cite the offer and the acceptance.
-- toward: the one person the entry is aimed at (the person promised, threatened, dealt with, or accused), or null.
-- about: everyone the statement concerns, including people who are not present.
-- summary: one sentence, past tense, at most 25 words, using full names exactly as in the ROSTER.
-- quote: the words from one cited line that best show the entry, at most 20 words, copied exactly.
-- If nothing this turn qualifies, return an empty list.
+- Record what was said, not what is true. Lies are recorded exactly like truths.
+- Record only lines from THIS TURN. EARLIER IN THIS CONVERSATION was recorded last turn; use it only to understand what a line refers to.
+- Use full names exactly as in the ROSTER.
+- If no line contains any of the four kinds, every sweep item has an empty list and there are no entries.
 
 Reply with only this JSON:
-{"entries": [{"type": "promise" or "deal" or "threat" or "admission" or "claim" or "denial", "lines": ["L57"], "toward": "..." or null, "about": ["..."], "summary": "...", "quote": "..."}]}
+{"sweep": [{"line": "L57", "kinds": ["promise"]}], "entries": [{"line": "L57", "context": [], "speaker": "...", "quote": "...", "type": "promise" or "deal" or "threat" or "admission", "toward": "..." or null, "about": ["..."], "summary": "..."}]}
 ```
 
 **User message:**
@@ -681,7 +730,7 @@ THIS TURN
 ```
 
 - `{roster}`: one line per character, `Full Name — Faction`, the dead marked `(dead)`. Faction membership is public in the game
-- `{context_lines}`: the last 4 lines before this turn in the same conversation, without IDs, or `None.` if the conversation opened this turn
+- `{context_lines}`: the last 4 lines before this turn in the same conversation, **with their IDs** (so a request from last turn can be cited in `context`), or `None.` if the conversation opened this turn
 - `{turn_lines}`: every line of this conversation this turn, in History Line Format, each prefixed with an ID: `[L57] Contessa Isabella (to Lupo): words` / `[L58] [Contessa Isabella gave Lupo 3 Florins.]` / `[L59] [Il Notaio] words`. Private action lines aren't included, since they belong only to the actor and are stored by code
 - IDs are unique for the whole game, so entries can be traced back to their lines in the game record
 
@@ -694,25 +743,38 @@ One call per character who made at least one character call this turn.
 ```
 You read one character's private thoughts from one turn of a game of political intrigue set in Florence, 1492, and record what the character has come to believe about hidden matters: who did what, who holds what, who is lying, who is allied with whom, who loves whom. You record their belief, not whether it is true.
 
-WHAT TO RECORD
-- conclusion: the character treats a hidden matter as settled. ("It was Isabella. The boar is hers." "Raffaello takes French coin; I'm sure of it now.")
-- suspicion: the character thinks it may be so, but hedges. ("Perhaps the Salviati woman had a hand in it." "Does Lupo know more than he says?")
+TWO KINDS
+- suspicion: the character thinks it may be so. This is the usual kind. Anything hedged, wondered at, guessed, or reasoned towards without being settled is a suspicion.
+- conclusion: the character treats it as settled fact, stated flatly, as something they now know. ("It was Isabella. The boar is hers.")
+
+THE TEST FOR A CONCLUSION
+All three must hold. Otherwise it is a suspicion.
+1. The sentence states it flatly. Any of these makes it a suspicion: perhaps, maybe, might, may, could, likely, probably, possibly, surely, must be, I think, I suspect, I wonder, it seems, appears, if, unless, whether, or a question mark.
+2. The character holds it themselves. What someone else claimed is not a belief at all ("Lupo says X"), unless the character accepts it ("Lupo says X, and he is telling the truth").
+3. It is about a hidden matter, not a plan, a feeling, or a judgement of character.
+If in doubt, it is a suspicion.
+
+EXAMPLE
+[T41] The friar has gold he shouldn't. Perhaps he keeps a second purse for the Pazzi.
+Right: a suspicion. Quote: "Perhaps he keeps a second purse for the Pazzi."
+[T52] No more doubt: the friar keeps a second purse. I saw it under his robe.
+Right: a conclusion. Quote: "No more doubt: the friar keeps a second purse."
 
 WHAT NOT TO RECORD
 - Plans, intentions, feelings, and judgements of character ("He is a fool").
-- What someone else claimed, unless the character accepts it. "Lupo says X" is not a belief; "Lupo says X, and I believe him" is.
 - The character's own past and secrets, which they simply know.
 - A belief already recorded, unless it has changed. Beliefs recorded so far are listed for you.
 
 RULES
-- statement: the belief as one plain sentence, using full names exactly as in the ROSTER, written as the character believes it. ("Contessa Isabella ordered the killing of Captain LeNoir's brother.")
-- change: "new"; "firmer" (a recorded suspicion is now a conclusion); or "dropped" (the character now thinks a recorded belief is false). For "firmer" and "dropped", give the recorded belief's ID in "belief".
 - thought: the ID of the thought it comes from, such as "T41".
-- quote: the words from that thought that show it, at most 20 words, copied exactly.
+- quote: the whole sentence, or sentences, from that thought that state the belief, hedge words included, at most 40 words, copied exactly.
+- kind: "suspicion" or "conclusion", by the test above.
+- change: "new"; "firmer" (a recorded suspicion is now a conclusion); or "dropped" (the character now thinks a recorded belief is false). For "firmer" and "dropped", give the recorded belief's ID in "belief"; otherwise null.
+- statement: the belief as one plain sentence, using full names exactly as in the ROSTER, saying exactly what the quote says and no more: no extra people, motives, or details.
 - If there is nothing to record, return an empty list.
 
 Reply with only this JSON:
-{"beliefs": [{"kind": "conclusion" or "suspicion", "change": "new" or "firmer" or "dropped", "belief": "B3" or null, "statement": "...", "thought": "T41", "quote": "..."}]}
+{"beliefs": [{"thought": "T41", "quote": "...", "kind": "suspicion" or "conclusion", "change": "new" or "firmer" or "dropped", "belief": "B3" or null, "statement": "..."}]}
 ```
 
 **User message:**
@@ -732,11 +794,11 @@ THOUGHTS THIS TURN
 ```
 
 - `{prior_beliefs}`: the character's held beliefs, one per line: `[B3] suspicion — Contessa Isabella ordered the killing of Captain LeNoir's brother.`, or `None.`
-- `{thoughts}`: every thought this character produced this turn (from `think()`, movement, strategy, and the other character calls), each prefixed with an ID: `[T41] ...`
+- `{thoughts}`: every thought this character produced this turn (from `think()`, movement, strategy, and the other character calls), each prefixed with an ID: `[T41] ...`. A thought that exactly repeats the character's previous thought is left out (see shortTermHistory)
 
 ### Block 10c — Knowledge check
 
-One call per **(character, fact)** pair, at a plot-point deadline. The facts and their wording are in **Plot Point Checks, Plot-point facts**.
+One call per **(character, fact)** pair, at a plot-point deadline. The facts and their wording are in **Plot Point Checks, Plot-point facts**. *v0.6: beliefs now arrive with their quotes, and the check re-reads a "conclusion" quote for hedges.*
 
 **System message:**
 
@@ -752,6 +814,7 @@ If more than one applies, give the strongest: told, then conclusion, then suspic
 
 RULES
 - The fact must be matched in substance, including every part listed under "Must include". Anything listed under "Does not count" is at most a suspicion.
+- Judge a belief by its quote, not its label. A belief labelled "conclusion" whose quote hedges (perhaps, might, likely, I think, a question) is a suspicion.
 - Paying someone for their silence, or being paid for yours, is evidence, not telling. A payment tells the person paid nothing unless the payer also said or confirmed the fact.
 - A wrong belief never counts, however firm. Compare everything against the true fact.
 - told_by: everyone who told the character the fact, by full name. Empty unless the verdict is "told".
@@ -783,8 +846,49 @@ THEIR OWN BELIEFS
 ```
 
 - `{memory_entries}`: the character's longTermHistory entries up to the deadline that name any of the fact's key people (as speaker, `toward`, or `about`), plus the 10 entries most similar in meaning to the fact. Capped at 60 entries; if over, all ★ entries are kept first. Rendered `[M12] T4 · Colloquio with Lupo · claim · {summary} ("{quote}")`
-- `{beliefs}`: all the character's beliefs, held and dropped, with turn and status: `[B3] T6 · conclusion (held) · {statement}`, or `None.`
+- `{beliefs}`: all the character's beliefs, held and dropped, with turn, status, and quote: `[B3] T6 · conclusion (held) · {statement} ("{quote}")`, or `None.`
 - `{deadline_label}`: e.g. "the start of Faction Meeting 4" or, in the mini-game, "the end of the game"
+
+### Block 10d — Claims pass *(new in v0.6)*
+
+One call per conversation active this turn, alongside 10a. Same user message as 10a.
+
+**System message:**
+
+```
+You are the clerk who keeps the record of a game of political intrigue set at a gathering in Florence, 1492. You read one conversation's lines from one turn and record its CLAIMS and DENIALS. Another clerk records promises, deals, threats, and admissions, so leave those out. You record what was said and who said it. You never decide whether it is true.
+
+THE TWO KINDS
+- claim: the speaker states as fact something about another person or a past event that others present may not have known: an accusation, a rumour, a revelation, or evidence shown. ("Captain LeNoir walks the Embassy gardens most nights.") A pointed question that carries an accusation ("Why were you in the gardens at midnight?") is a claim.
+- denial: the speaker denies an accusation or a claim. ("I was never at San Frediano.")
+
+LEAVE OUT
+- Promises, deals, threats, and admissions, including anything a speaker confirms about themselves.
+- Greetings, flattery, small talk, opinions, feelings, plans, and questions that state nothing.
+- Bracketed lines and Il Notaio's lines as entries of their own.
+
+ENTRIES
+- line: the ID of the one line the entry rests on, spoken by the person claiming or denying.
+- context: the IDs of any other lines needed to understand it, or an empty list.
+- speaker: the full name of whoever spoke "line".
+- quote: the words from "line" that show it, at most 25 words, copied exactly.
+- type: claim or denial.
+- toward: the person accused or contradicted, or null. Never the speaker.
+- about: everyone the statement concerns, including people not present.
+- summary: one sentence, past tense, at most 20 words. Begin with the speaker's name and "said", "claimed", "accused", or "denied". Attribute it: "Francesco Pazzi said Captain LeNoir walks the Embassy gardens at night," never "Captain LeNoir walks the Embassy gardens at night." Say only what the quote says.
+
+RULES
+- Record what was said, not what is true. Lies are recorded exactly like truths.
+- One entry per distinct statement. Don't split one statement into several entries, and don't merge separate statements.
+- Record only lines from THIS TURN. EARLIER IN THIS CONVERSATION was recorded last turn; use it only to understand what a line refers to.
+- Use full names exactly as in the ROSTER.
+- If nothing qualifies, return an empty list.
+
+Reply with only this JSON:
+{"entries": [{"line": "L57", "context": [], "speaker": "...", "quote": "...", "type": "claim" or "denial", "toward": "..." or null, "about": ["..."], "summary": "..."}]}
+```
+
+**Why claims get their own pass:** in v0.5 they were the most numerous entries and competed for attention with the ★ items, which are the ones gate 8 measures and the ones characters rely on for deals. The extra call per conversation is small next to the character calls (see Memory Writing, Cost).
 
 ---
 
@@ -832,6 +936,9 @@ The design is adapted from *Who Speaks Next?* (Nonomura & Mori, 2025), which fou
 - Private, not visible to other characters
 - Keeps intentions and reasoning consistent across turns
 - Window size to be tuned in testing
+- **Repeated thoughts are dropped** *(v0.6, default for every model; run setting `drop_repeated_thoughts`)*. A new thought that **exactly repeats the same character's previous thought** is not added to shortTermHistory, so block 7 never shows the same thought twice in a row, and the thought pass doesn't receive it. "Exactly" means identical after trimming and collapsing whitespace. The repeat is still logged in the game record and counted as a health metric, and that call's other outputs (importance, `done`, the line spoken) are used as normal
+  - **Why:** in 5 mini-games Qwen3.8 repeated its previous thought word for word 67 times (DeepSeek 2), 43 of them right after a new line it should have reacted to. Seeing its own last thought echoed back in block 7 seems to feed the loop. Dropping exact repeats costs nothing and can't hide a real change of mind
+  - **Not covered:** near-repeats with small wording changes. Models & Research's similarity measure (≥0.7) still reports them; a fuzzy filter is deferred until that measure shows a need
 
 ### longTermHistory
 
@@ -841,7 +948,7 @@ The design is adapted from *Who Speaks Next?* (Nonomura & Mori, 2025), which fou
 - Retrieved once per utterance and shared by that character's `think()` and `speak()` (see Memory Writing, Retrieval)
 - The extraction prompts are among the most critical in the system, on par with the character briefings
 
-### Memory Writing *(new in v0.5)*
+### Memory Writing *(new in v0.5; passes split in v0.6)*
 
 **Who writes what:**
 
@@ -850,26 +957,28 @@ The design is adapted from *Who Speaks Next?* (Nonomura & Mori, 2025), which fou
 | **Code: transaction log** | Every bribe: `Contessa Isabella gave Lupo 3 Florins.` | Everyone present at the action line | ★ |
 | **Code: private actions** | /borrow and /repay, in the second person | The actor only | ★ |
 | **Code: Il Notaio's events** | Joins, departures, withdrawals, returns, broadcasts | Everyone who received the line | – |
-| **Conversation pass** (10a) | Promises, deals, threats, admissions | Everyone present at every cited line | ★ |
-| **Conversation pass** (10a) | Claims and denials | Everyone present at every cited line | – |
-| **Thought pass** (10b) | Conclusions and suspicions | The thinker only, as beliefs | – |
+| **★ pass** (10a) | Promises, deals, threats, admissions | Everyone present at `line` and every cited context line from this turn | ★ |
+| **Claims pass** (10d) | Claims and denials | Everyone present at `line` and every cited context line from this turn | – |
+| **Thought pass** (10b) | Suspicions and conclusions | The thinker only, as beliefs | – |
 
 **An entry**, as stored:
 
 | Field | Filled by |
 |---|---|
 | `id` (M…), `turn`, `conversation` | Code |
-| `type` | Model (10a), or code for code-written entries |
-| `speaker` | Code, from the cited lines. For a deal, `parties` lists the speakers of all cited lines, and `speaker` is whoever accepted |
-| `toward`, `about` | Model, resolved through the alias table |
-| `summary`, `quote` | Model; the quote is checked word for word against a cited line |
-| `lines` | Model; must be IDs from this turn |
-| `audience` | Code: characters present at every cited line, so a late joiner doesn't receive an entry resting on lines they missed |
+| `type` | Model (10a, 10d), or code for code-written entries |
+| `line` | Model; must be a spoken line from this turn. The entry rests on it |
+| `speaker` | Model, **checked by code** against the speaker of `line`; a mismatch drops the entry. For a deal, code also stores `parties`: the speaker of `line` plus the other party from the context lines |
+| `context` | Model; IDs of supporting lines (this turn or the context lines) |
+| `quote` | Model; checked word for word against `line` |
+| `toward`, `about` | Model, resolved through the alias table; `toward` is never the speaker |
+| `summary` | Model; must begin with the speaker's name and a verb allowed for the type |
+| `audience` | Code: characters present at `line` and at every context line from this turn, so a late joiner doesn't receive an entry resting on lines they missed |
 | `salient` (★) | Code, from `type` |
 
-**A belief** stores `id` (B…), `kind` (conclusion or suspicion), `status` (held or dropped), the turn first recorded, the turn last changed, the source thought ID, and the quote. "Firmer" updates the kind; "dropped" sets the status. Nothing is deleted.
+**A belief** stores `id` (B…), `kind` (suspicion or conclusion, after the hedge rule), `status` (held or dropped), the turn first recorded, the turn last changed, the source thought ID, the quote, and whether code downgraded it. "Firmer" updates the kind, and the hedge rule applies to it too; "dropped" sets the status. Nothing is deleted.
 
-**Why IDs instead of names and turns:** the gate 8 failures that matter most are a wrong speaker and an invented fact. Taking the speaker from the cited line rules out the first. Checking the quote against the line catches most of the second; a summary that overreaches its quote is what Models & Research's judge looks for.
+**Why these checks:** the gate 8 failures that matter most are a wrong speaker and an invented fact. The v0.5 design took the speaker from the first cited line, which went wrong when the model cited a request ("Swear it") as a promise: the asker became the promiser. v0.6 makes each entry rest on one line and has the model state who spoke it, so a mismatch shows up as a disagreement code can catch. The quote check still catches invented quotes. The verb check catches a label that disagrees with the model's own summary ("Lupo demanded…" under `promise`). Summaries that overreach their quote are still possible; Models & Research's judge measures them.
 
 **Rendering in block 6** (one line each, oldest first within the selection):
 
@@ -886,7 +995,7 @@ T6 · your belief (conclusion): Contessa Isabella ordered the killing of Lucien.
 
 Movement, strategy, Murder Round, and vote calls retrieve with their own queries (Murder Round: ★ threats, deals, and promises first; strategy: the most recent turn's ★ entries plus held conclusions).
 
-**Cost:** per turn, about 4–6 conversation-pass calls (one per conversation) and up to 12 thought-pass calls, all on the system model with cached instructions. Small next to the ~48 character calls per turn; the mini-game measures it.
+**Cost:** per turn, two calls per active conversation (★ pass and claims pass; about 8–12 in a full game, 2–4 in the mini-game), up to 12 thought-pass calls, and the occasional sweep re-ask, all on the system model with cached instructions. Small next to the ~48 character calls per turn. The mini-game measured memory and checks at a few cents per game on v0.5; v0.6 adds roughly one call per conversation per turn.
 
 ### Strategy Section
 
@@ -1085,6 +1194,7 @@ So a full game needs **four knowledge checks**: (Piero, F1), (LeNoir, F2), (Emil
 - Colloquio length, and how often the utterance cap is reached versus a "done" signal
 - Designations per Capannello line, and how often the ping-pong guard fires
 - Rejected actions, repairs, retries, and defaults per game (a sign the prompts need work)
+- **Memory health** (v0.6): dropped memory entries by reason (speaker mismatch, quote mismatch, type/summary mismatch), sweep gaps and re-asks, hedge downgrades, and repeated thoughts dropped, per character per game
 
 **Statistical note:** with 100 games, a faction that truly wins 25% of the time could show anywhere from roughly 17% to 33% by chance. Distinguishing small differences takes several hundred games per configuration, which is why that job belongs to the simulator.
 
@@ -1130,11 +1240,17 @@ The first build artifact: an internal console for running and debugging the simu
 - **Plot protection prompt text and flag** (v0.4): replaced by the Plot Reward (`{plot_reward_rule}`, `plot_reward`), following mechanics v0.19
 - **Addressee field in a Colloquio** (v0.4): only one other person, so nothing to designate
 - **Plural `acts` list in 9e for one act** (v0.5): invited extra acts in S10
+- **One conversation pass for all six entry types** (v0.5): 87–89% ★ capture across 13 mini-games. Split into the ★ pass (10a) and the claims pass (10d) in v0.6
+- **Speaker taken from the first cited line** (v0.5): made the asker the promiser when a request was cited. Replaced by one `line` per entry and a model-stated speaker checked by code (v0.6)
 
 **Rejected (v0.5, memory design):**
-- **One extraction call per character** reading the whole transcript: three times the calls for a group of three, and each listener's memory could record the same moment differently. One shared conversation pass is cheaper and gives everyone present the same record
-- **The model writing speaker and turn itself:** the likeliest source of wrong-speaker errors; code fills both from the cited IDs
+- **One extraction call per character** reading the whole transcript: three times the calls for a group of three, and each listener's memory could record the same moment differently. One shared pass per conversation is cheaper and gives everyone present the same record (still true with two passes)
+- **The model writing turn and audience itself:** code fills both from the cited IDs. *(Since v0.6 the model does state the speaker, but only so code can check it against the line; the line decides)*
 - **Payments extracted by the model:** the transaction log is exact, so code writes them
+
+**Rejected (v0.6):**
+- **A stronger model for the memory passes, before trying the prompt fix:** gate 8 failed the same way whether DeepSeek or Qwen played, with DeepSeek recording both times, so the errors look like prompt errors. Gate 8's own listed fallback ("stronger model for this one pass") stays open if v0.6 still fails
+- **Fuzzy de-duplication of thoughts:** a similarity filter could hide a genuine, slightly reworded change of mind. Exact repeats only, for now
 
 **Rejected:**
 - **Self-esteem scores:** designing for a problem not yet observed
@@ -1152,9 +1268,11 @@ The first build artifact: an internal console for running and debugging the simu
 
 - History and shortTermHistory window sizes
 - How often knowledge checks misfire, including firm-but-unfounded guesses (mini-game: agreement with hand-checks)
-- Does the conversation pass reach gate 8's bar (≥90% of ★ items, no invented facts)? If it misses ★ items, try splitting it into a ★-only pass and a claims pass before changing models
+- **Does v0.6 reach gate 8** (≥90% of ★ items, no invented entries) on the 13 saved mini-games? Models & Research re-runs the passes and re-judges. If it still fails: (1) look at which checks drop entries (an over-strict verb list or hedge list could cost true entries); (2) try a stronger model for the memory passes only, gate 8's listed fallback
+- **Is the hedge list too strict?** "Surely," "must be," and "I think" can introduce firm beliefs in ordinary speech. Downgrading them is deliberate (conclusions count toward plot points, so a false conclusion costs more than a missed one), but if re-tests show LeNoir's genuine deductions downgraded, trim the list
+- **Should the ★ pass see the claims pass's output, or the reverse,** to avoid an admission also being recorded as a claim? Currently independent; duplicates are harmless in memory but would inflate counts
 - Is F2's "unmistakable description" right? If LeNoir firmly concludes "the Salviati widow" without naming her, it counts; "a Salviati" alone doesn't. Watch whether this line is hit in play
-- Should the thought pass skip characters whose thoughts this turn were all inside a Colloquio already read by the conversation pass? (Cost only; decide after the mini-game measures it)
+- Should the thought pass skip characters whose thoughts this turn were all inside a Colloquio already read by the ★ and claims passes? (Cost only)
 - Jailbreak detection method (post-simulation)
 - **Prompts still to draft:** candidate selection and speeches (phases E–F); Il Notaio's event templates (wording examples exist in Mechanics)
 - **Actions in `speak()` or in their own call?** Decide after the mini-game
