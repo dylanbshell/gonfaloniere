@@ -83,7 +83,7 @@ function momentText(r: StrategyRecord): string {
 }
 
 async function main(): Promise<void> {
-  const docs = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath(process.env.PROBE_TD ?? "0.7") });
+  const docs = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath(process.env.PROBE_TD ?? "0.8") });
   const all = readRecords(runLogFiles());
   const strat = (all as unknown as StrategyRecord[]).filter((r) => r.type === "strategy");
   /** The model's latest strategy run that covers the item. */

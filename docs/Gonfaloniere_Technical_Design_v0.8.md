@@ -1,8 +1,19 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.7
+### Version 0.8
 
 ---
+
+## Changes in v0.8
+
+*Clears two of Models & Research's Oct 25 handoffs: "Proposal: perception-based memory" (with Dylan) and "Gate 8 closed as a known limit." Blocks 10a–10d are unchanged.*
+
+- **The perceived notebook is adopted** (Memory Architecture, The perceived notebook). Each character's long-term memory now holds **readings**: how that character took the lines they heard and spoke, quoted from their own thoughts, next to the exact words. A new **perception pass (10e)** runs once per character per turn, in parallel with the thought pass. It links lines to the thoughts that react to them; code checks both quotes
+- **The reference record:** the ★ and claims passes keep running unchanged. They are never shown to characters in the default mode, and they serve knowledge checks, research, and the dashboard
+- **New run setting `notebook`:** `perceived` (default) or `shared`, which restores v0.7's behaviour. It is fixed for a research batch
+- **Each thought is stored with the line it followed** (`after_line`). The game record gains readings and the notebook mode, and the replay record now includes readings
+- **Gate 8 logged as a known limit** (Memory Writing). The sweep's `self` question stays for now, and there are no more memory prompt rounds before the first full games
+- Validation, Model Routing, Run Configuration, Knowledge Isolation, Plot Point Checks, the dashboard, Considered, and Open Questions updated to match
 
 ## Changes in v0.7
 
@@ -108,7 +119,7 @@ Every character call starts with a private **thought**, so the decision that fol
 
 Runs for every character present after every utterance. Outputs:
 
-- **Thought:** private internal reasoning, 2–4 sentences. Not shared
+- **Thought:** private internal reasoning, 2–4 sentences. Not shared. Stored with the ID of the line it followed (`after_line`, v0.8), since each `think()` is a reaction to one line. The perception pass and research both rely on this pairing
 - **Importance score (0–100):** how urgently this character wants to speak. Used by the Orchestrator for speaking order, and by the Stage Manager for collisions
 - **Done signal (Colloquio only):** whether the character wants to end the Colloquio. If either character sends it, the other gets one closing line and the Colloquio ends. Not asked for in a Capannello, and ignored by code if returned there
 
@@ -144,12 +155,14 @@ Checks whether the last utterance directly addressed a specific character. If so
 
 ### End-of-Turn Extraction Pass
 
-At the end of every turn, the turn's events are written into each character's longTermHistory. *Rebuilt in v0.5, split in v0.6; full design in **Memory Writing** below, prompts in blocks 10a, 10b, and 10d.*
+At the end of every turn, the turn's events are written into each character's longTermHistory. *Rebuilt in v0.5, split in v0.6, perception pass added in v0.8; full design in **Memory Writing** and **The perceived notebook** below, prompts in blocks 10a, 10b, 10d, and 10e.*
 
 - **Code writes the exact facts:** payments (from the transaction log), private actions, and Il Notaio's witnessed events. No model call
 - **★ pass** (block 10a): one system call per conversation active this turn. It sweeps every spoken line, then records promises, deals, threats, and admissions (★). Each entry is stored for every character who heard the lines it cites
 - **Claims pass** (block 10d): one system call per conversation, run alongside 10a. It records claims and denials, stored the same way
 - **Thought pass** (block 10b): one system call per character who thought this turn. It records that character's suspicions and conclusions from their own private thoughts, stored for that character only. Suspicion is the default
+- **Perception pass** (block 10e, v0.8): one system call per character who heard or spoke a line this turn, run alongside 10b. It records **readings**: which lines the character took as a promise, deal, threat, admission, claim, or denial, quoting the thought that shows how they took it. Stored for that character only. In the default mode (`notebook: perceived`) readings, not the ★ and claims entries, are what the character remembers of what was said
+- **The ★ and claims entries become the reference record** in the default mode: stored with their audience as before, read by knowledge checks, research, and the dashboard, never by a character
 - **The model cites IDs; code checks them.** Each entry rests on one line, and the model names that line's speaker. Code checks the speaker against the line, checks the quote word for word, and fills in turn, conversation, and audience. Failures are dropped and logged by reason (see Output Validation & Repair)
 - Runs on a fixed turn cadence, independent of movement and conversation changes, on the **recorder model** at temperature 0 (see Model Routing, The recorder model)
 
@@ -201,6 +214,7 @@ Every character call returns raw JSON. Code checks and repairs it before use, so
 | **Memory entries** (10a, 10d) | `line` must be a spoken line from this turn; `context` IDs must exist (this turn or the context lines). **Speaker check:** the model's `speaker` must match the speaker of `line` (through the alias table), or the entry is dropped ("speaker mismatch"). **Quote check:** the `quote` must appear in `line` itself (not only in context), word for word after normalizing spaces, quote marks, and case, or the entry is dropped. **Verb check:** the `summary` must begin with the speaker's name (any alias) followed by a verb allowed for the type (table below), or the entry is dropped ("type/summary mismatch"), since the model's own words then disagree with its label. **`toward`** (10a only): if it equals the speaker, it's set to null and logged; for a deal it must be the other party (the speaker of a context line, or the other name in a cited payment line). 10d has no `toward` since v0.7; one returned there is ignored and logged. Unknown types are dropped. Turn, conversation, and audience are filled in by code. The rest of the call is kept |
 | **Sweep** (10a) | Checked against `{sweep_ids}`: each listed line should appear exactly once, with `self` and `kinds`. **One re-ask covers both gaps:** listed lines the sweep left out, and lines flagged with a kind but no matching entry ("You left out L58; you flagged L57 as a threat but wrote no entry for it"). An entry whose kind the sweep didn't flag is kept and logged. Lines with `self: true` and no admission entry are counted ("self, no admission"), not re-asked, since most are denials or harmless remarks; the count shows whether the self question is doing its job. All counts are reported for gate 8 |
 | **Beliefs** (10b) | `thought` must exist in this turn's input, and the quote must appear in that thought. **Hedge rule:** a `conclusion` is stored as a `suspicion` (logged as "hedge downgrade") if the sentence or sentences containing its quote include a question mark or any hedge from 10b's list (perhaps, maybe, might, may, could, likely, probably, possibly, surely, must be, I think, I suspect, I wonder, it seems, appears, if, unless, whether), matched as whole words, case-insensitively. Beliefs are never upgraded by code. `firmer` and `dropped` must name an existing belief ID, or the change is ignored |
+| **Readings** (10e, v0.8) | `line` must be a spoken line in this character's input this turn (never a bracketed or Il Notaio line), or the reading is dropped. **Quote check:** `quote` must appear in `line`, word for word, normalized as for entries. **Reaction check:** `thought` must exist in the input, and `reaction` must appear in that thought, word for word, or the reading is dropped ("reaction not in thought"): the recorder can't give a character a reading they never had. **Order check:** for someone else's line, `thought` must come after `line` in the input; for the character's own line, any thought this turn will do, and `thought` and `reaction` may both be null. Speaker, turn, conversation, `own`, and ★ are filled in by code from `line` and `took`. Unknown `took` values are dropped; a duplicate (same line, same `took`) keeps the first. The rest of the call is kept |
 | **Knowledge checks** (10c) | Cited memory IDs must exist in the evidence given. A *told* verdict must cite an entry spoken by someone other than the character; a *firm conclusion* must cite the character's own conclusion or claim. A failed citation turns the verdict into *none* and flags the check for hand review |
 
 **Alias table:** one entry per character, maintained alongside the roster: full name, short name, title forms (e.g. "Captain Armand LeNoir", "Captain LeNoir", "LeNoir", "Armand LeNoir"; "Contessa Isabella di Salviati", "Contessa Isabella", "Isabella"; "Emile de Valois", "Prince Emile", "Emile"). Shared by name matching everywhere.
@@ -225,7 +239,7 @@ Every character call returns raw JSON. Code checks and repairs it before use, so
 | Movement | Stay |
 | Strategy | Keep the previous plan |
 | Murder Round | No action, Plot Reward act included (Mechanics v0.20). Logged as an engine failure |
-| Extraction (10a, 10b, 10d) | No model entries from that pass for that conversation or character this turn (code-written facts are still stored); flagged, since a gap in memory affects later play |
+| Extraction (10a, 10b, 10d, 10e) | No model entries from that pass for that conversation or character this turn (code-written facts are still stored); flagged, since a gap in memory affects later play |
 | Knowledge check | *None*, flagged for hand review |
 | Ballot | One vote for the voter's own faction's candidate if any, otherwise a blank ballot; buy none |
 | Run-off | One vote for a tied guest from the voter's own faction if any, otherwise a blank ballot |
@@ -241,20 +255,22 @@ Every character call returns raw JSON. Code checks and repairs it before use, so
 | Kind | Calls | Runs on |
 |---|---|---|
 | **Character calls** | `think()`, `speak()`, movement, strategy, Murder Round, ballot, run-off | The play model **plus that character's personality adapter** (Neutral, Bold, or Cautious, once trained) |
-| **System calls** | ★ pass, thought pass, and claims pass (10a, 10b, 10d), knowledge checks (10c); later, jailbreak detection | The **recorder model**, with no adapter: by default the stock play model (see The recorder model) |
+| **System calls** | ★ pass, thought pass, claims pass, and perception pass (10a, 10b, 10d, 10e), knowledge checks (10c); later, jailbreak detection | The **recorder model**, with no adapter: by default the stock play model (see The recorder model) |
 | **No model** | `detectDesignation()`, Il Notaio's lines, action lines, tallies and the draw by lot, validation, all bookkeeping | Code and templates |
 
 - **`think()` is a character call, not bookkeeping.** It's where the character decides whether to speak and what they're hiding. On another model, personality adapters would change only how characters *sound*, not what they *do*
 - **System calls stay neutral** so no personality adapter ever writes its own memory or grades its own plot point. They never run on a personality adapter, Neutral included: Neutral is a trained competence adapter (Models & Research, Research Design), and the recorder shouldn't carry training meant for players
+- **The perceived notebook doesn't break this** (v0.8). Personality reaches a reading only through the character's own thought, quoted word for word, and that thought came from a character call. The recorder that links line to thought stays neutral
 
 ### The recorder model *(v0.7)*
 
 The memory passes and knowledge checks run on a **recorder model** that is configured separately from the play model. By default the two are the same stock model. Either can change without touching the other or any prompt.
 
-- **Why:** gate 8 has failed three rounds on DeepSeek as the recorder. If v0.7 also fails, Models & Research tests GPT-5.4 as the recorder, and the outcome may be a **split**: DeepSeek plays, a stronger model keeps the record. The design allows that as a config change
+- **Why:** gate 8 failed three rounds on DeepSeek as the recorder, so the design had to allow a **split**: DeepSeek plays, a stronger model keeps the record, as a config change
+- **Outcome (Oct 25):** no split. On v0.7, GPT-5.4 recorded more than DeepSeek but invented more, at ~54× the cost. **DeepSeek stays the recorder**, and gate 8 is logged as a known limit (Memory Writing). The setting stays, so a future recorder needs no prompt changes
 - **What makes the prompts portable:** 10a–10d name no model, ask for plain JSON, and need no provider feature. They work with the instructions as a system message or folded into the user message (`system_role`, per model). Validation and repair are the same code whichever model answers
 - **A split is a fair arrangement.** The recorder is a clerk, not a player: it never acts for a character, so a stronger recorder gives no character an advantage over another. It also never sees a briefing, so knowledge isolation is unchanged
-- **Cost and speed:** the recorder makes about 4 to 8 calls per turn in a full game, against about 48 character calls. A recorder priced several times above DeepSeek would still be a modest share of a game's cost, and its calls run in parallel at the end of the turn. Models & Research measures both if a split is chosen
+- **Cost and speed:** the recorder makes about 20–24 calls per turn in a full game, or about 32–36 with the perception pass (v0.8), against about 48 character calls. Most are small and cached. A recorder priced several times above DeepSeek would still be a modest share of a game's cost, and its calls run in parallel at the end of the turn. Models & Research measures both if a split is chosen
 - **A different recorder must pass gate 8 on its own,** on the same saved games, before it's used in a research batch. Changing the recorder mid-study changes what characters remember, so it is fixed for a whole batch and recorded in every game record
 - **A cheaper recorder** is allowed on the same terms: it must pass gate 8
 
@@ -288,12 +304,12 @@ Nothing about the model is hard-coded. Each run reads a config file, and the ful
 | Adapter | From an adapter map: `neutral`, `bold`, `cautious` → adapter ID, or `none` for stock or prompted play | None, ever |
 | Thinking | Off (`thinking: false`, mapped to each provider's control) | Off by default; per recorder model, recorded |
 | Temperature | **0.7** | **0**, or the provider's lowest accepted value if a model rejects 0 (some do). The value actually sent is recorded |
-| Max output tokens | Per call type (`think()` ~250, `speak()` ~200, movement ~500, strategy ~400, Murder Round ~300, ballot ~250, run-off ~200) | Per call type (★ pass ~1,800 including the sweep, claims pass ~1,000, thought pass ~600, knowledge check ~300) |
+| Max output tokens | Per call type (`think()` ~250, `speak()` ~200, movement ~500, strategy ~400, Murder Round ~300, ballot ~250, run-off ~200) | Per call type (★ pass ~1,800 including the sweep, claims pass ~1,000, thought pass ~600, perception pass ~800, knowledge check ~300) |
 | Repeated thoughts | `drop_repeated_thoughts: true` (default, every model): see shortTermHistory | – |
 | Message layout | `system_role: true` (blocks 1–3 as system message) or `false` (all blocks in one user message), per model | Same |
 | Prompt caching | On where the provider supports it | Same |
 
-**Also run settings, not model settings:** `plot_reward` on/off, tunable values (from mechanics), personality assignment seed, random seed (which also drives any draw by lot).
+**Also run settings, not model settings:** `plot_reward` on/off, `notebook` (`perceived`, the default, or `shared`; see The perceived notebook; fixed for a research batch, like the recorder), tunable values (from mechanics), personality assignment seed, random seed (which also drives any draw by lot).
 
 **Secrets** (API keys, private endpoints) are read only from the environment, never from the config file, and never written to logs or game records. The record keeps the provider name and model ID, which is enough to reproduce a run.
 
@@ -656,11 +672,11 @@ Reply with only this JSON:
 - A tied guest may vote for themselves
 - If the run-off ties: code draws by lot (seeded), and Il Notaio announces it, e.g. `[Il Notaio] The city is divided still. By lot, as Florence has long chosen her officers, the office falls to Francesco Pazzi.`
 
-### System prompts (blocks 10a–10d) *(rewritten in v0.6; 10a and 10d revised in v0.7)*
+### System prompts (blocks 10a–10e) *(rewritten in v0.6; 10a and 10d revised in v0.7; 10e new in v0.8)*
 
 These run on the **recorder model** (see Model Routing, The recorder model), never on a character's behalf. Each is a **system message** holding the instructions, which stay the same on every call so they can be cached, plus a **user message** holding that call's data. None of them sees a character briefing: the recorder works only from what was said and thought, so it can't fill gaps with what a character "should" know. How the outputs are stored is in **Memory Writing**; how they're checked is in **Output Validation & Repair**; how checks are scored is in **Plot Point Checks**.
 
-**The definitions contract** *(v0.7)*. Every entry type, and `toward`, is defined in exactly one place: the **DEFINITIONS** section of block 10a (promise, deal, threat, admission, toward) or 10d (claim, denial). Each definition is **one line beginning `- term:`**, holding the definition, its examples, and its "Not a …" contrasts. Models & Research's gate 8 judge (rubric `gate8 v2`) reads those lines word for word at run time, so the recorder and the judge always use the same words. To change a definition, edit its line; never define or redefine a term anywhere else in the blocks. Other sections refer to "the DEFINITIONS" instead of restating them.
+**The definitions contract** *(v0.7)*. Every entry type, and `toward`, is defined in exactly one place: the **DEFINITIONS** section of block 10a (promise, deal, threat, admission, toward) or 10d (claim, denial). Each definition is **one line beginning `- term:`**, holding the definition, its examples, and its "Not a …" contrasts. Models & Research's gate 8 judge (rubric `gate8 v2`) reads those lines word for word at run time, so the recorder and the judge always use the same words. To change a definition, edit its line; never define or redefine a term anywhere else in the blocks. Other sections refer to "the DEFINITIONS" instead of restating them. **10e is deliberately outside the contract** (v0.8). It uses the same six words for what a character *took* a line as, with loose glosses and no `- term:` lines, because there the character's reaction decides, not a definition.
 
 **History of the rewrites:**
 
@@ -675,11 +691,13 @@ These run on the **recorder model** (see Model Routing, The recorder model), nev
 | Summaries that say more than their quote | Quote first; fixed opening verb; code verb check | Kept. Admissions may use "implied," so an implied admission needn't be summarised as an outright one |
 | Suspicions recorded as conclusions | Suspicion by default; hedge list enforced in code | Kept (unsupported beliefs fell 70–85% on v0.6) |
 
-**Numbering:** 10a, 10b, and 10c keep their v0.5 jobs (★ pass, thought pass, knowledge check), and 10d is the claims pass. The harness finds each block by its heading.
+**Outcome (Oct 25):** v0.7 failed gate 8 on both recorders, and gate 8 is closed as a known limit (Memory Writing, Known limit). **No more memory prompt rounds before the first full games.** 10a–10d stay exactly as tested.
+
+**Numbering:** 10a, 10b, and 10c keep their v0.5 jobs (★ pass, thought pass, knowledge check), 10d is the claims pass, and 10e is the perception pass. The harness finds each block by its heading.
 
 **Every prompt here ends with its JSON schema line.** Nothing is appended after it (see Prompt Assembly).
 
-**Model-neutral by design:** nothing in 10a–10d names or assumes a model. Each asks for plain JSON, needs no provider feature (constrained decoding, tool calls, reasoning), and works with the instructions sent either as a system message or folded into the user message (`system_role`). The same text runs on DeepSeek or on a stronger recorder unchanged.
+**Model-neutral by design:** nothing in 10a–10e names or assumes a model. Each asks for plain JSON, needs no provider feature (constrained decoding, tool calls, reasoning), and works with the instructions sent either as a system message or folded into the user message (`system_role`). The same text runs on DeepSeek or on a stronger recorder unchanged.
 
 ### Block 10a — ★ pass (promises, deals, threats, admissions)
 
@@ -883,7 +901,7 @@ THEIR OWN BELIEFS
 {beliefs}
 ```
 
-- `{memory_entries}`: the character's longTermHistory entries up to the deadline that name any of the fact's key people (as speaker, `toward`, or `about`), plus the 10 entries most similar in meaning to the fact. Capped at 60 entries; if over, all ★ entries are kept first. Rendered `[M12] T4 · Colloquio with Lupo · claim · {summary} ("{quote}")`
+- `{memory_entries}`: the character's code entries and reference entries (10a, 10d; never readings, v0.8) up to the deadline that name any of the fact's key people (as speaker, `toward`, or `about`), plus the 10 entries most similar in meaning to the fact. Capped at 60 entries; if over, all ★ entries are kept first. Rendered `[M12] T4 · Colloquio with Lupo · claim · {summary} ("{quote}")`
 - `{beliefs}`: all the character's beliefs, held and dropped, with turn, status, and quote: `[B3] T6 · conclusion (held) · {statement} ("{quote}")`, or `None.`
 - `{deadline_label}`: e.g. "the start of Faction Meeting 4" or, in the mini-game, "the end of the game"
 
@@ -939,6 +957,70 @@ Reply with only this JSON:
 
 **Why questions are out (v0.7):** a question can carry an accusation, but whether it does is a judgement call. v0.6 recorded pointed questions as claims, the gate 8 judge disagreed with many of them, and 20 were then dropped by the verb check as "X asked…". Recording only statements makes the rule checkable. The question still reaches every listener through History.
 
+### Block 10e — Perception pass *(new in v0.8)*
+
+One call per character who heard or spoke at least one line this turn, run in parallel with 10b. It writes that character's **readings** (see The perceived notebook). The recorder doesn't judge what a line meant. It finds the lines the character's own thoughts show they took as one of six kinds, and copies the words that show it.
+
+**System message:**
+
+```
+You keep one character's private notebook in a game of political intrigue set at a gathering in Florence, 1492. You are given the lines this character heard or spoke this turn. After each line comes the private thought the character had right after it. Note every line the character TOOK as a promise, deal, threat, admission, claim, or denial, and copy the words of their thought that show how they took it.
+
+You record how a line came across to this character, not what it really meant. If they took a jest as a threat, it is a threat in their notebook. If they shrugged off a real threat, it is not noted. If their thought ignores a line, note nothing for it, however plain the line was. Characters can miss things.
+
+THE SIX KINDS, as the character sees them
+A promise: someone binds themselves to do or not do something. A deal: two people agree an exchange. A threat: someone means to harm or expose someone. An admission: someone confirms something about themselves they would want hidden. A claim: someone states as fact something about another person or a past event. A denial: someone denies an accusation. These are rough guides. The character's reaction decides: if their thought treats a line as a threat, a threat is what they took it as.
+
+THE CHARACTER'S OWN LINES
+Note the character's own promises, deals, threats, admissions, claims, and denials too, as they meant them. A thought just before or after their line may show their intent, such as a promise they don't mean to keep. If no thought shows it, give null for "thought" and "reaction".
+
+EXAMPLE
+[L60] Francesco Pazzi (to Lupo): Careful, friend. Rivers run deep in Florence.
+  [T70] thought: He knows about the river. That was no idle remark; he'll talk unless I calm him. Promise him silence, it costs nothing.
+[L61] Lupo (you, to Francesco Pazzi): My lips are sealed, as ever.
+  [T71] thought: Let him think me tame.
+Right, for Lupo:
+- L60: took "threat", thought "T70", reaction "That was no idle remark; he'll talk unless I calm him."
+- L61: took "promise", thought "T70", reaction "Promise him silence, it costs nothing."
+Had T70 been "Francesco and his proverbs again," L60 would get no note: Lupo didn't take it as anything.
+
+NOTES
+- line: the ID of the line.
+- quote: the words from that line that the character reacted to, at most 25 words, copied exactly.
+- took: promise, deal, threat, admission, claim, or denial, as the character took it.
+- thought: the ID of the thought that shows how they took it.
+- reaction: the words from that thought that show it, at most 30 words, copied exactly. Never your own words.
+- about: everyone the line concerns, as the character sees it, including people not present.
+
+RULES
+- One note per line per kind. A line the character took as both a threat and a promise gets two notes.
+- Bracketed lines and Il Notaio's lines are never notes. Payments are recorded elsewhere.
+- Note only lines from THIS TURN.
+- Use full names exactly as in the ROSTER.
+- If nothing qualifies, return an empty list.
+
+Reply with only this JSON:
+{"notes": [{"line": "L57", "quote": "...", "took": "promise" or "deal" or "threat" or "admission" or "claim" or "denial", "thought": "T41" or null, "reaction": "..." or null, "about": ["..."]}]}
+```
+
+**User message:**
+
+```
+ROSTER
+{roster}
+
+CHARACTER
+{character_name}
+
+THIS TURN
+{timeline}
+```
+
+- `{timeline}`: every line this character heard or spoke this turn, across all their conversations, in order. Each line uses History Line Format with its game-wide ID. The character's own lines are marked `(you, to …)` or `(you)`. Each `think()` thought follows the line it reacted to (`after_line`), indented: `  [T70] thought: …`. Bracketed action lines and Il Notaio's lines are included for context. Thoughts from other calls (movement, strategy, Murder Round, votes) are left out, since they don't react to a line; 10b still reads them. Exact-repeat thoughts are left out, as in shortTermHistory
+- A conversation change mid-turn is shown as a plain separator line (`— Colloquio with Lupo —`)
+
+**Why a pass of its own, not part of 10b:** see The perceived notebook, Where to build it.
+
 ---
 
 ## Speaking Order & Decay Rule
@@ -991,9 +1073,13 @@ The design is adapted from *Who Speaks Next?* (Nonomura & Mori, 2025), which fou
 
 ### longTermHistory
 
-- Per-character memory accumulated across the whole game, in two parts: **entries** (what the character witnessed: things said, payments, events) and **beliefs** (their own conclusions and suspicions)
+- Per-character memory accumulated across the whole game. In the default mode (`notebook: perceived`, v0.8) it has three parts:
+  - **Entries written by code:** payments, private actions, and Il Notaio's events. These are exact and the same for everyone present
+  - **Readings:** how the character took what was said, from their own thoughts (see The perceived notebook)
+  - **Beliefs:** their own conclusions and suspicions
+- In `notebook: shared` (v0.7 behaviour), the ★ and claims entries take the place of readings
 - Written at the end of every turn (see Memory Writing)
-- ★ marks promises, deals, threats, admissions, payments, and pensions
+- ★ marks promises, deals, threats, admissions (in the default mode, as the character took them), payments, and pensions
 - Retrieved once per utterance and shared by that character's `think()` and `speak()` (see Memory Writing, Retrieval)
 - The extraction prompts are among the most critical in the system, on par with the character briefings
 
@@ -1006,9 +1092,12 @@ The design is adapted from *Who Speaks Next?* (Nonomura & Mori, 2025), which fou
 | **Code: transaction log** | Every bribe: `Contessa Isabella gave Lupo 3 Florins.` | Everyone present at the action line | ★ |
 | **Code: private actions** | /borrow and /repay, in the second person | The actor only | ★ |
 | **Code: Il Notaio's events** | Joins, departures, withdrawals, returns, broadcasts | Everyone who received the line | – |
-| **★ pass** (10a) | Promises, deals, threats, admissions | Everyone present at `line` and every cited context line from this turn | ★ |
-| **Claims pass** (10d) | Claims and denials | Everyone present at `line` and every cited context line from this turn | – |
+| **★ pass** (10a) | Promises, deals, threats, admissions | Everyone present at `line` and every cited context line from this turn. *Reference record only in `notebook: perceived`* | ★ |
+| **Claims pass** (10d) | Claims and denials | As 10a. *Reference record only in `notebook: perceived`* | – |
 | **Thought pass** (10b) | Suspicions and conclusions | The thinker only, as beliefs | – |
+| **Perception pass** (10e, v0.8) | Readings: lines the character took as one of the six kinds, with their reaction | The character only. *Not written in `notebook: shared`* | ★ if taken as a promise, deal, threat, or admission |
+
+**Reference record** (v0.8): the 10a and 10d entries, stored with their audience exactly as before. In the default mode they're read by knowledge checks, research, and the dashboard, and never retrieved into a character's prompt.
 
 **An entry**, as stored:
 
@@ -1029,22 +1118,117 @@ The design is adapted from *Who Speaks Next?* (Nonomura & Mori, 2025), which fou
 
 **Why these checks:** the gate 8 failures that matter most are a wrong speaker and an invented fact. The v0.5 design took the speaker from the first cited line, which went wrong when the model cited a request ("Swear it") as a promise: the asker became the promiser. v0.6 makes each entry rest on one line and has the model state who spoke it, so a mismatch shows up as a disagreement code can catch. The quote check still catches invented quotes. The verb check catches a label that disagrees with the model's own summary ("Lupo demanded…" under `promise`). Summaries that overreach their quote are still possible; Models & Research's judge measures them.
 
-**Rendering in block 6** (one line each, oldest first within the selection):
+**Rendering in block 6** (one line each, oldest first within the selection). In the default mode, a reading shows the speaker's exact words, then the character's own reaction:
 
 ```
-T4 · Colloquio with Lupo · ★ deal: Contessa Isabella paid Lupo 3 Florins for his silence about San Frediano ("Three florins, and you never knew my name.")
-T5 · Capannello with Francesco Pazzi, Giorgia Pazzi · claim: Francesco Pazzi said Captain LeNoir is often seen in the Embassy gardens at night ("the Captain walks the Embassy gardens most nights")
+T4 · Colloquio with Lupo · ★ you took it as a deal · Lupo: "Three florins, and you never knew my name." · you thought: "Cheap at the price, if he holds to it."
+T4 · Colloquio with Lupo · ★ You gave Lupo 3 Florins.
+T5 · Capannello with Francesco Pazzi, Giorgia Pazzi · you took it as a claim · Francesco Pazzi: "The Captain walks the Embassy gardens most nights." · you thought: "A lie to set us against France."
+T6 · Colloquio with Francesco Pazzi · ★ your own promise · you said: "My lips are sealed, as ever." · you thought: "Promise him silence, it costs nothing."
 T6 · your belief (conclusion): Contessa Isabella ordered the killing of Lucien.
 ```
 
-**Retrieval** (once per character per utterance, about 300 tokens, roughly 10–12 lines):
+In `notebook: shared`, ★ and claims entries render as in v0.7: `T4 · Colloquio with Lupo · ★ deal: {summary} ("{quote}")`.
+
+**Retrieval** (once per character per utterance, about 300 tokens, roughly 10–12 lines). "Entries" here means the character's notebook: readings and code entries by default, or ★ and claims entries in `shared` mode:
 1. ★ entries naming anyone present (as speaker, `toward`, or `about`), most recent first, up to 6
 2. Held beliefs about anyone present, up to 3
-3. Fill the rest with the entries and beliefs most similar in meaning to the last two History lines
+3. Fill the rest with the entries and beliefs most similar in meaning to the last two History lines. A reading is matched on its quote plus its reaction
 
 Movement, strategy, Murder Round, and vote calls retrieve with their own queries (Murder Round: ★ threats, deals, and promises first; strategy: the most recent turn's ★ entries plus held conclusions).
 
-**Cost:** per turn, two calls per active conversation (★ pass and claims pass; about 8–12 in a full game, 2–4 in the mini-game), up to 12 thought-pass calls, and the occasional sweep re-ask, all on the recorder model with cached instructions. Small next to the ~48 character calls per turn. On v0.6 the re-run of all memory passes on 13 saved games cost $0.25 on DeepSeek. A stronger recorder would cost more per call; see Model Routing, The recorder model.
+**Cost:** per turn, two calls per active conversation (★ pass and claims pass; about 8–12 in a full game, 2–4 in the mini-game), up to 12 thought-pass calls, up to 12 perception-pass calls (v0.8), and the occasional sweep re-ask, all on the recorder model with cached instructions. That's about 32–36 recorder calls per turn in a full game, against ~48 character calls, and all of them run in parallel at the end of the turn. On v0.7, recording cost $0.018 per mini-game on DeepSeek; the perception pass adds roughly what the thought pass costs. A stronger recorder would cost more per call; see Model Routing, The recorder model.
+
+**Known limit** *(v0.8; gate 8 closed Oct 25)*. Measured on the 13 saved mini-games with DeepSeek recording on v0.7, against bars of ≥90% and 0:
+- **★ items captured:** 55.6–67.6% per group
+- **Invented entries:** 39–66 per group
+
+A stronger recorder (GPT-5.4) captured 79.9% but invented more (102), at ~54× the cost, so there's no split (Models & Research, Findings Log). The judge's own ★ list grew with the record it was shown, so these figures are rough rather than exact.
+
+**What it means:**
+- The ★ and claims record misses a third to nearly half of ★ moments and holds invented ones. In `shared` mode that is what characters remember. In the default mode it's what knowledge checks and research read
+- **Logged checks stay exact.** Knowledge checks carry the error, and every verdict is stored with its evidence for the hand-read
+- **The `self` question stays for now** (it fired on most lines and didn't find admissions). The first full games should run the pass that was measured, and dropping it now would add a third, unmeasured variant while v0.6 versus v0.7 is still open. If v0.7 is kept, drop `self` then, as a token saving, checked by one replay of the saved games
+- **No more memory prompt rounds before the first full games.** Their hand-read decides whether v0.6's ★ pass (records more, invents more) or v0.7's keeps the reference record
+
+### The perceived notebook *(new in v0.8)*
+
+*From Dylan's proposal with Models & Research (Oct 25): what matters is how a line came across, not its neutral meaning. A paranoid character and an easygoing one shouldn't share one record of the same threat, since a neutral record whitewashes the personalities.*
+
+**Decision: adopted, as the default** (`notebook: perceived`). Each character remembers what was said through **readings**, which are built from their own reactions. A reading pairs the exact words with the character's own thought about them. The ★ and claims passes keep running unchanged as the **reference record**, which characters never see. `notebook: shared` restores v0.7, for a fallback or a comparison.
+
+**A second reason, beyond Dylan's:** the shared record failed gate 8 at the step where the recorder had to classify other people's speech. A reading moves that judgement to the character's own thought. The recorder only links a line to the words that react to it, and code checks both quotes. Readings may well be more reliable than the shared record, not just more personal. That is a hope, not a result; the first full games test it.
+
+**A reading**, as stored:
+
+| Field | Filled by |
+|---|---|
+| `id` (R…), `turn`, `conversation`, `speaker` | Code, from `line` |
+| `line`, `quote` | Model; the quote is checked word for word against the line |
+| `took` | Model: what the character took the line as (one of the six kinds) |
+| `thought`, `reaction` | Model; the reaction is checked word for word against the thought, which must follow the line (Output Validation, Readings) |
+| `about` | Model, resolved through the alias table |
+| `own` | Code: true if the character spoke the line |
+| `salient` (★) | Code: `took` is a promise, deal, threat, or admission |
+
+There is no summary field. A reading is the speaker's words plus the character's words, and nothing in the recorder's own words.
+
+#### 1. Cost
+
+| Recorder calls per turn (full game) | v0.7 (`shared`) | v0.8 (`perceived`) |
+|---|---|---|
+| ★ pass (10a) and claims pass (10d) | 2 per active conversation, ~8–12 | Same, as the reference record |
+| Thought pass (10b) | Up to 12 | Same |
+| Perception pass (10e) | – | Up to 12, one per character, small and cached |
+| **Total** | **~20–24** | **~32–36** |
+
+- **All recorder calls run in parallel at the end of the turn,** so 10e adds no wall-clock time if the provider's rate limit allows the burst (the `--rpm` pacing applies)
+- **Input per 10e call:** the character's lines and thoughts for one turn, about the size of 10b's input. **Output:** a few notes. Cost is roughly one more thought pass per turn. On DeepSeek, all recording was $0.018 per mini-game on v0.7, so the change is small next to the character calls
+- **Retiring the reference passes was considered** and rejected: knowledge checks need a neutral record of what was said in each character's presence, and research needs a yardstick (Considered, Rejected v0.8)
+
+#### 2. Coherence: colour, not chaos
+
+**The line:** a character may misjudge what a line *meant*. It can never misremember *that* it was said, who said it, its words, or any payment. The reading is personal; the record of events is exact.
+
+**Guards, all in code, no extra calls:**
+- **Words beside the reading.** Every reading carries the speaker's exact quote, so the character always sees what was actually said next to how they took it, and can reconsider
+- **Readings come only from the character's thoughts.** The reaction check stops the recorder from adding a reading the character never had. So a divergence from the transcript is the character's, not the clerk's. This matters most for the research
+- **Money is never a matter of perception.** Payments, pensions, and private actions are code entries in the same notebook. A misread deal can't move a Florin: only an action can, and every action is validated against mechanics
+- **Scoring never reads readings.** Knowledge checks read the reference record and beliefs (Plot Point Checks)
+
+**Allowed, because it's the point:**
+- reading a jest as a threat, or shrugging off a real one
+- believing in a deal the other side never meant
+- forgetting a line they didn't react to
+
+Acting on a misreading is legal play. A character may pay, vote, or kill on a deal or threat they misread, as a human player might, and mechanics already handles every such action.
+
+**Would be chaos, and isn't guarded yet:**
+- **Runaway readings:** a character's retrieved readings feed its next thoughts, so a paranoid reading can breed more until every line reads as a threat
+- **Readings that misunderstand the words:** the model failing to parse a line, rather than a personality reading it its own way
+- **Forgotten own commitments:** if 10e misses the character's own promise, they forget it once History scrolls past. It's the same failure the shared record has, now measured per character
+
+**No runtime guard yet.** All three are measured in the first full games (Open Questions). If one is needed, the first lever is retrieval (for example, a cap on readings of one kind per call), not the record. **Personality versus noise:** every variant plays on the same model, so plain misunderstanding should show up equally across Neutral, Bold, and Cautious. Personality shows up as a systematic difference between them on comparable lines.
+
+#### 3. Where to build it
+
+**10b is the right source but not the right call,** so the perception pass is its sibling, 10e. 10b and 10e share everything that matters: the character's own thoughts as input, the recorder model, one call per character per turn, and storage for that character only. 10e still gets its own call, for three reasons:
+- **10b is the one memory pass that works.** Unsupported beliefs fell 70–85% on v0.6, and gate 8 closed with no more memory prompt rounds before the full games. Changing 10b's prompt would put an untested variant of it into those games
+- **Two jobs in one call compete.** Splitting the claims pass from the ★ pass in v0.6 showed it
+- **10e needs lines paired with thoughts; 10b doesn't.** Giving 10b the timeline would change its input as well as its prompt
+
+10e is new, so it has no gate of its own yet. Its quote, reaction, and order checks run in code on every call, and their drop rates are its health metric.
+
+#### 4. What the game record needs
+
+So Models & Research can compare each notebook with the transcript (Game Record & Export):
+- **Each thought stores `after_line`:** the line it reacted to, plus its call type. This is new
+- **Every reading,** with all its fields, plus every dropped reading and the reason
+- **The reference record as before:** every 10a and 10d entry with its audience, in both modes
+- **Unchanged and already logged:** each listener's importance score for each line, which is a second perception signal (does a Cautious character rate threats higher?), and who was present at each line
+- **The header records the notebook mode,** beside the recorder model and personality assignment
+
+**What this allows:** for every line and every listener, the record holds whether they heard it, what they thought, how urgently they wanted to answer, how they took it (or that they took nothing), and how the reference record classed it. Divergence by personality becomes a direct measure: threats read where the reference finds none, ★ lines heard but not noted, and agreement between listeners of the same line. **Caveat:** the reference record carries the known limit, so Models & Research's transcript-first ★ listing (judged from the transcript before seeing any record) is the better yardstick. The reference record is a convenience.
 
 ### Strategy Section
 
@@ -1065,6 +1249,7 @@ Movement, strategy, Murder Round, and vote calls retrieve with their own queries
 - Personal purses and pensions are visible only to their holder, unless the holder discloses them
 - The Embassy's pension ledger and treasury balance are exposed in real time to every French Embassy character's context, and to no one else's
 - Murder Round acts, ballots, and run-off votes are never shown to any character
+- A character's readings are stored for that character only, like their beliefs. In the default mode, the reference record is never retrieved into any character's prompt (v0.8)
 
 ---
 
@@ -1075,12 +1260,12 @@ Movement, strategy, Murder Round, and vote calls retrieve with their own queries
 - Strategy section: updated at each checkpoint and at strategy-altering events
 
 ### After Every Utterance
-- `think()` outputs for everyone present: thought, importance score, and (in a Colloquio) done signal
+- `think()` outputs for everyone present: thought (with `after_line`), importance score, and (in a Colloquio) done signal
 - `speak()` outputs: utterance, addressee (Capannello), and any action (validated, applied, and written as an action line by the Stage Manager)
 
 ### End of Every Turn
 - Movement call for the character whose window arrived: thought, contact list, choice, target
-- longTermHistory: extraction pass on the History transcript
+- longTermHistory: code entries; ★, claims, thought, and perception passes (see Memory Writing)
 - Snapshot of the full game state (see Game Record & Export)
 - Global utterance counter: reset to zero
 
@@ -1114,11 +1299,11 @@ Movement, strategy, Murder Round, and vote calls retrieve with their own queries
 | | **Full record** | **Replay record** |
 |---|---|---|
 | Purpose | Debugging, research analysis, the developer dashboard | The public replay viewer |
-| Header | Game ID, date, engine version, doc versions (TD, Mechanics, Characters), run config (secrets removed), seeds, roster and aliases, personality assignment, tunable values, briefings verbatim | Same, without seeds and provider details |
+| Header | Game ID, date, engine version, doc versions (TD, Mechanics, Characters), run config (secrets removed; includes the recorder model and `notebook` mode), seeds, roster and aliases, personality assignment, tunable values, briefings verbatim | Same, without seeds and provider details |
 | Events | Every event in order: speech, Il Notaio lines, action lines, moves, conversations opening and closing, plot checks with their evidence, Murder Round acts and results, ballots, run-off, draw by lot, outcome | Same |
-| Thoughts and plans | Every thought and strategy plan | Same (the inner life is the show) |
+| Thoughts and plans | Every thought (with its call type and, for `think()`, `after_line`) and strategy plan | Same (the inner life is the show) |
 | Model calls | Every call: type, character, turn, prompt (static prefix stored once per character, dynamic blocks per call), raw output, parsed output, repairs, tokens, cost, latency, provider | Left out |
-| Memory | Every memory entry and belief, with its source line or thought IDs, plus every dropped extraction entry and the reason | Left out, except the entries behind plot checks |
+| Memory | Every memory entry, reading, and belief, with its source line or thought IDs, plus every dropped extraction entry or reading and the reason. Reference entries keep their audience | Readings (how each character took what they heard is part of the show) and the entries behind plot checks; the rest left out |
 | Snapshots | Full state at the end of every turn and every phase boundary | Same |
 
 - **Format:** one JSON document per game, gzip-compressed (`game-<id>.full.json.gz`, `game-<id>.replay.json.gz`), with a `schema_version` field so old replays stay readable as the format changes
@@ -1134,7 +1319,8 @@ Movement, strategy, Murder Round, and vote calls retrieve with their own queries
 *The plot points and the Plot Reward are in mechanics under Murder Round.*
 
 - **Logged checks** (meetings, payments, pension ledger) are answered directly from the system's records and are exact
-- **Knowledge checks** ("has X learned Y?") run the knowledge-check prompt (block 10c) on the recorder model at temperature 0, over the character's memory entries and beliefs up to the deadline. They depend on the extraction pass, so they are less reliable and should be watched in testing
+- **Knowledge checks** ("has X learned Y?") run the knowledge-check prompt (block 10c) on the recorder model at temperature 0, over the character's reference entries (what was said in their presence) and beliefs up to the deadline. They depend on the extraction passes, so they carry the known limit (Memory Writing) and are hand-read in the first full games
+- **Readings never feed a knowledge check** (v0.8), so perception can't bend scoring. A character told a fact in plain words counts as told even if they took it as a lie, which 10c already says ("whether or not the character believed it"). Beliefs, which were always the character's own, still count when they're firm and correct
 - **One check per (character, fact) pair,** reused by every plot point that needs it (see Plot-point facts)
 - Combined checks (e.g. "meeting held, while Piero has not learned of the affair") evaluate each part at the deadline, before Faction Meeting 4
 - **Every knowledge check stores its reasoning and the entries it cited**, shown in the dashboard for hand review
@@ -1254,7 +1440,7 @@ So a full game needs **four knowledge checks**: (Piero, F1), (LeNoir, F2), (Emil
 The first build artifact: an internal console for running and debugging the simulation. Stack: React, Node/Express, PostgreSQL. **It loads games in the Game Record format,** live from the database or from an exported file.
 
 - **6 conversation panels**, one per possible simultaneous conversation
-- **Knowledge inspector:** shows what each character knows, traced back to the conversation where they learned it, including conclusions and the evidence for each knowledge check
+- **Knowledge inspector:** shows what each character knows, traced back to the conversation where they learned it, including conclusions and the evidence for each knowledge check. From v0.8 it also shows each line's readings beside each other and beside the reference entry: who took it how
 - **Event log:** chronological, indexed by round and conversation number
 - **Timeline slider:** scrubs back through the evening using full state snapshots
 - **Validation view:** every repair, rejection, retry, and default, linked to the raw model output
@@ -1296,7 +1482,7 @@ The first build artifact: an internal console for running and debugging the simu
 - **"The system model"** as a fixed role for the stock play model (v0.2–v0.6): renamed the recorder model and made its own setting in v0.7
 
 **Rejected (v0.5, memory design):**
-- **One extraction call per character** reading the whole transcript: three times the calls for a group of three, and each listener's memory could record the same moment differently. One shared pass per conversation is cheaper and gives everyone present the same record (still true with two passes)
+- **One extraction call per character** reading the whole transcript: three times the calls for a group of three, and each listener's memory could record the same moment differently. One shared pass per conversation is cheaper and gives everyone present the same record (still true with two passes). *(v0.8: reversed in part. Different records per listener are now the point. The perception pass reads only the character's own lines and reactions rather than classifying the transcript, and the shared passes stay as the reference record)*
 - **The model writing turn and audience itself:** code fills both from the cited IDs. *(Since v0.6 the model does state the speaker, but only so code can check it against the line; the line decides)*
 - **Payments extracted by the model:** the transaction log is exact, so code writes them
 
@@ -1307,6 +1493,16 @@ The first build artifact: an internal console for running and debugging the simu
 - **More code checks for the remaining errors:** orders filed as promises and insults filed as threats pass the verb check, because the model writes the verb that fits its own label. A keyword heuristic (e.g. "a promise must contain I or my") would also drop true entries ("Your secret is safe"). Definitions with contrasts and worked examples are the fix; a stronger recorder is the fallback
 - **A separate admissions pass:** considered as the next step after the `self` question. Not taken, since this is the last prompt round and a third conversation pass would need its own definitions and judging. If admissions still lag on v0.7, it's the first idea for a stronger recorder to test, not another prompt round
 - **Fuzzy de-duplication of thoughts:** a similarity filter could hide a genuine, slightly reworded change of mind. Exact repeats only, for now
+
+**Rejected (v0.8, perceived notebook):**
+- **Readings in the recorder's own words** (a summary of how the character took a line): recorder paraphrase is where gate 8's invented entries came from, and it would blur the character's voice into the clerk's. Readings quote the character instead
+- **Perception inside the thought pass (10b):** see The perceived notebook, Where to build it
+- **Retiring the ★ and claims passes:** knowledge checks need a neutral record of what was said in each character's presence, and research needs a yardstick. They cost about $0.02 per mini-game on DeepSeek
+- **Showing the reference entries beside readings:** that is the whitewash the change removes. It remains available as `notebook: shared`
+- **A recorder judgement of whether a reading is "reasonable":** it would put the clerk's view of the line back over the character's. The exact quote beside each reading is the guard instead
+
+**Deferred (v0.8):**
+- **Dropping the sweep's `self` question:** until the first full games settle v0.6 versus v0.7 (Memory Writing, Known limit)
 
 **Rejected:**
 - **Self-esteem scores:** designing for a problem not yet observed
@@ -1324,8 +1520,16 @@ The first build artifact: an internal console for running and debugging the simu
 
 - History and shortTermHistory window sizes
 - How often knowledge checks misfire, including firm-but-unfounded guesses (mini-game: agreement with hand-checks)
-- **Does v0.7 reach gate 8** (≥90% of ★ items, no invented entries) on the 13 saved mini-games, scored by the aligned judge (`gate8 v2`)? This is the last prompt round. If it fails, Models & Research's run 2 records the 5 DeepSeek games with GPT-5.4 on the same v0.7 prompts, and its decision rule settles the outcome: a split (DeepSeek plays, a stronger recorder keeps the record, adopted through the recorder model setting) or a known limit, logged here with what it means for plot checks
-- **If a known limit is logged:** which plot points can still use knowledge checks? Logged checks (payments, meetings, ledger) are exact either way; knowledge checks would carry a stated error rate, and the plot reward could be limited to logged plot points
+- ~~Does v0.7 reach gate 8?~~ No. Closed Oct 25 as a known limit, with DeepSeek recording on v0.7 (Memory Writing, Known limit)
+- **v0.6's or v0.7's ★ pass for the reference record?** Decided by the first full games' hand-read. In the default mode the choice affects knowledge checks and research, not what characters remember
+- **Which plot points can still use knowledge checks?** Logged checks (payments, meetings, ledger) are exact. Knowledge checks carry the known limit. Hand-read their verdicts in the first full games; if they misfire often, Mechanics could limit the Plot Reward to logged plot points
+- **The perceived notebook in the first full games:**
+  - How often do characters react to the ★ lines they hear (coverage)?
+  - How often does a reading misunderstand the words rather than read them its own way?
+  - Does any character run away into reading every line as a threat?
+  - Do characters forget their own promises?
+  - The answers decide whether a guard is needed (retrieval first) and whether `perceived` stays the default
+- **Should a knowledge check's "told" read the character's witnessed lines directly** instead of the reference record? It would be exact but long. Consider it after the first full games
 - **Is the hedge list too strict?** "Surely," "must be," and "I think" can introduce firm beliefs in ordinary speech. Downgrading them is deliberate (conclusions count toward plot points, so a false conclusion costs more than a missed one), but if re-tests show LeNoir's genuine deductions downgraded, trim the list
 - **Should the ★ pass see the claims pass's output, or the reverse,** to avoid an admission also being recorded as a claim? Currently independent; duplicates are harmless in memory but would inflate counts
 - Is F2's "unmistakable description" right? If LeNoir firmly concludes "the Salviati widow" without naming her, it counts; "a Salviati" alone doesn't. Watch whether this line is hit in play
