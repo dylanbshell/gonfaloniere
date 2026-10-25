@@ -492,6 +492,45 @@ export class MemoryStore {
     return { stored, dropped };
   }
 
+  // ---- Retrieval, perceived notebook (TD v0.8, Memory Writing → Retrieval) ------------
+
+  /**
+   * Block 6 in `notebook: perceived`: the character's notebook is their readings plus code-written
+   * entries (payments, private actions, Il Notaio's events). ★ items naming anyone present, most
+   * recent first, up to 6; held beliefs about anyone present, up to 3; then the items most similar
+   * to the last two History lines (a reading matched on its quote plus its reaction). Oldest first.
+   * Not used by the runner yet (live play runs `shared`).
+   */
+  retrieveNotebook(c: CharacterName, present: CharacterName[], recentLines: string[], limit = 12): string[] {
+    type Item = { kind: "reading"; r: Reading } | { kind: "entry"; e: MemoryEntry } | { kind: "belief"; b: Belief };
+    const readings: Item[] = this.readings.filter((r) => r.character === c).map((r) => ({ kind: "reading", r }));
+    const code: Item[] = this.entriesFor(c).filter((e) => e.source === "code").map((e) => ({ kind: "entry", e }));
+    const beliefs: Item[] = this.beliefsOf(c).map((b) => ({ kind: "belief", b }));
+    const turnOfItem = (x: Item) => (x.kind === "reading" ? x.r.turn : x.kind === "entry" ? x.e.turn : x.b.firstTurn);
+    const names = (x: Item): string[] => (x.kind === "reading" ? [x.r.speaker, ...x.r.about] : x.kind === "entry" ? ([x.e.speaker, x.e.toward, ...x.e.about].filter(Boolean) as string[]) : []);
+    const salient = (x: Item) => (x.kind === "reading" ? x.r.salient : x.kind === "entry" ? x.e.salient : false);
+    const text = (x: Item) => (x.kind === "reading" ? `${x.r.quote} ${x.r.reaction ?? ""}` : x.kind === "entry" ? x.e.summary : x.b.statement);
+    const picked: Item[] = [];
+    const take = (xs: Item[], n: number) => {
+      for (const x of xs) {
+        if (n <= 0) break;
+        if (!picked.includes(x)) {
+          picked.push(x);
+          n--;
+        }
+      }
+    };
+    const notebook = [...readings, ...code].sort((a, b) => turnOfItem(a) - turnOfItem(b));
+    take([...notebook].reverse().filter((x) => salient(x) && names(x).some((n) => present.includes(n as CharacterName))), 6);
+    take(beliefs.filter((x) => x.kind === "belief" && present.some((p) => x.b.statement.includes(p))), 3);
+    const query = words(recentLines.join(" "));
+    const scored = [...notebook, ...beliefs].filter((x) => !picked.includes(x)).map((x) => ({ x, s: overlap(query, words(text(x))) })).sort((a, b) => b.s - a.s);
+    take(scored.map((s) => s.x), limit - picked.length);
+    return picked
+      .sort((a, b) => turnOfItem(a) - turnOfItem(b))
+      .map((x) => (x.kind === "reading" ? renderReading(x.r) : x.kind === "entry" ? renderCodeEntryFor(x.e, c) : renderBelief(x.b)));
+  }
+
   // ---- Retrieval (TD v0.5, Memory Writing → Retrieval) --------------------------------
 
   /**
