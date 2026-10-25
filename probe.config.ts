@@ -67,7 +67,7 @@ const CHARACTERS_VERSION = process.env.PROBE_CHARACTERS ?? "0.4";
 
 export const config = {
   docs: {
-    technicalDesign: technicalDesignPath(process.env.PROBE_TD ?? "0.4"),
+    technicalDesign: technicalDesignPath(process.env.PROBE_TD ?? "0.7"),
     characters: `docs/Gonfaloniere_Characters_v${CHARACTERS_VERSION}.md`,
     mechanics: "docs/Gonfaloniere_Game_Mechanics_v0.20.md",
     modelsResearch: "docs/Gonfaloniere_Models_Research_v0.21.md",

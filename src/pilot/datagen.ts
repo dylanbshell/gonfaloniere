@@ -116,7 +116,7 @@ type Caller = (
 
 async function main(): Promise<void> {
   // The pilot's prompt format: TD v0.3 or later (PROBE_TD), with PROBE_CHARACTERS' briefings.
-  const td = process.env.PROBE_TD ?? "0.4";
+  const td = process.env.PROBE_TD ?? "0.7";
   const docs = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath(td) });
   const rubricVersion = currentRubricVersion(docs.versions.modelsResearch);
   const hash = rubricHash(docs.judgeRubric);
