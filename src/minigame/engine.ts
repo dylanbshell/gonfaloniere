@@ -107,6 +107,8 @@ export interface GameSettings {
   maxTokens: Record<CallKind, number>;
   playTemperature: number;
   systemTemperature: number;
+  /** A line appended at the end of every character's Block 9b (labelled variants only). */
+  speakAppend?: string;
   /** Knowledge checks at the end: (character, fact id). */
   checks: { character: CharacterName; fact: string }[];
 }
@@ -303,7 +305,7 @@ export class MiniGame {
           : undefined;
     const ctx = this.context(speaker);
     const actions = this.actionContext(speaker);
-    const p = assembleSpeakPrompt(this.docs.templates, ctx, { allowedActions: allowedActionsText(actions), ...(closing && { closing }) });
+    const p = assembleSpeakPrompt(this.docs.templates, ctx, { allowedActions: allowedActionsText(actions), ...(closing && { closing }), ...(this.s.speakAppend && { appendLine: this.s.speakAppend }) });
     const expect = {
       present: ctx.state.present,
       allowedActions: allowedActionTypes(actions),

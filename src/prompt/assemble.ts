@@ -140,6 +140,11 @@ export interface SpeakOptions {
    */
   extraInstruction?: string;
   /**
+   * A line appended at the very end of Block 9b, after the JSON schema line, for labelled
+   * variants (the mini-game boldness test, Dylan Oct 25). Omitted for TD's text.
+   */
+  appendLine?: string;
+  /**
    * A sentence inserted into Block 9b right after another one (e.g. after "Do
    * not recite your private thoughts."), for labelled prompt variants.
    */
@@ -176,6 +181,7 @@ export function assembleSpeakPrompt(t: PromptTemplates, ctx: CharacterContext, o
     if (!out.includes(after)) throw new Error(`speak() task has no "${after}" to insert after`);
     out = out.replace(after, `${after} ${text}`);
   }
+  if (opts.appendLine) out = `${out}\n\n${opts.appendLine}`;
   return assemble(t, ctx, out);
 }
 

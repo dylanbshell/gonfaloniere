@@ -51,6 +51,7 @@ const { values: opts } = parseArgs({
     "preflight-only": { type: "boolean", default: false },
     "ref-calls": { type: "string" },
     progress: { type: "string" },
+    "speak-append": { type: "string" },
   },
 });
 
@@ -118,7 +119,8 @@ async function main(): Promise<void> {
     playTemperature: 0.7,
     systemTemperature: 0,
     checks: checks(),
-  } as const;
+    ...(opts["speak-append"] && { speakAppend: opts["speak-append"] }),
+  };
   const parallel = Number(opts.parallel);
   const replacements = Number(opts.replacements);
   const wanted = Number(opts.games);
@@ -363,6 +365,7 @@ function buildRecord(
         "Il Notaio's opening line: a smaller gathering of six; the other guests are alive but elsewhere and can't be reached",
         "Interim lone-guest rule: a guest left alone in a Capannello joins the other Capannello at once (permanent rule with Mechanics)",
         "Block 9c's {target} in the choice lines reads 'your target' (TD fix pending)",
+        ...((x.settings as { speakAppend?: string }).speakAppend ? [`Variant: every character's Block 9b ends with the added line "${(x.settings as { speakAppend?: string }).speakAppend}"`] : []),
       ],
       standins: { characters: STANDINS, source: `${STANDIN_FILE} (adapted from PitP_Original_Rules_Trimmed)` },
       tunables: x.docs.tunables,
