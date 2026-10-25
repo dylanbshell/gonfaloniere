@@ -87,7 +87,7 @@ async function main(): Promise<void> {
     );
     const cost = res.ok ? (res.usage.costUsd ?? res.usage.inputTokens * endpoint.price.input + res.usage.outputTokens * endpoint.price.output) : 0;
     budget.settle(worst, cost);
-    log.write({ type: "minigame-call", runId, costUsd: cost, ok: res.ok, ...(res.ok ? { provider: res.provider, servedModel: res.model } : { status: res.status, error: res.error.slice(0, 300) }), at: new Date().toISOString() } as unknown as LogRecord);
+    log.write({ type: "minigame-call", runId, costUsd: cost, ok: res.ok, ...(res.ok ? { provider: res.provider, servedModel: res.model, reasoningTokens: res.usage.reasoningTokens } : { status: res.status, error: res.error.slice(0, 300) }), at: new Date().toISOString() } as unknown as LogRecord);
     if (!res.ok) throw new ReplayStop(`call failed (${res.status ?? "no status"}): ${res.error.slice(0, 200)}`);
     if (route.endpointLabel === "OpenRouter" && res.provider !== endpoint.providerName) throw new ReplayStop(`served by ${res.provider}, not the pinned ${endpoint.providerName}`);
     if (servedId !== null && res.model !== servedId) throw new ReplayStop(`served by model ${res.model}, not ${servedId}`);
@@ -165,11 +165,13 @@ async function main(): Promise<void> {
     const knowledgeChecks = await recorder.knowledge(checks, rec.header.cast);
 
     const version = docs.versions.technicalDesign;
+    // A non-default recorder is named in the file and game ID, so its records sit beside the default's.
+    const tag = `td${version}${route.model.id === DEFAULT_PLAY_MODEL ? "" : `-${route.model.id}`}`;
     const out: SavedGame = {
       ...rec,
       header: {
         ...rec.header,
-        game_id: `${rec.header.game_id}-td${version}`,
+        game_id: `${rec.header.game_id}-${tag}`,
         replay: {
           of: rec.header.game_id,
           what: "extraction passes and knowledge checks re-run on the saved transcript; play unchanged",
@@ -194,7 +196,7 @@ async function main(): Promise<void> {
         replay: { calls: calls.length, cost_usd: calls.reduce((s, c) => s + c.costUsd, 0), wall_ms: Date.now() - started, memory: memoryCounts(memory, thoughts) },
       },
     };
-    const dest = path.replace(".full.json.gz", `-td${version}.full.json.gz`);
+    const dest = path.replace(".full.json.gz", `-${tag}.full.json.gz`);
     writeFileSync(dest, gzipSync(JSON.stringify(out)));
     const c = memoryCounts(memory, thoughts);
     console.log(
