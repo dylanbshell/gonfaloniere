@@ -2,7 +2,8 @@
 // design docs, so probes use them verbatim and every result can record which
 // doc versions it ran on.
 
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import type { CharacterName } from "../game/roster.ts";
 import type { PromptTemplates } from "../prompt/assemble.ts";
 
@@ -53,11 +54,38 @@ const BRIEFING_HEADINGS: Partial<Record<CharacterName, string>> = {
   "Captain Armand LeNoir": "### Captain Armand LeNoir",
 };
 
+/**
+ * The commit that removed or renamed a doc from docs/, or null. docs/ holds only current
+ * versions (TD v0.4 and v0.5 left with TD v0.6, Characters v0.3 with v0.4); a run pinned to an
+ * older version reads it from git history, as it was just before its removal.
+ */
+function removedIn(path: string): string | null {
+  try {
+    const out = execFileSync("git", ["log", "-1", "--format=%H", "--diff-filter=DR", "--", path], { stdio: ["ignore", "pipe", "ignore"] });
+    return out.toString().trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Whether a doc can be read: in docs/, or in git history. */
+export function docAvailable(path: string): boolean {
+  return existsSync(path) || removedIn(path) !== null;
+}
+
+/** Reads a doc from docs/, or from git history if it has been removed (see removedIn). */
+export function readDoc(path: string): string {
+  if (existsSync(path)) return readFileSync(path, "utf8");
+  const commit = removedIn(path);
+  if (!commit) throw new Error(`${path} is neither in docs/ nor in git history`);
+  return execFileSync("git", ["show", `${commit}^:${path}`], { maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "ignore"] }).toString();
+}
+
 export function loadDocs(paths: DocPaths): DocSources {
-  const td = readFileSync(paths.technicalDesign, "utf8");
-  const chars = readFileSync(paths.characters, "utf8");
-  const mech = readFileSync(paths.mechanics, "utf8");
-  const mr = readFileSync(paths.modelsResearch, "utf8");
+  const td = readDoc(paths.technicalDesign);
+  const chars = readDoc(paths.characters);
+  const mech = readDoc(paths.mechanics);
+  const mr = readDoc(paths.modelsResearch);
 
   const [rulesPrimer, plotRule] = fencesUnder(td, "### Block 2 — Rules primer");
   // TD v0.4's Capannello addressee instruction: an indented block under 9b.
