@@ -36,7 +36,7 @@ import { DEFAULT_PLAY_MODEL, describeRoute, messages, recorderRoute } from "./re
 
 const { values: opts, positionals } = parseArgs({
   allowPositionals: true,
-  options: { cap: { type: "string", default: "2" }, "recorder-model": { type: "string" }, concurrency: { type: "string", default: "3" }, "dry-run": { type: "boolean", default: false } },
+  options: { cap: { type: "string", default: "2" }, "recorder-model": { type: "string" }, concurrency: { type: "string", default: "3" }, "dry-run": { type: "boolean", default: false }, rpm: { type: "string" } },
 });
 const OUT = "results/minigame";
 /** TD v0.7 Run Configuration, recorder calls. */
@@ -73,7 +73,26 @@ async function main(): Promise<void> {
   console.log(`Replay: ${positionals.length} game(s); extraction and knowledge checks on TD v${docs.versions.technicalDesign}; recorder ${JSON.stringify(describeRoute(route, null))}; cap $${opts.cap}; ledger $${budget.priorSpendUsd.toFixed(2)} spent before this (total cap $${config.budget.totalUsd})`);
 
   let servedId: string | null = null;
+  // --rpm: keep under a provider's requests-per-minute limit (e.g. OpenRouter's 20/min for GPT-5.4 on new accounts).
+  const rpm = opts.rpm ? Number(opts.rpm) : null;
+  const sent: number[] = [];
+  let slot = Promise.resolve();
+  const pace = () => {
+    if (!rpm) return Promise.resolve();
+    const mine = slot.then(async () => {
+      for (;;) {
+        const now = Date.now();
+        while (sent.length && sent[0]! <= now - 60_000) sent.shift();
+        if (sent.length < rpm) break;
+        await new Promise((r) => setTimeout(r, sent[0]! + 60_000 - now + 50));
+      }
+      sent.push(Date.now());
+    });
+    slot = mine;
+    return mine;
+  };
   const send = async (system: string, user: string, maxTokens: number) => {
+    await pace();
     const worst = worstCaseCost(system.length + user.length, maxTokens, endpoint.price);
     if (!budget.tryReserve(worst)) throw new ReplayStop("the next call could pass the cap");
     const res = await callModel(
