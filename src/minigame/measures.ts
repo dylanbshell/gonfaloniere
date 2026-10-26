@@ -28,6 +28,7 @@ import { RUBRIC_AMENDMENTS_ID, RUBRIC_REVISION, applyListenerOverride, buildJudg
 import { loadDocs, memoryDefinitions } from "../sources/docs.ts";
 import { MINIGAME_TOTAL_USD } from "./ledger.ts";
 import { CAST, KNOWS_AT_START } from "./cast.ts";
+import { alreadyKnownPass } from "./leakpass.ts";
 import { formatLine, type CallRecord } from "./engine.ts";
 import { memoryCounts, whereLabel, type Belief, type GameLine, type MemoryEntry, type Thought } from "./memory.ts";
 
@@ -197,6 +198,8 @@ async function main(): Promise<void> {
       }),
     );
     const result = { game: rec.header.game_id, path, complete: rec.complete, judgeNotes: opts.notes, gate8: { ...gate8, technicalDesign: docs.versions.technicalDesign }, secrets, coherence, memory, code: codeMeasures(rec) };
+    // The "already known" pass, beside the raw verdicts (which it never changes).
+    Object.assign(result, { alreadyKnown: knownLeaks(result as unknown as Result).marks });
     writeFileSync(path.replace(".full.json.gz", ".measures.json"), JSON.stringify(result, null, 2));
     results.push(result);
     console.log(`  measured ${rec.header.game_id}`);
@@ -435,6 +438,7 @@ function codeMeasures(rec: GameRecord) {
 type Result = {
   game: string;
   complete: boolean;
+  judgeNotes?: string;
   gate8?: { name: string; fingerprint: string; technicalDesign: string };
   secrets: Record<string, { lines?: number; leaks?: { line: string; gameTurn: number; where: string; heardBy: string[]; secret: string | null; quote: string | null; reveal: string }[]; contradictions?: unknown[]; lies?: number; deliberate?: unknown[]; error?: string }>;
   coherence: Record<string, { plan?: string; reason?: string; history_leaks?: { quote: string; why: string }[]; error?: string }>;
@@ -445,11 +449,36 @@ type Result = {
 /** Short names that stay distinct: Isabella, LeNoir, Francesco, Raffaello, Giorgia, Lupo. */
 const short = (c: string) => ({ "Contessa Isabella": "Isabella", "Captain Armand LeNoir": "LeNoir" })[c] ?? c.split(" ")[0]!;
 
+/**
+ * The "already known" pass on a result's flagged lines (Models & Research v0.36): every cal5 leak line,
+ * with who heard it, in line order. Leaks heard only by people who knew from the start are left out
+ * of the raw count as before; the pass then marks the rest whose listeners all learned it earlier
+ * in the game. Raw and adjusted counts come back side by side, per game and per secret.
+ */
+function knownLeaks(r: Result) {
+  const flagged = CAST.flatMap((c) => (r.secrets[c]?.leaks ?? []).map((l) => ({ ...l, speaker: c })));
+  const at = new Map(flagged.map((l) => [l.line, l]));
+  const notes = r.judgeNotes === "v2" ? "v2" : "v1";
+  const { marks, lineKnown } = alreadyKnownPass(flagged.map((l) => ({ line: l.line, speaker: l.speaker, secret: l.secret })), (line) => at.get(line)!.heardBy as CharacterName[], (line) => Number(line.slice(1)), notes);
+  const raw = flagged.filter((l) => !knownToListeners(l.speaker, l));
+  const known = raw.filter((l) => lineKnown.get(l.line));
+  const bySecret = new Map<string, { raw: number; known: number }>();
+  const rawLines = new Set(raw.map((l) => l.line));
+  for (const m of marks.filter((m) => rawLines.has(m.line))) {
+    const e = bySecret.get(m.secret) ?? { raw: 0, known: 0 };
+    e.raw++;
+    if (m.alreadyKnown) e.known++;
+    bySecret.set(m.secret, e);
+  }
+  return { marks, lineKnown, raw: raw.length, known: known.length, adjusted: raw.length - known.length, bySecret };
+}
+
 function report(results: Result[]): void {
   const out: string[] = [`# Mini-game measures (${results.length} game${results.length === 1 ? "" : "s"}; rubric ${RUBRIC_AMENDMENTS_ID} ${RUBRIC_REVISION})`, ""];
   for (const r of results) {
     out.push(`## ${r.game}${r.complete ? "" : " (incomplete)"}`, "");
     // Secrets (absent when only gate 8 was judged)
+    const pass = knownLeaks(r);
     if (Object.keys(r.secrets).length) out.push("**Secrets kept (cal5):**");
     for (const c of CAST) {
       const s = r.secrets[c];
@@ -461,7 +490,11 @@ function report(results: Result[]): void {
       const spread = s.leaks!.filter((l) => !knownToListeners(c, l));
       const known = s.leaks!.length - spread.length;
       out.push(`- ${c}: ${s.lines} lines, ${spread.length} leak line(s)${spread.length ? `, first at game turn ${Math.min(...spread.map((l) => l.gameTurn))}` : ""}${known ? ` (+${known} heard only by people who already knew)` : ""}; lies ${s.lies}; factual contradictions ${s.contradictions!.length}`);
-      for (const l of s.leaks!) out.push(`  - ${knownToListeners(c, l) ? "(already known) " : ""}${l.line} T${l.gameTurn} (${l.where}; heard by ${l.heardBy.join(", ")}) ${l.reveal}: ${l.secret} — "${l.quote}"`);
+      for (const l of s.leaks!) out.push(`  - ${knownToListeners(c, l) ? "(already known) " : pass.lineKnown.get(l.line) ? "(already known in game) " : ""}${l.line} T${l.gameTurn} (${l.where}; heard by ${l.heardBy.join(", ")}) ${l.reveal}: ${l.secret} — "${l.quote}"`);
+    }
+    if (Object.keys(r.secrets).length) {
+      out.push(`**Leak lines, raw and adjusted** (the "already known" pass, Models & Research v0.36): raw ${pass.raw}, already known ${pass.known}, adjusted ${pass.adjusted}`);
+      for (const [secret, n] of pass.bySecret) out.push(`  - ${secret}: raw ${n.raw}, already known ${n.known}, adjusted ${n.raw - n.known}`);
     }
     // Memory
     const audits = Object.values(r.memory).filter((m) => !m.error);
