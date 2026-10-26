@@ -1,8 +1,25 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.9
+### Version 0.10
 
 ---
+
+## Changes in v0.10
+
+*From the first test of v0.9's `took` (Claude Code, PR #12: 3 DeepSeek mini-games, $0.33). Gate 1 held: 0 `think()` repairs in 915 calls. 12 of 20 hand-read readings fit the character's own thought, against 9 of 20 for v0.8's recorder. Readings cost nothing extra: $0.111 per game, against $0.139 before.*
+
+- **Own-line fix:** all 4 wrong-line readings were on the character's own line, where the model labelled the line it was answering. Block 9a now names the line: `{took_target}` reads "how you take Lupo's last line" or "what you meant by your own last line". Code picks the line by the same attachment rule, so the prompt and the stored reading always point at the same line
+- **Block 6 budget raised to ~450 tokens** (10–12 lines). Readings measure ~40 tokens, not 30, and the quote is what's worth the space
+- **Il Notaio entries render trimmed** to 15 words, like quotes
+- **Label rate accepted:** 62% of lines get a label (claim alone 37%), against the prompt's "most lines are none." It's well under 10e's 91–97%, ★ readings come first in retrieval anyway, and the label rate is itself a research measure. The wording is unchanged, so this re-test changes only one thing
+- **Defined, as Claude Code built them:**
+  - a reading's turn is the line's turn
+  - a label counts only for a line the character heard (a joiner's first label after the join note is "no spoken line")
+  - the same label twice on one line is a no-op, logged
+  - a failed `think()` logs a default event with `took: none`
+  - `shared` mode writes no readings, but `took` is still logged on every thought, so they can be derived from the record
+  - replays of saved games can't produce readings, since labels come from play
+- Blocks 10a–10d are unchanged
 
 ## Changes in v0.9
 
@@ -132,7 +149,7 @@ Every character call starts with a private **thought**, so the decision that fol
 Runs for every character present after every utterance. Outputs:
 
 - **Thought:** private internal reasoning, 2–4 sentences. Not shared. Stored with the ID of the line it followed (`after_line`, v0.8), since each `think()` is a reaction to one line. Readings and research both rely on this pairing
-- **Took** *(v0.9)*: how the character takes the last thing said aloud: `promise`, `deal`, `threat`, `admission`, `claim`, `denial`, or `none`. If they said it themselves, it's what they meant by it. Code turns it into a **reading** (see The perceived notebook). Ignored in `notebook: shared`, but still logged for research
+- **Took** *(v0.9; target named in v0.10)*: how the character takes the line just said, which the prompt names: `promise`, `deal`, `threat`, `admission`, `claim`, `denial`, or `none`. If they said it themselves, it's what they meant by it. Code turns it into a **reading** (see The perceived notebook). Ignored in `notebook: shared`, but still logged for research
 - **Importance score (0–100):** how urgently this character wants to speak. Used by the Orchestrator for speaking order, and by the Stage Manager for collisions
 - **Done signal (Colloquio only):** whether the character wants to end the Colloquio. If either character sends it, the other gets one closing line and the Colloquio ends. Not asked for in a Capannello, and ignored by code if returned there
 - **Closing think** *(v0.9)*: after a Colloquio's last line (the closing line, or the line that reaches the cap), both guests run `think()` once more before the Colloquio closes. Its thought and `took` are kept; importance and `done` are ignored. Without it, nobody reacts to the line where a private deal is most often sealed. Cost: two `think()` calls per Colloquio
@@ -228,7 +245,7 @@ Every character call returns raw JSON. Code checks and repairs it before use, so
 | **Memory entries** (10a, 10d) | `line` must be a spoken line from this turn; `context` IDs must exist (this turn or the context lines). **Speaker check:** the model's `speaker` must match the speaker of `line` (through the alias table), or the entry is dropped ("speaker mismatch"). **Quote check:** the `quote` must appear in `line` itself (not only in context), word for word after normalizing spaces, quote marks, and case, or the entry is dropped. **Verb check:** the `summary` must begin with the speaker's name (any alias) followed by a verb allowed for the type (table below), or the entry is dropped ("type/summary mismatch"), since the model's own words then disagree with its label. **`toward`** (10a only): if it equals the speaker, it's set to null and logged; for a deal it must be the other party (the speaker of a context line, or the other name in a cited payment line). 10d has no `toward` since v0.7; one returned there is ignored and logged. Unknown types are dropped. Turn, conversation, and audience are filled in by code. The rest of the call is kept |
 | **Sweep** (10a) | Checked against `{sweep_ids}`: each listed line should appear exactly once, with `self` and `kinds`. **One re-ask covers both gaps:** listed lines the sweep left out, and lines flagged with a kind but no matching entry ("You left out L58; you flagged L57 as a threat but wrote no entry for it"). An entry whose kind the sweep didn't flag is kept and logged. Lines with `self: true` and no admission entry are counted ("self, no admission"), not re-asked, since most are denials or harmless remarks; the count shows whether the self question is doing its job. All counts are reported for gate 8 |
 | **Beliefs** (10b) | `thought` must exist in this turn's input, and the quote must appear in that thought. **Hedge rule:** a `conclusion` is stored as a `suspicion` (logged as "hedge downgrade") if the sentence or sentences containing its quote include a question mark or any hedge from 10b's list (perhaps, maybe, might, may, could, likely, probably, possibly, surely, must be, I think, I suspect, I wonder, it seems, appears, if, unless, whether), matched as whole words, case-insensitively. Beliefs are never upgraded by code. `firmer` and `dropped` must name an existing belief ID, or the change is ignored |
-| **`took`** (`think()`, v0.9) | Matched case-insensitively to `promise`, `deal`, `threat`, `admission`, `claim`, `denial`, or `none` (a leading article or plural is stripped: "a threat" → `threat`). **Missing or unknown → `none`, logged as a repair, never a retry**, so the new field can't add retries to the most frequent call. The label attaches to a line by the rule in The perceived notebook, Which line a label belongs to. Ignored, and logged, when there is no spoken line to attach it to |
+| **`took`** (`think()`, v0.9) | Matched case-insensitively to `promise`, `deal`, `threat`, `admission`, `claim`, `denial`, or `none` (a leading article or plural is stripped: "a threat" → `threat`). **Missing or unknown → `none`, logged as a repair, never a retry**, so the new field can't add retries to the most frequent call. The label attaches to a line by the rule in The perceived notebook, Which line a label belongs to. Ignored, and logged, when there is no spoken line to attach it to. If `think()` fails twice there's no thought to carry the label, so code logs a default event with `took: none` (v0.10) |
 | **Knowledge checks** (10c) | Cited memory IDs must exist in the evidence given. A *told* verdict must cite an entry spoken by someone other than the character; a *firm conclusion* must cite the character's own conclusion or claim. A failed citation turns the verdict into *none* and flags the check for hand review |
 
 **Alias table:** one entry per character, maintained alongside the roster: full name, short name, title forms (e.g. "Captain Armand LeNoir", "Captain LeNoir", "LeNoir", "Armand LeNoir"; "Contessa Isabella di Salviati", "Contessa Isabella", "Isabella"; "Emile de Valois", "Prince Emile", "Emile"). Shared by name matching everywhere.
@@ -342,7 +359,7 @@ Every character call is built from the same blocks in the same order, **most sta
 | 3 | **Briefing** (from Characters) | Never | ≤ ~1,000 |
 | 4 | **Strategy section** | At checkpoints | ~150 |
 | 5 | **State:** phase, where you are, who's present, purse, pensions, allowed actions | Every call | ~150 |
-| 6 | **Long-term memory:** retrieved bullets, high-salience marked | Every utterance | ~300 |
+| 6 | **Long-term memory:** retrieved bullets, high-salience marked | Every utterance | ~450 (v0.10; ~300 before) |
 | 7 | **Recent private thoughts** (shortTermHistory) | Every utterance | ~200 |
 | 8 | **The conversation so far** (History) | Every utterance | ~400 |
 | 9 | **Task:** call-specific instructions and output format | Per call type | ~200–450 |
@@ -480,7 +497,7 @@ Someone has just spoken (the last line above). Before anyone speaks again, think
 1. thought — 2 to 4 sentences, first person, in your own voice. What does the last moment mean for you? What do you want now? If you have told anyone something untrue, note what you told them so your story stays straight. Consider how your recent behavior looks to the others in the room.
    Separate what this person has shown you from what they only claim. A claim is not proof.
 
-2. took — how you take the last thing said aloud, in one word: promise, deal, threat, admission, claim, denial, or none. It's your own reading, not a rule: if it chills you, it's a threat. If you said it yourself, what did you mean by it? Most lines are none.
+2. took — {took_target}, in one word: promise, deal, threat, admission, claim, denial, or none. It's your own reading, not a rule: if it chills you, it's a threat. Most lines are none.
 
 3. importance — how urgently you want to speak next, from 0 to 100:
    0–20   nothing worth saying; content to listen
@@ -502,10 +519,16 @@ In a **Capannello**:
 - `{done_instruction}`: empty
 - `{think_schema}`: `{"thought": "...", "took": "none", "importance": 0}`
 
-**The `took` line** *(v0.9)*:
+- `{took_target}` *(v0.10)*: filled by code from the line the label will attach to (The perceived notebook, Which line a label belongs to):
+  - someone else's line: `how you take {speaker}'s last line`, with the speaker's name as History shows it
+  - the character's own line: `what you meant by your own last line`
+  - no spoken line: `how you take the last thing said aloud` (the label is then ignored, as now)
+
+**The `took` line** *(v0.9; target named in v0.10)*:
+- **Why the target is named** (v0.10): in v0.9's first test, all 4 wrong-line readings in the hand-read were on the character's own line. The model labelled the line it had been answering, not the one it had just said. Naming the line removes the guess
 - **Short on purpose:** `think()` is the most frequent call. The line adds about 50 input tokens to block 9 and 3–5 output tokens
 - **No definitions:** the character's reading is the measure, so it is never held to 10a's DEFINITIONS. The six words are plain English, and "if it chills you, it's a threat" says whose judgement counts
-- **"Most lines are none"** answers v0.8's main failure: 10e labelled 91–97% of lines heard
+- **"Most lines are none"** answers v0.8's main failure: 10e labelled 91–97% of lines heard. Characters still label 62% (v0.9 test), mostly as claims. That's accepted for now (The perceived notebook, Coherence)
 - **It comes after the thought,** so the label follows the reaction instead of steering it
 - **The closing think** (Core Functions, think()) uses the same task with the same schema; importance and `done` are ignored there
 
@@ -1077,23 +1100,25 @@ The design is adapted from *Who Speaks Next?* (Nonomura & Mori, 2025), which fou
 
 **Why these checks:** the gate 8 failures that matter most are a wrong speaker and an invented fact. The v0.5 design took the speaker from the first cited line, which went wrong when the model cited a request ("Swear it") as a promise: the asker became the promiser. v0.6 makes each entry rest on one line and has the model state who spoke it, so a mismatch shows up as a disagreement code can catch. The quote check still catches invented quotes. The verb check catches a label that disagrees with the model's own summary ("Lupo demanded…" under `promise`). Summaries that overreach their quote are still possible; Models & Research's judge measures them.
 
-**Rendering in block 6** (one line each, oldest first within the selection). In the default mode, a reading is short *(v0.9)*: the turn, the conversation type, the speaker, a trimmed quote, and how the character took it. That's about 30 tokens, so about 10 lines fit in ~300 tokens:
+**Rendering in block 6** (one line each, oldest first within the selection). In the default mode, a reading is short *(v0.9)*: the turn, the conversation type, the speaker, a trimmed quote, and how the character took it. Measured at ~40 tokens each (v0.9 test), so block 6 gets ~450 tokens, about 10–12 lines (v0.10):
 
 ```
 T4 · Colloquio · ★ Lupo: "Three florins, and you never knew my name." (you took it as a deal)
 T4 · Colloquio · ★ You gave Lupo 3 Florins.
+T5 · Il Notaio: "Signor Raffaello de' Medici was once again seen drawing another aside — this time Captain LeNoir…"
 T5 · Capannello · Francesco Pazzi: "The Captain walks the Embassy gardens most nights." (you took it as a claim)
 T6 · Colloquio with Francesco Pazzi · ★ you: "My lips are sealed, as ever." (you meant it as a promise)
 T6 · your belief (conclusion): Contessa Isabella ordered the killing of Lucien.
 ```
 
-- **Trimmed quote:** the whole line if it's 15 words or fewer; otherwise its first 15 words and "…". The full line stays in the record. If the mini-game check shows trimming cuts the part that mattered (often the end: "…or I'll hold it for you"), try a 20-word cap first
+- **Trimmed quote:** the whole line if it's 15 words or fewer; otherwise its first 15 words and "…". The full line stays in the record. If the next check shows trimming cuts the part that mattered (often the end: "…or I'll hold it for you"), try a 20-word cap first
+- **Code entries:** payments and private actions render as before. **Il Notaio's entries are trimmed to 15 words** like quotes (v0.10), shown as `Il Notaio: "…"`, with the actor in the second person when it's the character. Before this, the mini-game's opening attendance note ran to ~90 tokens. The attendance problem itself is Models & Research's mini-game fix, and shouldn't rely on block 6
 - **Conversation label:** a Colloquio with someone else speaking needs no name, since the speaker is the other guest. A Colloquio line of the character's own names the other guest. A Capannello shows only the type, to save tokens; who else heard is in the record, not the line
 - **No reaction text:** v0.8's quoted reaction made readings ~79 tokens. The character's recent thoughts are already in block 7
 
 In `notebook: shared`, ★ and claims entries render as in v0.7: `T4 · Colloquio with Lupo · ★ deal: {summary} ("{quote}")`.
 
-**Retrieval** (once per character per utterance, about 300 tokens, roughly 10–12 lines). "Entries" here means the character's notebook: readings and code entries by default, or ★ and claims entries in `shared` mode:
+**Retrieval** (once per character per utterance, about 450 tokens since v0.10, roughly 10–12 lines). "Entries" here means the character's notebook: readings and code entries by default, or ★ and claims entries in `shared` mode:
 1. ★ entries naming anyone present (as speaker, `toward`, or `about`), most recent first, up to 6
 2. Held beliefs about anyone present, up to 3
 3. Fill the rest with the entries and beliefs most similar in meaning to the last two History lines. A reading is matched on its full line text, not the trimmed quote
@@ -1129,11 +1154,16 @@ v0.8 hoped that moving the judgement onto the character's thought would fix this
 
 #### Which line a label belongs to
 
-`think()` reacts to "the last thing said aloud," so code attaches `took` by a fixed rule, using the event order (Models & Research found 98.5% of thoughts pair cleanly):
-1. **The line:** the last spoken line before the thought in the character's conversation. Usually that's `after_line`; when an action line or an Il Notaio note came between the speech and the thought, it's the speech before them
-2. **No spoken line:** if there's none (a thought after only an Il Notaio note as a conversation opens), the label is ignored and logged
-3. **One reading per character per line:** the first label other than `none` stands. A later, different label for the same line is logged, not stored
-4. **Own lines:** the speaker thinks after their own line too (everyone present thinks), so that `think()` labels what they meant, and the reading is marked `own`. The **closing think** covers a Colloquio's last line (Core Functions, think())
+Code attaches `took` by a fixed rule, using the event order (Models & Research found 98.5% of thoughts pair cleanly). The same rule picks the line that `{took_target}` names in the prompt *(v0.10)*, so the line the character is asked about is always the line the reading is stored on:
+1. **The line:** the last spoken line the character **heard** in their conversation before the thought. Usually that's `after_line`; when an action line or an Il Notaio note came between the speech and the thought, it's the speech before them. A line spoken before the character joined doesn't count (v0.10)
+2. **No spoken line:** if there's none (a thought after only an Il Notaio note as a conversation opens, or a joiner's first thought), the label is ignored and logged
+3. **One reading per character per line:** the first label other than `none` stands. A later, different label for the same line is logged, not stored. The same label again is a no-op, logged as "same label again" (v0.10)
+4. **Own lines:** the speaker thinks after their own line too (everyone present thinks), and the prompt asks "what you meant by your own last line". The reading is marked `own`. The **closing think** covers a Colloquio's last line (Core Functions, think())
+
+**Also defined in v0.10** (as Claude Code built them in PR #12):
+- **A reading's `turn` is the line's turn,** which matters only for a closing think
+- **`notebook: shared` writes no readings.** `took` is still logged on every thought, so readings can be derived from the record by this rule
+- **Replays of saved games can't produce readings,** since the labels come from play. Testing a change to `took` takes new games
 
 **A reading**, as stored (no model fills anything but `took`):
 
@@ -1174,11 +1204,13 @@ Acting on a misreading is legal play. A character may pay, vote, or kill on a de
 
 **Would be chaos, and isn't guarded yet:**
 - **Runaway readings:** retrieved readings feed the next thoughts, so a paranoid reading can breed more, until every line reads as a threat
-- **Labelling everything:** if characters ignore "most lines are none," the notebook fills with claims, and the ★ readings have to compete for space. 10e did exactly this; the character may not
+- **Labelling everything:** if characters ignore "most lines are none," the notebook fills with claims, and the ★ readings have to compete for space. In the v0.9 test, 62% of lines got a label and claims were 37% of all labels (10e: 91–97%). **Accepted for now:** ★ readings come first in retrieval (step 1), so claims only compete in the similarity fill, and the label rate is a personality measure in its own right. If the full games show claims crowding out ★ readings or beliefs, the lever is a cap on claim readings in the fill step, not a new prompt definition
 - **Labels that disagree with their own thought:** the thought shrugs, but the label says threat. That's noise, not personality
 - **Forgotten own commitments:** if a speaker labels their own promise `none`, they forget it once History scrolls past
 
-**No runtime guard yet.** All four are measured in Models & Research's 3 new mini-games and the first full games (Open Questions). If a guard is needed, the first levers are retrieval (for example, a cap on readings of one kind per call) and the wording of the `took` line, not the record. **Personality versus noise:** every variant plays on the same model, so plain noise should show up equally across Neutral, Bold, and Cautious. Personality shows up as a systematic difference between them on comparable lines.
+**First test (v0.9, Oct 26; 3 DeepSeek mini-games):** 12 of 20 hand-read readings fit the character's thought, 4 didn't, 4 were on the wrong line (all own lines, fixed in v0.10 by naming the line), and none misread the words. Gate 1 held at 0 repairs in 915 `think()` calls. Mean importance fell slightly (48.6 against 51.2) and output stayed ~143 tokens per call.
+
+**No runtime guard yet.** All four risks are measured in the v0.10 re-check and the first full games (Open Questions). If a guard is needed, the first levers are retrieval (for example, a cap on readings of one kind per call) and the wording of the `took` line, not the record. **Personality versus noise:** every variant plays on the same model, so plain noise should show up equally across Neutral, Bold, and Cautious. Personality shows up as a systematic difference between them on comparable lines.
 
 #### 3. Where to build it
 
@@ -1483,6 +1515,12 @@ The first build artifact: an internal console for running and debugging the simu
 - **Definitions for `took`:** the label is the character's reading, so it's never held to 10a's DEFINITIONS
 - **A retry when `took` is missing or invalid:** `think()` is the most frequent call. A bad label becomes `none` and is logged
 
+**Rejected (v0.10):**
+- **Moving own-line labels to `speak()` (`meant`):** naming the line in 9a fixes the ambiguity behind the 4 wrong-line readings without touching `speak()`. `meant` stays the fallback if own-line readings still miss
+- **Re-attaching an own-line label to the line being answered:** it would leave own commitments unlabelled, and the 2 own-line readings in the sample that did fit would land on the wrong line
+- **Tightening "claim" or "none" now:** a second wording change in the same re-test would muddy which change did what. Claims are handled by retrieval order, and by a cap later if needed
+- **A 10-word quote to keep block 6 at ~300 tokens:** the words are the guard against misreading. ~150 more input tokens per character call is cheap on DeepSeek, and v0.9 games already cost less than v0.7's
+
 **Rejected:**
 - **Self-esteem scores:** designing for a problem not yet observed
 - **Batched `think()` across characters** (v0.2): breaks knowledge isolation and can't run separate personality adapters
@@ -1502,12 +1540,11 @@ The first build artifact: an internal console for running and debugging the simu
 - ~~Does v0.7 reach gate 8?~~ No. Closed Oct 25 as a known limit, with DeepSeek recording on v0.7 (Memory Writing, Known limit)
 - **v0.6's or v0.7's ★ pass for the reference record?** Decided by the first full games' hand-read. In the default mode the choice affects knowledge checks and research, not what characters remember
 - **Which plot points can still use knowledge checks?** Logged checks (payments, meetings, ledger) are exact. Knowledge checks carry the known limit. Hand-read their verdicts in the first full games; if they misfire often, Mechanics could limit the Plot Reward to logged plot points
-- **`took` in Models & Research's 3 new DeepSeek mini-games (v0.9):**
-  - How often does a character label a line at all? It should be well under 10e's 91–97%
-  - Do labels agree with their own thoughts?
-  - Do speakers label their own promises? If not, add `meant` to `speak()`
-  - Does `took` raise `think()`'s repair rate (gate 1)?
-  - Do trimmed readings fit about 10 lines in block 6, without cutting the words that mattered?
+- **`took` re-check on v0.10** (3 new DeepSeek mini-games, as for v0.9):
+  - Do own-line readings now land on the speaker's own line? Hand-read a sample of own readings, not only a mixed sample
+  - Do speakers still label their own commitments (45–51 own readings per game on v0.9)? If not, add `meant` to `speak()`
+  - Does gate 1 still hold, and does the label rate move?
+  - Does block 6 fit 10–12 lines in ~450 tokens, without trimming away the words that mattered?
 - **The perceived notebook in the first full games:**
   - How often do characters take the ★ lines they hear as anything (coverage)?
   - How often does a label misunderstand the words rather than read them its own way?
