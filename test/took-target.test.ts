@@ -190,9 +190,11 @@ test("TD v0.14, in play: after an own line, think() names the line they were ans
   assert.ok(g.events.filter((e) => e.type === "speech").every((e) => e.meant === "promise" && e.words === "A fine evening"));
 });
 
-test("TD v0.16 (default), in play: the hostility ladder in think() and speak(), v0.15's wording after an own line, no v0.15 scope line", async () => {
-  assert.equal(docs.versions.technicalDesign, "0.16");
-  const { g, prompts, speaks, td } = await playWith(docs);
+test("TD v0.16, in play: the hostility ladder in think() and speak(), v0.15's wording after an own line, no v0.15 scope line", async () => {
+  const v16 = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.16") });
+  assert.equal(v16.versions.technicalDesign, "0.16");
+  const { g, prompts, speaks, td } = await playWith(v16);
+  assert.equal(g.memory.fillPressureCap, null, "no fill cap before v0.17");
   checkTargets(g, prompts, td);
   const ladder = (them: string) => `For hostility there are three steps: insult (a slight), pressure (leaning on ${them} with a pointed question, a demand, or a dare), threat (harm to come).`;
   assert.ok(prompts.length > 0 && prompts.every((p) => p.user.includes(ladder("you")) && p.user.includes("in one word: promise, deal, threat, admission, claim, denial, insult, pressure, or none.")));
@@ -209,4 +211,18 @@ test("TD v0.16 (default), in play: the hostility ladder in think() and speak(), 
     const asked = prompts.filter((p) => p.character === t.character)[i]!;
     assert.ok(asked.user.includes(`\n2. took — how you take the line of ${byLine.get(t.target_line!)!.speaker}'s you were answering, in one word:`), t.id);
   }
+});
+
+test("TD v0.17 (default), in play: the narrowed pressure gloss in think() and speak(), v0.16's gloss gone, the fill cap on", async () => {
+  assert.equal(docs.versions.technicalDesign, "0.17");
+  const { g, prompts, speaks, td } = await playWith(docs);
+  checkTargets(g, prompts, td);
+  const ladder = (them: string) => `For hostility there are three steps: insult (a slight), pressure (pushing ${them} to answer or act), threat (harm to come).`;
+  assert.ok(prompts.length > 0 && prompts.every((p) => p.user.includes(ladder("you"))));
+  assert.ok(speaks.length > 0 && speaks.every((u) => u.includes(ladder("them"))));
+  for (const u of [...prompts.map((p) => p.user), ...speaks]) {
+    assert.ok(!u.includes("with a pointed question, a demand, or a dare"), "v0.16's gloss is gone");
+    assert.ok(u.includes("in one word: promise, deal, threat, admission, claim, denial, insult, pressure, or none."));
+  }
+  assert.equal(g.memory.fillPressureCap, 2);
 });

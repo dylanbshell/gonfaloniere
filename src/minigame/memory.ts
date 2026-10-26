@@ -244,6 +244,8 @@ export class MemoryStore {
   private lineIndex = new Map<string, GameLine>();
   /** TD v0.15: block 6 drops trailing sentence punctuation from quoted words before an "…". */
   quoteDropsPunct = false;
+  /** TD v0.17: at most this many `pressure` readings in block 6's similarity fill (null: no cap, as before). */
+  fillPressureCap: number | null = null;
   private nextR = 1;
   private nextM = 1;
   private nextB = 1;
@@ -670,13 +672,13 @@ export class MemoryStore {
     const text = (x: Item) => (x.kind === "reading" ? this.lineIndex.get(x.r.line)!.text : x.kind === "entry" ? x.e.summary : x.b.statement);
     const render = (x: Item) => (x.kind === "reading" ? renderReading(x.r, this.lineIndex.get(x.r.line)!, x.r.words_line ? this.lineIndex.get(x.r.words_line) : undefined, this.quoteDropsPunct) : x.kind === "entry" ? renderCodeEntryFor(x.e, c) : renderBelief(x.b));
     const picked: Item[] = [];
-    const take = (xs: Item[], n: number) => {
+    const take = (xs: Item[], n: number, accept: (x: Item) => boolean = () => true) => {
       for (const x of xs) {
         if (n <= 0) break;
         const cost = Math.ceil(render(x).length / 3.5);
         // TD v0.11: lines are capped at 12 overall, Murder Round's first step included.
         if (picked.length >= limit) break;
-        if (!picked.includes(x) && used + cost <= budget) {
+        if (!picked.includes(x) && used + cost <= budget && accept(x)) {
           picked.push(x);
           used += cost;
           n--;
@@ -689,7 +691,10 @@ export class MemoryStore {
     take(beliefs.filter((x) => x.kind === "belief" && present.some((p) => x.b.statement.includes(p))), 3);
     const query = words(recentLines.join(" "));
     const scored = [...recent, ...beliefs].filter((x) => !picked.includes(x)).map((x) => ({ x, s: overlap(query, words(text(x))) })).sort((a, b) => b.s - a.s);
-    take(scored.map((s) => s.x), limit - picked.length);
+    // TD v0.17: at most this many pressure readings in the fill; further ones are skipped (steps 1 and 2 never hold any, since pressure isn't ★).
+    let pressure = 0;
+    const underCap = (x: Item) => this.fillPressureCap === null || x.kind !== "reading" || x.r.took !== "pressure" || pressure++ < this.fillPressureCap;
+    take(scored.map((s) => s.x), limit - picked.length, underCap);
     return picked.sort((a, b) => turnOfItem(a) - turnOfItem(b)).map(render);
   }
 

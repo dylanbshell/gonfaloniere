@@ -196,6 +196,7 @@ export class MiniGame {
   ) {
     this.rng = mulberry32(s.seed);
     this.memory.quoteDropsPunct = tdMinor(docs.versions.technicalDesign) >= 15;
+    this.memory.fillPressureCap = tdMinor(docs.versions.technicalDesign) >= 17 ? 2 : null;
     this.recorder = new Recorder(docs, this.memory, (kind, c, system, user) => this.systemCall(kind, c, system, user), this.events, formatLine, listJoin);
     Object.assign(this.prefixes, this.recorder.prefixes);
     this.treasury = docs.tunables.embassy_treasury;
