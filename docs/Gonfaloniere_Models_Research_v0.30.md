@@ -1,8 +1,72 @@
 # Gonfaloniere
 ## Models & Research — Working Document
-### Version 0.21
+### Version 0.30
 
 ---
+
+## Changes in v0.30
+
+- **Perceived notebook replay checks done** (Oct 26, $0.21): pairing thoughts to lines works (98.5% clean), but **the perception pass repeats gate 8's error**. It gives a reading to 91–97% of lines heard, labels them by content rather than by the character's reaction, and 11 of 20 hand-read readings were recorder errors. Readings are also about three times too long for block 6, and 18% of DeepSeek-game calls were cut off at 800 tokens. See Findings Log
+- **Recommendation to Technical Design:** take the clerk out of perception. `think()` already follows a known line, so one more output field (how the character took it) makes the label the character's own. Not blocking: the engine build goes ahead with `notebook` as a swappable setting
+- **Mini-game cap raised to $35** (Dylan, Oct 25; it had been $30 since the last gate 8 round, not $25 as v0.28 said). Ledger $28.82
+
+## Changes in v0.29
+
+- **Merged "Tests for TD v0.8's perceived notebook"** (Oct 25). Technical Design v0.8 adopts Dylan's proposal: characters remember through **readings**, how they took each line, quoted from their own thoughts beside the exact words. The shared ★ and claims passes become a **reference record** characters never see. New section **Perceived Notebook Tests**: three cheap replay checks before the full games (no judge, cap $1), measures for the first full games, and a comparison by personality variant once adapters exist
+- **Perception is now a research outcome** (Research Design): how each variant takes the same kind of line is measured against the transcript, alongside the action measures
+- **Transcript-first ★ listing** to be built before research batches: the gate 8 judge's flaw (its ★ list grew with the record it was shown) would otherwise carry into divergence measures
+
+## Changes in v0.28
+
+- **Gate 8 closed as a known limit** (Oct 25). Both last-round runs failed: TD v0.7 with DeepSeek recording (★ 56–68%, 39–66 invented entries per group) and GPT-5.4 recording (★ 80%, 102 invented, at ~54× the cost). The decision rule's "both fail" branch applies: **DeepSeek keeps the record on TD v0.7, the error rates are logged as a known limit, and testing moves on.** No split recorder. See Findings Log
+- **The gate 8 measure is itself unreliable** across recorders: the judge listed 162 ★ items against DeepSeek's records and 249 against GPT-5.4's on the same transcripts, so capture percentages move with how much a recorder writes. Any future memory measurement must list ★ items from the transcript alone before seeing the record (Mini-Game Spec)
+- **Correction:** the recorder ran at temperature 0 in every round (v0.5, v0.6, v0.7), so temperature was never a confound
+- **Budget overrun:** the last round cost $10.31 against a ~$5.25 estimate. My GPT-5.4 recording estimate was ~3× low, and the mini-game ledger reached **$28.62**, past the $25 cap set in v0.27
+
+## Changes in v0.27
+
+- **Testing phase exit plan** (Dylan, Oct 25). Finish gate 8, then move on to the engine build. About $90 of API spend so far (probes ~$61, mini-games ~$18, training pilot under $10)
+- **Gate 8 timeboxed to one last round** (~$5.25, within the $25 mini-game cap). TD v0.7 is the last prompt rewrite. Run 1: the v0.7 re-test with the aligned judge. Run 2, only if run 1 fails: the same memory passes recorded by GPT-5.4 on the 5 DeepSeek games. Fixed decision rule; whatever it says, gate 8 then closes (Open Questions)
+- **Deferred or dropped:** prompted-Bold baseline (grant Experiment 2), three-arm pilot (grant Experiment 1), Qwen anti-repeat test (dropped, Qwen is out), next mini-game round (dropped; the next play test is a full 12-character game). Still needed before the full game: aligning the two judges on "Mine's for hire" (F5)
+
+## Changes in v0.26
+
+- **Gate 8 re-test on TD v0.6** (Oct 25, 13 saved games, passes re-run on DeepSeek): **still fails, and scores worse** (★ capture 82–86%, invented entries 17–37 per group). The thought pass is fixed: unsupported beliefs fell 70–85%. Part of the rise is the measure: the gate 8 judge still used v0.5's definitions, so 27 of 72 invented flags are entries that follow TD v0.6. About 45 flags are real errors, and admissions are 45 of the 99 missed ★ items. See Findings Log
+- **Gate 8 judge aligned with Technical Design** (rubric `gate8 v2`): the judge now loads its definitions of the ★ kinds, claims, denials, and `toward` word for word from TD blocks 10a and 10d, and counts as ★ items only what 10a says to record. Requests and bare offers are no longer ★ items, so dropping them isn't a miss. A hand-check sample guards against the judge simply agreeing with the prompts
+- **No re-judge of v0.6 on its own.** One re-test after TD v0.7, with the aligned judge (~$3.25). Mini-game cap raised from $20 to **$25**
+- **Error patterns sent to Technical Design** (tracker handoff)
+- If v0.7 still fails, the next test is a stronger recorder model on the same records (Open Questions)
+
+## Changes in v0.25
+
+- **Qwen's passivity is disposition; its looping is capability** (Oct 25). One boldness line flipped Qwen from the quietest player to bolder than DeepSeek (5.0 leak lines and 7.0 lies per game, against 1.2 and 2.2), but the boldness was clumsy: secrets blurted as threats, Raffaello's accusation still never delivered, no secret passed on in a way the knowledge checks count as *told*, and verbatim repeated thoughts barely fell. See Findings Log
+- **Correction:** "Qwen drifts from its plans" (v0.24) was wrong. Across 10 games one plan changed without a reason; Qwen changes plans more often, but with stated reasons
+- **Repeated thoughts measured:** Qwen copies its previous thought word for word 67 times in 5 games (DeepSeek 2), 43 of them right after a new line it should react to
+- **Absent-guest slips are mostly a mini-game artefact:** ~90% come from two stand-in plot points aimed at absent guests, and the attendance note fades from prompts as play goes on. Fixes recorded for the next mini-game round, not applied. Not an issue in the full 12-character game
+- **Early personality evidence:** a single prompted line moved risk-taking, leaks, and lies sharply. The Bold/Cautious axis has a large, measurable effect even without training
+
+## Changes in v0.24
+
+- **Qwen3.8 mini-game** (Oct 25, 5 games, memory and checks on DeepSeek): Qwen keeps secrets better (6 leak lines against 11; median first leak turn 7 against 4) but plays more passively: fewer Colloquii, more plans changed, and Raffaello never delivers his accusation (0 of 5 games against 2 of 5). Both fail gate 8 by the same margin, so memory is a prompt problem, not a model one. See Findings Log
+- **GPT-5.4 with all three lines holds the held-out script 8/10** (DeepSeek with the same lines 5/10; GPT-5.4 unprompted 6/10). The in-company weakness is partly the model: there is headroom there for training
+- **Decisions (Dylan, Oct 24–25):** no GPT-5.4 mini-game (free play is gentle, so a stronger model has little room to show); a three-arm Qwen pilot (control, anti-folding, instruction-following) planned and costed, now recommended to wait (see Open Questions)
+- **Recommendation: DeepSeek V4.1 Flash as the fine-tuning base.** It plays more actively, delivers plot points, costs about half as much per game, and responds to the prompt lines; Qwen's free-play advantage comes largely from doing less
+
+## Changes in v0.23
+
+- **Mini-game run** (Oct 24): 5 games on DeepSeek V4.1 Flash, TD v0.5, Characters v0.4 plus three stand-ins, with interim rules for absent guests and a lone guest. Format, coherence, flow, and real-history leakage pass; **memory (gate 8) fails narrowly** (88% of ★ items against a 90% bar; 13 invented entries against 0). See Findings Log
+- **Assumption #2 mostly holds, with a caveat:** free play puts far less pressure on secrets than the probes do (9 pointed questions in 5 games), so the probes are a worst case, and the one weakness that did show up in play is the one the held-out probe found (Lupo pressed in company)
+- **Gate 8 fixes go to Technical Design** (blocks 10a and 10b). Re-test by re-running only the extraction passes on the 5 saved transcripts, which needs no new play
+- Mini-game cost measured: about $0.15 and 19–29 minutes per 6-character game
+
+## Changes in v0.22
+
+- **Merged "TD v0.5 ready for the mini-game"** (Oct 24): every dependency of the Mini-Game Spec is met except the runner. The spec now pins TD v0.5 and Characters v0.4 and adopts TD's memory design: two extraction passes per turn (conversation, thought), IDs cited by the model, speaker and turn filled in by code, quotes checked word for word, dropped entries logged for gate 8. Knowledge checks use TD's four verdicts; the (LeNoir, F2) check settles three plot points. **Secret-spread checks adopted** as a report-only measure
+- **S10 isn't comparable across versions:** TD v0.5 changed block 9e to a single `act` (Lupo: `kills`). The S10 results in the Findings Log are on v0.4; any rerun is a new baseline
+- **Francesco doesn't know Lupo kills for hire** (Dylan, Oct 24; now in Characters v0.4). Lupo's confessions to his master count as leaks; the held-out result (DeepSeek with three lines, 5/10) stands as measured
+- **Published** (Oct 24): the repo is public with curated results (`results/published/`), current docs, and licensing (MIT code; CC BY-NC-SA 4.0 game content). The `cal5` r3 rubric fingerprint is mapped to its v0.21 doc text, so earlier verdicts still count
+- **Tinker research grant applied for** (Oct 24): $1,000 for two experiments on DeepSeek-V4.1-Flash (capitulation training on reasoning and reply; Bold/Cautious variants). Public proposal at `docs/grant-proposal.pdf` in the repo
+- **Judging through a Claude subscription considered and rejected:** it would change the calibrated judge, hurt reproducibility, and share the developer's own usage limits; batch API judging remains the plan
 
 ## Changes in v0.21
 
@@ -440,7 +504,7 @@ DeepSeek has no small current models (its small models are older Qwen- and Llama
 | # | Assumption | Status | Test | Cost |
 |---|---|---|---|---|
 | 1 | **Fine-tuning can fix capitulation** (the research premise) | **Not supported at pilot scale** (Oct 23): no effect from 84 pairs; prompt route did better | Capitulation Pilot, below | $33 (done) |
-| 2 | Single-call probes predict behaviour in a real game | Untested; spec ready (Oct 23) | Mini-game, see Mini-Game Spec (needs TD's extraction prompt). Also checks **real-history leakage**: the judge flags any reference to events after the evening (Piero's exile, Savonarola's execution) or a "correction" of the briefing from real history (e.g. Clarice as Lorenzo's wife) | ~$2–5 |
+| 2 | Single-call probes predict behaviour in a real game | **Mostly holds** (Oct 24): play was far gentler than the probes; the one fold seen in play matches the held-out probe's weak spot. Memory (gate 8) narrowly fails | Mini-game, see Mini-Game Spec. Also checks **real-history leakage**: the judge flags any reference to events after the evening (Piero's exile, Savonarola's execution) or a "correction" of the briefing from real history (e.g. Clarice as Lorenzo's wife) | ~$2–5 |
 | 3 | DeepSeek's lead is real | **Holds** (Oct 22): only model to pass gate 3 under `cal3` (S5a 27/30, S5b 22/30) | 20 more S5a and S5b runs, majority judging | ~$3 (done) |
 | 4 | The lead comes from DeepSeek's training, not this release or luck | **Mostly holds** (Oct 22, Parasail): V4 Flash matches V4.1 on S5a, ahead of the Qwen models on S5b but short of the bar; 10 runs only | Probe DeepSeek V4 Flash on S4–S7 | ~$1–2 |
 | 5 | The fine-tuning route stays available | Risk | Tinker retires models on notice (DeepSeek-V3.1 retires Oct 23); adapters need the exact base. Keep a self-hostable fallback base and download every adapter | — |
@@ -505,9 +569,9 @@ DeepSeek has no small current models (its small models are older Qwen- and Llama
 
 *Added Oct 23. Tests assumption #2: do the single-call probes predict behaviour in free play? Also the first test of memory (gate 8) and of long-game coherence (gate 9).*
 
-**Dependencies:** Technical Design's extraction and knowledge-check prompts; the three secret-keeping lines merged into TD; a small runner in the harness (Claude Code).
+**Dependencies:** met (Oct 24) except the runner. TD v0.5 has the three secret-keeping lines, the S8–S10 fixes, the extraction passes (blocks 10a–10b), and the knowledge check with its plot-point fact table (block 10c). **Remaining:** the runner in the harness (Claude Code). It starts with a dry run (one game, 2 turns, cap $1) and a hand-read of its transcript and game record before the full 5 games.
 
-**Model and prompts:** DeepSeek V4.1 Flash (`-1017`), TD (latest) with the claim, reply, and audience lines, Characters (latest), `plot_reward` off, temperature 0.7, thinking off.
+**Model and prompts:** DeepSeek V4.1 Flash (`-1017`), TD v0.5 (with the claim, reply, and audience lines), Characters v0.4 (Francesco doesn't know Lupo's trade), `plot_reward` off, temperature 0.7, thinking off.
 
 **Cast (6):** Lupo, Contessa Isabella, Captain LeNoir (current briefings), plus Francesco Pazzi, Raffaello de' Medici, and Giorgia Pazzi. Until Characters writes those three, use their original briefings from `PitP_Original_Rules_Trimmed`, cut to what the rewrite rules allow and recorded as stand-ins. This cast puts the San Frediano secret, the love knot, and the Medici–Pazzi rivalry in play.
 
@@ -515,8 +579,8 @@ DeepSeek has no small current models (its small models are older Qwen- and Llama
 - Opening: no faction meeting; strategy call (block 9d) for each character
 - Capannello phase: two groups of three, re-drawn at random; **8 turns**, each with `think()` for everyone present, speaking by importance with the decay rule and designation (with the ping-pong guard), and one movement window per turn (block 9c), so Colloquii and group switches happen
 - Il Notaio's notes for joins, departures, and withdrawals; action lines for bribes
-- Extraction pass at the end of every turn; long-term memory retrieved per Technical Design
-- End: one Murder Round call per character (block 9e) as a sanity check, not resolved into deaths
+- Two extraction passes at the end of every turn, per Technical Design: a **conversation pass** (one call per conversation) and a **thought pass** (one call per character). The model cites line and thought IDs; code fills in speaker and turn, checks every quote word for word, and logs dropped entries. Payments, Il Notaio's events, and private actions are written by code. Long-term memory retrieved per Technical Design
+- End: one Murder Round call per character (block 9e, single `act`; Lupo `kills`) as a sanity check, not resolved into deaths
 
 **Runs:** 5 games. Every game saved as a full game record (Technical Design format), so it can be replayed in the dashboard later.
 
@@ -526,8 +590,9 @@ DeepSeek has no small current models (its small models are older Qwen- and Llama
 |---|---|---|
 | **Secrets kept** | `cal5` judge on each character's lines across the whole game; per-secret survival and first-leak turn | Report. Flag any secret that falls before turn 3 in most games |
 | **Probes predict play** | Compare leak timing and pressure type with S5b/S5d/held-out | Report; this is assumption #2 |
-| **Memory (gate 8)** | Judge compares each extraction pass with its transcript: missed ★ items (promises, threats, payments, admissions), invented facts, wrong speaker | ≥90% of ★ items captured; **no invented facts** |
-| **Knowledge checks** | Ask each plot-point knowledge question at the end; hand-check against transcripts | Report agreement |
+| **Memory (gate 8)** | Judge compares the extraction passes with the transcript and thoughts: missed ★ items, invented facts, and conclusions or suspicions the thoughts don't support. Code-dropped entries reported by reason. **Since Oct 25 (rubric `gate8 v2`), the judge loads its definitions of each entry type and of `toward` word for word from TD blocks 10a and 10d, and counts as ★ items only what 10a says to record** (payments are written by code, not counted). A hand-checked sample of flags is reported with each run. **Known flaw (Oct 25):** the judge lists ★ items while seeing the record, and its count grows with the number of entries shown (162 against DeepSeek's records, 249 against GPT-5.4's, same transcripts). Before any future use, split it in two: list ★ items from the transcript alone, then match the record against that list | ≥90% of ★ items captured; **no invented facts**. *Closed Oct 25 as a known limit (not met)* |
+| **Knowledge checks** | TD block 10c at the end of each game, four verdicts (told, firm conclusion, suspicion, none); the (LeNoir, F2) check settles Isabella's, LeNoir's, and Raffaello's plot points. Hand-check against transcripts | Report agreement by verdict |
+| **Secret spread** | TD block 10c at the end of each game, for every other cast member on each core secret: F2 (Isabella ordered the killing), F3 (Giorgia and LeNoir), F4 (Isabella hired Lupo), and TD's optional F5 (Lupo kills for hire) | Report only: who learned what, how, and when; pairs with "Secrets kept" |
 | **Coherence (gate 9)** | Contradictions with the character's own earlier statements; plan followed or changed for a stated reason | Contradictions ≤1 per character per game |
 | **Conversation flow** | Designations per line, ping-pong guard fires, Colloquio length and ending, movement use | No stuck loops; every character speaks |
 | **Format** | Repair and retry rates per call type | Gate 1 repaired ≥95% on every call type |
@@ -535,9 +600,44 @@ DeepSeek has no small current models (its small models are older Qwen- and Llama
 | **Cost and time** | Tokens, cost, and wall-clock per turn and per game | Report; refreshes Cost and Throughput |
 | **Feel** | Hand-read one full game: voice, intrigue, whether anything interesting happened | Dylan's judgement |
 
-**Cost:** about $1–3 of play for 5 games on DeepSeek, plus judging (about $3–5 with caching). **Cap $10.**
+**Cost:** about $1–3 of play for 5 games on DeepSeek, plus judging (about $3–5 with caching). **Cap $10** for the first 5 games; the mini-game cap now covers all re-tests and replays and stands at **$35** (Dylan, Oct 25).
 
 **After it:** decide the fine-tuning base (DeepSeek on Tinker or Qwen3.8 self-hosted); a full 12-character game needs the other nine briefings.
+
+---
+
+## Perceived Notebook Tests
+
+*Added Oct 25, from Technical Design v0.8 (The perceived notebook). Not a gate 8 round: the reference record keeps its known limit, and these tests check whether readings work, not whether they're accurate. Readings are personal by design, so there is no pass bar on "correctness."*
+
+**What's new in the design:** a perception pass (block 10e) runs once per character per turn on the recorder model. It links lines the character heard or spoke to the thoughts that reacted to them, and stores a **reading**: the exact quote, the kind the character took it as, and their reaction, quoted from their own thought. Code checks the line quote, the reaction quote, and that the thought came after the line. Payments stay code-written; knowledge checks never read readings.
+
+**Before the full games** (replay on the 13 saved mini-games; recorder calls only, no judge; **cap $1**):
+
+| # | Question | How | Bar |
+|---|---|---|---|
+| a | Can each `think()` thought be paired with the line it followed? 10e depends on it | Rebuild `after_line` from event order in the saved records; count thoughts that pair cleanly, ambiguously, or not at all | Clean for nearly all thoughts; any ambiguity explained. If pairing fails, 10e waits for new games that store `after_line` |
+| b | Does 10e work? | **Health:** drop rates by check (quote, reaction, order) and readings per character per turn. **Coverage:** the share of reference-record ★ lines a character heard that got a reading, and of their own ★ lines. **Hand-read ~20 readings:** personal reading, garbled reading (misunderstood words), or recorder error | Report. Recorder errors and garbled readings are the ones that matter; a personal reading is the point |
+| c | Do readings fit block 6? | Render each character's retrieved readings and count tokens | About 10 lines within block 6's ~300 tokens, or report what fits |
+
+**Results (Oct 26, Findings Log):** (a) passes, 98.5% clean. (b) health is fine but readings are wrong too often: 10e notes nearly every line and labels it by content, and 11 of 20 hand-read readings were recorder errors. (c) fails: readings run ~79 tokens each, so ~4 fit in ~300 tokens, not 10. Sent to Technical Design with a recommendation to move the label into `think()`.
+
+Coverage against the reference record is a convenience: that record misses a third to nearly half of ★ moments, so low coverage there is a flag to read, not a verdict.
+
+**In the first full games** (measured from the game record; hand-reads by Dylan or Claude Code):
+
+| # | Question | Measure |
+|---|---|---|
+| d | Does a misreading ever change an action, and is it colour or chaos? | Hand-read every payment, vote, and kill that follows a reading the reference record disagrees with |
+| e | Runaway readings | Each character's share of threat readings, by turn. A rising share with no matching rise in reference threats is the warning sign |
+| f | Forgotten own promises | Own promises in the reference record with no own reading |
+| g | Recorder burst | ~32–36 parallel recorder calls at each turn end: rate-limit hits and turn time |
+| h | Which ★ pass keeps the reference record, v0.6 or v0.7? | Knowledge-check agreement on the hand-read. In this mode the ★ pass no longer shapes what characters remember |
+| i | Optional: `notebook: shared` on the same seeds | A few games, for comparison of play, not memory accuracy |
+
+**With the personality adapters** (Experiment 2): compare divergence from the transcript by variant (Neutral, Bold, Cautious), including 10e's drop rates per variant. Plain misunderstanding should be equal across variants, since they share a base model; personality shows up as a systematic difference on comparable lines.
+
+**Transcript-first ★ listing (build before any research batch):** the gate 8 judge listed ★ items while seeing the record, and its list grew with the record (Findings Log, Oct 25). For divergence measures, list ★ moments from the transcript alone first, then compare each character's readings and the reference record against that list. Technical Design names this as the better yardstick. Not needed for (a)–(c).
 
 ---
 
@@ -696,6 +796,8 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 - **Base models lean honest and cautious**, so lying (gate 4) and boldness are where stock behavior is most likely to come out weak
 - **Safety:** role-play fine-tuning causes some safety drift in every model family. Keep every adapter scoped to its character context and never serve one outside the game
 
+**Perception as an outcome** (Oct 25, with Technical Design v0.8's perceived notebook): characters remember lines as they took them, so personality can shape memory as well as action. Measured against the transcript per variant: threats read where the transcript has none, ★ lines heard but not noted, own promises forgotten, and agreement between listeners of the same line. Each listener's importance score per line is a second signal (does Cautious rate threats as more urgent?). The readings come only from the character's own thoughts, so a divergence is the character's, not the recorder's. See Perceived Notebook Tests.
+
 **Questions either way:**
 
 - Which behaviors respond most strongly to fine-tuning?
@@ -712,8 +814,8 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 - [ ] **Development model:** one of the six probe candidates; decided by the probes
 - [ ] **Fine-tuning base and personality option (1, 2, or 3):** deferred until fine-tuning is near; revisit The Personality–Model Decision with fresh prices
 - [ ] Should paying a blackmailer count toward plot points in the game (does Bartolo "learn" the secret)? A Technical Design question under its deduced-knowledge rule, separate from gate 3
-- [ ] Run the Capitulation Pilot (Assumption Tests)
-- [ ] Strategy probes (S8–S10): deferred until after the pilot; run on the fine-tuning bases it qualifies, with DeepSeek as the reference
+- [x] Run the Capitulation Pilot (Assumption Tests): no effect, Oct 23
+- [x] Strategy probes (S8–S10): run Oct 23 on TD v0.4 (see Findings Log)
 - [ ] **How many research games** the study needs (the largest cost line)
 - [ ] How much should strategy (S8–S10, mini-game, full games) weigh in choosing the fine-tuning base, compared with passing the basic gates?
 - [ ] Later: mixed-model games, where different models play against each other, to compare strategy directly
@@ -737,12 +839,247 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 - [ ] S8 needs harder items (situations the briefings and prompts don't answer directly) if rules reasoning is to separate models; low priority, since the mini-game tests rules in play
 - [ ] Does DeepSeek still lead on secret keeping on TD v0.4 with more runs? (10-run baselines show a tie)
 - [ ] The minimum number of full LLM games needed to validate a configuration the rules-only simulator found
+- [ ] Does free play ever produce S5d-level pressure? In 5 mini-games, nobody pressed a secret-holder for more than a few lines. If full games stay this gentle, secret keeping matters less than the probes suggested, and the interesting question becomes whether anyone *tries*
+- [ ] **Deferred to the grant's Experiment 1. Three-arm pilot** (control with lines; anti-folding pairs; instruction-following pairs with "sharing allowed" cases), training thought and reply together, scored on S5d, held-out, and S6. Costed at ~$35–45 lean with batch judging, adaptive sampling that keeps always-fold moments, and trimming only material from before the current conversation. Recommended on DeepSeek as part of the grant's Experiment 1 rather than on Qwen now, since Qwen's free-play weakness is passivity, not folding
+- [ ] **Deferred to the grant's Experiment 2. Prompted-Bold baseline on DeepSeek:** the same boldness line on 3 DeepSeek games (~$3–4) gives Experiment 2 a prompted comparison for the trained Bold adapter
+- [x] *Dropped Oct 25 (Qwen is out).* If Qwen returns as the self-hosted fallback: a 3-game anti-repeat test (presence or repetition penalty, a shorter recent-thoughts window, exact-duplicate thoughts dropped); repeats counted by code, ~$1. Dropping duplicate thoughts may be worth making a Technical Design default for any model
+- [x] *Dropped Oct 25: the next play test is a full 12-character game, where neither problem arises.* Next mini-game round: stand-in plot points that target only guests who are present, and the attendance list pinned into the State block (both make the slip measure a new baseline)
+- [x] **Gate 8, last round (timeboxed, Oct 25): done. Both runs failed; closed as a known limit** (Findings Log). TD v0.7 is the last prompt rewrite; gate 8 closes after this round whatever the result
+  - **Run 1:** re-run the passes on all 13 saved games, judged with `gate8 v2` (~$3.25)
+  - **Run 2, only if run 1 fails:** record the same passes with GPT-5.4 on the 5 DeepSeek games and judge them the same way (~$2: ~$1–2 recording, ~$1 judging). Compare against DeepSeek's run 1 numbers on the same 5 games
+  - **Decision rule:**
+    - Run 1 passes → DeepSeek keeps the record. Gate 8 closed
+    - Run 1 fails, run 2 passes → **split:** DeepSeek plays, GPT-5.4 keeps the record. Report the added cost per game; Technical Design to adopt
+    - Both fail → it's a limit of the task, not the model. Keep v0.7 with DeepSeek, log the measured error rates as a known limit in the research data, and move on. Revisit only if full games show memory errors changing outcomes
+  - Total ~$5.25; mini-game ledger stays under $25
+- [ ] **Perceived notebook:** replay checks (a)–(c) done Oct 26 (10e mislabels; readings too long). Waiting on Technical Design's answer. If `think()` takes over the label, check it on 3 new DeepSeek mini-games (~$0.50 of play, no judge): hand-read 20 readings with the same three calls, plus readings per character per turn. Then (d)–(i) in the first full games. See Perceived Notebook Tests. No more spend on gate 8
+- [ ] Should "Mine's for hire" count as revealing Lupo's trade (F5)? The knowledge check said *told*; the secrets judge said no leak. Align the two judges before the full game
 
 ---
 
 ## Findings Log
 
 *Record each test result here: date, model, provider and quantization, prompt and briefing versions, gate tested, result, and what it changes. Tooling and price checks go in Tooling Status, not here.*
+
+### 2026-10-26 — Perceived notebook replay checks (a)–(c)
+
+**Setup:** TD v0.8 block 10e (perception pass) with its four code checks (line, quote, reaction, order), run on the 13 saved mini-games' recorded thoughts. Recorder DeepSeek V4.1 Flash at temperature 0, max output 800 tokens per TD. No judge. Code: `minigame/runner` (`--only perception`, `--estimate`); every new thought now stores `after_line`. Spend **$0.21**; mini-game ledger **$28.82 of $35**.
+
+**(a) Pairing thoughts to lines (no calls):** of 3,903 `think()` thoughts, 89.6% follow exactly one speech line (or that line plus its own action line), 8.9% follow only Il Notaio or action lines, 1.5% are ambiguous (a speech line, then an Il Notaio note before the thought), and none fail. **Passes.**
+
+**(b) The perception pass:**
+
+| | DeepSeek (5) | Qwen (5) | Qwen + boldness (3) |
+|---|---|---|---|
+| Readings | 1,278 | 1,286 | 815 |
+| Readings per character per turn | 6.5 | 5.4 | 5.8 |
+| Dropped by code checks | 5.1% | 3.5% | 3.6% |
+| Calls cut off at 800 tokens | 44 of 240 (18%) | 2 | 3 |
+| ★ lines heard that got a reading | 94% | 96% | 94% |
+| Own ★ lines that got a reading | 88% | 84% | 88% |
+| Any heard line that got a reading | 97% | 91% | 95% |
+
+Drops were mostly duplicates (0.6–3.0%), with few failed quote, order, or reaction checks. Every cut-off reply stopped at exactly 800 tokens; valid DeepSeek replies have a median of 630.
+
+**Hand-read** (20 readings, seed 20261025): **9 personal readings, 0 garbled, 11 recorder errors.** The errors are labels taken from the line's content rather than the character's reaction (an opinion filed as a claim, a question as a claim, an order as a promise, defiance as a threat), and reactions quoted from the thought that are about a different line or a different part of it. The quote checks pass, since both quotes are real; no check can tell whether the reaction shows the label.
+
+**(c) Block 6 (no calls):** a rendered reading is ~79 tokens (90th percentile 96), so TD's 10–12 lines make block 6 ~810 tokens (max 1,125) against a ~300-token budget, where ~4 fit. Estimated at characters ÷ 3.5.
+
+**What it shows:**
+- **The clerk still classifies.** v0.8 hoped that linking a line to a reaction would be easier than classifying speech. The recorder instead labels by content and attaches any nearby reaction, which is the overreach gate 8 found, moved into readings. Coverage is high because it notes almost everything, not because it notes well
+- **Pairing works,** so a design that ties readings to thoughts is buildable from the record
+- **Lesson, again:** a neutral model asked to judge how someone else took a line does it badly. The character itself is the only reliable source of "how I took it"
+
+**What it changes:** handed to Technical Design (tracker) with a recommendation: **`think()` labels how it took the line it just heard** (one of the six kinds, or none). Each thought already follows a known line (`after_line`, 98.5% clean), so this is one more output field, and the label is the character's own with no clerk in between. The character's own commitments need a matching tag on `speak()` or the thought after it; Technical Design's call. Readings render short (who said what, a trimmed quote, how the character took it). The engine build doesn't wait: `notebook: shared` remains a working fallback.
+
+### 2026-10-25 — Gate 8 last round: TD v0.7, DeepSeek and GPT-5.4 recorders
+
+**Setup:** the 13 saved mini-games, play unchanged. Memory passes and knowledge checks re-run on **TD v0.7** (one-line DEFINITIONS, contrast examples, the sweep's `self` question, no `toward` or questions in 10d). Recorder at temperature 0, as in every earlier round. Judge Sonnet 5.5, rubric **`gate8 v2`** (fingerprint `9d2280f19795`): the seven DEFINITIONS lines are loaded from the TD at run time, and only 10a's four kinds count as ★ items. Code: `PROBE_TD` 0.7 (PR #8); recorder config in `recorder.ts` (`RECORDER_MODEL_*`); `--rpm` pacing added after GPT-5.4 hit OpenRouter's 20 requests/minute limit for new accounts.
+
+**Run 1 (DeepSeek V4.1 Flash recording):**
+
+| Group | ★ captured (≥90%) v0.5 → v0.6 → **v0.7** | Invented (0) v0.5 → v0.6 → **v0.7** | Unsupported beliefs v0.5 → v0.6 → **v0.7** |
+|---|---|---|---|
+| DeepSeek (5) | 87.7% → 84.1% → **55.6%** ✗ | 18 → 37 → **65** ✗ | 56 → 10 → **19** |
+| Qwen (5) | 86.9% → 86.0% → **67.6%** ✗ | 3 → 17 → **66** ✗ | 33 → 5 → **9** |
+| Qwen + boldness (3) | 88.6% → 82.0% → **67.3%** ✗ | 4 → 18 → **39** ✗ | 27 → 11 → **11** |
+
+v0.7 isn't directly comparable with the earlier columns, since the judge changed. The stricter definitions made DeepSeek record less: on the 5 DeepSeek games, 89 promises and 19 threats against 159 and 49 on v0.6; the sweep flagged 149 kinds against 254; admissions fell (12 against 16) despite the `self` question.
+
+**Run 2 (GPT-5.4, reasoning off, recording the 5 DeepSeek games):**
+
+| Recorder | ★ captured | Invented | Unsupported beliefs | Recording cost per game |
+|---|---|---|---|---|
+| DeepSeek V4.1 Flash | 55.6% | 65 | 19 | $0.018 |
+| GPT-5.4 | 79.9% | 102 | 71 | $0.96 (~54×) |
+
+**Error patterns** (keyword-labelled from the judge's reasons):
+
+| | DeepSeek | Qwen | Qwen + boldness | GPT-5.4 |
+|---|---|---|---|---|
+| Invented: statement or order as promise | 10 | 5 | 2 | 15 |
+| Invented: insult or challenge as threat | 7 | 20 | 8 | 15 |
+| Invented: question as claim | 4 | 2 | 0 | 2 |
+| Invented: other (mostly opinions, conditionals, and statements about oneself filed as claims; summaries that overstate the line) | 44 | 39 | 29 | 70 |
+| Missed promises / deals / threats / admissions | 50 / 9 / 5 / 8 | 33 / 2 / 6 / 7 | 19 / 0 / 9 / 5 | 29 / 8 / 2 / 11 |
+| "Self, no admission" | 221 | 235 | 101 | 319 |
+| Code drops | 33 (31 verb) | 11 | 14 | 4 |
+| Hedge downgrades | 6 | 0 | 3 | 52 |
+
+Sweep re-asks were 1 or fewer per group, with almost no gaps left.
+
+**Hand-check** (Run 2 records, seed 20261025, 20 invented flags and 20 misses):
+- Invented: 15 real, 5 unclear, 0 measure. The real ones: oaths about the past filed as promises, invitations as promises, predictions and vague menace as threats, opinions, conditionals, and hypotheticals as claims, public knowledge as an admission, one summary that inverts its line
+- Missed: 15 real, 3 measure (payments the judge called admissions), 2 unclear. Most real misses are **plain future promises** ("I'll say no third time", "France will hear it from me") and **deals filed only as promises**
+
+**What it shows:**
+- **Memory extraction isn't a wording problem we can solve cheaply.** Four rounds of prompts and two recorder models all missed the bar by a wide margin. Tightening definitions traded invented entries for misses, not errors for accuracy
+- **A stronger recorder doesn't help enough:** GPT-5.4 records more but invents more, at ~54× the cost. No split recorder
+- **The `self` question doesn't find admissions:** it fires on most lines (about 25× the missed admissions)
+- **The judge isn't stable across recorders:** it listed 162 ★ items on the same transcripts against DeepSeek's records and 249 against GPT-5.4's. Its ★ list grows with the record it's shown, so capture percentages aren't comparable across recorders (Mini-Game Spec, gate 8 row)
+- **Research impact is limited:** every character in a run uses the same recorder, so its errors are noise shared across personalities, not a bias toward one. The raw transcript in shortTermHistory is unaffected; errors reach characters only through long-term memory. Logged as a known limit
+
+**Spend:** Run 1 $0.19 replay + $3.03 judging; Run 2 $0.33 rate-limited attempt + $4.79 recording + $1.97 judging; **$10.31 total** against a ~$5.25 estimate. Mini-game ledger **$28.62**, past the $25 cap.
+
+**What it changes:** gate 8 closed as a known limit; DeepSeek keeps the record on TD v0.7. Whether v0.6's ★ pass suits the game better is left to the first full games (Open Questions). The testing phase ends here.
+
+### 2026-10-25 — Gate 8 re-test on TD v0.6 (13 saved games)
+
+**Setup:** the 13 saved mini-games (5 DeepSeek, 5 Qwen3.8, 3 Qwen3.8 with the boldness line), with play unchanged. The memory passes (10a ★ pass with sweep, 10d claims pass, 10b thought pass, 10c knowledge checks) were re-run on DeepSeek V4.1 Flash under TD v0.6, with v0.6's code checks: speaker match, quote in line, summary verb fits type, hedge downgrade, `drop_repeated_thoughts`. Judged with Sonnet 5.5 on the **unchanged gate 8 judge prompt (v0.5 definitions)**. Code: `PROBE_TD` default 0.6 (PR #6, stacked on #5); runner `minigame/runner` `cc4ca1e`; `npm run minigame:replay`, `minigame:measures --only memory`.
+
+| Games | ★ captured (≥90%) v0.5 → v0.6 | Invented entries (0) v0.5 → v0.6 | Unsupported beliefs v0.5 → v0.6 |
+|---|---|---|---|
+| DeepSeek (5) | 87.7% → **84.1%** ✗ | 18 → **37** ✗ | 56 → 10 |
+| Qwen (5) | 86.9% → **86.0%** ✗ | 3 → **17** ✗ | 33 → 5 |
+| Qwen + boldness (3) | 88.6% → **82.0%** ✗ | 4 → **18** ✗ | 27 → 11 |
+
+**What worked:** the thought pass.
+- Conclusions are now 47 of 323 beliefs (DeepSeek), 29 of 163 (Qwen), and 28 of 137 (boldness); code's hedge rule downgraded 9 more
+- No entry failed the speaker check, and none named its own speaker as `toward`
+- Repeated thoughts kept out of the thought pass: DeepSeek 0, Qwen 54, boldness 28
+
+**Why invented entries rose (72 flags):**
+- **The measure (27 flags):** the judge reads `toward` as the person addressed; v0.6's claims pass defines it as the person accused, who may be absent. These entries follow TD v0.6. The judge also rejects pointed, accusing questions as claims, which 10d counts as claims
+- **Real or arguable errors (~45 flags):**
+  - statements and orders recorded as promises
+  - insults and challenges recorded as threats
+  - accusing questions recorded as claims (real errors if TD v0.7 stops counting questions)
+
+  Code can't catch these, because the model writes the verb that matches its own label ("promised", "warned")
+
+**Missed ★ items (99):** admissions 45, promises 28, threats 17, deals 9. Some misses may also be the measure: the judge counts ★ items by its own idea of a ★ item, so requests and bare offers that v0.6 correctly drops may count as misses.
+
+**Code counts:**
+- 70 entries dropped, 67 for a summary verb that doesn't fit the type. Most were correct drops (requests logged as promises, offers logged as deals)
+- 20 claims summarised "X asked…" were dropped; some may be true pointed questions. The point is moot if v0.7 stops counting questions as claims
+- Sweep: 6 re-asks, 4 gaps left, 29 lines left unclassified, 1 entry on an unflagged line
+
+**Spend:** replay $0.25, judging $2.96; mini-game ledger **$18.30 of $20**.
+
+**What it changes:**
+- **Gate 8 judge aligned** (rubric `gate8 v2`, Mini-Game Spec): definitions come from TD 10a and 10d word for word, and ★ items are only what 10a records. Without this, every TD fix is scored against the old rules. Cost of the risk: a judge that reads the prompt's own definitions can't tell us the definitions are wrong. That's what the hand-check sample is for
+- **No re-judge of v0.6 alone.** The comparison that matters is v0.7 against the bar, not against v0.6. One re-test after TD v0.7 (~$3.25); cap raised to $25
+- **Handoff to Technical Design** with the error patterns. TD's lean for v0.7, endorsed here: drop `toward` from the claims pass (the accused is already in `about`), stop counting questions as claims, add contrast examples to 10a (an order is not a promise; an insult is not a threat), and give admissions their own sweep question
+- Three versions of the conversation pass have now landed at 82–89%. If v0.7 doesn't clear 90%, test a stronger recorder model before a fourth rewrite (Open Questions)
+
+### 2026-10-25 — Qwen boldness test; record analysis
+
+**Record analysis (existing 10 games, ~$0.70 judging):**
+- **Repeated thoughts** (consecutive `think` thoughts by one character, character-level similarity ≥0.7): DeepSeek 8 (2 verbatim, longest run 2); Qwen 78 (67 verbatim, longest run 5), 43 of them immediately after a new line from someone else; every Qwen character and every game
+- **Absent-guest slips:** DeepSeek 107, Qwen 76; plot-driven by the Francesco and Giorgia stand-ins 97 and 62. The attendance note reached prompts only through retrieved memory and faded (DeepSeek: in 270 turn-1 prompts, 17 turn-8 prompts; never in Murder Round prompts). Qwen slipped with the note present in 42 of 76 cases; Raffaello concluded "Piero is dead" in two Murder Round calls
+- **Plan drift:** one "changed without a reason" in 10 games (Qwen g1, Raffaello); none ignored
+
+**Boldness test:** 3 Qwen games, seeds 3010–3012, same setup as the earlier Qwen games plus one line at the end of block 9b: *"Tonight, take risks: press others about what they hide, make bold offers, and act on what you learn."* Judged with the same judge and v1 notes.
+
+| Per game | DeepSeek (5) | Qwen (5) | Qwen + boldness (3) |
+|---|---|---|---|
+| Leak lines | 2.2 | 1.2 | **5.0** |
+| Lies | 4.6 | 2.2 | **7.0** |
+| Designations per line | 0.42 | 0.38 | **0.55** |
+| Colloquii | 2.8 | 1.8 | 2.3 |
+| Raffaello tells LeNoir | 2 of 5 | 0 of 5 | 0 of 3 |
+| Spread "told" verdicts (total) | 5 | 2 | 0 |
+| Repeated thoughts | 1.6 | 15.6 | 12.0 (longest run 9) |
+| Absent-guest slips | 21.4 | 15.2 | **4.0** |
+| ★ items captured | 88% | 87% | 89% |
+| `speak` format retries | 0 | 1.0% | 7.6% (misspelled key; all recovered) |
+
+**Findings:**
+- **Passivity was disposition:** one line made Qwen the boldest player tested. LeNoir leaked the boar seal and the affair before turn 3 in 2 of 3 games, often as threats; Lupo blackmailed Isabella outright
+- **The scheming stayed weak:** more action, but no secret passed on cleanly and the central accusation never came. Looping barely improved. That part is capability
+- **Personality preview:** risk-taking moved leaks and lies sharply in the direction the study predicts. Small sample (3 games)
+- **Harness note:** the line was appended after the JSON schema, which likely caused the misspelled `utterance` key; place prompt additions before the schema
+
+**What it changes:** Qwen is out as the fine-tuning base (disposition is steerable, capability is not). DeepSeek recommended, pending Dylan.
+
+### 2026-10-25 — Qwen3.8 mini-game; GPT-5.4 held-out with lines
+
+**Qwen3.8 mini-game:** 5 games, seeds 3000–3004, characters on Qwen3.8-27B (DeepInfra bf16), memory passes and knowledge checks on DeepSeek V4.1 Flash, judged with the same judge and v1 starting-knowledge notes as the DeepSeek games. Two games at a time; 4 timeout retries; no incomplete games. An OpenRouter key's lifetime limit ($100) stopped the first judging attempt; $0.84 of judging was lost and re-run.
+
+| Measure | DeepSeek | Qwen |
+|---|---|---|
+| Leak lines (+ already known) | 11 (+6) | 6 (+10) |
+| Median first-leak turn | 4 | 7 |
+| Lies / factual contradictions (secrets judging) | 23 / 6 | 11 / 0 |
+| ★ items captured (≥90%) | 88% ✗ | 87% ✗ |
+| Invented entries (0) | 18 (5 deal bug) ✗ | 3 (effectively 2) ✗ |
+| Unsupported beliefs | 56 | 33 |
+| Spread: told / conclusion / suspicion / none | 5 / 1 / 35 / 39 | 2 / 0 / 11 / 67 |
+| Raffaello tells LeNoir (plot point) | 2 of 5 | 0 of 5 |
+| Contradictions (≤1) | max 1 ✓ | max 0 ✓ |
+| Plans followed / changed with reason / without | 25 / 5 / 0 | 18 / 11 / 1 |
+| Colloquii | 14 | 9 |
+| Format | 100% ✓ | 100% ✓ (9 retries) |
+| Real-history leaks | 0 ✓ | 0 ✓ |
+| Cost per game | $0.13–0.17 | $0.26–0.29 |
+
+**GPT-5.4 on the held-out script, all three lines** (TD v0.4 / Characters v0.3, 10 runs, adaptive majority judging): **8/10 held**, median first leak turn 5, lie rate 7%. Against DeepSeek with the same lines 5/10 (12%) and GPT-5.4 unprompted 6/10 (13%).
+
+**Findings:**
+- **Qwen is safer but quieter.** Fewer leaks and lies, but less happens: more "none" verdicts, fewer private conversations, and Raffaello's accusation never comes. In the probes Qwen folded early; in free play it rarely gets pressed because it rarely presses. That reads like a stock-model lean toward caution, relevant to the Neutral baseline for Bold/Cautious (confirmed as disposition by the boldness test, Oct 25)
+- **Gate 8 is model-independent:** with DeepSeek recording both runs, ★ capture is 87–88% either way. Technical Design's prompt fix is the path
+- **The in-company weakness has headroom:** a frontier model with the same lines holds 8/10 where DeepSeek holds 5/10, so Experiment 1's held-out target (+4 of 20) is plausible rather than a ceiling
+- Ledgers after this round: probes $62.02 of $70; mini-game $11.13 of $15
+
+**What it changes:**
+- Fine-tuning base: recommend DeepSeek V4.1 Flash (Dylan to confirm)
+- The Qwen training pilot is deferred; its design moves into the grant's Experiment 1 on DeepSeek
+- No GPT-5.4 mini-game (Dylan, Oct 24)
+
+### 2026-10-24 — Mini-game: 5 games
+
+**Setup:** DeepSeek V4.1 Flash, TD v0.5 (all three secret-keeping lines), Characters v0.4 for Lupo, Isabella, and LeNoir; original-briefing stand-ins for Francesco, Raffaello, and Giorgia. One evening round of 8 turns, two groups of three, `plot_reward` off, temperature 0.7. Interim rules: Il Notaio's opening line says only these six attend and the others are alive elsewhere; a guest left alone in a Capannello joins the other group at once. Judge Sonnet 5.5 (`cal5` r3 for secrets). Runner on branch `harness/td-v0.5`, PR #4.
+
+| Measure | Result | Pass line |
+|---|---|---|
+| Secrets kept | 11 real leak lines in 5 games. No secret fell before turn 3 in more than one game (Raffaello's debt g4 t2, LeNoir's purpose g4 t1, Francesco's affair g2, borderline). Giorgia and LeNoir's affair never leaked. Raffaello's debt reached LeNoir in 3 of 5 games, each time while explaining the boar letters | Nothing to flag ✓ |
+| Probes predict play | Play was much gentler: 9 pointed questions at a secret-holder in 5 games, nothing like S5d's 8 escalating turns. Isabella held under LeNoir's questions (g1, g2). Lupo half-folded under LeNoir's pressure in company in g4 ("Isabella paid for silence"), the held-out probe's weak spot | Report |
+| Memory: ★ captured | 88% (84 / 96 / 88 / 90 / 81 by game) | ≥90% ✗ |
+| Memory: invented | 18 flagged: 5 a code error on deal attribution (fixed for future runs), 13 real clerk errors | 0 ✗ |
+| Knowledge and spread | 80 checks for characters who didn't know the fact at the start: told 5, conclusion 1, suspicion 35, none 39 | Report |
+| Coherence | ≤1 contradiction for every character in every game | ✓ |
+| Flow | Everyone spoke, no stalls; ping-pong guard fired 41 times in 480 lines (9%; g4 14 in 96) | ✓ |
+| Format | 100% valid on every call type, no defaults | ✓ |
+| Real-history leakage | 0 | ✓ |
+| Cost and time | Play $0.13–0.17 and 19–29 minutes per game ($0.74 total, ~1.8M tokens per game); judging $4.35; mini-game ledger $5.55 of $10 including dry runs | Report |
+
+**Memory errors (gate 8):** the 13 real errors are mostly a *request* recorded as a *promise* by the person asking, or a summary that says more than its quote. Separately, 10–13 beliefs per game record a suspicion as a firm conclusion, which matters because knowledge checks count conclusions.
+
+**Knowledge-check hand review:** LeNoir was told F2 by Raffaello in g3 and g4 (correct), so Raffaello's and LeNoir's plot points complete there and Isabella's fails. Lupo's "Mine's for hire, and I don't ask whose banner flies over the coin" (g5, to three people) was judged *told* for F5; defensible, but the secrets judge didn't count it as a leak. Giorgia's F5 *conclusion* in g3 is an overcall ("sells rather than serves"). Characters who knew a fact from their briefing often score *none*, by design: briefings are kept out of the check.
+
+**Harness fixes made during scoring:** leaks heard only by people who already knew the secret are reported as "already known" and left out of the leak count (6 of Isabella's private lines to Lupo); deal entries now name the other party as `toward`; Raffaello counts as knowing F2 from the start (his plot point is to tell it).
+
+**What it changes:**
+- **Assumption #2 mostly holds.** The probes are a worst case; the one fold seen in free play matches a known probe weakness
+- **Gate 8 is the blocker before the engine build.** Technical Design handoff: tighten blocks 10a and 10b. Re-test on the saved transcripts
+- The engine loop (speaking order, designation with the ping-pong guard, movement, Il Notaio, two memory passes, knowledge checks, game records) works end to end at about $0.15 per 6-character game
+
+### 2026-10-24 — Publication, grant application, and mini-game readiness
+
+- **Repo public** with curated results: 147 judged run sets, rubric history, 3 transcripts per scenario, the pilot's config and metrics, and full scorer reports. Gitleaks found no secrets in any commit. Raw logs (267 MB) stay private
+- **Rubric fingerprint:** v0.20 added the `cal5` listener rule to this doc's judging section, changing the rubric fingerprint. The only text difference from the v0.17 rubric is that bullet, which restates what the judge code applies, so the new fingerprint is registered as `cal5` r3. A test re-judge made no calls
+- **Grant:** application submitted to Tinker's research grant program for $1,000 in credits (two experiments on DeepSeek-V4.1-Flash; budget ~$710 plus more research games). Judging stays self-funded on Claude Sonnet with batch pricing
+- **Mini-game:** TD v0.5 and Characters v0.4 cover every prompt and briefing the spec needs. Left: copy both into the repo's `docs/`, point the harness config at them, and build the runner
 
 ### 2026-10-23 — Strategy probes S8–S10
 
