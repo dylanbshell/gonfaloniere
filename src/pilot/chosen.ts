@@ -10,6 +10,8 @@
 //   PROBE_RESULTS_DIR=results/pilot PROBE_TOTAL_USD=33 \
 //     npm run pilot:chosen -- --candidates 3 --run-cap 4
 
+import { RESULTS_DIR } from "../harness/log.ts";
+import { audited } from "../harness/keyaudit.ts";
 import { parseArgs } from "node:util";
 import { z } from "zod";
 import { config, technicalDesignPath, type ModelConfig } from "../../probe.config.ts";
@@ -221,4 +223,4 @@ async function main(): Promise<void> {
   console.log(`Kept a chosen reply for ${kept} of ${prompts.length} prompts; spent $${budget.spentUsd.toFixed(4)}. Log: ${log.path}`);
 }
 
-main();
+audited(main, RESULTS_DIR, "pilot-chosen");

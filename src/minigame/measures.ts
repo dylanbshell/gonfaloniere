@@ -13,6 +13,7 @@
 //
 //   npm run minigame:measures -- results/minigame/game-…full.json.gz [more…] --cap 3
 
+import { audited } from "../harness/keyaudit.ts";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
@@ -32,7 +33,18 @@ import { memoryCounts, whereLabel, type Belief, type GameLine, type MemoryEntry,
 
 const { values: opts, positionals } = parseArgs({
   allowPositionals: true,
-  options: { cap: { type: "string", default: "3" }, concurrency: { type: "string", default: "3" }, report: { type: "string" }, notes: { type: "string", default: "v2" }, only: { type: "string" }, "dry-run": { type: "boolean", default: false } },
+  options: {
+    cap: { type: "string", default: "3" },
+    concurrency: { type: "string", default: "3" },
+    report: { type: "string" },
+    notes: { type: "string", default: "v2" },
+    // memory: gate 8 alone; secrets: the cal5 secrets judge alone.
+    only: { type: "string" },
+    "dry-run": { type: "boolean", default: false },
+    // Secrets judging cost, from the prompts and the judge's endpoint price; no model calls.
+    estimate: { type: "boolean", default: false },
+    "out-per-line": { type: "string" },
+  },
 });
 const OUT = "results/minigame";
 
@@ -106,7 +118,9 @@ async function main(): Promise<void> {
   const definitions = memoryDefinitions(docs);
   const gate8 = gate8Rubric(definitions);
   if (opts["dry-run"]) return gate8DryRun(docs, definitions, positionals[0]!);
+  if (opts.only && !["memory", "secrets"].includes(opts.only)) throw new Error("--only must be memory or secrets");
   const judge = config.judge as ModelConfig & { maxTokens: number };
+  if (opts.estimate) return estimateSecrets(docs, judge);
   const client = makeClient(apiKey());
   const endpoint = await fetchEndpoint(judge);
   const budget = new Budget(Number(opts.cap), MINIGAME_TOTAL_USD, priorSpend(OUT));
@@ -138,7 +152,10 @@ async function main(): Promise<void> {
     const coherence: Record<string, unknown> = {};
     const memory: Record<number, unknown> = {};
     // --only memory: gate 8 alone (TD v0.6 re-test on replayed extraction; Models & Research: judging only).
+    // --only secrets: the cal5 secrets judge alone (TD v0.14 re-check's leak check).
     const judgeAll = opts.only !== "memory";
+    const judgeCoherence = !opts.only;
+    const judgeMemory = opts.only !== "secrets";
 
     for (const c of judgeAll ? CAST : []) {
       jobs.push(async () => {
@@ -158,7 +175,7 @@ async function main(): Promise<void> {
         }
         secrets[c] = { error: "judge reply unusable twice" };
       });
-      jobs.push(async () => {
+      if (judgeCoherence) jobs.push(async () => {
         const prompt = coherencePrompt(rec, c);
         const raw = await ask("coherence", prompt, schemaOf(Coherence), prompt.indexOf("\nPLAN\n"));
         const parsed = raw ? Coherence.safeParse(JSON.parse(raw)) : null;
@@ -166,7 +183,7 @@ async function main(): Promise<void> {
       });
     }
     const turnsPlayed = [...new Set(rec.lines.map((l) => l.turn))].filter((t) => t > 0);
-    for (const t of turnsPlayed) {
+    for (const t of judgeMemory ? turnsPlayed : []) {
       jobs.push(async () => {
         const prompt = memoryPrompt(rec, t, definitions);
         const raw = await ask("memory", prompt, schemaOf(MemoryAudit), prompt.indexOf("\nTURN "));
@@ -193,6 +210,42 @@ async function main(): Promise<void> {
 }
 
 // ---- Secrets (cal5) ---------------------------------------------------------------------------
+
+/**
+ * Judge output tokens per judged line, calibrated on the Oct 24 DeepSeek run (5 games, 30 secrets
+ * calls, $2.0245): input priced at the cache-write rate (each prompt's prefix is cached once), the
+ * rest put down to output.
+ */
+const OUT_PER_LINE = 246;
+
+/** --estimate: what the secrets judge would cost on these records (prompt size and endpoint price). */
+async function estimateSecrets(docs: ReturnType<typeof loadDocs>, judge: ModelConfig & { maxTokens: number }): Promise<void> {
+  const endpoint = await fetchEndpoint(judge);
+  const outPerLine = opts["out-per-line"] ? Number(opts["out-per-line"]) : OUT_PER_LINE;
+  let total = 0;
+  let totalIn = 0;
+  let totalLines = 0;
+  for (const path of positionals) {
+    const rec = JSON.parse(gunzipSync(readFileSync(path)).toString()) as GameRecord;
+    let chars = 0;
+    let lines = 0;
+    let calls = 0;
+    for (const c of CAST) {
+      const { prompt, turns } = secretsPrompt(rec, c, docs);
+      if (!turns.length) continue;
+      chars += prompt.length;
+      lines += turns.length;
+      calls++;
+    }
+    const input = (chars / 3.5) * endpoint.price.input * 1.25;
+    const cost = input + lines * outPerLine * endpoint.price.output;
+    total += cost;
+    totalIn += input;
+    totalLines += lines;
+    console.log(`${rec.header.game_id}: ${calls} calls, ${lines} judged lines, ${chars} prompt chars → $${cost.toFixed(4)} (input $${input.toFixed(4)})`);
+  }
+  console.log(`Secrets judge estimate (no calls): ${positionals.length} game(s), $${total.toFixed(3)}; input $${totalIn.toFixed(3)}, ${totalLines} lines at ${outPerLine} output tokens each, judge ${judge.slug} at $${(endpoint.price.input * 1e6).toFixed(2)}/$${(endpoint.price.output * 1e6).toFixed(2)} per M. Ledger $${priorSpend(OUT).toFixed(2)} of $${MINIGAME_TOTAL_USD}.`);
+}
 
 /** The character's lines as judge turns: what they heard since their last line, their last thought, their line. */
 function secretsPrompt(rec: GameRecord, c: CharacterName, docs: ReturnType<typeof loadDocs>) {
@@ -446,4 +499,4 @@ function report(results: Result[]): void {
   console.log(out.join("\n"));
 }
 
-main();
+audited(main, OUT, "measures");

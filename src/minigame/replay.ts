@@ -23,6 +23,7 @@
 //     replay, keeping its reference record, beliefs, and knowledge checks; thoughts get `after_line`
 //     rebuilt from event order where the record has none
 
+import { audited } from "../harness/keyaudit.ts";
 import { readFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
@@ -328,4 +329,4 @@ async function estimate(docs: ReturnType<typeof loadDocs>, paths: string[], perc
   );
 }
 
-main();
+audited(main, OUT, "replay");

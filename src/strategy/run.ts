@@ -11,6 +11,8 @@
 // (print one prompt per situation), --concurrency <n>.
 // plot_reward stays off (config), so Block 9e has no extra act.
 
+import { RESULTS_DIR } from "../harness/log.ts";
+import { audited } from "../harness/keyaudit.ts";
 import { parseArgs } from "node:util";
 import { config, technicalDesignPath, type ModelConfig } from "../../probe.config.ts";
 import { AUDIENCE_LINE, CLAIM_LINE, REPLY_LINE } from "../../scenarios/s5-claim-line.ts";
@@ -225,4 +227,4 @@ async function main(): Promise<void> {
   console.log(`Spent $${budget.spentUsd.toFixed(4)}. Log: ${log.path}`);
 }
 
-main();
+audited(main, RESULTS_DIR, "strategy");

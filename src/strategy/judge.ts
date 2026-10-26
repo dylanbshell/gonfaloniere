@@ -10,6 +10,8 @@
 // swapped. Every answer is also checked for real-history leakage (events
 // after 1492, or "corrections" of the briefing). Hand checks are separate.
 
+import { RESULTS_DIR } from "../harness/log.ts";
+import { audited } from "../harness/keyaudit.ts";
 import { parseArgs } from "node:util";
 import { z } from "zod";
 import { config, technicalDesignPath, type ModelConfig } from "../../probe.config.ts";
@@ -119,8 +121,16 @@ async function main(): Promise<void> {
         console.log(`  judge error: ${res.error}`);
         return null;
       }
-      const parsed = schema.safeParse(JSON.parse(res.content));
-      return parsed.success ? { value: parsed.data, cost } : null;
+      let parsed: ReturnType<typeof schema.safeParse> | null = null;
+      try {
+        parsed = schema.safeParse(JSON.parse(res.content));
+      } catch {
+        parsed = null;
+      }
+      if (parsed?.success) return { value: parsed.data, cost };
+      // A billed reply that can't be used still goes in the ledger (it used to be dropped).
+      log.write({ type: "strategy-judge-unusable", runId, name, costUsd: cost, at: new Date().toISOString() } as unknown as LogRecord);
+      return null;
     };
     const write = (r: Omit<StrategyJudgeRecord, "type" | "runId" | "at">) => log.write({ type: "strategy-judge", runId, ...r, at: new Date().toISOString() } as unknown as LogRecord);
 
@@ -292,4 +302,4 @@ function report(models: string[], latest: (m: string, i: string) => StrategyReco
   for (const l of [...new Set(leaks)]) console.log(`- ${l}`);
 }
 
-main();
+audited(main, RESULTS_DIR, "strategy-judge");

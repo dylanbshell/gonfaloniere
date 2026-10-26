@@ -23,6 +23,7 @@
 // times). More than 10% of calls needing a retry in a 10-minute window (once
 // it holds 30 calls) drops the run to one game at a time.
 
+import { audited } from "../harness/keyaudit.ts";
 import { execSync } from "node:child_process";
 import { appendFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -501,4 +502,4 @@ function memoryDump(game: MiniGame, gameId: string): string {
   return `${out.join("\n")}\n`;
 }
 
-main();
+audited(main, OUT, "minigame");

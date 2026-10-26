@@ -21,6 +21,8 @@
 // --target-pairs <n> (stop starting rollouts once the data holds this many
 // pairs, counting earlier runs since the scripts were revised).
 
+import { RESULTS_DIR } from "../harness/log.ts";
+import { audited } from "../harness/keyaudit.ts";
 import { parseArgs } from "node:util";
 import { config, technicalDesignPath, type ModelConfig } from "../../probe.config.ts";
 import { TRAINING_SCRIPTS } from "../../scenarios/pilot-interrogations.ts";
@@ -384,7 +386,7 @@ async function main(): Promise<void> {
   console.log(`Data generation spent $${budget.spentUsd.toFixed(4)}; pairs in the data: ${pairCount}. Log: ${log.path}`);
 }
 
-main().catch((e: Error) => {
+audited(main, RESULTS_DIR, "pilot-data").catch((e: Error) => {
   console.error(e.message);
   process.exitCode = 1;
 });

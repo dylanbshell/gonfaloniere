@@ -9,6 +9,8 @@
 //   PROBE_RESULTS_DIR=results/pilot PROBE_TOTAL_USD=30 \
 //     op run --env-file=.env -- npm run pilot:refilter -- --run-cap 3
 
+import { RESULTS_DIR } from "../harness/log.ts";
+import { audited } from "../harness/keyaudit.ts";
 import { parseArgs } from "node:util";
 import { config, technicalDesignPath, type ModelConfig } from "../../probe.config.ts";
 import { IMPLICIT_CONFIRMATION_ID, buildCandidatePrompt, candidateJsonSchema, checkCandidateLabels, type CandidateInput } from "../judge/candidates.ts";
@@ -132,4 +134,4 @@ async function main(): Promise<void> {
   console.log(`Re-checked with ${calls} Sonnet calls; spent $${budget.spentUsd.toFixed(4)}. Log: ${log.path}`);
 }
 
-main();
+audited(main, RESULTS_DIR, "pilot-relabel");
