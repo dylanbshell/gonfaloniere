@@ -1,8 +1,21 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.14
+### Version 0.15
 
 ---
+
+## Changes in v0.15
+
+*From the v0.14 re-check (Claude Code, PR #12 at 8800ac4: 4 DeepSeek mini-games, seeds 2000–2003, with Models & Research v0.34's bars). Attachment passed everywhere: 0 wrong-line readings in 518, all 60 hand-read readings on the right line, words found 99.2% (`speak()`) and 95.5% (`think()`), and 0 repairs on either call. Two **fit** bars failed: own readings fit the speaker's thought 21 of 30, and others' readings 23 of 30 (bar 26). The cause is vocabulary, not attachment. "Threat" went on dares, challenges, and demands the thought itself called "a soldier's dare" or "pressing", and "claim" went on questions and demands. Leak lines rose from 7 to 16 against Oct 24's seeds, 10 of them Raffaello's plot-tied debt. That's Models & Research's call.*
+
+- **A scope line for `none`** in both labelling prompts: "A question, a demand, or a dare is none unless it also carries one of these." It isn't a definition of any kind. It names the three things the re-check showed have no word, so characters stop forcing them into threat or claim
+- **Block 9b's `meant` line gains 9a's guidance** in the speaker's terms: "if you mean it to frighten, it's a threat"
+- **The target after an own line is reworded** to "how you take the line of {speaker}'s you were answering". Six hand-reads had read "{speaker}'s last line" as a reply to the character's own line
+- **"This conversation" now starts at the character's latest arrival.** A character who returns from a Colloquio isn't asked about lines from before they left (18 stale targets, none stored)
+- **Quoted words drop trailing sentence punctuation** before an "…" (no more "both.…")
+- **Written up from v0.14's build:** when words match both an earlier line by the named speaker and a different speaker's line, the same-speaker match wins and the reading stays
+- **No dedicated re-check for this version.** Spend is near the caps (mini-game ledger $32.06 of $35; the OpenRouter key has $24.55 left of $150). The fit bars move to the first full games' hand-read, or a cheap 2-game play-only run if Models & Research prefers (Open Questions)
+- Blocks 10a–10d are unchanged
 
 ## Changes in v0.14
 
@@ -547,7 +560,7 @@ Someone has just spoken (the last line above). Before anyone speaks again, think
 1. thought — 2 to 4 sentences, first person, in your own voice. What does the last moment mean for you? What do you want now? If you have told anyone something untrue, note what you told them so your story stays straight. Consider how your recent behavior looks to the others in the room.
    Separate what this person has shown you from what they only claim. A claim is not proof.
 
-2. took — {took_target}, in one word: promise, deal, threat, admission, claim, denial, insult, or none. It's your own reading, not a rule: if it chills you, it's a threat. Most lines are none.
+2. took — {took_target}, in one word: promise, deal, threat, admission, claim, denial, insult, or none. It's your own reading, not a rule: if it chills you, it's a threat. A question, a demand, or a dare is none unless it also carries one of these. Most lines are none.
 
 3. words — if took is not none: the words of that line that made you take it so, at most 20, copied exactly. Otherwise null.
 
@@ -573,12 +586,13 @@ In a **Capannello**:
 
 - `{took_target}` *(v0.10)*: filled by code from the line the label will attach to (The perceived notebook, Which line a label belongs to):
   - someone else's line: `how you take {speaker}'s last line`, with the speaker's name as History shows it
-  - after the character's own line *(v0.13)*: `how you take {speaker}'s last line`, naming the last line by someone else they heard in this conversation, the one they were answering. Their own line is labelled in `speak()` (block 9b, `meant`)
+  - after the character's own line *(v0.13; reworded in v0.15)*: `how you take the line of {speaker}'s you were answering`, naming the last line by someone else they heard in this conversation before their own. Their own line is labelled in `speak()` (block 9b, `meant`)
   - no spoken line: `nothing yet, since no one else has spoken here since you arrived` (v0.14; the label is then ignored, as now)
 
 **The `took` line** *(v0.9; target named in v0.10)*:
 - **Why the target is named** (v0.10): in v0.9's first test, all 4 wrong-line readings in the hand-read were on the character's own line. The model labelled the line it had been answering, not the one it had just said. Naming the line removes the guess
 - **Short on purpose:** `think()` is the most frequent call. The `took` line adds about 50 input tokens to block 9 and 3–5 output tokens (measured: 140 → 143–148 per call). `words` (v0.11) adds about 30 input tokens, and about 15 output tokens when a line is labelled
+- **The scope line for `none`** *(v0.15)*: "A question, a demand, or a dare is none unless it also carries one of these." In the v0.14 re-check, most labels that didn't fit their own thought were threat on a dare or demand, or claim on a question. The thought had already said what the line was, but the menu had no word for it. This line gives those three a home without defining any of the seven, and it's in both 9a and 9b
 - **No definitions:** the character's reading is the measure, so it is never held to 10a's DEFINITIONS. The seven words are plain English (`insult` added in v0.12), and "if it chills you, it's a threat" says whose judgement counts
 - **"Most lines are none"** answers v0.8's main failure: 10e labelled 91–97% of lines heard. Characters still label 62% (v0.9 test), mostly as claims. That's accepted for now (The perceived notebook, Coherence)
 - **It comes after the thought,** so the label follows the reaction instead of steering it
@@ -604,7 +618,7 @@ Say one thing, as {character_name} would say it.
 action — optional. You may take one of these actions with this line, or none:
 {allowed_actions}
 
-meant — what this line is, as you mean it, in one word: promise, deal, threat, admission, claim, denial, insult, or none. Most lines are none.
+meant — what this line is, as you mean it, in one word: promise, deal, threat, admission, claim, denial, insult, or none. It's your own call: if you mean it to frighten, it's a threat. A question, a demand, or a dare is none unless it also carries one of these. Most lines are none.
 words — if meant is not none: the words of your line that carry it, at most 20, copied exactly. Otherwise null.
 
 Reply with only this JSON:
@@ -1174,7 +1188,7 @@ T6 · Colloquio with Francesco Pazzi · ★ you: "My lips are sealed, as ever." 
 T6 · your belief (conclusion): Contessa Isabella ordered the killing of Lucien.
 ```
 
-- **Quote** *(v0.11)*: the character's own `words` (block 9a step 3), with "…" before them if they don't start the line and after them if they don't end it. **Fallback:** the whole line if it's 15 words or fewer, otherwise its first 15 words and "…". Words are counted on spaces, and a standalone dash isn't one. The full line stays in the record. *Why:* in the v0.10 re-check, the first-15-words trim cut the part the label rests on in 11 of 20 own-line readings, and a 20- or 25-word cap recovered only 1 or 3 of 14 such cases
+- **Quote** *(v0.11)*: the character's own `words` (block 9a step 3), with "…" before them if they don't start the line and after them if they don't end it. **Fallback:** the whole line if it's 15 words or fewer, otherwise its first 15 words and "…". Words are counted on spaces, and a standalone dash isn't one. The full line stays in the record. *Why:* in the v0.10 re-check, the first-15-words trim cut the part the label rests on in 11 of 20 own-line readings, and a 20- or 25-word cap recovered only 1 or 3 of 14 such cases Trailing sentence punctuation (. , ; : ! ?) is dropped from the words when an "…" follows (v0.15)
 - **Code entries:** payments and private actions render as before. **Il Notaio's entries are trimmed to 15 words** like quotes (v0.10), shown as `Il Notaio: "…"`, with "You" in place of the character's name when the note begins with it (v0.11; other notes are left as written). Before this, the mini-game's opening attendance note ran to ~90 tokens. The attendance problem itself is Models & Research's mini-game fix, and shouldn't rely on block 6
 - **Conversation label:** a Colloquio with someone else speaking needs no name, since the speaker is the other guest. A Colloquio line of the character's own names the other guest. A Capannello shows only the type, to save tokens; who else heard is in the record, not the line
 - **No reaction text:** v0.8's quoted reaction made readings ~79 tokens. The character's recent thoughts are already in block 7
@@ -1220,12 +1234,12 @@ v0.8 hoped that moving the judgement onto the character's thought would fix this
 #### Which line a label belongs to
 
 Code attaches `took` by a fixed rule, using the event order (Models & Research found 98.5% of thoughts pair cleanly). The same rule picks the line that `{took_target}` names in the prompt *(v0.10)*, so the line the character is asked about is always the line the reading is stored on:
-1. **The line:** the last spoken line the character **heard** in their conversation before the thought. Usually that's `after_line`; when an action line or an Il Notaio note came between the speech and the thought, it's the speech before them. A line spoken before the character joined doesn't count (v0.10)
+1. **The line:** the last spoken line the character **heard** in their conversation before the thought. Usually that's `after_line`; when an action line or an Il Notaio note came between the speech and the thought, it's the speech before them. A line spoken before the character joined doesn't count (v0.10). **"This conversation" starts at the character's latest arrival** (v0.15): a character returning from a Colloquio to the same Capannello isn't asked about lines from before they left
 2. **No spoken line:** if there's none (a thought after only an Il Notaio note as a conversation opens, or a joiner's first thought), the label is ignored and logged
 3. **One reading per character per line:** the first label other than `none` stands. A later, different label for the same line is logged, not stored. The same label again is a no-op, logged as "same label again" (v0.10)
 4. **Own lines** *(v0.13)*: the character's own line is labelled in `speak()` (`meant`, `words`), and that is the only source of own readings, marked `own`. The `think()` that follows their own line names the last line by someone else they heard in this conversation, the one they were answering. Under rule 3 that's usually a no-op, since they labelled it before speaking. The **closing think** covers a Colloquio's last line when someone else spoke it (Core Functions, think())
 5. **Words that match a different line** *(v0.13; scoped in v0.14)*: if a `think()`'s `words` aren't in the named line, code searches every line the character heard tonight, in any conversation:
-   - **A line by a different speaker:** the label was about that line, so the reading is dropped, logged as "wrong-line words" with the latest matching line
+   - **A line by a different speaker:** the label was about that line, so the reading is dropped, logged as "wrong-line words" with the latest matching line. **If the words also match an earlier line by the named speaker, that match wins** and the reading stays (v0.15, as built in v0.14)
    - **An earlier line by the same speaker** (v0.14): it's the same remark. The reading stays on the named line and quotes the words found, logged as "same speaker, earlier line"
    - **No line:** the reading falls back to the trim and the label stands
 
@@ -1591,6 +1605,11 @@ The first build artifact: an internal console for running and debugging the simu
 **Removed (v0.13):**
 - **Own-line labels in `think()`** (v0.9–v0.12): after speaking, the thought reacts to the line being answered. Replaced by `meant` in `speak()`
 
+**Rejected (v0.15):**
+- **New labels for challenge, demand, or question:** they aren't things a character needs to remember later, and every new label thins the counts the research compares. `none` is the right home, and the scope line says so
+- **A dedicated re-check of v0.15 now:** the attachment rules this would test already passed, and spend is near the caps. The fit bars ride along with the first full games' hand-read
+- **Dropping `meant` over the leak flag now:** 4 games, with one seed going from 3 leak lines to 0, can't attribute the rise to `speak()`. And 10 of the 16 leak lines are a plot-tied reveal. The fallback stands ready if Models & Research's judgement says otherwise
+
 **Rejected (v0.14):**
 - **Dropping words from the same speaker's earlier line:** it throws away readings whose speaker and words are both right, just to enforce which of that speaker's lines gets quoted
 - **Skipping the closing think after one's own closing line:** it saves one call per Colloquio but loses the character's final reflection on how it ended
@@ -1634,13 +1653,9 @@ The first build artifact: an internal console for running and debugging the simu
 - ~~Does v0.7 reach gate 8?~~ No. Closed Oct 25 as a known limit, with DeepSeek recording on v0.7 (Memory Writing, Known limit)
 - **v0.6's or v0.7's ★ pass for the reference record?** Decided by the first full games' hand-read. In the default mode the choice affects knowledge checks and research, not what characters remember
 - **Which plot points can still use knowledge checks?** Logged checks (payments, meetings, ledger) are exact. Knowledge checks carry the known limit. Hand-read their verdicts in the first full games; if they misfire often, Mechanics could limit the Plot Reward to logged plot points
-- **v0.13 re-check** (3 new DeepSeek mini-games). **The pass bars, samples, and seeds are Models & Research's** (v0.32 or later, Open Questions, "Perceived notebook"), since they own the test plan. What v0.13 needs from it:
-  - Own-line readings, now from `speak()`: right line, key part kept, label fits the thought before speaking
-  - `think()` after own lines: how often it adds a different label to the answered line (logged as "later different label")
-  - "Wrong-line words" drops and the words-fallback rate, for `think()` and `speak()` separately
-  - The 20-word cap: how often the key part is still cut
-  - `speak()`: repairs and output tokens, and leak lines if the secrets judge is affordable, since `speak()` carries the secret-keeping lines
-  - **If own lines still fail:** drop own readings from the notebook and keep only `meant` in the record for research. Characters then remember their own words only through History. **If `words` still fail on others' lines:** render the whole line for ★ readings only, and accept fewer lines in block 6
+- **The fit bars after v0.15** (Models & Research's bars; v0.34, Open Questions). In the v0.14 re-check everything passed except fit: own 21 of 30, others 23 of 30, against 26. Check v0.15's scope line in the first full games' hand-read, or in a 2-game play-only run if Models & Research would rather know first. Note that think()'s fit was 28 of 30 on v0.12 and 23 of 30 on v0.14 with a near-identical prompt, so part of the gap may be sampling. Bar size is Models & Research's call
+  - **If own-line fit stays low:** drop own readings from the notebook and keep `meant` in the record for research. Characters then remember their own words only through History
+- **The leak flag** (v0.14 re-check: 16 leak lines against 7 on the same seeds). Is a plot-driven reveal, like Raffaello's debt, a leak? Models & Research decides, and that decision settles whether this flag stands. If it does, and it holds in the full games, the first suspect is `meant` in `speak()`, and the fallback above applies
 - **The perceived notebook in the first full games:**
   - How often do characters take the ★ lines they hear as anything (coverage)?
   - How often does a label misunderstand the words rather than read them its own way?
