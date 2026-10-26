@@ -24,7 +24,7 @@
 // it holds 30 calls) drops the run to one game at a time.
 
 import { execSync } from "node:child_process";
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
@@ -59,6 +59,10 @@ const { values: opts } = parseArgs({
     "speak-append": { type: "string" },
     // TD v0.6 drop_repeated_thoughts is on by default for every model; this turns it off.
     "keep-repeated-thoughts": { type: "boolean", default: false },
+    // TD v0.8–v0.9 notebook: perceived (default) or shared.
+    notebook: { type: "string", default: "perceived" },
+    // Projected cost from saved games of the same play model; no calls.
+    estimate: { type: "boolean", default: false },
   },
 });
 
@@ -96,6 +100,7 @@ interface Served {
 async function main(): Promise<void> {
   // The run's spend goes to the mini-game ledger.
   process.env.PROBE_RESULTS_DIR = OUT;
+  if (opts.estimate) return estimate();
   const docs = loadDocs(config.docs);
   if (!docs.systemPrompts) throw new Error("This Technical Design has no extraction or knowledge-check prompts (TD v0.5+)");
   const briefings = { ...docs.briefings, ...loadStandinBriefings(STANDIN_FILE, STANDINS, docs.socialAwareness) };
@@ -127,7 +132,9 @@ async function main(): Promise<void> {
     checks: checks(),
     ...(opts["speak-append"] && { speakAppend: opts["speak-append"] }),
     dropRepeatedThoughts: !opts["keep-repeated-thoughts"],
+    notebook: opts.notebook as "perceived" | "shared",
   };
+  if (!["perceived", "shared"].includes(settingsBase.notebook)) throw new Error(`--notebook must be perceived or shared`);
   const parallel = Number(opts.parallel);
   const replacements = Number(opts.replacements);
   const wanted = Number(opts.games);
@@ -296,6 +303,35 @@ async function main(): Promise<void> {
   console.log(`Done: ${counted()}/${wanted} complete${halt ? `; HALTED: ${halt}` : ""}${serialSince ? `; one game at a time since ${serialSince}` : ""}. Spent $${budget.spentUsd.toFixed(4)}.\n  ${join(OUT, `run-${runId}.summary.json`)}`);
 }
 
+/**
+ * --estimate: projected cost from saved games played by the same model (originals, not replays):
+ * mean cost per turn times the turns asked, plus the mean end-of-game cost (Murder Round and
+ * knowledge checks), times the games, plus a margin for TD v0.9's `took` and closing thinks. No calls.
+ */
+function estimate(): void {
+  const slug = config.models.find((m) => m.id === opts.model)?.slug;
+  const files = readdirSync(OUT).filter((f) => /^game-.*-minigame-g\d+\.full\.json\.gz$/.test(f));
+  const perTurn: number[] = [];
+  const endCost: number[] = [];
+  for (const f of files) {
+    const rec = JSON.parse(gunzipSync(readFileSync(join(OUT, f))).toString());
+    if (rec.header?.config?.model !== slug || !rec.complete || !rec.summary?.turns?.length) continue;
+    const turns = rec.summary.turns as { costUsd: number }[];
+    const play = turns.reduce((a, t) => a + t.costUsd, 0);
+    perTurn.push(play / turns.length);
+    endCost.push(Math.max(0, rec.summary.cost_usd - play));
+  }
+  if (!perTurn.length) throw new Error(`No saved complete games on ${opts.model} to estimate from`);
+  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  const games = Number(opts.games);
+  const turns = Number(opts.turns);
+  const base = games * (mean(perTurn) * turns + mean(endCost));
+  const margin = 0.25;
+  console.log(
+    `Estimate (no calls): ${games} game(s) × ${turns} turns on ${opts.model}, from ${perTurn.length} saved games: $${mean(perTurn).toFixed(4)} per turn, $${mean(endCost).toFixed(4)} end of game → $${base.toFixed(3)}; with a ${margin * 100}% margin for took and closing thinks, $${(base * (1 + margin)).toFixed(3)}. Ledger $${priorSpend(OUT).toFixed(2)} of $${MINIGAME_TOTAL_USD}.`,
+  );
+}
+
 /** Before a game counts: all turns, everyone spoke, each call on its model, the record parses, a normal call count. */
 function postGameChecks(path: string, served: Record<"character" | "system", Served>, turns: number, refCalls: number | null): Record<string, boolean | string> {
   let rec: ReturnType<typeof buildRecord>;
@@ -347,6 +383,8 @@ function buildRecord(
       date: new Date().toISOString(),
       engine: { name: "gonfaloniere-minigame", commit: gitCommit() },
       working_tree: x.tree,
+      // TD v0.8–v0.9: the notebook mode, fixed for a batch.
+      notebook: (x.settings as { notebook?: string }).notebook ?? "perceived",
       docs: x.docs.versions,
       config: {
         model: x.served.character.model.slug,
@@ -361,8 +399,6 @@ function buildRecord(
         recorder: describeRoute(x.served.system.route, x.served.system.servedId),
         thinking: "off",
         fallbacks: false,
-        // TD v0.8 run setting. Live play runs "shared": perceived retrieval isn't built into the runner yet, so no readings are written.
-        notebook: "shared",
         retry: "429 or timeout: up to 5 tries, exponential backoff; any other failure ends the game",
         ...x.settings,
         plot_reward: false,
@@ -388,7 +424,16 @@ function buildRecord(
     lines: game.lines,
     thoughts: game.thoughts,
     calls: game.calls,
-    memory: { entries: game.memory.entries, beliefs: game.memory.beliefs, readings: game.memory.readings, dropped: game.memory.dropped, repairs: game.memory.repairs, notes: game.memory.notes },
+    memory: {
+      entries: game.memory.entries,
+      beliefs: game.memory.beliefs,
+      // TD v0.9: readings from think()'s `took`, and every label the attachment rule ignored or logged.
+      readings: game.memory.readings,
+      label_log: game.memory.labelLog,
+      dropped: game.memory.dropped,
+      repairs: game.memory.repairs,
+      notes: game.memory.notes,
+    },
     snapshots: game.snapshots,
     murder_round: { resolved: false, acts: game.murderActs },
     knowledge_checks: game.knowledgeChecks,
@@ -421,7 +466,8 @@ function transcript(game: MiniGame, gameId: string): string {
       const l = lineById.get(e.line as string)!;
       out.push(`- \`${l.id}\` *${whereLabel(l.where)}* — ${formatLine(l)}`);
     }
-    if (e.type === "thought" && e.call !== "plan") out.push(`  - *${e.character} thinks (${e.call}${e.importance !== undefined ? `, importance ${e.importance}` : ""}${e.done ? ", done" : ""}${e.repeat ? ", exact repeat: not shown again" : ""}):* ${e.text}`);
+    if (e.type === "thought" && e.call !== "plan") out.push(`  - *${e.character} thinks (${e.closing ? "closing think" : e.call}${e.took !== undefined ? `, took ${e.took}` : ""}${e.importance !== undefined && !e.closing ? `, importance ${e.importance}` : ""}${e.done && !e.closing ? ", done" : ""}${e.repeat ? ", exact repeat: not shown again" : ""}):* ${e.text}`);
+    if (e.type === "readings" && ((e.stored as string[]).length || (e.logged as string[]).length)) out.push(`- *readings: ${(e.stored as string[]).join(", ") || "none"}${(e.logged as string[]).length ? `; labels not stored: ${(e.logged as string[]).join("; ")}` : ""}*`);
     if (e.type === "bribe") out.push(`  - **[${e.from} gave ${e.to} ${e.amount} Florins.]**`);
     if (e.type === "borrow" || e.type === "repay") out.push(`  - **[${e.character}: ${e.type}${e.holder ? ` for ${e.holder}` : ""}]** (private)`);
     if (e.type === "move") out.push(`- **Movement window: ${e.character}** → ${e.choice}${e.target ? ` ${e.target}` : ""}${e.note ? ` (${e.note})` : ""}`);

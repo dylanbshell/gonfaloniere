@@ -104,14 +104,27 @@ export function assembleThinkPrompt(
   if (opts.extraInstruction && t.think.includes(opts.extraInstruction)) {
     throw new Error("This Technical Design's think() task already has that line (TD v0.5 builds in the secret-keeping lines)");
   }
+  // TD v0.9 adds step 2, `took`, so `done` becomes step 4 and the schema carries "took".
+  const took = thinkAsksTook(t);
   const task = fill(t.think, {
     character_name: ctx.characterName,
     done_instruction: colloquio
-      ? "\n3. done — true if you have what you came for, or nothing more is to be gained here; otherwise false.\n"
+      ? `\n${took ? 4 : 3}. done — true if you have what you came for, or nothing more is to be gained here; otherwise false.\n`
       : "",
-    think_schema: colloquio ? '{"thought": "...", "importance": 0, "done": false}' : '{"thought": "...", "importance": 0}',
+    think_schema: took
+      ? colloquio
+        ? '{"thought": "...", "took": "none", "importance": 0, "done": false}'
+        : '{"thought": "...", "took": "none", "importance": 0}'
+      : colloquio
+        ? '{"thought": "...", "importance": 0, "done": false}'
+        : '{"thought": "...", "importance": 0}',
   });
   return assemble(t, ctx, opts.extraInstruction ? afterThoughtInstruction(task, opts.extraInstruction) : task);
+}
+
+/** Whether this TD's Block 9a asks for `took` (TD v0.9's step 2). */
+export function thinkAsksTook(t: PromptTemplates): boolean {
+  return /\n2\. took — /.test(t.think);
 }
 
 /**

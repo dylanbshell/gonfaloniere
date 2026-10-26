@@ -26,7 +26,31 @@ export const ThinkOutput = z.object({
   done: z.boolean().nullable().optional(),
 });
 
-export type ThinkOutput = z.infer<typeof ThinkOutput>;
+export type ThinkOutput = z.infer<typeof ThinkOutput> & {
+  /** TD v0.9: how the character takes the last thing said aloud; present only when the prompt asks for it. */
+  took?: Took;
+};
+
+/** TD v0.9's `took` values (block 9a): the six kinds, or none. */
+export const TOOK_VALUES = ["promise", "deal", "threat", "admission", "claim", "denial", "none"] as const;
+export type Took = (typeof TOOK_VALUES)[number];
+
+/**
+ * TD v0.9, Output Validation & Repair, `took`: matched case-insensitively, a leading article or a
+ * plural stripped ("a threat" → threat, "Threats" → threat). Missing or unknown → none, which the
+ * caller logs as a repair; it never triggers a retry.
+ */
+export function normalizeTook(raw: unknown): { took: Took; unknown: boolean } {
+  if (typeof raw !== "string") return { took: "none", unknown: true };
+  let w = raw.trim().toLowerCase().replace(/[.!"'`]+$/g, "").replace(/^["'`]+/, "");
+  w = w.replace(/^(a|an|the)\s+/, "");
+  const hit = (x: string) => (TOOK_VALUES as readonly string[]).includes(x);
+  if (hit(w)) return { took: w as Took, unknown: false };
+  // Plurals: "threats", "promises", "denials", "admissions", "claims", "deals".
+  const singular = w.endsWith("s") ? w.slice(0, -1) : w;
+  if (singular !== w && hit(singular)) return { took: singular as Took, unknown: false };
+  return { took: "none", unknown: true };
+}
 
 /** Strict JSON Schema for constrained decoding; `done` is fixed by conversation type. */
 export function thinkJsonSchema(conversation: ConversationKind): Record<string, unknown> {
@@ -53,6 +77,8 @@ export interface ThinkExpectation {
    * removed it and asks for `done` only in a Colloquio. Default v0.2.
    */
   format?: "td0.2" | "td0.3";
+  /** TD v0.9: the prompt asks for `took`, so it's read (and a missing one repaired). */
+  took?: boolean;
 }
 
 export type ThinkVerdict =
@@ -103,6 +129,8 @@ export interface Repairs {
   doneFilled: boolean;
   /** Importance wasn't a whole number from 0 to 100, and was rounded and clamped (TD v0.3). */
   scoreClamped?: boolean;
+  /** TD v0.9: `took` was missing or not one of the seven values, and was set to none. */
+  tookFilled?: boolean;
 }
 
 export interface ThinkParseResult {
@@ -345,6 +373,7 @@ const ThinkOutputV3 = z.object({
   thought: z.string().min(1),
   importance: z.number(),
   done: z.boolean().nullable().optional(),
+  took: z.unknown().optional(),
 });
 
 /**
@@ -376,7 +405,9 @@ function parseThinkV3(raw: string, expect: ThinkExpectation): ThinkParseResult {
       ? { verdict: "syntax", errors: syntaxErrors, warnings: [], value: null }
       : { verdict: errors.length ? "meaning" : "valid", errors, warnings: [], value };
 
-  const asIs: ThinkOutput = { thought: v.thought, importance: v.importance, contacts: [], done: v.done ?? null };
+  // TD v0.9: `took` never fails a call; missing or unknown becomes none, counted as a repair.
+  const took = expect.took ? normalizeTook(v.took) : null;
+  const asIs: ThinkOutput = { thought: v.thought, importance: v.importance, contacts: [], done: v.done ?? null, ...(took && { took: took.took }) };
   const fixed: ThinkOutput = {
     ...asIs,
     importance: Math.min(100, Math.max(0, Math.round(v.importance))),
@@ -392,6 +423,7 @@ function parseThinkV3(raw: string, expect: ThinkExpectation): ThinkParseResult {
     doneIgnored: !colloquio && v.done !== undefined && v.done !== null,
     doneFilled: false,
     scoreClamped: !scoreOk,
+    ...(took && { tookFilled: took.unknown }),
   };
   return {
     fenced,

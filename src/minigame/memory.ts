@@ -1,4 +1,4 @@
-// Memory for the mini-game (Technical Design v0.8, Memory Architecture and
+// Memory for the mini-game (Technical Design v0.9, Memory Architecture and
 // Memory Writing): the game's lines and thoughts with IDs, longTermHistory
 // entries and beliefs, the checks every extraction entry must pass before it
 // is stored (Output Validation & Repair: Memory entries, Sweep, Beliefs),
@@ -8,6 +8,7 @@
 import { z } from "zod";
 import { ALIASES, ROSTER, resolveAlias, type CharacterName } from "../game/roster.ts";
 import type { MemoryRules } from "../sources/docs.ts";
+import type { Took } from "../output/think.ts";
 import { nearMiss } from "../output/think.ts";
 
 /** One line of the evening, with a game-wide ID (L…). */
@@ -48,6 +49,12 @@ export interface Thought {
   repeat?: boolean;
   /** TD v0.8: the line the character had last heard when the thought was made; for think(), the line it reacted to. */
   after_line?: string | null;
+  /** TD v0.9, think() only: how the character took the last thing said aloud (none included). */
+  took?: Took;
+  /** think() only: the conversation the thought was made in. */
+  conversation?: string;
+  /** TD v0.9: a closing think, after a Colloquio's last line (its importance and done are ignored). */
+  closing?: boolean;
 }
 
 export const ENTRY_TYPES = ["promise", "deal", "threat", "admission", "claim", "denial"] as const;
@@ -79,15 +86,49 @@ export interface MemoryEntry {
   source: "10a" | "10d" | "code";
 }
 
-/** What a character took a line as (TD v0.8, block 10e): the six kinds, as the character sees them. */
+/** What a character took a line as: the six kinds, as the character sees them. */
 export const READING_KINDS = ["promise", "deal", "threat", "admission", "claim", "denial"] as const;
 const SALIENT_READINGS = ["promise", "deal", "threat", "admission"];
 
 /**
- * A reading (R…), TD v0.8's perceived notebook: how one character took a line, with the speaker's
- * exact words and the character's own reaction quoted from their thought. No recorder summary.
+ * A reading (R…), TD v0.9's perceived notebook: how one character took a line, labelled by the
+ * character in its own think() (`took`) and attached to the line by code. No model fills anything
+ * but `took` (TD v0.9, The perceived notebook, A reading as stored).
  */
 export interface Reading {
+  id: string;
+  /** Whose notebook it is (stored for this character only). */
+  character: CharacterName;
+  turn: number;
+  conversation: string;
+  line: string;
+  speaker: CharacterName;
+  took: (typeof READING_KINDS)[number];
+  /** The think() the label came from. */
+  thought: string;
+  /** The speaker, the line's addressee if any, and every roster name or alias in the line. */
+  about: CharacterName[];
+  own: boolean;
+  salient: boolean;
+}
+
+/** A `took` label the attachment rule ignored (no spoken line) or logged (not stored), with the reason. */
+export interface LabelLogEntry {
+  turn: number;
+  character: CharacterName;
+  thought: string;
+  took: Took;
+  line: string | null;
+  reason: "no spoken line" | "later different label" | "same label again";
+  /** For a later label: the reading that stands. */
+  standing?: string;
+}
+
+/**
+ * A reading from TD v0.8's perception pass (10e), kept for the replay-only perception mode: the
+ * speaker's exact words and the character's reaction quoted from their thought.
+ */
+export interface PerceptionReading {
   id: string;
   character: CharacterName;
   turn: number;
@@ -105,7 +146,7 @@ export interface Reading {
   salient: boolean;
 }
 
-/** One item of 10e's timeline: a line the character heard or spoke, or a think() thought after its line. */
+/** One item of 10e's timeline (TD v0.8, replay only): a line the character heard or spoke, or a think() thought after its line. */
 export type TimelineItem = { kind: "line"; line: GameLine } | { kind: "thought"; thought: Thought };
 
 /** A belief (B…) from the thought pass. Nothing is deleted; "dropped" sets the status. */
@@ -168,7 +209,14 @@ export class MemoryStore {
   dropped: DroppedEntry[] = [];
   repairs: ExtractionRepair[] = [];
   notes: MemoryNote[] = [];
+  /** TD v0.9 readings, from think()'s `took` (notebook: perceived). */
   readings: Reading[] = [];
+  /** `took` labels the attachment rule ignored or logged. */
+  labelLog: LabelLogEntry[] = [];
+  /** TD v0.8's 10e readings (replay-only perception mode). */
+  perceptionReadings: PerceptionReading[] = [];
+  /** Lines seen by writeReadings, for rendering and retrieval. */
+  private lineIndex = new Map<string, GameLine>();
   private nextR = 1;
   private nextM = 1;
   private nextB = 1;
@@ -412,8 +460,8 @@ export class MemoryStore {
    * else's line that thought must come after the line, and for the character's own line thought and
    * reaction may both be null. Unknown kinds are dropped; a repeated (line, kind) keeps the first.
    */
-  applyPerceptionPass(raw: unknown, x: { turn: number; character: CharacterName; timeline: TimelineItem[] }): { stored: Reading[]; dropped: DroppedEntry[] } {
-    const stored: Reading[] = [];
+  applyPerceptionPass(raw: unknown, x: { turn: number; character: CharacterName; timeline: TimelineItem[] }): { stored: PerceptionReading[]; dropped: DroppedEntry[] } {
+    const stored: PerceptionReading[] = [];
     const dropped: DroppedEntry[] = [];
     const drop = (reason: string, entry: unknown) => {
       const d: DroppedEntry = { pass: "10e", turn: x.turn, scope: x.character, reason, entry };
@@ -470,7 +518,7 @@ export class MemoryStore {
         continue;
       }
       seen.add(key);
-      const reading: Reading = {
+      const reading: PerceptionReading = {
         id: `R${this.nextR++}`,
         character: x.character,
         turn: x.turn,
@@ -479,37 +527,98 @@ export class MemoryStore {
         speaker: line.speaker!,
         line: line.id,
         quote: n.quote,
-        took: n.took as Reading["took"],
+        took: n.took as PerceptionReading["took"],
         thought: thought?.id ?? null,
         reaction: thought ? n.reaction! : null,
         about: n.about.map((a) => resolveName(a) ?? a),
         own,
         salient: SALIENT_READINGS.includes(n.took),
       };
-      this.readings.push(reading);
+      this.perceptionReadings.push(reading);
       stored.push(reading);
     }
     return { stored, dropped };
   }
 
-  // ---- Retrieval, perceived notebook (TD v0.8, Memory Writing → Retrieval) ------------
+  // ---- Readings (TD v0.9, The perceived notebook) -----------------------------------
 
   /**
-   * Block 6 in `notebook: perceived`: the character's notebook is their readings plus code-written
-   * entries (payments, private actions, Il Notaio's events). ★ items naming anyone present, most
-   * recent first, up to 6; held beliefs about anyone present, up to 3; then the items most similar
-   * to the last two History lines (a reading matched on its quote plus its reaction). Oldest first.
-   * Not used by the runner yet (live play runs `shared`).
+   * Turns one turn's think() labels into readings, by TD v0.9's rule ("Which line a label belongs
+   * to"): (1) the line is the last spoken line before the thought in that conversation, heard by the
+   * character, so an action line or Il Notaio note in between doesn't move it; (2) with no spoken
+   * line the label is ignored and logged; (3) one reading per character per line: the first label
+   * other than none stands, and a later label for the line is logged, not stored; (4) a label on the
+   * character's own line is marked own. Each reading is stored for that character only.
    */
-  retrieveNotebook(c: CharacterName, present: CharacterName[], recentLines: string[], limit = 12): string[] {
+  writeReadings(turn: number, thoughts: Thought[], lines: GameLine[]): { stored: Reading[]; logged: LabelLogEntry[] } {
+    for (const l of lines) this.lineIndex.set(l.id, l);
+    const stored: Reading[] = [];
+    const logged: LabelLogEntry[] = [];
+    const ordered = thoughts.filter((t) => t.turn === turn && t.call === "think" && t.took && t.took !== "none").sort((a, b) => num(a.id) - num(b.id));
+    for (const t of ordered) {
+      const line = labelLine(t, lines);
+      const log = (reason: LabelLogEntry["reason"], extra: Partial<LabelLogEntry> = {}) => {
+        const e: LabelLogEntry = { turn, character: t.character, thought: t.id, took: t.took!, line: line?.id ?? null, reason, ...extra };
+        this.labelLog.push(e);
+        logged.push(e);
+      };
+      if (!line) {
+        log("no spoken line");
+        continue;
+      }
+      const prior = this.readings.find((r) => r.character === t.character && r.line === line.id);
+      if (prior) {
+        log(prior.took === t.took ? "same label again" : "later different label", { standing: prior.id });
+        continue;
+      }
+      const took = t.took as Reading["took"];
+      const reading: Reading = {
+        id: `R${this.nextR++}`,
+        character: t.character,
+        turn: line.turn,
+        conversation: line.conversation,
+        line: line.id,
+        speaker: line.speaker!,
+        took,
+        thought: t.id,
+        about: [...new Set<CharacterName>([line.speaker!, ...(line.addressee ? [line.addressee] : []), ...namesIn(line.text)])],
+        own: line.speaker === t.character,
+        salient: SALIENT_READINGS.includes(took),
+      };
+      this.readings.push(reading);
+      stored.push(reading);
+    }
+    return { stored, logged };
+  }
+
+  /** A reading's line, for rendering (lines registered by writeReadings, or given here). */
+  lineOf(id: string): GameLine | undefined {
+    return this.lineIndex.get(id);
+  }
+
+  registerLines(lines: GameLine[]): void {
+    for (const l of lines) this.lineIndex.set(l.id, l);
+  }
+
+  // ---- Retrieval, perceived notebook (TD v0.9, Memory Writing → Retrieval) ------------
+
+  /**
+   * Block 6 in `notebook: perceived`: the notebook is the character's readings plus code-written
+   * entries (payments, private actions, Il Notaio's events); the reference record (10a, 10d) is never
+   * retrieved. ★ items naming anyone present, most recent first, up to 6; held beliefs about anyone
+   * present, up to 3; then the items most similar to the last two History lines, a reading matched
+   * on its full line text. Oldest first. `murder`: ★ threats, deals, and promises first.
+   */
+  retrieveNotebook(c: CharacterName, present: CharacterName[], recentLines: string[], opts: { murder?: boolean; limit?: number } = {}): string[] {
+    const limit = opts.limit ?? 12;
     type Item = { kind: "reading"; r: Reading } | { kind: "entry"; e: MemoryEntry } | { kind: "belief"; b: Belief };
-    const readings: Item[] = this.readings.filter((r) => r.character === c).map((r) => ({ kind: "reading", r }));
+    const readings: Item[] = this.readings.filter((r) => r.character === c && this.lineIndex.has(r.line)).map((r) => ({ kind: "reading", r }));
     const code: Item[] = this.entriesFor(c).filter((e) => e.source === "code").map((e) => ({ kind: "entry", e }));
     const beliefs: Item[] = this.beliefsOf(c).map((b) => ({ kind: "belief", b }));
     const turnOfItem = (x: Item) => (x.kind === "reading" ? x.r.turn : x.kind === "entry" ? x.e.turn : x.b.firstTurn);
-    const names = (x: Item): string[] => (x.kind === "reading" ? [x.r.speaker, ...x.r.about] : x.kind === "entry" ? ([x.e.speaker, x.e.toward, ...x.e.about].filter(Boolean) as string[]) : []);
+    const names = (x: Item): string[] => (x.kind === "reading" ? x.r.about : x.kind === "entry" ? ([x.e.speaker, x.e.toward, ...x.e.about].filter(Boolean) as string[]) : []);
     const salient = (x: Item) => (x.kind === "reading" ? x.r.salient : x.kind === "entry" ? x.e.salient : false);
-    const text = (x: Item) => (x.kind === "reading" ? `${x.r.quote} ${x.r.reaction ?? ""}` : x.kind === "entry" ? x.e.summary : x.b.statement);
+    const text = (x: Item) => (x.kind === "reading" ? this.lineIndex.get(x.r.line)!.text : x.kind === "entry" ? x.e.summary : x.b.statement);
     const picked: Item[] = [];
     const take = (xs: Item[], n: number) => {
       for (const x of xs) {
@@ -520,15 +629,16 @@ export class MemoryStore {
         }
       }
     };
-    const notebook = [...readings, ...code].sort((a, b) => turnOfItem(a) - turnOfItem(b));
-    take([...notebook].reverse().filter((x) => salient(x) && names(x).some((n) => present.includes(n as CharacterName))), 6);
+    const recent = [...readings, ...code].sort((a, b) => turnOfItem(b) - turnOfItem(a));
+    if (opts.murder) take(recent.filter((x) => x.kind === "reading" && ["threat", "deal", "promise"].includes(x.r.took)), 6);
+    take(recent.filter((x) => salient(x) && names(x).some((n) => present.includes(n as CharacterName))), 6);
     take(beliefs.filter((x) => x.kind === "belief" && present.some((p) => x.b.statement.includes(p))), 3);
     const query = words(recentLines.join(" "));
-    const scored = [...notebook, ...beliefs].filter((x) => !picked.includes(x)).map((x) => ({ x, s: overlap(query, words(text(x))) })).sort((a, b) => b.s - a.s);
+    const scored = [...recent, ...beliefs].filter((x) => !picked.includes(x)).map((x) => ({ x, s: overlap(query, words(text(x))) })).sort((a, b) => b.s - a.s);
     take(scored.map((s) => s.x), limit - picked.length);
     return picked
       .sort((a, b) => turnOfItem(a) - turnOfItem(b))
-      .map((x) => (x.kind === "reading" ? renderReading(x.r) : x.kind === "entry" ? renderCodeEntryFor(x.e, c) : renderBelief(x.b)));
+      .map((x) => (x.kind === "reading" ? renderReading(x.r, this.lineIndex.get(x.r.line)!) : x.kind === "entry" ? renderCodeEntryFor(x.e, c) : renderBelief(x.b)));
   }
 
   // ---- Retrieval (TD v0.5, Memory Writing → Retrieval) --------------------------------
@@ -641,7 +751,10 @@ export const KnowledgeVerdict = z.object({
 });
 
 /** Gate 8's code counts (TD v0.6): dropped entries by reason, sweep re-asks and gaps, hedge downgrades, repeated thoughts. */
-export function memoryCounts(memory: { dropped: { pass: string; reason: string }[]; notes?: { kind: string }[]; repairs?: unknown[] }, thoughts: { repeat?: boolean }[]) {
+export function memoryCounts(
+  memory: { dropped: { pass: string; reason: string }[]; notes?: { kind: string }[]; repairs?: unknown[]; readings?: { took?: string; own?: boolean }[]; labelLog?: { reason: string }[]; label_log?: { reason: string }[] },
+  thoughts: { repeat?: boolean; call?: string; took?: string; closing?: boolean }[],
+) {
   const by = <T>(xs: T[], key: (x: T) => string) => xs.reduce<Record<string, number>>((acc, x) => ((acc[key(x)] = (acc[key(x)] ?? 0) + 1), acc), {});
   return {
     dropped: memory.dropped.length,
@@ -649,6 +762,12 @@ export function memoryCounts(memory: { dropped: { pass: string; reason: string }
     notes: by(memory.notes ?? [], (n) => n.kind),
     repairs: memory.repairs?.length ?? 0,
     repeated_thoughts: thoughts.filter((t) => t.repeat).length,
+    // TD v0.9: think()'s labels, the readings built from them, and labels the attachment rule didn't store.
+    took: by(thoughts.filter((t) => t.call === "think" && t.took), (t) => t.took!),
+    closing_thinks: thoughts.filter((t) => t.closing).length,
+    readings: (memory.readings ?? []).length,
+    own_readings: (memory.readings ?? []).filter((r) => r.own).length,
+    labels_not_stored: by(memory.labelLog ?? memory.label_log ?? [], (e) => e.reason),
   };
 }
 
@@ -660,11 +779,29 @@ export function renderEntry(e: MemoryEntry, forChar?: CharacterName): string {
 }
 
 /**
- * TD v0.8's block 6 line for a reading: the speaker's exact words, then the character's reaction.
- * `T4 · Colloquio with Lupo · ★ you took it as a deal · Lupo: "…" · you thought: "…"`, or for the
- * character's own line `… · ★ your own promise · you said: "…" · you thought: "…"`.
+ * TD v0.9's block 6 line for a reading: turn, conversation type, speaker, a trimmed quote, and how
+ * the character took it: `T4 · Colloquio · ★ Lupo: "…" (you took it as a deal)`, or for the
+ * character's own line `T6 · Colloquio with Francesco Pazzi · ★ you: "…" (you meant it as a promise)`.
+ * A Colloquio line of the character's own names the other guest; otherwise only the type is shown.
  */
-export function renderReading(r: Reading): string {
+export function renderReading(r: Reading, line: GameLine): string {
+  const other = line.where.members.filter((m) => m !== r.character);
+  const label = r.own && line.where.kind === "colloquio" && other.length ? `Colloquio with ${other.join(", ")}` : conversationType(line.where);
+  const who = r.own ? "you" : r.speaker;
+  const how = r.own ? `you meant it as ${article(r.took)} ${r.took}` : `you took it as ${article(r.took)} ${r.took}`;
+  return `T${r.turn} · ${label} · ${r.salient ? "★ " : ""}${who}: "${trimQuote(line.text)}" (${how})`;
+}
+
+/** TD v0.9: the whole line if it's 15 words or fewer; otherwise its first 15 words and "…". */
+export function trimQuote(text: string, max = 15): string {
+  const words = text.trim().split(/\s+/);
+  return words.length <= max ? words.join(" ") : `${words.slice(0, max).join(" ")}…`;
+}
+
+const conversationType = (w: Where) => (w.kind === "colloquio" ? "Colloquio" : w.kind === "capannello" ? "Capannello" : "The gathering");
+
+/** TD v0.8's block 6 line for a 10e reading (replay-only perception mode). */
+export function renderPerceptionReading(r: PerceptionReading): string {
   const head = `T${r.turn} · ${whereLabel(r.where, r.character)} · ${r.salient ? "★ " : ""}`;
   const said = r.own ? `your own ${r.took} · you said: "${r.quote}"` : `you took it as ${article(r.took)} ${r.took} · ${r.speaker}: "${r.quote}"`;
   return `${head}${said}${r.reaction ? ` · you thought: "${r.reaction}"` : ""}`;
@@ -672,10 +809,13 @@ export function renderReading(r: Reading): string {
 
 const article = (kind: string) => (/^[aeiou]/.test(kind) ? "an" : "a");
 
-/** A code-written entry from the character's own side, in the second person ("You gave Lupo 3 Florins."). */
+/**
+ * A code-written entry in the perceived notebook, from the character's own side (TD v0.9:
+ * `T4 · Colloquio · ★ You gave Lupo 3 Florins.`): conversation type only, second person for the actor.
+ */
 export function renderCodeEntryFor(e: MemoryEntry, c: CharacterName): string {
   const summary = e.summary.startsWith(`${c} `) ? `You ${e.summary.slice(c.length + 1)}` : e.summary;
-  return `T${e.turn} · ${whereLabel(e.where, c)} · ${e.salient ? "★ " : ""}${summary}`;
+  return `T${e.turn} · ${conversationType(e.where)} · ${e.salient ? "★ " : ""}${summary}`;
 }
 
 export function renderBelief(b: Belief): string {
@@ -706,6 +846,22 @@ export function quoteIn(quote: string, text: string): boolean {
       .trim();
   const q = norm(quote);
   return q.length > 0 && norm(text).includes(q);
+}
+
+const num = (id: string) => Number(id.slice(1));
+
+/**
+ * TD v0.9's line for a label: the last spoken line, heard by the character, in the thought's
+ * conversation, at or before the line the thought followed (`after_line`). Null if there is none.
+ */
+export function labelLine(t: Thought, lines: GameLine[]): GameLine | null {
+  if (!t.after_line || !t.conversation) return null;
+  const upTo = num(t.after_line);
+  let best: GameLine | null = null;
+  for (const l of lines) {
+    if (l.kind === "speech" && l.conversation === t.conversation && num(l.id) <= upTo && l.heardBy.includes(t.character) && (!best || num(l.id) > num(best.id))) best = l;
+  }
+  return best;
 }
 
 /** Roster names (full or alias) written in a line, e.g. both parties of "Contessa Isabella gave Lupo 3 Florins." */

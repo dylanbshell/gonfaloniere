@@ -1,5 +1,5 @@
 // The mini-game engine (Models & Research v0.22, Mini-Game Spec), on
-// Technical Design v0.6's prompts and rules and Game Mechanics v0.20's
+// Technical Design v0.9's prompts and rules and Game Mechanics v0.20's
 // numbers. One evening round for six characters: an opening strategy call,
 // N turns of Capannelli and Colloquii, end-of-turn extraction passes, a
 // Murder Round call per character (logged, not resolved), and knowledge
@@ -11,13 +11,14 @@ import { allowedActionTypes, allowedActionsText, type ActionContext } from "../g
 import { ROSTER, factionOf, type CharacterName } from "../game/roster.ts";
 import { parseSpeak } from "../output/speak.ts";
 import { parseStrategy } from "../output/strategy.ts";
-import { parseThink } from "../output/think.ts";
+import { parseThink, type Took } from "../output/think.ts";
 import {
   assembleMovePrompt,
   assembleMurderPrompt,
   assemblePlanPrompt,
   assembleSpeakPrompt,
   assembleThinkPrompt,
+  thinkAsksTook,
   fill,
   speakHasAddressee,
   type AssembledPrompt,
@@ -102,6 +103,11 @@ export interface GameSettings {
   speakAppend?: string;
   /** TD v0.6 `drop_repeated_thoughts` (default true): an exact repeat of a character's previous thought is logged but kept out of shortTermHistory and the thought pass. */
   dropRepeatedThoughts?: boolean;
+  /**
+   * TD v0.8–v0.9 `notebook`: "perceived" (default) remembers what was said through readings built
+   * from think()'s `took`; "shared" retrieves the ★ and claims entries, as before v0.8.
+   */
+  notebook?: "perceived" | "shared";
   /** Knowledge checks at the end: (character, fact id). */
   checks: { character: CharacterName; fact: string }[];
 }
@@ -342,6 +348,8 @@ export class MiniGame {
     conv.utterances++;
 
     if (conv.kind === "colloquio" && (closing || conv.utterances >= cap)) {
+      // TD v0.9 closing think: both guests react to the last line before the Colloquio closes.
+      await this.thinkAll(conv, { closing: true });
       this.closeColloquio(conv, closing?.reason === "other-ended" ? "ended" : "cap");
       return true;
     }
@@ -358,30 +366,46 @@ export class MiniGame {
 
   private lastDone = new Map<CharacterName, boolean>();
 
-  /** think() for everyone present (TD: after every utterance), in parallel. */
-  private async thinkAll(conv: Conversation): Promise<void> {
+  /**
+   * think() for everyone present (TD: after every utterance), in parallel. `closing` (TD v0.9): the
+   * closing think after a Colloquio's last line, whose thought and `took` are kept while importance
+   * and done are ignored.
+   */
+  private async thinkAll(conv: Conversation, opts: { closing?: boolean } = {}): Promise<void> {
     conv.needsThink = false;
+    const asksTook = thinkAsksTook(this.docs.templates);
     await Promise.all(
       conv.members.map(async (c) => {
         const ctx = this.context(c);
         const p = assembleThinkPrompt(this.docs.templates, ctx);
         const out = await this.characterCall("think", c, p, (raw) => {
-          const r = parseThink(raw, { conversation: conv.kind, livingOthers: ctx.state.livingOthers, format: "td0.3" });
+          const r = parseThink(raw, { conversation: conv.kind, livingOthers: ctx.state.livingOthers, format: "td0.3", took: asksTook });
           const repairs = Object.entries(r.repairs ?? {})
             .filter(([, v]) => (Array.isArray(v) ? v.length > 0 : Boolean(v)))
             .map(([k]) => k);
           return { ok: r.repaired.verdict === "valid", value: r.repaired.value, repairs, error: r.repaired.errors[0] ?? null };
         });
         if (!out) {
-          // TD default: importance 0, done false, thought omitted.
-          conv.importance.set(c, 0);
-          this.lastDone.set(c, false);
+          // TD default: importance 0, done false, took none; thought omitted.
+          if (!opts.closing) {
+            conv.importance.set(c, 0);
+            this.lastDone.set(c, false);
+          }
+          this.events.push({ turn: this.turn, type: "think-default", character: c, conversation: conv.id, took: asksTook ? "none" : undefined, ...(opts.closing && { closing: true }) });
           return;
         }
-        const v = out as { thought: string; importance: number; done?: boolean | null };
-        conv.importance.set(c, v.importance);
-        this.lastDone.set(c, conv.kind === "colloquio" && Boolean(v.done));
-        this.addThought(c, "think", v.thought, { importance: v.importance, done: v.done ?? null, conversation: conv.id });
+        const v = out as { thought: string; importance: number; done?: boolean | null; took?: Took };
+        if (!opts.closing) {
+          conv.importance.set(c, v.importance);
+          this.lastDone.set(c, conv.kind === "colloquio" && Boolean(v.done));
+        }
+        this.addThought(
+          c,
+          "think",
+          v.thought,
+          { importance: v.importance, done: v.done ?? null, conversation: conv.id },
+          { conversation: conv.id, ...(v.took && { took: v.took }), ...(opts.closing && { closing: true }) },
+        );
       }),
     );
   }
@@ -583,6 +607,11 @@ export class MiniGame {
   /** TD v0.6 Memory Writing: ★ pass and claims pass per conversation active this turn, thought pass per character. */
   private async extraction(): Promise<void> {
     const thoughts = this.thoughts.filter((t) => t.turn === this.turn && !t.repeat);
+    // TD v0.9: readings come from think()'s `took`, written by code for each character (perceived only).
+    if ((this.s.notebook ?? "perceived") === "perceived") {
+      const r = this.memory.writeReadings(this.turn, this.thoughts, this.lines);
+      this.events.push({ turn: this.turn, type: "readings", stored: r.stored.map((x) => x.id), logged: r.logged.map((x) => `${x.character} ${x.thought}: ${x.reason}`) });
+    }
     await this.recorder.turn(this.turn, this.lines, thoughts);
   }
 
@@ -642,7 +671,11 @@ export class MiniGame {
         withdrawalCount: me.withdrawals,
         ...(me.feedback && { actionFeedback: me.feedback }),
       },
-      longTermMemory: this.memory.retrieve(c, present.length ? present : others, history.slice(-2).map((l) => l.text), { murder: opts.gathering }),
+      // TD v0.9: in "perceived", block 6 is the notebook (readings and code entries); the reference record is never shown.
+      longTermMemory:
+        (this.s.notebook ?? "perceived") === "perceived"
+          ? this.memory.retrieveNotebook(c, present.length ? present : others, history.slice(-2).map((l) => l.text), { murder: opts.gathering })
+          : this.memory.retrieve(c, present.length ? present : others, history.slice(-2).map((l) => l.text), { murder: opts.gathering }),
       shortTermThoughts: me.thoughts.slice(-this.s.thoughtWindow),
       history: history.map(toHistoryLine),
     };
@@ -776,16 +809,16 @@ export class MiniGame {
     this.memory.addEntry({ turn: this.turn, conversation: conv.id, where: line.where, type, speaker: actor, toward: null, about: [actor], summary: text, quote: null, lines: [line.id], audience: [actor], source: "code" });
   }
 
-  private addThought(c: CharacterName, call: string, text: string, extra: Record<string, unknown> = {}): void {
+  private addThought(c: CharacterName, call: string, text: string, extra: Record<string, unknown> = {}, fields: Pick<Thought, "took" | "conversation" | "closing"> = {}): void {
     // TD v0.6 shortTermHistory: an exact repeat of the previous thought is logged and counted, not shown again.
     const previous = this.thoughts.findLast((t) => t.character === c);
     const repeat = (this.s.dropRepeatedThoughts ?? true) && !!previous && sameThought(previous.text, text);
     // TD v0.8: every thought keeps the line the character had last heard; for think(), the line it reacts to.
     const after_line = this.char(c).lines.at(-1)?.id ?? null;
-    const t: Thought = { id: `T${this.nextThought++}`, turn: this.turn, character: c, call, text, after_line, ...(repeat && { repeat: true }) };
+    const t: Thought = { id: `T${this.nextThought++}`, turn: this.turn, character: c, call, text, after_line, ...fields, ...(repeat && { repeat: true }) };
     this.thoughts.push(t);
     if (!repeat) this.char(c).thoughts.push(text);
-    this.events.push({ turn: this.turn, type: "thought", thought: t.id, character: c, call, text, after_line, ...(repeat && { repeat: true }), ...extra });
+    this.events.push({ turn: this.turn, type: "thought", thought: t.id, character: c, call, text, after_line, ...fields, ...(repeat && { repeat: true }), ...extra });
   }
 
   private snapshot(label: string): void {
