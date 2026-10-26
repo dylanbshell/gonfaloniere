@@ -1,8 +1,27 @@
 # Gonfaloniere
 ## Models & Research — Working Document
-### Version 0.30
+### Version 0.34
 
 ---
+
+## Changes in v0.34
+
+- **v0.12 re-check and v0.13 dry run logged in full** from Claude Code's own reports, replacing the entry built from Technical Design's summaries. New detail: `insult` took share mainly from claim (−8 points) and threat (−4); characters choose their words rather than copying openings (6.3% start at the line's first word); a third of hand-read threats were read as pressure or a rebuff rather than menace. Nothing changes the v0.14 test plan
+
+## Changes in v0.33
+
+- **Logged the v0.12 re-check and the v0.13 dry run** (Oct 26, from Technical Design's summaries; Claude Code's full v0.12 report went to Technical Design). v0.12 failed its own-line bars on one cause: after speaking, `think()` reacts to the line being answered, so own-line labels and words were about the other speaker (own-line right line 14 of 30). Mixed readings fit 28 of 30, gate 1 held, and `insult` did its job. TD v0.13 moved own-line labels into `speak()`; its dry run was clean. See Findings Log
+- **Test plan for TD v0.14** (Open Questions, "Perceived notebook"): 4 DeepSeek games on seeds 2000–2003, bars for own readings from `speak()`, no-regression bars for readings from `think()`, targeted hand-reads of the two new code paths (wrong-line drops and later different labels), and a **leak check**: the `cal5` secrets judge on the 4 games against the Oct 24 DeepSeek games on the same seeds, since `speak()` carries the secret-keeping lines and this is the first change to its output. Cap $2.50
+
+## Changes in v0.32
+
+- **Logged the v0.10 re-check** (Oct 26, from Technical Design's summary of PR #12): naming the line fixed attachment (0 of 533 readings off the named line; mixed hand-read 20 of 20 fit, own-line 17 of 20). New problem: the 15-word trim cut the part the label rests on in 11 of 20 own-line readings. See Findings Log
+- **Test plan for TD v0.12** (`words` and `insult`, one run): hand-reads raised to 30 own-line and 30 mixed, plus a targeted read of insult and threat readings, since hand-reads cost no API calls. Bars scaled to match (≥26 of 30). Added a check that characters don't just copy a line's opening words. Both changes share one run; if a no-regression bar fails, they're split
+
+## Changes in v0.31
+
+- **Logged the first test of TD v0.9's `took`** (Oct 26, 3 DeepSeek mini-games, $0.37; reported to Technical Design first, logged here now). Characters labelling their own lines works far better than a recorder: **gate 1 held (0 repairs in 915 `think()` calls)**, 12 of 20 hand-read readings fit the character's thought, 4 were the character's own odd labels, and none can be a recorder error, since there is no recorder. The one flaw: all 4 wrong-line readings were on the character's own line, which TD v0.10 fixes by naming the line. No sign of priming (mean importance 48.6 against 51.2), and games cost less ($0.11 against $0.14). See Findings Log
+- **v0.10 re-check** set up with Technical Design: the same 3 seeds, with own-line readings hand-read separately
 
 ## Changes in v0.30
 
@@ -852,7 +871,31 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
     - Run 1 fails, run 2 passes → **split:** DeepSeek plays, GPT-5.4 keeps the record. Report the added cost per game; Technical Design to adopt
     - Both fail → it's a limit of the task, not the model. Keep v0.7 with DeepSeek, log the measured error rates as a known limit in the research data, and move on. Revisit only if full games show memory errors changing outcomes
   - Total ~$5.25; mini-game ledger stays under $25
-- [ ] **Perceived notebook:** replay checks (a)–(c) done Oct 26 (10e mislabels; readings too long). Waiting on Technical Design's answer. If `think()` takes over the label, check it on 3 new DeepSeek mini-games (~$0.50 of play, no judge): hand-read 20 readings with the same three calls, plus readings per character per turn. Then (d)–(i) in the first full games. See Perceived Notebook Tests. No more spend on gate 8
+- [ ] **Perceived notebook:** replay checks (a)–(c) done Oct 26 (10e mislabels). v0.9–v0.12 tested Oct 26 (Findings Log): labels on others' lines land on the right line and fit the thought; own lines needed `speak()`. **v0.14 re-check** (TD v0.13 and v0.14: own lines labelled in `speak()` as `meant` and `words`; wrong-line words dropped; 20-word cap):
+  - **Games:** 4 DeepSeek mini-games, seeds 2000–2003, `notebook: perceived`. All bars count all 4 games. Hand-read samples are drawn across all 4
+  - **Own readings, from `speak()`** (hand-read 30, seed 20261030):
+    - right line: ≥29 of 30 (code attaches them to the utterance itself, so a miss is a bug)
+    - key part kept (the commitment, harm, terms, or admission the label rests on): ≥26 of 30
+    - label fits the speaker's thought just before speaking: ≥26 of 30
+    - `speak()` words found in the utterance: ≥95% of labelled lines (copied from text just written)
+  - **Readings on others' lines, from `think()`** (hand-read 30 mixed, seed 20261026), no regression from v0.12:
+    - fit the thought: ≥26 of 30; key part kept: ≥26 of 30; 0 wrong-line readings stored
+    - `think()` words found, counting "same speaker, earlier line" as found: ≥90% of labelled calls
+  - **Gate 1:** `think()` and `speak()` repairs at or near 0 (≤0.5% of calls each)
+  - **Targeted hand-reads of the new code paths** (report only):
+    - up to 15 "wrong-line words" drops (seed 20261031): was dropping right (the label and words really were about the other line)?
+    - up to 15 "later different label" cases after an own line (seed 20261032): does the later label reflect a real change of mind, or noise?
+  - **Report only:**
+    - rates of "wrong-line words" drops, "same speaker, earlier line" keeps, and words fallbacks, for `think()` and `speak()` separately
+    - how often a hand-read reading's words hit the 20-word cap, and whether the key part was cut
+    - share of `think()` calls after an own line that add a different label to the answered line
+    - `speak()` output tokens per call; mean words per utterance and share over the 60-word limit, against the Oct 24 games (does labelling change how characters talk?)
+    - label mix for `took` and for `meant` separately; own readings per character per game against v0.10's 129 own readings in 3 games
+  - **Leak check:** the `cal5` r3 secrets judge on the 4 games, against the already-judged Oct 24 DeepSeek games on the same seeds (leak lines, lies, per-secret first-leak turn). 4 games can only show a large change, so the bar is a flag, not a pass line: **flag if leak lines are more than double the same-seed baseline, or any secret falls before turn 3 that didn't on Oct 24.** A flag means a larger leak test before the full games, not a rollback
+  - **Budget:** play ~$0.45 plus judging, capped at **$2.50** for the run (estimate first). Mini-game ledger $30.03 of $35
+  - **If own lines fail:** Technical Design's fallback (v0.14 Open Questions): drop own readings from the notebook and keep `meant` in the record for research. **If `think()` words fail:** render the whole line for ★ readings only
+
+  Then (d)–(i) in the first full games. See Perceived Notebook Tests. No more spend on gate 8
 - [ ] Should "Mine's for hire" count as revealing Lupo's trade (F5)? The knowledge check said *told*; the secrets judge said no leak. Align the two judges before the full game
 
 ---
@@ -860,6 +903,104 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 ## Findings Log
 
 *Record each test result here: date, model, provider and quantization, prompt and briefing versions, gate tested, result, and what it changes. Tooling and price checks go in Tooling Status, not here.*
+
+### 2026-10-26 — `words` and `insult` re-check (TD v0.12); v0.13 dry run
+
+**Setup:** TD v0.12 (`insult` label; `words`, at most 12, checked against the line `{took_target}` names, with a 15-word fallback). DeepSeek V4.1 Flash, Characters v0.4 with the stand-ins, `notebook: perceived`, no judge. Seeds 2000–2002 for the bars, seed 2003 reported separately. PR #12 at 8658293, 41 tests. Spend **$0.46**. Claude Code ran 2003 only after checking that actual spend plus its estimate stayed under the $0.60 cap, since the 4-game estimate ($0.62) carried an outdated 25% margin.
+
+**Pass bars (seeds 2000–2002): failed.**
+
+| Bar | Result | |
+|---|---|---|
+| `words` found in the line, ≥90% | 83.3% (429 of 515) | ✗ |
+| Key part kept, own-line ≥26/30 | 14 of 30 | ✗ |
+| Key part kept, mixed ≥26/30 | 25 of 30 | ✗ (by 1) |
+| 0 wrong-line readings | 16 own-line + 2 mixed in the samples | ✗ |
+| Mixed fits the thought ≥26/30 | 28 of 30 | ✓ |
+| `think()` repairs ~0 | 0 of 926, 0 retries | ✓ |
+
+**The cause: own lines.** Of 80 "not in line" fallbacks, 77 were traced:
+- **52:** the prompt named the character's own line, but the words came from the other speaker's earlier line, and the thought was about that line. After speaking, `think()` reacts to the line it was answering
+- **7:** the prompt named another speaker's line, but the words came from a third speaker's line
+- **18:** the words came from an earlier line by the same speaker, usually harmless
+
+Code stored every reading on the line it named (0 of 493 off), so this was a prompt problem, not a code one. One case was a rule problem: a character's real last line was in the Colloquio they had just left.
+
+**Hand-reads:**
+- **Own lines (30):** right line 14, key part 14, fits the thought 28. All 16 wrong-line cases had words copied from another line
+- **Mixed (30):** right line 28, key part 25, fits 28. Key part lost to the 12-word cut where the point came at the end of the line (M5 lost the terms; M21 lost the key word)
+- **Insult (15):** every thought treated the line as a slight ("only needled", "a parting jab, not a blade"). 4 were wrong-line
+- **Threat (15):** 9 read the line as menace, 4 as pressure, accusation, a warning, or a rebuff, and 2 as a barb (wrong-line)
+
+**Measures, v0.10 vs v0.12 (seeds 2000–2002):**
+
+| Measure | v0.10 | v0.12 |
+|---|---|---|
+| `took` share of all `think()` calls | none 38.8%, claim 27.9%, threat 14.2%, deal 7.4%, promise 6.0%, denial 4.0%, admission 1.7% | none 44.4%, claim 19.5%, **insult 10.6%**, threat 9.9%, deal 7.6%, promise 4.9%, denial 1.9%, admission 1.2% |
+| Claim share of labelled lines (flag >37%) | 45.7% | 35.1% |
+| Words: found / cut at 12 / start at the line's first word | – | 83.3% / 17.5% / 6.3% |
+| `think()` output tokens | 147.7 | 157.6 |
+| `speak()` output tokens (mean / max) | – | 81.9 / 113 |
+| Block 6 tokens (median / max); readings shown | 433 / 450; 7 | 381 / 450; 7 (max 12) |
+| Cost per game | $0.108–0.116 | $0.112–0.121 |
+
+**Seed 2003 (separate):** words found 84.4% (18 of 25 not-in-line cases on own-line targets), 20.4% cut at 12; label mix none 40.4%, claim 20.4%, threat 17.1%, deal 9.3%, promise 7.5%, insult 2.5%; hand-read of 10: key part 7, fits 9, right line 9.
+
+**v0.13 dry run** (1 game, 3 turns, seed 2000, $0.04; PR #12 at ea5198d, 49 tests): own-line labels moved to `speak()` (`meant`, `words`). All 36 `speak()` calls returned both fields; 12 labelled (claim 6, insult 4, threat 1, denial 1), all words found. Own readings 12 of 12 from `speak()`. Every `think()` after an own line named the answered line (36 of 36). `think()` words found in 42 of 43 labelled calls, 2 cut at 20, and 1 wrong-line drop (an earlier line by the same speaker, kept from v0.14 on). Repairs 0 on both calls. `speak()` output 92.1 tokens per call (max 120 of 200), up from 81.9. Mini-game ledger **$30.03 of $35**; OpenRouter $11.51.
+
+**What it shows:**
+- **A character's private reaction belongs to what was said *to* them; what they meant by their own words belongs to the moment of saying them.** TD v0.13–v0.14 now take each label from the call where that judgement is actually made
+- **`insult` works as intended:** it gave jabs somewhere to go, and threat and claim shrank. On every hand-read insult the thought agreed it was a slight
+- **Characters really choose their words** (6.3% start at the line's opening), so `words` carries information a trim can't
+- **"Threat" is still used loosely** for pressure and rebuffs in about a quarter of cases. That's the character's reading, so it's a research measure, not an error
+- **The 12-word cap was too tight** (17.5% cut, often losing the point), raised to 20 in v0.13
+
+**What it changed:** TD v0.13 (own lines in `speak()`, wrong-line words dropped, 20-word cap) and v0.14 (same-speaker earlier line kept, new none text, closing think kept). Re-check set up (Open Questions).
+
+### 2026-10-26 — `took` re-check on TD v0.10: 3 DeepSeek mini-games
+
+*Logged from Technical Design's summary of Claude Code's report (PR #12, TD v0.11 changelog); the full report went to Technical Design.*
+
+**Setup:** as for v0.9 (seeds 2000–2002, `notebook: perceived`, no judge), with block 9a naming the line being labelled (`{took_target}`: "how you take Lupo's last line" / "what you meant by your own last line") and block 6 at ~450 tokens. Spend $0.34; mini-game ledger $29.53 of $35; OpenRouter ~$2.01.
+
+**Results:**
+- **Gate 1:** 0 `think()` repairs in 890 calls
+- **Attachment fixed:** 0 of 533 readings stored off the line the prompt named
+- **Mixed hand-read:** 20 of 20 fit the thought (v0.9: 12)
+- **Own-line hand-read:** 17 of 20 fit, 0 on the wrong line. The 3 misfits were all labelled *threat* on lines the character's own thought called barbs, an insinuation, or a challenge
+- **Threat share** of labels: 14%
+- **New problem, the trim:** cutting quotes to the first 15 words removed the part the label rests on in 11 of 20 own-line and 4 of 20 mixed readings. A 20-word cap would have recovered 1 of the 14 cut cases, 25 words only 3
+
+**What it changes:** Technical Design v0.11 has each character copy the words (at most 12) that made it take the line so (`words`), with the trim as a logged fallback. v0.12 adds an `insult` label (not ★) for hostile lines that threaten no harm, at Dylan's suggestion. Both re-checked in one run (Open Questions).
+
+### 2026-10-26 — `took` in `think()` (TD v0.9): 3 DeepSeek mini-games
+
+**Setup:** TD v0.9 (block 10e removed; `think()` returns `took`, one of six kinds or none; code attaches it to the last spoken line by a fixed rule; closing think after a Colloquio's last line). DeepSeek V4.1 Flash, Characters v0.4 with the stand-ins, `notebook: perceived`, seeds 2000–2002 (the Oct 24 seeds), no judge. Code: PR #12 on `minigame/runner`, 20 unit tests. Dry run 1 game, 3 turns, $0.04. Games $0.33. Mini-game ledger **$29.20 of $35**; OpenRouter balance ~$2.35.
+
+**Gate 1:** all 915 `think()` calls returned a valid `took`; **0 repairs** (Oct 24 baseline: 0 of 1,501).
+
+**Labels:** none 38%, claim 37%, threat 10%, deal 7%, promise 4%, denial 3%, admission 1%. 550 readings, 3.8 per character per turn (10e gave 5.4–6.5). Own-line readings 1–13 per character per game. 12 closing thinks fired, 9 with a label. 18 labels not stored: 13 the same label again, 3 a later different label, 2 no spoken line.
+
+**Hand-read** (20 readings, seed 20261026): **12 fit** the character's thought, **4 don't fit** it (e.g. a brother silencing Lupo labelled *claim*; a challenge labelled *threat* that the thought shrugs off), **4 wrong line**. All 4 wrong-line readings are on the character's **own** line: the rule attached the label to their own last line, but the model labelled the line it was answering.
+
+**Side effects** (against Oct 24, same seeds):
+
+| Measure | v0.9 | Oct 24 |
+|---|---|---|
+| `think()` repair rate | 0% | 0% |
+| Mean importance per line | 48.6 | 51.2 |
+| Output tokens per `think()` | 143 | 140 |
+| Cost per game | $0.107–0.114 | $0.134–0.145 |
+
+**Block 6:** real readings run a median of ~40 tokens, so ~7 fit in 300 tokens; a 12-line retrieval is ~450.
+
+**What it shows:**
+- **Moving the label into `think()` works.** Against v0.8's recorder (9 personal readings, 11 recorder errors), v0.9 has 12 fits, and the 4 "doesn't fit" labels are the character's own, which is a finding about the character, not an error in the record. Only the attachment of own-line labels is wrong, and that's a prompt fix
+- **No priming:** asking every character how it took each line didn't make them more agitated (importance slightly lower) and didn't break the output format
+- **"Claim" works as a catch-all** (37% of all labels). The prompt's "most lines are none" isn't followed (62% labelled). Accepted by Technical Design for now: ★ readings come first in retrieval, and the label rate is itself a research measure
+- **Cheaper than before:** dropping the clerk's perception pass more than pays for the extra closing thinks
+
+**What it changes:** Technical Design v0.10 names the line in the prompt (`{took_target}`: "how you take Lupo's last line" / "what you meant by your own last line"), raises block 6 to ~450 tokens, and trims Il Notaio entries. Re-check on the same seeds, with own-line readings hand-read separately.
 
 ### 2026-10-26 — Perceived notebook replay checks (a)–(c)
 
