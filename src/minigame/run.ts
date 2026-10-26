@@ -306,7 +306,7 @@ async function main(): Promise<void> {
 /**
  * --estimate: projected cost from saved games played by the same model (originals, not replays):
  * mean cost per turn times the turns asked, plus the mean end-of-game cost (Murder Round and
- * knowledge checks), times the games, plus a margin for TD v0.9's `took` and closing thinks. No calls.
+ * knowledge checks), times the games, plus a small margin for TD v0.13's speak() fields. No calls.
  */
 function estimate(): void {
   const slug = config.models.find((m) => m.id === opts.model)?.slug;
@@ -326,9 +326,11 @@ function estimate(): void {
   const games = Number(opts.games);
   const turns = Number(opts.turns);
   const base = games * (mean(perTurn) * turns + mean(endCost));
-  const margin = 0.25;
+  // Recent saved games already include TD v0.9's `took` and closing thinks. TD v0.13 adds speak()'s `meant` and
+  // `words` (about +15 output tokens on ~96 speak() calls a game, ~2% of cost; v0.12's +10 per think() was +3.6%).
+  const margin = 0.05;
   console.log(
-    `Estimate (no calls): ${games} game(s) × ${turns} turns on ${opts.model}, from ${perTurn.length} saved games: $${mean(perTurn).toFixed(4)} per turn, $${mean(endCost).toFixed(4)} end of game → $${base.toFixed(3)}; with a ${margin * 100}% margin for took and closing thinks, $${(base * (1 + margin)).toFixed(3)}. Ledger $${priorSpend(OUT).toFixed(2)} of $${MINIGAME_TOTAL_USD}.`,
+    `Estimate (no calls): ${games} game(s) × ${turns} turns on ${opts.model}, from ${perTurn.length} saved games: $${mean(perTurn).toFixed(4)} per turn, $${mean(endCost).toFixed(4)} end of game → $${base.toFixed(3)}; with a ${margin * 100}% margin for speak()'s meant and words, $${(base * (1 + margin)).toFixed(3)}. Ledger $${priorSpend(OUT).toFixed(2)} of $${MINIGAME_TOTAL_USD}.`,
   );
 }
 
@@ -442,7 +444,7 @@ function buildRecord(
       calls: game.calls.length,
       cost_usd: game.calls.reduce((s, c) => s + c.costUsd, 0),
       rate_limit_retries: x.retries,
-      memory: memoryCounts(game.memory, game.thoughts),
+      memory: memoryCounts(game.memory, game.thoughts, game.lines),
       tokens: game.calls.reduce((s, c) => s + c.inputTokens + c.outputTokens, 0),
       by_call_kind: Object.fromEntries(byKind),
       turns: game.events.filter((e) => e.type === "turn-end"),
@@ -465,8 +467,10 @@ function transcript(game: MiniGame, gameId: string): string {
     if (e.type === "speech" || e.type === "notaio") {
       const l = lineById.get(e.line as string)!;
       out.push(`- \`${l.id}\` *${whereLabel(l.where)}* — ${formatLine(l)}`);
+      // TD v0.13: what the speaker meant by it.
+      if (l.meant && l.meant !== "none") out.push(`  - *${l.speaker} meant it as ${l.meant}${l.words ? `: "${l.words}"` : l.words_log?.fallback ? ` (words fallback: ${l.words_log.fallback})` : ""}*`);
     }
-    if (e.type === "thought" && e.call !== "plan") out.push(`  - *${e.character} thinks (${e.closing ? "closing think" : e.call}${e.took !== undefined ? `, took ${e.took}${e.words ? `, words "${e.words}"` : (e.words_log as { fallback?: string } | undefined)?.fallback ? `, words fallback (${(e.words_log as { fallback: string }).fallback})` : ""}${e.took_target ? ` (asked about ${e.took_target === "own" ? "own line" : e.took_target === "other" ? `${e.target_line}` : "no line"})` : ""}` : ""}${e.importance !== undefined && !e.closing ? `, importance ${e.importance}` : ""}${e.done && !e.closing ? ", done" : ""}${e.repeat ? ", exact repeat: not shown again" : ""}):* ${e.text}`);
+    if (e.type === "thought" && e.call !== "plan") out.push(`  - *${e.character} thinks (${e.closing ? "closing think" : e.call}${e.took !== undefined ? `, took ${e.took}${e.words ? `, words "${e.words}"` : (e.words_log as { wrong_line?: string } | undefined)?.wrong_line ? `, wrong-line words (in ${(e.words_log as { wrong_line: string }).wrong_line})` : (e.words_log as { fallback?: string } | undefined)?.fallback ? `, words fallback (${(e.words_log as { fallback: string }).fallback})` : ""}${e.took_target ? ` (asked about ${e.took_target === "own" ? "own line" : e.took_target === "other" ? `${e.target_line}` : "no line"})` : ""}` : ""}${e.importance !== undefined && !e.closing ? `, importance ${e.importance}` : ""}${e.done && !e.closing ? ", done" : ""}${e.repeat ? ", exact repeat: not shown again" : ""}):* ${e.text}`);
     if (e.type === "readings" && ((e.stored as string[]).length || (e.logged as string[]).length)) out.push(`- *readings: ${(e.stored as string[]).join(", ") || "none"}${(e.logged as string[]).length ? `; labels not stored: ${(e.logged as string[]).join("; ")}` : ""}*`);
     if (e.type === "bribe") out.push(`  - **[${e.from} gave ${e.to} ${e.amount} Florins.]**`);
     if (e.type === "borrow" || e.type === "repay") out.push(`  - **[${e.character}: ${e.type}${e.holder ? ` for ${e.holder}` : ""}]** (private)`);

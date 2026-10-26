@@ -57,12 +57,14 @@ export function normalizeTook(raw: unknown): { took: Took; unknown: boolean } {
 }
 
 export interface WordsLog {
-  /** More than 12 words were given, and they were cut at 12 before the check. */
+  /** More than the cap (12, or 20 from TD v0.13) were given, and they were cut before the check. */
   cut?: boolean;
   /** "words fallback": the reading uses the first-15-words trim instead. */
   fallback?: "missing" | "not in line" | "no line";
   /** Words given with a `none` label, which are dropped. */
   ignored?: boolean;
+  /** TD v0.13 "wrong-line words": not in the named line but in this other line the character heard; the reading is dropped. */
+  wrong_line?: string;
   /** As the character wrote them, when they weren't used as given. */
   raw?: unknown;
 }
@@ -99,7 +101,13 @@ function normalize(text: string): { text: string; at: number[] } {
  * normalizing spaces, quote marks, and case, at word boundaries. The words returned are the
  * line's own text for that span. Missing, null, or not in the line → null, "words fallback".
  */
-export function checkWords(raw: unknown, took: Took, line: string | null): { words: string | null; log: WordsLog | null } {
+export function checkWords(
+  raw: unknown,
+  took: Took,
+  line: string | null,
+  opts: { cap?: number; others?: { id: string; text: string }[] } = {},
+): { words: string | null; log: WordsLog | null } {
+  const cap = opts.cap ?? 12;
   const given = typeof raw === "string" && raw.trim() !== "" && raw.trim().toLowerCase() !== "null";
   if (took === "none") return { words: null, log: given ? { ignored: true, raw } : null };
   if (!given) return { words: null, log: { fallback: "missing", raw: raw ?? null } };
@@ -108,23 +116,30 @@ export function checkWords(raw: unknown, took: Took, line: string | null): { wor
   let w = (raw as string).trim().replace(/^["'\u2018\u2019\u201C\u201D«»]+|["'\u2018\u2019\u201C\u201D«»]+$/g, "").trim();
   const tokens = w.split(/\s+/);
   let n = 0;
-  const end = tokens.findIndex((t) => isWord(t) && ++n === 12);
+  const end = tokens.findIndex((t) => isWord(t) && ++n === cap);
   const cut = end !== -1 && tokens.slice(end + 1).some(isWord);
   if (cut) w = tokens.slice(0, end + 1).join(" ");
   const needle = normalize(w).text;
-  const hay = normalize(line);
+  const words = findWords(needle, line);
+  if (words !== null) return { words, log: cut ? { cut: true, raw } : null };
+  // TD v0.13: found in another line the character heard → the label was about that line.
+  const other = opts.others?.findLast((o) => findWords(needle, o.text) !== null);
+  if (other) return { words: null, log: { ...(cut && { cut: true }), wrong_line: other.id, raw } };
+  return { words: null, log: { ...(cut && { cut: true }), fallback: "not in line", raw } };
+}
+
+/** The span of `text` that matches the normalized `needle` at word boundaries, as written in `text`; null if none. */
+function findWords(needle: string, text: string): string | null {
+  const hay = normalize(text);
   let from = 0;
   while (needle && (from = hay.text.indexOf(needle, from)) !== -1) {
     const before = hay.text[from - 1];
     const after = hay.text[from + needle.length];
     const bounded = (c: string | undefined, edge: string) => c === undefined || !/[\p{L}\p{N}]/u.test(c) || !/[\p{L}\p{N}]/u.test(edge);
-    if (bounded(before, needle[0]!) && bounded(after, needle.at(-1)!)) {
-      const words = line.slice(hay.at[from], hay.at[from + needle.length - 1]! + 1);
-      return { words, log: cut ? { cut: true, raw } : null };
-    }
+    if (bounded(before, needle[0]!) && bounded(after, needle.at(-1)!)) return text.slice(hay.at[from], hay.at[from + needle.length - 1]! + 1);
     from++;
   }
-  return { words: null, log: { ...(cut && { cut: true }), fallback: "not in line", raw } };
+  return null;
 }
 
 /** Strict JSON Schema for constrained decoding; `done` is fixed by conversation type. */
@@ -154,8 +169,12 @@ export interface ThinkExpectation {
   format?: "td0.2" | "td0.3";
   /** TD v0.9: the prompt asks for `took`, so it's read (and a missing one repaired). */
   took?: boolean;
-  /** TD v0.11: the prompt asks for `words`; they're checked against this line (null: no spoken line). */
-  words?: { line: string | null };
+  /**
+   * TD v0.11: the prompt asks for `words`; they're checked against this line (null: no spoken line).
+   * `cap`: the most words kept (12 in v0.11–v0.12, 20 from v0.13). `others`: the other lines the
+   * character heard, for TD v0.13's wrong-line rule.
+   */
+  words?: { line: string | null; cap?: number; others?: { id: string; text: string }[] };
 }
 
 export type ThinkVerdict =
@@ -486,7 +505,7 @@ function parseThinkV3(raw: string, expect: ThinkExpectation): ThinkParseResult {
   // TD v0.9: `took` never fails a call; missing or unknown becomes none, counted as a repair.
   const took = expect.took ? normalizeTook(v.took) : null;
   // TD v0.11: `words` never fails a call either; it's kept only when it's found in the line.
-  const words = took && expect.words ? checkWords(v.words, took.took, expect.words.line) : null;
+  const words = took && expect.words ? checkWords(v.words, took.took, expect.words.line, expect.words) : null;
   const asIs: ThinkOutput = {
     thought: v.thought,
     importance: v.importance,

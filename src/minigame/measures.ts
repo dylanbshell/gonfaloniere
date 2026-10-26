@@ -370,7 +370,7 @@ function codeMeasures(rec: GameRecord) {
       stalls: rec.events.filter((e) => e.type === "stall").length,
     },
     format,
-    memory: { entries: rec.memory.entries.filter((e) => e.type !== "event").length, beliefs: rec.memory.beliefs.length, dropped: rec.memory.dropped.length, droppedByReason, repairs: rec.memory.repairs?.length ?? 0, counts: memoryCounts(rec.memory, rec.thoughts) },
+    memory: { entries: rec.memory.entries.filter((e) => e.type !== "event").length, beliefs: rec.memory.beliefs.length, dropped: rec.memory.dropped.length, droppedByReason, repairs: rec.memory.repairs?.length ?? 0, counts: memoryCounts(rec.memory, rec.thoughts, rec.lines) },
     knowledge: rec.knowledge_checks.map((k) => ({ character: k.character, fact: k.fact, verdict: k.verdict?.verdict ?? "none", toldBy: k.verdict?.told_by ?? [], flags: k.flags, knewAtStart: (KNOWS_AT_START[k.fact] ?? []).includes(k.character as CharacterName) })),
     cost: { usd: rec.summary.cost_usd, tokens: rec.summary.tokens, wallMinutes: rec.summary.wall_ms / 60000, perTurn: rec.summary.turns.map((t) => ({ turn: t.turn, usd: t.costUsd, seconds: t.ms / 1000, calls: t.calls })) },
   };

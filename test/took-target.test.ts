@@ -83,16 +83,20 @@ test("TD v0.10 loads (from git history): 9a has {took_target}, and thinkAsksTook
   assert.match(v10.templates.think, /\n2\. took — \{took_target\}, in one word: promise, deal, threat, admission, claim, denial, or none\./);
 });
 
-test("in play, every think() prompt names the line its reading is stored on (closing thinks included)", async () => {
+/** Plays 3 turns of the real engine on `d` with a fake caller; returns the game and every think() prompt. */
+async function playWith(d: typeof docs) {
   const prompts: { character: string; user: string }[] = [];
+  const speaks: string[] = [];
   const caller: Caller = async (req: CallRequest) => {
+    if (req.kind === "speak") speaks.push(req.user);
     const colloquio = req.user.includes('"done": false}');
     const others = CAST.filter((c) => c !== req.character);
     if (req.kind === "think") prompts.push({ character: req.character!, user: req.user });
+    const said = { utterance: "A fine evening.", meant: "promise", words: "A fine evening", action: null };
     const content = {
       plan: () => ({ thought: "A plan.", plan: "Goals: win. Threats: all. Next moves: talk." }),
       think: () => ({ thought: `Thinking ${prompts.length}.`, took: "promise", words: "fine evening", importance: 50, ...(colloquio && { done: false }) }),
-      speak: () => (req.user.includes('"addressee"') ? { addressee: null, utterance: "A fine evening.", action: null } : { utterance: "A fine evening.", action: null }),
+      speak: () => (req.user.includes('"addressee"') ? { addressee: null, ...said } : said),
       move: () => ({ thought: "Move.", contacts: others.map((n) => ({ name: n, urgency: 50, purpose: null })), choice: "colloquio", target: others[0] }),
       murder: () => "x",
       "star-pass": () => ({ sweep: [], entries: [] }),
@@ -105,7 +109,7 @@ test("in play, every think() prompt names the line its reading is stored on (clo
     return { ok: true, content: typeof content === "string" ? content : JSON.stringify(content), error: null, costUsd: 0, inputTokens: 0, outputTokens: 0, latencyMs: 0, provider: "fake", model: "fake" };
   };
   const g = new MiniGame(
-    docs,
+    d,
     {
       cast: CAST, briefings, seed: 11, turns: 3, utterancesPerTurn: 12, historyWindow: 10, thoughtWindow: 4, maxCapannello: 4,
       maxTokens: { plan: 400, think: 250, speak: 200, move: 500, murder: 300, "star-pass": 1800, "claims-pass": 1000, "sweep-reask": 1800, "thought-pass": 600, "perception-pass": 800, "knowledge-check": 300 },
@@ -114,7 +118,11 @@ test("in play, every think() prompt names the line its reading is stored on (clo
     caller,
   );
   await g.play();
+  return { g, prompts, speaks };
+}
 
+/** Every think() prompt names the line its reading is stored on; returns the target kinds seen. */
+function checkTargets(g: MiniGame, prompts: { character: string; user: string }[]): Set<string> {
   const thinks = g.thoughts.filter((t) => t.call === "think");
   assert.equal(thinks.length, prompts.length);
   // TD v0.11's schema: words after took; in a Colloquio, done is step 5.
@@ -133,12 +141,47 @@ test("in play, every think() prompt names the line its reading is stored on (clo
       const expected: TookTarget = t.took_target === "other" ? { type: "other", speaker: target!.speaker! } : { type: t.took_target! };
       assert.ok(asked[i]!.user.includes(`\n2. took — ${tookTargetText(expected)}, in one word:`), `${t.id} prompt names ${t.took_target}`);
       if (t.took_target === "own") assert.equal(target?.speaker, c);
-      seen.add(`${t.took_target}${t.closing ? " closing" : ""}`);
+      const afterOwn = byLine.get(t.after_line ?? "")?.speaker === c;
+      seen.add(`${t.took_target}${afterOwn ? " after own line" : ""}${t.closing ? " closing" : ""}`);
       // The stored reading points at the named line.
       const r = g.memory.readings.find((x) => x.thought === t.id);
       if (r) assert.equal(r.line, t.target_line, `${t.id}: reading on the named line`);
       else assert.ok(t.took_target === "none" || g.memory.readings.some((x) => x.character === c && x.line === t.target_line), `${t.id}: same line already read`);
     });
   }
-  for (const k of ["other", "own", "none", "other closing", "own closing"]) assert.ok(seen.has(k), `saw ${k}`);
+  return seen;
+}
+
+test("TD v0.12, in play: every think() prompt names the line its reading is stored on, own lines included", async () => {
+  const { g, prompts } = await playWith(loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.12") }));
+  const seen = checkTargets(g, prompts);
+  for (const k of ["other", "own after own line", "none", "other closing", "own after own line closing"]) assert.ok(seen.has(k), `saw ${k}`);
+  // v0.12 has no meant: own readings come from think().
+  assert.ok(g.memory.readings.some((r) => r.own && r.thought !== null));
+});
+
+test("TD v0.13, in play: after an own line, think() names the line they were answering; own readings come only from speak()", async () => {
+  const { g, prompts, speaks } = await playWith(docs);
+  const seen = checkTargets(g, prompts);
+  // speak()'s schema carries meant and words after utterance, in both forms; the two lines come before the reply line.
+  const capannello = speaks.filter((u) => u.includes('"addressee"'));
+  const colloquio = speaks.filter((u) => !u.includes('"addressee"'));
+  assert.ok(capannello.length > 0 && capannello.every((u) => u.includes('{"addressee": "..." or null, "utterance": "...", "meant": "none", "words": null, "action": null or {...}}')));
+  assert.ok(colloquio.length > 0 && colloquio.every((u) => u.includes('{"utterance": "...", "meant": "none", "words": null, "action": null or {...}}')));
+  assert.ok(speaks.every((u) => u.indexOf("\nmeant — ") < u.indexOf("\nwords — if meant") && u.indexOf("\nwords — if meant") < u.indexOf("Reply with only this JSON:")));
+  assert.ok(!seen.has("own") && ![...seen].some((k) => k.startsWith("own")), `no own targets: ${[...seen]}`);
+  for (const k of ["other", "none", "other after own line", "other closing"]) assert.ok(seen.has(k), `saw ${k}`);
+  // After an own line, the target is the last line by someone else the character heard in this conversation.
+  const byLine = new Map(g.lines.map((l) => [l.id, l]));
+  for (const t of g.thoughts.filter((t) => t.call === "think" && byLine.get(t.after_line ?? "")?.speaker === t.character && t.took_target === "other")) {
+    const answered = g.lines.filter((l) => l.kind === "speech" && l.conversation === t.conversation && l.speaker !== t.character && l.heardBy.includes(t.character) && Number(l.id.slice(1)) <= Number(t.after_line!.slice(1))).at(-1)!;
+    assert.equal(t.target_line, answered.id, `${t.id} names the answered line`);
+  }
+  // Own readings: every one from speak(), one per spoken line with meant, words kept.
+  const own = g.memory.readings.filter((r) => r.own);
+  assert.ok(own.length > 0 && own.every((r) => r.source === "speak" && r.thought === null && r.words === "A fine evening" && r.took === "promise"));
+  assert.equal(own.length, g.lines.filter((l) => l.kind === "speech").length);
+  assert.ok(g.memory.readings.filter((r) => r.source !== "speak").every((r) => !r.own), "no own reading from think()");
+  // meant and words are on every speak() record.
+  assert.ok(g.events.filter((e) => e.type === "speech").every((e) => e.meant === "promise" && e.words === "A fine evening"));
 });

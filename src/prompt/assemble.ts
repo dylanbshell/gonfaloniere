@@ -130,6 +130,17 @@ export function thinkAsksWords(t: PromptTemplates): boolean {
   return /\n3\. words — /.test(t.think);
 }
 
+/** Whether this TD's Block 9b asks for `meant` and `words` (TD v0.13). */
+export function speakAsksMeant(t: PromptTemplates): boolean {
+  return /\nmeant — /.test(t.speak);
+}
+
+/** The most words a `words` line keeps ("at most N" in the TD's own text): 12 in TD v0.11–v0.12, 20 from v0.13. */
+export function wordsCap(t: PromptTemplates, call: "think" | "speak"): number {
+  const m = (call === "think" ? /\n3\. words — [^\n]*?at most (\d+)/ : /\nwords — [^\n]*?at most (\d+)/).exec(call === "think" ? t.think : t.speak);
+  return m ? Number(m[1]) : 12;
+}
+
 /** Whether this TD's `took` line names its target line through {took_target} (TD v0.10). */
 export function thinkNamesTarget(t: PromptTemplates): boolean {
   return t.think.includes("{took_target}");
@@ -202,6 +213,8 @@ export function assembleSpeakPrompt(t: PromptTemplates, ctx: CharacterContext, o
         ? "This private conversation must end now. This is your last line here."
         : "";
   const addressee = speakHasAddressee(t, ctx.state.conversation.kind);
+  // TD v0.13: "meant" and "words" follow "utterance" in both forms.
+  const meant = speakAsksMeant(t) ? ', "meant": "none", "words": null' : "";
   // An empty {addressee_instruction} (TD v0.4's Colloquio) takes its line with it.
   const template = addressee ? t.speak : t.speak.replace("{addressee_instruction}\n", "");
   const task = fill(template, {
@@ -211,8 +224,8 @@ export function assembleSpeakPrompt(t: PromptTemplates, ctx: CharacterContext, o
     // TD v0.4 only; earlier templates have neither placeholder.
     addressee_instruction: t.addresseeInstruction ?? "",
     speak_schema: addressee
-      ? '{"addressee": "..." or null, "utterance": "...", "action": null or {...}}'
-      : '{"utterance": "...", "action": null or {...}}',
+      ? `{"addressee": "..." or null, "utterance": "..."${meant}, "action": null or {...}}`
+      : `{"utterance": "..."${meant}, "action": null or {...}}`,
   })
     .replace("It is your turn to speak. \n", "It is your turn to speak.\n");
   let out = opts.extraInstruction ? addBullet(task, opts.extraInstruction) : task;

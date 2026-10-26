@@ -21,6 +21,8 @@ import {
   thinkAsksTook,
   thinkNamesTarget,
   thinkAsksWords,
+  speakAsksMeant,
+  wordsCap,
   type TookTarget,
   fill,
   speakHasAddressee,
@@ -316,13 +318,14 @@ export class MiniGame {
       allowedActions: allowedActionTypes(actions),
       florins: actions.florins,
       addressee: speakHasAddressee(this.docs.templates, conv.kind),
+      ...(speakAsksMeant(this.docs.templates) && { meant: { cap: wordsCap(this.docs.templates, "speak") } }),
     };
     const out = await this.characterCall("speak", speaker, p, (raw) => {
       const r = parseSpeak(raw, expect);
       return {
         ok: r.verdict === "valid",
         value: r,
-        repairs: [...(r.fenced ? ["fenceStripped"] : []), ...(r.addresseeIssue === "alias" ? ["addresseeAlias"] : [])],
+        repairs: [...(r.fenced ? ["fenceStripped"] : []), ...(r.addresseeIssue === "alias" ? ["addresseeAlias"] : []), ...(r.meantFilled ? ["meantFilled"] : [])],
         error: r.errors[0] ?? null,
       };
     });
@@ -335,7 +338,10 @@ export class MiniGame {
     const r = out as ReturnType<typeof parseSpeak>;
     const addressee = conv.kind === "capannello" ? (r.addressee as CharacterName | null) : null;
     const line = this.addLine(conv, "speech", speaker, r.value!.utterance, addressee);
-    this.events.push({ turn: this.turn, type: "speech", line: line.id, conversation: conv.id, speaker, addressee, text: line.text });
+    // TD v0.13: what the speaker meant, kept on the line and the speech record; it becomes an own reading at the turn's end.
+    const meant = r.meant ? { meant: r.meant, words: r.meantWords, ...(r.meantLog && { words_log: r.meantLog }) } : {};
+    Object.assign(line, meant);
+    this.events.push({ turn: this.turn, type: "speech", line: line.id, conversation: conv.id, speaker, addressee, text: line.text, ...meant });
     if (r.actionRejected) this.char(speaker).feedback = `Your last action was rejected: ${r.actionRejected}.`;
     if (r.action) this.applyAction(conv, speaker, r.action);
 
@@ -379,16 +385,21 @@ export class MiniGame {
     const asksTook = thinkAsksTook(this.docs.templates);
     const namesTarget = thinkNamesTarget(this.docs.templates);
     const asksWords = thinkAsksWords(this.docs.templates);
+    // TD v0.13: own lines are labelled in speak(), so think() names the last line by someone else.
+    const ownFromSpeak = speakAsksMeant(this.docs.templates);
+    const cap = wordsCap(this.docs.templates, "think");
     await Promise.all(
       conv.members.map(async (c) => {
         const ctx = this.context(c);
         // TD v0.10: {took_target} names the line the reading will attach to, by the same rule (labelLine).
-        const { line, type } = tookTargetLine(c, conv.id, this.char(c).lines.at(-1)?.id ?? null, this.lines);
+        const { line, type } = tookTargetLine(c, conv.id, this.char(c).lines.at(-1)?.id ?? null, this.lines, ownFromSpeak);
+        // TD v0.13 wrong-line rule: the other spoken lines the character heard, to place words not in the named line.
+        const others = ownFromSpeak ? this.char(c).lines.filter((l) => l.kind === "speech" && l.id !== line?.id).map((l) => ({ id: l.id, text: l.text })) : undefined;
         const target: TookTarget = type === "other" ? { type, speaker: line!.speaker! } : { type };
         const named = namesTarget ? { took_target: type, target_line: line?.id ?? null } : {};
         const p = assembleThinkPrompt(this.docs.templates, ctx, { tookTarget: target });
         const out = await this.characterCall("think", c, p, (raw) => {
-          const r = parseThink(raw, { conversation: conv.kind, livingOthers: ctx.state.livingOthers, format: "td0.3", took: asksTook, ...(asksWords && { words: { line: line?.text ?? null } }) });
+          const r = parseThink(raw, { conversation: conv.kind, livingOthers: ctx.state.livingOthers, format: "td0.3", took: asksTook, ...(asksWords && { words: { line: line?.text ?? null, cap, ...(others && { others }) } }) });
           const repairs = Object.entries(r.repairs ?? {})
             .filter(([, v]) => (Array.isArray(v) ? v.length > 0 : Boolean(v)))
             .map(([k]) => k);
@@ -618,7 +629,7 @@ export class MiniGame {
     const thoughts = this.thoughts.filter((t) => t.turn === this.turn && !t.repeat);
     // TD v0.9: readings come from think()'s `took`, written by code for each character (perceived only).
     if ((this.s.notebook ?? "perceived") === "perceived") {
-      const r = this.memory.writeReadings(this.turn, this.thoughts, this.lines);
+      const r = this.memory.writeReadings(this.turn, this.thoughts, this.lines, { ownFromSpeak: speakAsksMeant(this.docs.templates) });
       this.events.push({ turn: this.turn, type: "readings", stored: r.stored.map((x) => x.id), logged: r.logged.map((x) => `${x.character} ${x.thought}: ${x.reason}`) });
     }
     await this.recorder.turn(this.turn, this.lines, thoughts);

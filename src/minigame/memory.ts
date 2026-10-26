@@ -24,6 +24,10 @@ export interface GameLine {
   text: string;
   /** Who heard it: everyone present, or for a private action the actor only. */
   heardBy: CharacterName[];
+  /** TD v0.13, speech only: what the speaker meant by it (speak()'s `meant`), and the words that carry it (null: fallback or none). */
+  meant?: Took;
+  words?: string | null;
+  words_log?: WordsLog;
 }
 
 export interface Where {
@@ -115,8 +119,10 @@ export interface Reading {
   line: string;
   speaker: CharacterName;
   took: (typeof READING_KINDS)[number];
-  /** The think() the label came from. */
-  thought: string;
+  /** The think() the label came from; null for an own reading from speak() (TD v0.13). */
+  thought: string | null;
+  /** TD v0.13: an own reading from speak()'s `meant` (think() readings have no source field). */
+  source?: "speak";
   /** The speaker, the line's addressee if any, and every roster name or alias in the line. */
   about: CharacterName[];
   own: boolean;
@@ -132,9 +138,11 @@ export interface LabelLogEntry {
   thought: string;
   took: Took;
   line: string | null;
-  reason: "no spoken line" | "later different label" | "same label again";
+  reason: "no spoken line" | "later different label" | "same label again" | "wrong-line words";
   /** For a later label: the reading that stands. */
   standing?: string;
+  /** TD v0.13, "wrong-line words": the other line the words were found in. */
+  words_line?: string;
 }
 
 /**
@@ -563,13 +571,40 @@ export class MemoryStore {
    * other than none stands, and a later label for the line is logged, not stored; (4) a label on the
    * character's own line is marked own. Each reading is stored for that character only.
    */
-  writeReadings(turn: number, thoughts: Thought[], lines: GameLine[]): { stored: Reading[]; logged: LabelLogEntry[] } {
+  writeReadings(turn: number, thoughts: Thought[], lines: GameLine[], opts: { ownFromSpeak?: boolean } = {}): { stored: Reading[]; logged: LabelLogEntry[] } {
     for (const l of lines) this.lineIndex.set(l.id, l);
     const stored: Reading[] = [];
     const logged: LabelLogEntry[] = [];
+    const store = (character: CharacterName, line: GameLine, took: Reading["took"], words: string | null, thought: string | null) => {
+      const reading: Reading = {
+        id: `R${this.nextR++}`,
+        character,
+        turn: line.turn,
+        conversation: line.conversation,
+        line: line.id,
+        speaker: line.speaker!,
+        took,
+        thought,
+        about: [...new Set<CharacterName>([line.speaker!, ...(line.addressee ? [line.addressee] : []), ...namesIn(line.text)])],
+        own: line.speaker === character,
+        salient: SALIENT_READINGS.includes(took),
+        // TD v0.11: the character's words for this line; null when the fallback trim is used.
+        words,
+        ...(thought === null && { source: "speak" as const }),
+      };
+      this.readings.push(reading);
+      stored.push(reading);
+    };
+    // TD v0.13: own readings come only from speak()'s `meant` and `words`, on the speaker's own line.
+    if (opts.ownFromSpeak) {
+      for (const l of lines.filter((l) => l.turn === turn && l.kind === "speech" && l.meant && l.meant !== "none")) {
+        if (this.readings.some((r) => r.character === l.speaker && r.line === l.id)) continue;
+        store(l.speaker!, l, l.meant as Reading["took"], l.words ?? null, null);
+      }
+    }
     const ordered = thoughts.filter((t) => t.turn === turn && t.call === "think" && t.took && t.took !== "none").sort((a, b) => num(a.id) - num(b.id));
     for (const t of ordered) {
-      const line = labelLine(t, lines);
+      const line = labelLine(t, lines, opts.ownFromSpeak);
       const log = (reason: LabelLogEntry["reason"], extra: Partial<LabelLogEntry> = {}) => {
         const e: LabelLogEntry = { turn, character: t.character, thought: t.id, took: t.took!, line: line?.id ?? null, reason, ...extra };
         this.labelLog.push(e);
@@ -579,29 +614,17 @@ export class MemoryStore {
         log("no spoken line");
         continue;
       }
+      // TD v0.13: words found in another line the character heard → the label was about that line; dropped.
+      if (t.words_log?.wrong_line) {
+        log("wrong-line words", { words_line: t.words_log.wrong_line });
+        continue;
+      }
       const prior = this.readings.find((r) => r.character === t.character && r.line === line.id);
       if (prior) {
         log(prior.took === t.took ? "same label again" : "later different label", { standing: prior.id });
         continue;
       }
-      const took = t.took as Reading["took"];
-      const reading: Reading = {
-        id: `R${this.nextR++}`,
-        character: t.character,
-        turn: line.turn,
-        conversation: line.conversation,
-        line: line.id,
-        speaker: line.speaker!,
-        took,
-        thought: t.id,
-        about: [...new Set<CharacterName>([line.speaker!, ...(line.addressee ? [line.addressee] : []), ...namesIn(line.text)])],
-        own: line.speaker === t.character,
-        salient: SALIENT_READINGS.includes(took),
-        // TD v0.11: the character's words for this line; null when the fallback trim is used.
-        words: t.target_line === undefined || t.target_line === line.id ? (t.words ?? null) : null,
-      };
-      this.readings.push(reading);
-      stored.push(reading);
+      store(t.character, line, t.took as Reading["took"], t.target_line === undefined || t.target_line === line.id ? (t.words ?? null) : null, t.id);
     }
     return { stored, logged };
   }
@@ -773,11 +796,23 @@ export const KnowledgeVerdict = z.object({
 
 /** Gate 8's code counts (TD v0.6): dropped entries by reason, sweep re-asks and gaps, hedge downgrades, repeated thoughts. */
 export function memoryCounts(
-  memory: { dropped: { pass: string; reason: string }[]; notes?: { kind: string }[]; repairs?: unknown[]; readings?: { took?: string; own?: boolean; thought?: string; line?: string }[]; labelLog?: { reason: string }[]; label_log?: { reason: string }[] },
+  memory: { dropped: { pass: string; reason: string }[]; notes?: { kind: string }[]; repairs?: unknown[]; readings?: { took?: string; own?: boolean; thought?: string | null; line?: string; source?: string }[]; labelLog?: { reason: string }[]; label_log?: { reason: string }[] },
   thoughts: { id?: string; repeat?: boolean; call?: string; took?: string; closing?: boolean; took_target?: string; target_line?: string | null; words?: string | null; words_log?: WordsLog }[],
+  lines: { kind?: string; meant?: string; words?: string | null; words_log?: WordsLog }[] = [],
 ) {
   const named = new Map(thoughts.filter((t) => t.took_target).map((t) => [t.id, t.target_line ?? null]));
   const by = <T>(xs: T[], key: (x: T) => string) => xs.reduce<Record<string, number>>((acc, x) => ((acc[key(x)] = (acc[key(x)] ?? 0) + 1), acc), {});
+  const labelLog = memory.labelLog ?? memory.label_log ?? [];
+  // TD v0.11/v0.13: labelled calls whose words were found, cut at the cap, fell back (by reason), or (think() only) matched a different line.
+  const wordsOutcomes = (labelled: { words?: string | null; words_log?: WordsLog }[], ignored: number) => ({
+    labelled: labelled.length,
+    found: labelled.filter((x) => x.words).length,
+    cut_at_cap: labelled.filter((x) => x.words_log?.cut).length,
+    fallback: by(labelled.filter((x) => !x.words && !x.words_log?.wrong_line), (x) => x.words_log?.fallback ?? "missing"),
+    wrong_line: labelled.filter((x) => x.words_log?.wrong_line).length,
+    ignored_with_none: ignored,
+  });
+  const speeches = lines.filter((l) => l.kind === "speech" && "meant" in l);
   return {
     dropped: memory.dropped.length,
     dropped_by_reason: by(memory.dropped, (d) => `${d.pass}: ${d.reason.replace(/\s*\(.*$|:\s.*$/s, "").trim()}`),
@@ -789,21 +824,25 @@ export function memoryCounts(
     closing_thinks: thoughts.filter((t) => t.closing).length,
     readings: (memory.readings ?? []).length,
     own_readings: (memory.readings ?? []).filter((r) => r.own).length,
-    labels_not_stored: by(memory.labelLog ?? memory.label_log ?? [], (e) => e.reason),
+    // TD v0.13: own readings come from speak(); any from think() would be a bug.
+    own_readings_from_speak: (memory.readings ?? []).filter((r) => r.own && r.source === "speak").length,
+    labels_not_stored: by(labelLog, (e) => e.reason),
+    // TD v0.13: think() readings dropped because their words were in a different line.
+    wrong_line_drops: labelLog.filter((e) => e.reason === "wrong-line words").length,
     // TD v0.10: which line {took_target} named, and readings stored on a different line than it named.
     took_target: by(thoughts.filter((t) => t.call === "think" && t.took_target), (t) => t.took_target!),
     target_mismatch: (memory.readings ?? []).filter((r) => r.thought && named.has(r.thought) && named.get(r.thought) !== r.line).length,
-    // TD v0.11: labelled think() calls whose words were found, cut at 12, or fell back (by reason).
-    words: (() => {
-      const labelled = thoughts.filter((t) => t.call === "think" && t.took && t.took !== "none" && "words" in t);
-      return {
-        labelled: labelled.length,
-        found: labelled.filter((t) => t.words).length,
-        cut_at_12: labelled.filter((t) => t.words_log?.cut).length,
-        fallback: by(labelled.filter((t) => !t.words), (t) => t.words_log?.fallback ?? "missing"),
-        ignored_with_none: thoughts.filter((t) => t.words_log?.ignored).length,
-      };
-    })(),
+    // Words outcomes, think() and speak() separately.
+    words: wordsOutcomes(
+      thoughts.filter((t) => t.call === "think" && t.took && t.took !== "none" && "words" in t),
+      thoughts.filter((t) => t.words_log?.ignored).length,
+    ),
+    // TD v0.13: speak()'s `meant` (none included) and its words.
+    meant: by(speeches, (l) => l.meant!),
+    speak_words: wordsOutcomes(
+      speeches.filter((l) => l.meant !== "none"),
+      speeches.filter((l) => l.words_log?.ignored).length,
+    ),
   };
 }
 
@@ -904,11 +943,13 @@ const num = (id: string) => Number(id.slice(1));
  * TD v0.9's line for a label: the last spoken line, heard by the character, in the thought's
  * conversation, at or before the line the thought followed (`after_line`). Null if there is none.
  */
-export function labelLine(t: Thought, lines: GameLine[]): GameLine | null {
+export function labelLine(t: Thought, lines: GameLine[], skipOwn = false): GameLine | null {
   if (!t.after_line || !t.conversation) return null;
   const upTo = num(t.after_line);
   let best: GameLine | null = null;
   for (const l of lines) {
+    // TD v0.13 (skipOwn): the character's own lines are labelled in speak(), so think() names the last line by someone else.
+    if (skipOwn && l.speaker === t.character) continue;
     if (l.kind === "speech" && l.conversation === t.conversation && num(l.id) <= upTo && l.heardBy.includes(t.character) && (!best || num(l.id) > num(best.id))) best = l;
   }
   return best;
@@ -918,8 +959,8 @@ export function labelLine(t: Thought, lines: GameLine[]): GameLine | null {
  * TD v0.10: the line {took_target} names before a think(), by the rule that attaches the reading
  * (labelLine), and whose it is: someone else's, the character's own, or none.
  */
-export function tookTargetLine(c: CharacterName, conversation: string, afterLine: string | null, lines: GameLine[]): { line: GameLine | null; type: TookTargetType } {
-  const line = labelLine({ character: c, conversation, after_line: afterLine } as Thought, lines);
+export function tookTargetLine(c: CharacterName, conversation: string, afterLine: string | null, lines: GameLine[], skipOwn = false): { line: GameLine | null; type: TookTargetType } {
+  const line = labelLine({ character: c, conversation, after_line: afterLine } as Thought, lines, skipOwn);
   return { line, type: !line ? "none" : line.speaker === c ? "own" : "other" };
 }
 

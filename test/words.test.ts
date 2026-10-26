@@ -2,7 +2,7 @@
 // line, and rendering.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { config } from "../probe.config.ts";
+import { config, technicalDesignPath } from "../probe.config.ts";
 import { checkWords, normalizeTook, parseThink } from "../src/output/think.ts";
 import { MemoryStore, renderReading, wordsQuote, type GameLine, type Thought } from "../src/minigame/memory.ts";
 import { thinkAsksTook, thinkAsksWords, thinkNamesTarget } from "../src/prompt/assemble.ts";
@@ -18,8 +18,8 @@ const reply = (o: Record<string, unknown>) => JSON.stringify({ thought: "She mea
 const parse = (o: Record<string, unknown>, text: string | null = LINE) =>
   parseThink(reply(o), { conversation: "capannello", livingOthers: [], format: "td0.3", took: true, words: { line: text } });
 
-test("TD v0.12 loads: step 2 lists insult, step 3 asks for words, and both checks still match", () => {
-  const docs = loadDocs(config.docs);
+test("TD v0.12 loads (from git history): step 2 lists insult, step 3 asks for words, and both checks still match", () => {
+  const docs = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.12") });
   assert.equal(docs.versions.technicalDesign, "0.12");
   assert.ok(thinkAsksTook(docs.templates) && thinkAsksWords(docs.templates) && thinkNamesTarget(docs.templates));
   assert.match(docs.templates.think, /\n2\. took — \{took_target\}, in one word: promise, deal, threat, admission, claim, denial, insult, or none\./);

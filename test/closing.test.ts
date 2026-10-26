@@ -18,7 +18,7 @@ function fakeCaller(done: boolean): Caller {
     const content = {
       plan: () => ({ thought: "A plan.", plan: "Goals: win. Threats: all. Next moves: talk." }),
       think: () => ({ thought: `Thinking ${Math.random()}.`, took: "promise", words: "A fine evening.", importance: 50, ...(colloquio && { done }) }),
-      speak: () => (req.user.includes('"addressee"') ? { addressee: null, utterance: "A fine evening.", action: null } : { utterance: "A fine evening.", action: null }),
+      speak: () => (req.user.includes('"addressee"') ? { addressee: null, utterance: "A fine evening.", meant: "promise", words: "A fine evening", action: null } : { utterance: "A fine evening.", meant: "promise", words: "A fine evening", action: null }),
       move: () => ({ thought: "Move.", contacts: others.map((n) => ({ name: n, urgency: 50, purpose: null })), choice: "colloquio", target: others[0] }),
       murder: () => "x",
       "star-pass": () => ({ sweep: [], entries: [] }),
@@ -73,7 +73,7 @@ function checkClosingThinks(g: MiniGame, why: "cap" | "ended") {
     // The closing thinks come before the close event.
     const closeAt = g.events.indexOf(close);
     for (const t of closing) assert.ok(g.events.findIndex((e) => e.type === "thought" && e.thought === t.id) < closeAt);
-    // Their readings attach to the last line (one per guest).
+    // The last line has one reading per guest: the speaker's own from speak() (TD v0.13), the other's from the closing think.
     const readings = g.memory.readings.filter((r) => r.line === lastLine.id);
     assert.equal(new Set(readings.map((r) => r.character)).size, 2);
   }
