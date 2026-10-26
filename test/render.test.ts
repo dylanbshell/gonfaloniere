@@ -86,4 +86,10 @@ test("block 6 retrieval stays within ~450 tokens, about 10–12 lines (TD v0.10)
   t.diagnostic(`${block6.length} lines, ≈ ${tokens} tokens`);
   assert.ok(tokens <= 450, `${tokens} tokens`);
   assert.ok(block6.length >= 9 && block6.length <= 12, `${block6.length} lines`);
+  // The Murder Round query (★ threats, deals, promises first) keeps to 12 lines too, with short lines.
+  const short = Array.from({ length: 20 }, (_, i) => ({ ...L(`S${i + 1}`, "Captain Armand LeNoir", `Pay, or else (${i}).`, "capannello", members), turn: 5 }));
+  const shortThoughts = short.map((l, i) => ({ id: `U${i + 1}`, turn: 5, character: "Lupo", call: "think", text: "…", after_line: l.id, conversation: "C2", took: "threat" }) as Thought);
+  m.writeReadings(5, shortThoughts, short);
+  for (let i = 0; i < 3; i++) m.beliefs.push({ id: `B${i}`, character: "Lupo" as CharacterName, kind: "suspicion", status: "held", statement: `Captain Armand LeNoir means harm (${i}).`, firstTurn: 5, lastTurn: 5, thought: "T1", quote: "x" });
+  assert.equal(m.retrieveNotebook("Lupo" as CharacterName, ["Captain Armand LeNoir" as CharacterName], ["Pay"], { murder: true }).length, 12);
 });

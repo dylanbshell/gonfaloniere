@@ -643,6 +643,8 @@ export class MemoryStore {
       for (const x of xs) {
         if (n <= 0) break;
         const cost = Math.ceil(render(x).length / 3.5);
+        // TD v0.11: lines are capped at 12 overall, Murder Round's first step included.
+        if (picked.length >= limit) break;
         if (!picked.includes(x) && used + cost <= budget) {
           picked.push(x);
           used += cost;
