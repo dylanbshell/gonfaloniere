@@ -1,8 +1,18 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.13
+### Version 0.14
 
 ---
+
+## Changes in v0.14
+
+*From Claude Code's v0.13 build and dry run (PR #12 at ea5198d: 1 game, 3 turns, $0.04). Own readings came only from `speak()`, as designed: 12 of 12 labelled speech lines, all words found. Every `think()` after an own line named the answered line (36 of 36). Repairs were 0 for both calls, and `speak()` output rose about 9 tokens per call. This version defines the 4 cases the build left open. Prompts change only in the `{took_target}` none text.*
+
+- **Words from an earlier line by the same speaker** count as the same remark. The reading stays on the named line and quotes the words found, logged as "same speaker, earlier line". Only words from a *different* speaker's line drop the reading. In v0.12 these were 18 of 80 fallbacks and mostly harmless: a speaker's run of lines is one argument, and "speaker: words" stays true
+- **The wrong-line search covers every line the character heard tonight,** in any conversation. If the words match several lines, the latest is logged. That's broader than the target rule, which looks only in the current conversation, on purpose: a label about a line remembered from elsewhere still doesn't belong on the named line
+- **The `{took_target}` none text** is now "nothing yet, since no one else has spoken here since you arrived". The old text pointed at the character's own line when they had spoken first. The label is still ignored
+- **The closing think after the character's own closing line stays.** It labels nothing new, since the other guest's line is usually labelled already and their own line was labelled in `speak()`. But it gives a final thought on how the Colloquio ended, which goes to shortTermHistory and the thought pass. It costs one `think()` per Colloquio
+- Blocks 10a–10d are unchanged
 
 ## Changes in v0.13
 
@@ -189,7 +199,7 @@ Runs for every character present after every utterance. Outputs:
 - **Words** *(v0.11; cap 20 since v0.13)*: when `took` isn't `none`, the few words of that line (at most 20) that made the character take it so. They become the reading's quote
 - **Importance score (0–100):** how urgently this character wants to speak. Used by the Orchestrator for speaking order, and by the Stage Manager for collisions
 - **Done signal (Colloquio only):** whether the character wants to end the Colloquio. If either character sends it, the other gets one closing line and the Colloquio ends. Not asked for in a Capannello, and ignored by code if returned there
-- **Closing think** *(v0.9)*: after a Colloquio's last line (the closing line, or the line that reaches the cap), both guests run `think()` once more before the Colloquio closes. Its thought and `took` are kept; importance and `done` are ignored. Without it, nobody reacts to the line where a private deal is most often sealed. Cost: two `think()` calls per Colloquio
+- **Closing think** *(v0.9)*: after a Colloquio's last line (the closing line, or the line that reaches the cap), both guests run `think()` once more before the Colloquio closes. Its thought and `took` are kept; importance and `done` are ignored. Without it, nobody reacts to the line where a private deal is most often sealed. Cost: two `think()` calls per Colloquio When the character spoke the closing line themselves, the closing think labels nothing new, but it's kept for the closing thought (v0.14)
 
 The `think()` prompt also asks each character to consider how their own recent behavior (especially frequent private withdrawals) looks to others. This is the second of two social-awareness touchpoints; the first is in the character briefing.
 
@@ -564,7 +574,7 @@ In a **Capannello**:
 - `{took_target}` *(v0.10)*: filled by code from the line the label will attach to (The perceived notebook, Which line a label belongs to):
   - someone else's line: `how you take {speaker}'s last line`, with the speaker's name as History shows it
   - after the character's own line *(v0.13)*: `how you take {speaker}'s last line`, naming the last line by someone else they heard in this conversation, the one they were answering. Their own line is labelled in `speak()` (block 9b, `meant`)
-  - no spoken line: `how you take the last thing said aloud` (the label is then ignored, as now)
+  - no spoken line: `nothing yet, since no one else has spoken here since you arrived` (v0.14; the label is then ignored, as now)
 
 **The `took` line** *(v0.9; target named in v0.10)*:
 - **Why the target is named** (v0.10): in v0.9's first test, all 4 wrong-line readings in the hand-read were on the character's own line. The model labelled the line it had been answering, not the one it had just said. Naming the line removes the guess
@@ -1214,7 +1224,10 @@ Code attaches `took` by a fixed rule, using the event order (Models & Research f
 2. **No spoken line:** if there's none (a thought after only an Il Notaio note as a conversation opens, or a joiner's first thought), the label is ignored and logged
 3. **One reading per character per line:** the first label other than `none` stands. A later, different label for the same line is logged, not stored. The same label again is a no-op, logged as "same label again" (v0.10)
 4. **Own lines** *(v0.13)*: the character's own line is labelled in `speak()` (`meant`, `words`), and that is the only source of own readings, marked `own`. The `think()` that follows their own line names the last line by someone else they heard in this conversation, the one they were answering. Under rule 3 that's usually a no-op, since they labelled it before speaking. The **closing think** covers a Colloquio's last line when someone else spoke it (Core Functions, think())
-5. **Words that match a different line** *(v0.13)*: if a `think()`'s `words` aren't in the named line but are in another line the character heard, the label was about that other line. The reading is dropped, logged as "wrong-line words". Words found in no line fall back to the trim and the label stands
+5. **Words that match a different line** *(v0.13; scoped in v0.14)*: if a `think()`'s `words` aren't in the named line, code searches every line the character heard tonight, in any conversation:
+   - **A line by a different speaker:** the label was about that line, so the reading is dropped, logged as "wrong-line words" with the latest matching line
+   - **An earlier line by the same speaker** (v0.14): it's the same remark. The reading stays on the named line and quotes the words found, logged as "same speaker, earlier line"
+   - **No line:** the reading falls back to the trim and the label stands
 
 **Also defined in v0.10** (as Claude Code built them in PR #12):
 - **A reading's `turn` is the line's turn,** which matters only for a closing think
@@ -1577,6 +1590,10 @@ The first build artifact: an internal console for running and debugging the simu
 
 **Removed (v0.13):**
 - **Own-line labels in `think()`** (v0.9–v0.12): after speaking, the thought reacts to the line being answered. Replaced by `meant` in `speak()`
+
+**Rejected (v0.14):**
+- **Dropping words from the same speaker's earlier line:** it throws away readings whose speaker and words are both right, just to enforce which of that speaker's lines gets quoted
+- **Skipping the closing think after one's own closing line:** it saves one call per Colloquio but loses the character's final reflection on how it ended
 
 **Rejected (v0.13):**
 - **Rewording step 3 for own lines** ("the words of your line that carry what you meant"): wording can't change what the thought is about, and in 52 fallbacks it was about the other speaker's line
