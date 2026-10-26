@@ -22,6 +22,7 @@ import {
   thinkNamesTarget,
   thinkAsksWords,
   speakAsksMeant,
+  tdMinor,
   wordsCap,
   type TookTarget,
   fill,
@@ -394,12 +395,16 @@ export class MiniGame {
         // TD v0.10: {took_target} names the line the reading will attach to, by the same rule (labelLine).
         const { line, type } = tookTargetLine(c, conv.id, this.char(c).lines.at(-1)?.id ?? null, this.lines, ownFromSpeak);
         // TD v0.13 wrong-line rule: the other spoken lines the character heard, to place words not in the named line.
-        const others = ownFromSpeak ? this.char(c).lines.filter((l) => l.kind === "speech" && l.id !== line?.id).map((l) => ({ id: l.id, text: l.text })) : undefined;
+        // TD v0.14: with each line's speaker, so an earlier line by the named line's speaker counts as the same remark.
+        const sameSpeaker = tdMinor(this.docs.versions.technicalDesign) >= 14;
+        const others = ownFromSpeak
+          ? this.char(c).lines.filter((l) => l.kind === "speech" && l.id !== line?.id).map((l) => ({ id: l.id, text: l.text, ...(sameSpeaker && { speaker: l.speaker }) }))
+          : undefined;
         const target: TookTarget = type === "other" ? { type, speaker: line!.speaker! } : { type };
         const named = namesTarget ? { took_target: type, target_line: line?.id ?? null } : {};
-        const p = assembleThinkPrompt(this.docs.templates, ctx, { tookTarget: target });
+        const p = assembleThinkPrompt(this.docs.templates, ctx, { tookTarget: target, td: this.docs.versions.technicalDesign });
         const out = await this.characterCall("think", c, p, (raw) => {
-          const r = parseThink(raw, { conversation: conv.kind, livingOthers: ctx.state.livingOthers, format: "td0.3", took: asksTook, ...(asksWords && { words: { line: line?.text ?? null, cap, ...(others && { others }) } }) });
+          const r = parseThink(raw, { conversation: conv.kind, livingOthers: ctx.state.livingOthers, format: "td0.3", took: asksTook, ...(asksWords && { words: { line: line?.text ?? null, cap, ...(others && { others }), ...(sameSpeaker && { speaker: line?.speaker ?? null }) } }) });
           const repairs = Object.entries(r.repairs ?? {})
             .filter(([, v]) => (Array.isArray(v) ? v.length > 0 : Boolean(v)))
             .map(([k]) => k);

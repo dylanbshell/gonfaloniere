@@ -63,8 +63,10 @@ export interface WordsLog {
   fallback?: "missing" | "not in line" | "no line";
   /** Words given with a `none` label, which are dropped. */
   ignored?: boolean;
-  /** TD v0.13 "wrong-line words": not in the named line but in this other line the character heard; the reading is dropped. */
+  /** TD v0.13 "wrong-line words": not in the named line but in this line by a different speaker; the reading is dropped. */
   wrong_line?: string;
+  /** TD v0.14 "same speaker, earlier line": not in the named line but in this earlier line by its speaker; the reading stays and quotes them. */
+  same_speaker?: string;
   /** As the character wrote them, when they weren't used as given. */
   raw?: unknown;
 }
@@ -105,7 +107,7 @@ export function checkWords(
   raw: unknown,
   took: Took,
   line: string | null,
-  opts: { cap?: number; others?: { id: string; text: string }[] } = {},
+  opts: { cap?: number; others?: { id: string; text: string; speaker?: string | null }[]; speaker?: string | null } = {},
 ): { words: string | null; log: WordsLog | null } {
   const cap = opts.cap ?? 12;
   const given = typeof raw === "string" && raw.trim() !== "" && raw.trim().toLowerCase() !== "null";
@@ -122,8 +124,10 @@ export function checkWords(
   const needle = normalize(w).text;
   const words = findWords(needle, line);
   if (words !== null) return { words, log: cut ? { cut: true, raw } : null };
-  // TD v0.13: found in another line the character heard → the label was about that line.
+  // TD v0.13: found in another line the character heard (the latest match) → the label was about that line,
+  // unless (v0.14) the same speaker said it: then it's the same remark, and the words found are quoted.
   const other = opts.others?.findLast((o) => findWords(needle, o.text) !== null);
+  if (other && opts.speaker && other.speaker === opts.speaker) return { words: findWords(needle, other.text), log: { ...(cut && { cut: true }), same_speaker: other.id, raw } };
   if (other) return { words: null, log: { ...(cut && { cut: true }), wrong_line: other.id, raw } };
   return { words: null, log: { ...(cut && { cut: true }), fallback: "not in line", raw } };
 }
@@ -172,9 +176,10 @@ export interface ThinkExpectation {
   /**
    * TD v0.11: the prompt asks for `words`; they're checked against this line (null: no spoken line).
    * `cap`: the most words kept (12 in v0.11–v0.12, 20 from v0.13). `others`: the other lines the
-   * character heard, for TD v0.13's wrong-line rule.
+   * character heard, for TD v0.13's wrong-line rule; `speaker`: the named line's speaker, for TD
+   * v0.14's same-speaker rule (without it, any other line is a wrong line, as in v0.13).
    */
-  words?: { line: string | null; cap?: number; others?: { id: string; text: string }[] };
+  words?: { line: string | null; cap?: number; others?: { id: string; text: string; speaker?: string | null }[]; speaker?: string | null };
 }
 
 export type ThinkVerdict =

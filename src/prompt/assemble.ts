@@ -98,7 +98,7 @@ export interface AssembledPrompt {
 export function assembleThinkPrompt(
   t: PromptTemplates,
   ctx: CharacterContext,
-  opts: { extraInstruction?: string; tookTarget?: TookTarget } = {},
+  opts: { extraInstruction?: string; tookTarget?: TookTarget; td?: string } = {},
 ): AssembledPrompt {
   const colloquio = ctx.state.conversation.kind === "colloquio";
   if (opts.extraInstruction && t.think.includes(opts.extraInstruction)) {
@@ -111,7 +111,7 @@ export function assembleThinkPrompt(
   const fields = `"thought": "...", ${took ? '"took": "none", ' : ""}${words ? '"words": null, ' : ""}"importance": 0`;
   const task = fill(t.think, {
     character_name: ctx.characterName,
-    took_target: tookTargetText(opts.tookTarget ?? tookTargetFromHistory(ctx.history, ctx.characterName)),
+    took_target: tookTargetText(opts.tookTarget ?? tookTargetFromHistory(ctx.history, ctx.characterName), opts.td),
     done_instruction: colloquio
       ? `\n${3 + Number(took) + Number(words)}. done — true if you have what you came for, or nothing more is to be gained here; otherwise false.\n`
       : "",
@@ -152,11 +152,15 @@ export function thinkNamesTarget(t: PromptTemplates): boolean {
  */
 export type TookTarget = { type: "other"; speaker: string } | { type: "own" } | { type: "none" };
 
-export function tookTargetText(target: TookTarget): string {
+/** `td`: the Technical Design version, for the none text (TD v0.14 changed it). */
+export function tookTargetText(target: TookTarget, td?: string): string {
   if (target.type === "other") return `how you take ${target.speaker}'s last line`;
   if (target.type === "own") return "what you meant by your own last line";
-  return "how you take the last thing said aloud";
+  return td && tdMinor(td) >= 14 ? "nothing yet, since no one else has spoken here since you arrived" : "how you take the last thing said aloud";
 }
+
+/** The minor version of a Technical Design version string ("0.14" → 14). */
+export const tdMinor = (td: string) => Number(td.split(".")[1]);
 
 /**
  * For callers without the game's line record: the last spoken line in History. The mini-game

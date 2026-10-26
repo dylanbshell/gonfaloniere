@@ -129,6 +129,8 @@ export interface Reading {
   salient: boolean;
   /** TD v0.11: the character's words, as they appear in the line; null when the fallback trim is used. */
   words: string | null;
+  /** TD v0.14: the earlier line by the same speaker the words were found in, when they aren't in this line. */
+  words_line?: string;
 }
 
 /** A `took` label the attachment rule ignored (no spoken line) or logged (not stored), with the reason. */
@@ -575,7 +577,7 @@ export class MemoryStore {
     for (const l of lines) this.lineIndex.set(l.id, l);
     const stored: Reading[] = [];
     const logged: LabelLogEntry[] = [];
-    const store = (character: CharacterName, line: GameLine, took: Reading["took"], words: string | null, thought: string | null) => {
+    const store = (character: CharacterName, line: GameLine, took: Reading["took"], words: string | null, thought: string | null, wordsLine?: string) => {
       const reading: Reading = {
         id: `R${this.nextR++}`,
         character,
@@ -590,6 +592,7 @@ export class MemoryStore {
         salient: SALIENT_READINGS.includes(took),
         // TD v0.11: the character's words for this line; null when the fallback trim is used.
         words,
+        ...(words && wordsLine && { words_line: wordsLine }),
         ...(thought === null && { source: "speak" as const }),
       };
       this.readings.push(reading);
@@ -624,7 +627,8 @@ export class MemoryStore {
         log(prior.took === t.took ? "same label again" : "later different label", { standing: prior.id });
         continue;
       }
-      store(t.character, line, t.took as Reading["took"], t.target_line === undefined || t.target_line === line.id ? (t.words ?? null) : null, t.id);
+      const named = t.target_line === undefined || t.target_line === line.id;
+      store(t.character, line, t.took as Reading["took"], named ? (t.words ?? null) : null, t.id, named ? t.words_log?.same_speaker : undefined);
     }
     return { stored, logged };
   }
@@ -660,7 +664,7 @@ export class MemoryStore {
     const names = (x: Item): string[] => (x.kind === "reading" ? x.r.about : x.kind === "entry" ? ([x.e.speaker, x.e.toward, ...x.e.about].filter(Boolean) as string[]) : []);
     const salient = (x: Item) => (x.kind === "reading" ? x.r.salient : x.kind === "entry" ? x.e.salient : false);
     const text = (x: Item) => (x.kind === "reading" ? this.lineIndex.get(x.r.line)!.text : x.kind === "entry" ? x.e.summary : x.b.statement);
-    const render = (x: Item) => (x.kind === "reading" ? renderReading(x.r, this.lineIndex.get(x.r.line)!) : x.kind === "entry" ? renderCodeEntryFor(x.e, c) : renderBelief(x.b));
+    const render = (x: Item) => (x.kind === "reading" ? renderReading(x.r, this.lineIndex.get(x.r.line)!, x.r.words_line ? this.lineIndex.get(x.r.words_line) : undefined) : x.kind === "entry" ? renderCodeEntryFor(x.e, c) : renderBelief(x.b));
     const picked: Item[] = [];
     const take = (xs: Item[], n: number) => {
       for (const x of xs) {
@@ -806,7 +810,9 @@ export function memoryCounts(
   // TD v0.11/v0.13: labelled calls whose words were found, cut at the cap, fell back (by reason), or (think() only) matched a different line.
   const wordsOutcomes = (labelled: { words?: string | null; words_log?: WordsLog }[], ignored: number) => ({
     labelled: labelled.length,
-    found: labelled.filter((x) => x.words).length,
+    // In the named line itself; TD v0.14's same-speaker matches are counted on their own.
+    found: labelled.filter((x) => x.words && !x.words_log?.same_speaker).length,
+    same_speaker_earlier_line: labelled.filter((x) => x.words_log?.same_speaker).length,
     cut_at_cap: labelled.filter((x) => x.words_log?.cut).length,
     fallback: by(labelled.filter((x) => !x.words && !x.words_log?.wrong_line), (x) => x.words_log?.fallback ?? "missing"),
     wrong_line: labelled.filter((x) => x.words_log?.wrong_line).length,
@@ -859,12 +865,13 @@ export function renderEntry(e: MemoryEntry, forChar?: CharacterName): string {
  * character's own line `T6 · Colloquio with Francesco Pazzi · ★ you: "…" (you meant it as a promise)`.
  * A Colloquio line of the character's own names the other guest; otherwise only the type is shown.
  */
-export function renderReading(r: Reading, line: GameLine): string {
+/** `wordsLine`: the earlier line by the same speaker the words came from (TD v0.14), for placing "…". */
+export function renderReading(r: Reading, line: GameLine, wordsLine?: GameLine): string {
   const other = line.where.members.filter((m) => m !== r.character);
   const label = r.own && line.where.kind === "colloquio" && other.length ? `Colloquio with ${other.join(", ")}` : conversationType(line.where);
   const who = r.own ? "you" : r.speaker;
   const how = r.own ? `you meant it as ${article(r.took)} ${r.took}` : `you took it as ${article(r.took)} ${r.took}`;
-  return `T${r.turn} · ${label} · ${r.salient ? "★ " : ""}${who}: "${r.words ? wordsQuote(r.words, line.text) : trimQuote(line.text)}" (${how})`;
+  return `T${r.turn} · ${label} · ${r.salient ? "★ " : ""}${who}: "${r.words ? wordsQuote(r.words, (wordsLine ?? line).text) : trimQuote(line.text)}" (${how})`;
 }
 
 /** TD v0.11: the character's words, with "…" before them if they don't start the line and after them if they don't end it. */

@@ -118,11 +118,11 @@ async function playWith(d: typeof docs) {
     caller,
   );
   await g.play();
-  return { g, prompts, speaks };
+  return { g, prompts, speaks, td: d.versions.technicalDesign };
 }
 
 /** Every think() prompt names the line its reading is stored on; returns the target kinds seen. */
-function checkTargets(g: MiniGame, prompts: { character: string; user: string }[]): Set<string> {
+function checkTargets(g: MiniGame, prompts: { character: string; user: string }[], td: string): Set<string> {
   const thinks = g.thoughts.filter((t) => t.call === "think");
   assert.equal(thinks.length, prompts.length);
   // TD v0.11's schema: words after took; in a Colloquio, done is step 5.
@@ -139,7 +139,7 @@ function checkTargets(g: MiniGame, prompts: { character: string; user: string }[
     mine.forEach((t, i) => {
       const target = byLine.get(t.target_line ?? "");
       const expected: TookTarget = t.took_target === "other" ? { type: "other", speaker: target!.speaker! } : { type: t.took_target! };
-      assert.ok(asked[i]!.user.includes(`\n2. took — ${tookTargetText(expected)}, in one word:`), `${t.id} prompt names ${t.took_target}`);
+      assert.ok(asked[i]!.user.includes(`\n2. took — ${tookTargetText(expected, td)}, in one word:`), `${t.id} prompt names ${t.took_target}`);
       if (t.took_target === "own") assert.equal(target?.speaker, c);
       const afterOwn = byLine.get(t.after_line ?? "")?.speaker === c;
       seen.add(`${t.took_target}${afterOwn ? " after own line" : ""}${t.closing ? " closing" : ""}`);
@@ -153,16 +153,16 @@ function checkTargets(g: MiniGame, prompts: { character: string; user: string }[
 }
 
 test("TD v0.12, in play: every think() prompt names the line its reading is stored on, own lines included", async () => {
-  const { g, prompts } = await playWith(loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.12") }));
-  const seen = checkTargets(g, prompts);
+  const { g, prompts, td } = await playWith(loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.12") }));
+  const seen = checkTargets(g, prompts, td);
   for (const k of ["other", "own after own line", "none", "other closing", "own after own line closing"]) assert.ok(seen.has(k), `saw ${k}`);
   // v0.12 has no meant: own readings come from think().
   assert.ok(g.memory.readings.some((r) => r.own && r.thought !== null));
 });
 
-test("TD v0.13, in play: after an own line, think() names the line they were answering; own readings come only from speak()", async () => {
-  const { g, prompts, speaks } = await playWith(docs);
-  const seen = checkTargets(g, prompts);
+test("TD v0.13+ (default v0.14), in play: after an own line, think() names the line they were answering; own readings come only from speak()", async () => {
+  const { g, prompts, speaks, td } = await playWith(docs);
+  const seen = checkTargets(g, prompts, td);
   // speak()'s schema carries meant and words after utterance, in both forms; the two lines come before the reply line.
   const capannello = speaks.filter((u) => u.includes('"addressee"'));
   const colloquio = speaks.filter((u) => !u.includes('"addressee"'));
@@ -170,7 +170,9 @@ test("TD v0.13, in play: after an own line, think() names the line they were ans
   assert.ok(colloquio.length > 0 && colloquio.every((u) => u.includes('{"utterance": "...", "meant": "none", "words": null, "action": null or {...}}')));
   assert.ok(speaks.every((u) => u.indexOf("\nmeant — ") < u.indexOf("\nwords — if meant") && u.indexOf("\nwords — if meant") < u.indexOf("Reply with only this JSON:")));
   assert.ok(!seen.has("own") && ![...seen].some((k) => k.startsWith("own")), `no own targets: ${[...seen]}`);
-  for (const k of ["other", "none", "other after own line", "other closing"]) assert.ok(seen.has(k), `saw ${k}`);
+  // "none after own line": the character spoke first, so the prompt used the none text (checked above against td).
+  for (const k of ["other", "none", "other after own line", "none after own line", "other closing"]) assert.ok(seen.has(k), `saw ${k}`);
+  assert.ok(prompts.some((p) => p.user.includes("\n2. took — nothing yet, since no one else has spoken here since you arrived, in one word:")));
   // After an own line, the target is the last line by someone else the character heard in this conversation.
   const byLine = new Map(g.lines.map((l) => [l.id, l]));
   for (const t of g.thoughts.filter((t) => t.call === "think" && byLine.get(t.after_line ?? "")?.speaker === t.character && t.took_target === "other")) {
