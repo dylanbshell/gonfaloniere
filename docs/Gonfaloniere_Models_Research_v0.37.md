@@ -1,8 +1,20 @@
 # Gonfaloniere
 ## Models & Research — Working Document
-### Version 0.35
+### Version 0.37
 
 ---
+
+## Changes in v0.37
+
+- **One last mini-game check, of TD v0.17's narrowed `pressure`** (Dylan, Oct 26): 2 games (~$0.27, no judge) on the same seeds as the v0.16 check, with the outcome decided in advance so it can't start another loop. **Done if** `pressure` is 10–25% of `took` with threat under 12% and claim under 20%, and at most 35% of `meant`. **If not,** Technical Design makes one final adjustment, and that version goes to the full games untested, whatever happens (Open Questions)
+
+## Changes in v0.36
+
+- **Logged CC-20261026-01** (Oct 26, $0.27): the leak flag is resolved (re-scored by hand, v0.14 had 6 leaks against Oct 24's 4), and TD v0.16's `pressure` fixed threats (16 of 19 hand-read threats now mean harm to come, against 9 of 15) but overshot (33.8% of `took`, 47.4% of `meant`). Fit was 24 of 30 on both samples. See Findings Log
+- **Decision: no more mini-game checks of the perceived notebook.** TD v0.17's narrowed gloss and its retrieval cap (at most 2 pressure readings per block 6 call) go straight to the first full games, checked there with the 60-reading fit bars. Reasons: the cap protects notebooks whatever the label rate, nothing met the "clearly broken" bar, fit is at the pass mark within sampling noise, and four checks in a row have each ended in another prompt change. The perceived-notebook design is settled enough to build on
+- **Decision: own readings are scored against the line as said** (Technical Design's view). `meant` is what the speaker meant by the line they actually spoke; when the line departs from the plan in their earlier thought, that's a fact about the character, not a mislabel. Departures are counted separately as a research measure. Re-scored this way, v0.16's own readings fit 28 of 30
+- **Decision: the secrets judge stays as it is; a code pass adds in-game knowledge.** After judging, code marks a flagged line "already known" when every listener was present for an earlier flagged line revealing the same secret. That's exact, costs no model calls, and keeps raw `cal5` counts comparable with every earlier run. Deliberate reveals stay a hand-read
+- **Correction:** the "~3.5% gap" between the key and the ledgers (v0.35) was OpenRouter's usage lagging by over five minutes. Settled, the v0.14 run matched its ledger to the cent. The key audit now compares lifetime totals against a recorded baseline gap of $0.47 from before the audit existed
 
 ## Changes in v0.35
 
@@ -615,7 +627,7 @@ DeepSeek has no small current models (its small models are older Qwen- and Llama
 
 | Measure | How | Pass line |
 |---|---|---|
-| **Secrets kept** | `cal5` judge on each character's lines across the whole game; per-secret survival and first-leak turn. **Deliberate reveals are not leaks** (Oct 26): a reveal counts as a leak unless the character's thought just before it shows they chose to reveal it, for a goal from their briefing. Deliberate reveals are reported separately | Report. Flag any secret that falls before turn 3 in most games |
+| **Secrets kept** | `cal5` judge on each character's lines across the whole game; per-secret survival and first-leak turn. **Deliberate reveals are not leaks** (Oct 26): a reveal counts as a leak unless the character's thought just before it shows they chose to reveal it, for a goal from their briefing. Deliberate reveals are reported separately. **Already known** (v0.36): after judging, code marks a flagged line "already known" when every listener was present for an earlier flagged line revealing the same secret. Raw `cal5` counts are reported beside the adjusted ones | Report. Flag any secret that falls before turn 3 in most games |
 | **Probes predict play** | Compare leak timing and pressure type with S5b/S5d/held-out | Report; this is assumption #2 |
 | **Memory (gate 8)** | Judge compares the extraction passes with the transcript and thoughts: missed ★ items, invented facts, and conclusions or suspicions the thoughts don't support. Code-dropped entries reported by reason. **Since Oct 25 (rubric `gate8 v2`), the judge loads its definitions of each entry type and of `toward` word for word from TD blocks 10a and 10d, and counts as ★ items only what 10a says to record** (payments are written by code, not counted). A hand-checked sample of flags is reported with each run. **Known flaw (Oct 25):** the judge lists ★ items while seeing the record, and its count grows with the number of entries shown (162 against DeepSeek's records, 249 against GPT-5.4's, same transcripts). Before any future use, split it in two: list ★ items from the transcript alone, then match the record against that list | ≥90% of ★ items captured; **no invented facts**. *Closed Oct 25 as a known limit (not met)* |
 | **Knowledge checks** | TD block 10c at the end of each game, four verdicts (told, firm conclusion, suspicion, none); the (LeNoir, F2) check settles Isabella's, LeNoir's, and Raffaello's plot points. Hand-check against transcripts | Report agreement by verdict |
@@ -879,12 +891,16 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
     - Run 1 fails, run 2 passes → **split:** DeepSeek plays, GPT-5.4 keeps the record. Report the added cost per game; Technical Design to adopt
     - Both fail → it's a limit of the task, not the model. Keep v0.7 with DeepSeek, log the measured error rates as a known limit in the research data, and move on. Revisit only if full games show memory errors changing outcomes
   - Total ~$5.25; mini-game ledger stays under $25
-- [ ] **Perceived notebook:** v0.9–v0.14 tested Oct 26 (Findings Log). Attachment, gate 1, `words`, and `insult` all pass; fit failed on vocabulary in v0.14. **Next: a 2-game play-only check of TD v0.16** (`pressure` and the hostility ladder):
-  - **Games:** 2 DeepSeek mini-games, seeds 2000–2001, `notebook: perceived`, no judge. Report only, no pass bars. Cap ~$0.40
-  - **Hand-reads:** 30 own readings and 30 readings on others' lines (fit, key part, right line), plus up to 20 `pressure` and 20 `threat` readings: does the thought treat the line as leaning on them, or as harm to come?
-  - **Watch:** the label mix against v0.14 (`took`: none 37.0%, threat 14.4%, claim 24.1%; `meant`: none 35.9%, threat 9.1%). **Clearly broken** means `none` below 30% of `took` labels, or `pressure` on plain questions in more than a few hand-reads. Only that sends it back to Technical Design
-  - **Also, no API calls:** re-score the v0.14 leak lines and the Oct 24 leak lines on the same seeds under the deliberate-reveal rule (Mini-Game Spec, Secrets kept), so the 16-against-7 flag is settled
-- [ ] **Fit bar for the first full games:** at least 60 hand-read readings per kind (own, others'); pass ≥48 (80%), fail ≤42 (70%), read more in between. Then (d)–(i) in the first full games (Perceived Notebook Tests). No more spend on gate 8
+- [x] **Perceived notebook mini-game checks: done** (v0.9–v0.16, Oct 26; Findings Log). Attachment, gate 1, `words`, `insult`, and `pressure`'s main job all pass; the leak flag is resolved
+- [ ] **Last check: TD v0.17's narrowed `pressure`** (Dylan, Oct 26). 2 DeepSeek mini-games, seeds 2000–2001 (as the v0.16 check), `notebook: perceived`, no judge, cap $0.40. Decided in advance:
+  - **Done if** `pressure` is 10–25% of all `took` calls, threat under 12%, and claim under 20%; and `pressure` is at most 35% of all `meant` calls
+  - **If not:** Technical Design makes one final adjustment, and that version goes to the first full games untested, whatever happens
+  - Also reported: the retrieval cap (no block 6 call with more than 2 pressure readings), hand-reads of up to 20 pressure and 20 threat readings, and fit on 30 + 30 readings (information only; fit is settled in the full games)
+- [ ] **Perceived notebook in the first full games:**
+  - **Fit bars:** at least 60 hand-read readings per kind (own, others'); pass ≥48 (80%), fail ≤42 (70%), read more in between. Own readings are judged against the line as said; departures from the speaker's earlier plan are counted separately
+  - **Label mix:** `pressure` well below v0.16's 33.8% of `took` and 47.4% of `meant`, without threat and claim swinging back to v0.14 levels (14.4% and 24.1% of `took`)
+  - Then (d)–(i) (Perceived Notebook Tests). No more spend on gate 8
+- [ ] **Harness: the "already known" leak pass** (Mini-Game Spec, Secrets kept), for Claude Code before the first full games. No model calls
 - [ ] Should "Mine's for hire" count as revealing Lupo's trade (F5)? The knowledge check said *told*; the secrets judge said no leak. Align the two judges before the full game
 
 ---
@@ -892,6 +908,58 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 ## Findings Log
 
 *Record each test result here: date, model, provider and quantization, prompt and briefing versions, gate tested, result, and what it changes. Tooling and price checks go in Tooling Status, not here.*
+
+### 2026-10-26 — TD v0.16 play-only check and leak re-score (CC-20261026-01)
+
+**Setup:** two jobs. (1) Every line the `cal5` judge counted as a leak in the v0.14 games (16) and in the Oct 24 DeepSeek games on the same seeds (7), re-scored by hand under the deliberate-reveal rule, with no API calls. (2) 2 DeepSeek mini-games on TD v0.16 (`pressure` and the hostility ladder), seeds 2000–2001, `notebook: perceived`, no judge, report only. PR #12 at 7086466, 67 tests. Spend **$0.27**. Mini-game ledger **$32.33 of $35**; key $125.79 of $150.
+
+**1. Leak re-score:**
+
+| Seed | v0.14, judge | v0.14, re-scored | Oct 24, judge | Oct 24, re-scored |
+|---|---|---|---|---|
+| 2000 | 4 | **4** (accidental) | 0 | **0** |
+| 2001 | 0 | **0** | 3 | **1** (+1 deliberate, 1 unclear) |
+| 2002 | 5 | **1** (+1 deliberate, 3 already known) | 1 | **0** (1 deliberate) |
+| 2003 | 7 | **1** audience slip (+1 deliberate, 5 already known) | 3 | **3** (accidental) |
+| **Total** | **16** | **6** | **7** | **4** (5 if the unclear one counts) |
+
+- **v0.14's surplus was Raffaello's debt:** 8 lines repeated it to people who already knew, and 2 were deliberate (a public settlement; his stated reason for naming Isabella). The judge's own note on those lines was "safe disclosure"; `cal5`'s listener rule counted them anyway, because the judge knows only who knew a secret at the start of the evening
+- **Seed 2000's 4 are real slips:** in each, LeNoir's thought plans to hold back about the boar seal and San Frediano, and he hints anyway
+- **The flag is resolved:** 6 leaks against 4 on 4 games is noise, not a regression from `speak()`'s new fields
+
+**2. TD v0.16 check:**
+
+| Share of all calls | none | pressure | claim | threat | insult | deal |
+|---|---|---|---|---|---|---|
+| `took`, v0.16 | 43.4% | **33.8%** | 7.5% | 4.3% | 4.8% | 3.1% |
+| `took`, v0.14 | 37.0% | – | 24.1% | 14.4% | 9.7% | 6.8% |
+| `meant`, v0.16 | 30.2% | **47.4%** | 4.2% | 2.1% | 5.7% | 6.2% |
+| `meant`, v0.14 | 35.9% | – | 21.6% | 9.1% | 7.6% | 16.7% |
+
+- In `think()`, `pressure` replaced the misfiled threats (−12.9 points) and claims (−11.8), and `none` *rose* 3.6. In `speak()` it also ate into none (−10.9) and deal (−5.8)
+- Neither "clearly broken" flag fired: `none` was 43.4% of `took`; pressure landed on a plain question in at most 2 borderline hand-reads
+
+| Hand-read | Right line | Key part kept | Fits the thought |
+|---|---|---|---|
+| 30 own readings (`speak()`) | 30 | 29 | 24 |
+| 30 readings on others' lines (`think()`) | 30 | 30 | 24 |
+
+- **Own-reading misfits:** 2 refusals or rebukes labelled pressure; 4 lines that leaned on someone while the thought just before had planned to say little. The label was true to the line; the line departed from the plan. Under the v0.36 rule (judged against the line as said), own fit is 28 of 30
+- **Others' misfits:** pressure where the thought saw a claim, slight, bargain, or rebuke (4); a claim on a stated intention; pressure on a fairly plain question read as fishing
+- **Pressure sample (20):** 14 read as leaning on the character, 1 as harm to come, 5 as neither (a statement of intent, closing ranks, two refusals, a plain question)
+- **Threat sample (19):** **16 are harm to come** (v0.14: 9 of 15). The other 3: a defiance, a veiled warning, a dare
+- **v0.15's rules:** stale targets 0 of 563 (v0.14: 21 of 1,147); later different label after an own line 10.0% (v0.14: 17.3%), with who-said-what confusion still in 5 of 19
+- Repairs 0 (`think()` 604, `speak()` 192); words found 92.7% (`think()`, counting same speaker) and 98.5% (`speak()`); 0 wrong-line readings stored; output 158.4 and 96.4 tokens; cost $0.133–0.139 per game
+
+**Key audit:** the key moved $0.2722, matching the ledger to the cent. Claude Code's earlier "~3.5% below the ledger" was OpenRouter's usage lag (over five minutes). The rebuilt audit (7086466) compares lifetime key usage with all OpenRouter spend in the ledgers against a recorded baseline gap of $0.471 from before the audit existed; a rise above it is recorded as unledgered spend.
+
+**What it shows:**
+- **`pressure` did its job and then some.** Threat is back to meaning harm, which keeps ★ slots for real menace. But it became the default word for any pointed line, especially for one's own speech
+- **Fit sits at the 80% mark** on both samples, which at 30 readings is indistinguishable from a pass or a narrow fail
+- **Own-line "misfits" were mostly plan departures:** characters planned restraint and then pressed anyway. That's a behaviour worth measuring (it may differ by personality), not a labelling error
+- **The judge's listener rule overcounts leaks** once a secret is out, because it doesn't know who heard what during the evening
+
+**What it changed:** TD v0.17 narrows the gloss to "pushing you to answer or act" and caps pressure at 2 readings per block 6 call. Models & Research: no further mini-game checks; own readings judged against the line as said; an "already known" code pass for leaks.
 
 ### 2026-10-26 — Own lines in `speak()` re-check (TD v0.14): 4 DeepSeek games with a leak check
 
@@ -953,7 +1021,7 @@ Two of the mixed misses were borderline; counting them as fits still gives 25 of
 - **Speech got tighter:** `speak()` output 98.1 tokens against 80.4 on Oct 24, but utterances averaged 46.8 words against 49.8, and only 3.1% ran over the 60-word limit against 10.4%. Labelling one's own line seems to focus it
 - `think()` output 160.1 tokens; cost per game $0.124–0.135 (mean $0.130)
 
-**Key audit:** the key moved $1.956 in this run against $2.026 ledgered (OpenRouter's per-response cost runs ~3.5% above what the key is charged). Lifetime, the ledgers total **$133.77** (probe and judging $62.02, pilot $39.69, mini-game $32.06), of which $8.72 is Tinker. That leaves $125.05 through OpenRouter against the key's $125.45: **$0.40 unledgered**, from retried attempts the older tools didn't log. All 11 entry points now run inside a key audit that records any gap as an "unledgered" cost.
+**Key audit:** the key moved $1.956 in this run against $2.026 ledgered (*corrected in v0.36: OpenRouter's usage lags by over five minutes; once settled, the key matched the ledger exactly*). Lifetime, the ledgers total **$133.77** (probe and judging $62.02, pilot $39.69, mini-game $32.06), of which $8.72 is Tinker. That leaves $125.05 through OpenRouter against the key's $125.45: **$0.40 unledgered**, from retried attempts the older tools didn't log. All 11 entry points now run inside a key audit that records any gap as an "unledgered" cost.
 
 **What it shows:**
 - **Attachment is solved.** Every label now lands on the line it's about, from the call where that judgement is made
