@@ -7,7 +7,7 @@
 // kept, and the first kept candidate becomes the prompt's chosen reply. Writes
 // "chosen-gpt" records; pairs.ts --chosen gpt pairs them with Qwen's leaks.
 //
-//   PROBE_TD=0.4 PROBE_CHARACTERS=0.3 PROBE_RESULTS_DIR=results/pilot PROBE_TOTAL_USD=33 \
+//   PROBE_RESULTS_DIR=results/pilot PROBE_TOTAL_USD=33 \
 //     npm run pilot:chosen -- --candidates 3 --run-cap 4
 
 import { parseArgs } from "node:util";

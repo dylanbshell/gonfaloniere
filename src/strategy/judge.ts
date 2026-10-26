@@ -1,7 +1,7 @@
 // Judges strategy probes S8–S10 (Models & Research v0.20) from the latest
 // "strategy" run of each model, then prints the report.
 //
-//   PROBE_TD=0.4 PROBE_CHARACTERS=0.3 npm run strategy:judge -- --a deepseek-v4.1-flash --b qwen3.8-27b --ref gpt-5.4
+//   npm run strategy:judge -- --a deepseek-v4.1-flash --b qwen3.8-27b --ref gpt-5.4
 //   npm run strategy:judge -- --a deepseek-v4.1-flash --b qwen3.8-27b --ref gpt-5.4 --report   (no calls)
 //
 // S8: the judge grades each answer against the item's key (correct or not).

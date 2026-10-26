@@ -6,7 +6,7 @@
 // and a rollout stops being checked once its conversation has revealed the
 // secret (everything after is dropped anyway). Writes "relabel" records.
 //
-//   PROBE_TD=0.4 PROBE_CHARACTERS=0.3 PROBE_RESULTS_DIR=results/pilot PROBE_TOTAL_USD=30 \
+//   PROBE_RESULTS_DIR=results/pilot PROBE_TOTAL_USD=30 \
 //     op run --env-file=.env -- npm run pilot:refilter -- --run-cap 3
 
 import { parseArgs } from "node:util";
