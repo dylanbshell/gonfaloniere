@@ -1,8 +1,17 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.15
+### Version 0.16
 
 ---
+
+## Changes in v0.16
+
+*Dylan, Oct 26. It replaces v0.15's scope line before anything has run on it.*
+
+- **New label `pressure`** (not ★): someone leaning on you, through a pointed question, a demand, a dare, or a challenge. In the v0.14 re-check these made up 13 of the 60 hand-read readings, about 1 in 5. 8 were filed as threats, taking ★ slots, and 5 as claims. v0.15's scope line would have filed them as `none`, so the character would forget them. But "LeNoir pressed me about the boar seal" is exactly the kind of thing worth remembering in this game
+- **Hostility is a three-step ladder,** `insult` → `pressure` → `threat`, shown to characters as one line in both labelling prompts: "For hostility there are three steps: insult (a slight), pressure (leaning on you with a pointed question, a demand, or a dare), threat (harm to come). A plain question is none." It's the only gloss on any label. The re-check's misses fell exactly on these boundaries, and the line shows them as steps, leaving which step a line is to the character. It's also where personality should show most: a paranoid character moves lines up the ladder, an easygoing one moves them down
+- **Untested, like v0.15's line:** checked in the first full games' hand-read. The pressure–threat boundary is the new thing to watch
+- Blocks 10a–10d are unchanged
 
 ## Changes in v0.15
 
@@ -208,7 +217,7 @@ Every character call starts with a private **thought**, so the decision that fol
 Runs for every character present after every utterance. Outputs:
 
 - **Thought:** private internal reasoning, 2–4 sentences. Not shared. Stored with the ID of the line it followed (`after_line`, v0.8), since each `think()` is a reaction to one line. Readings and research both rely on this pairing
-- **Took** *(v0.9; target named in v0.10)*: how the character takes the line just said, which the prompt names: `promise`, `deal`, `threat`, `admission`, `claim`, `denial`, `insult` (v0.12), or `none`. If they said it themselves, it's what they meant by it. Code turns it into a **reading** (see The perceived notebook). Ignored in `notebook: shared`, but still logged for research
+- **Took** *(v0.9; target named in v0.10)*: how the character takes the line just said, which the prompt names: `promise`, `deal`, `threat`, `admission`, `claim`, `denial`, `insult` (v0.12), `pressure` (v0.16), or `none`. If they said it themselves, it's what they meant by it. Code turns it into a **reading** (see The perceived notebook). Ignored in `notebook: shared`, but still logged for research
 - **Words** *(v0.11; cap 20 since v0.13)*: when `took` isn't `none`, the few words of that line (at most 20) that made the character take it so. They become the reading's quote
 - **Importance score (0–100):** how urgently this character wants to speak. Used by the Orchestrator for speaking order, and by the Stage Manager for collisions
 - **Done signal (Colloquio only):** whether the character wants to end the Colloquio. If either character sends it, the other gets one closing line and the Colloquio ends. Not asked for in a Capannello, and ignored by code if returned there
@@ -223,7 +232,7 @@ Produces a character's actual utterance. Returns:
 - **Utterance:** what the character says aloud
 - **Addressee (Capannello only):** the one character present who is being put on the spot with a direct question or demand, or none. Feeds `detectDesignation()`. Not asked for in a Colloquio
 - **Action (optional):** one of the actions the character is currently allowed (/bribe in a Colloquio, /borrow, /repay). The Stage Manager validates it and writes the action line
-- **Meant and words** *(v0.13)*: the speaker's own label for their line, in the same eight words as `took`, plus the words of the line that carry it. Code stores it as the speaker's own reading (see The perceived notebook)
+- **Meant and words** *(v0.13)*: the speaker's own label for their line, in the same words as `took`, plus the words of the line that carry it. Code stores it as the speaker's own reading (see The perceived notebook)
 
 *Whether actions should stay in `speak()` or move to their own call is an open question for the mini-game test.*
 
@@ -306,7 +315,7 @@ Every character call returns raw JSON. Code checks and repairs it before use, so
 | **Memory entries** (10a, 10d) | `line` must be a spoken line from this turn; `context` IDs must exist (this turn or the context lines). **Speaker check:** the model's `speaker` must match the speaker of `line` (through the alias table), or the entry is dropped ("speaker mismatch"). **Quote check:** the `quote` must appear in `line` itself (not only in context), word for word after normalizing spaces, quote marks, and case, or the entry is dropped. **Verb check:** the `summary` must begin with the speaker's name (any alias) followed by a verb allowed for the type (table below), or the entry is dropped ("type/summary mismatch"), since the model's own words then disagree with its label. **`toward`** (10a only): if it equals the speaker, it's set to null and logged; for a deal it must be the other party (the speaker of a context line, or the other name in a cited payment line). 10d has no `toward` since v0.7; one returned there is ignored and logged. Unknown types are dropped. Turn, conversation, and audience are filled in by code. The rest of the call is kept |
 | **Sweep** (10a) | Checked against `{sweep_ids}`: each listed line should appear exactly once, with `self` and `kinds`. **One re-ask covers both gaps:** listed lines the sweep left out, and lines flagged with a kind but no matching entry ("You left out L58; you flagged L57 as a threat but wrote no entry for it"). An entry whose kind the sweep didn't flag is kept and logged. Lines with `self: true` and no admission entry are counted ("self, no admission"), not re-asked, since most are denials or harmless remarks; the count shows whether the self question is doing its job. All counts are reported for gate 8 |
 | **Beliefs** (10b) | `thought` must exist in this turn's input, and the quote must appear in that thought. **Hedge rule:** a `conclusion` is stored as a `suspicion` (logged as "hedge downgrade") if the sentence or sentences containing its quote include a question mark or any hedge from 10b's list (perhaps, maybe, might, may, could, likely, probably, possibly, surely, must be, I think, I suspect, I wonder, it seems, appears, if, unless, whether), matched as whole words, case-insensitively. Beliefs are never upgraded by code. `firmer` and `dropped` must name an existing belief ID, or the change is ignored |
-| **`took`** (`think()`, v0.9) | Matched case-insensitively to `promise`, `deal`, `threat`, `admission`, `claim`, `denial`, `insult` (v0.12), or `none` (a leading article or plural is stripped: "a threat" → `threat`). **Missing or unknown → `none`, logged as a repair, never a retry**, so the new field can't add retries to the most frequent call. The label attaches to a line by the rule in The perceived notebook, Which line a label belongs to. Ignored, and logged, when there is no spoken line to attach it to. If `think()` fails twice there's no thought to carry the label, so code logs a default event with `took: none` (v0.10) |
+| **`took`** (`think()`, v0.9) | Matched case-insensitively to `promise`, `deal`, `threat`, `admission`, `claim`, `denial`, `insult` (v0.12), `pressure` (v0.16), or `none` (a leading article or plural is stripped: "a threat" → `threat`). **Missing or unknown → `none`, logged as a repair, never a retry**, so the new field can't add retries to the most frequent call. The label attaches to a line by the rule in The perceived notebook, Which line a label belongs to. Ignored, and logged, when there is no spoken line to attach it to. If `think()` fails twice there's no thought to carry the label, so code logs a default event with `took: none` (v0.10) |
 | **`words`** (`think()`, v0.11; cap and wrong-line rule v0.13) | Kept only when `took` isn't `none`. **Check:** the words must appear in the labelled line, word for word after normalizing spaces, quote marks, and case, on word boundaries (dashes and "…" aren't normalized), and run to 20 words at most (longer ones are cut at 20, then checked, logged). **Found in a different line the character heard:** the reading is dropped, logged as "wrong-line words". **Missing, null, or found nowhere:** the reading falls back to the first 15 words of the line, logged as "words fallback". A fallback is a health metric, not a repair, and never a retry |
 | **`meant` and `words`** (`speak()`, v0.13) | `meant` is matched like `took`: missing or unknown becomes `none`, logged as a repair, never a retry. `words` are kept only when `meant` isn't `none`, and are checked against the utterance, with the same normalization and 20-word cap. If they're not found, the own reading falls back to the trim, logged. A failed `speak()` writes no own reading |
 | **Knowledge checks** (10c) | Cited memory IDs must exist in the evidence given. A *told* verdict must cite an entry spoken by someone other than the character; a *firm conclusion* must cite the character's own conclusion or claim. A failed citation turns the verdict into *none* and flags the check for hand review |
@@ -560,7 +569,7 @@ Someone has just spoken (the last line above). Before anyone speaks again, think
 1. thought — 2 to 4 sentences, first person, in your own voice. What does the last moment mean for you? What do you want now? If you have told anyone something untrue, note what you told them so your story stays straight. Consider how your recent behavior looks to the others in the room.
    Separate what this person has shown you from what they only claim. A claim is not proof.
 
-2. took — {took_target}, in one word: promise, deal, threat, admission, claim, denial, insult, or none. It's your own reading, not a rule: if it chills you, it's a threat. A question, a demand, or a dare is none unless it also carries one of these. Most lines are none.
+2. took — {took_target}, in one word: promise, deal, threat, admission, claim, denial, insult, pressure, or none. It's your own reading, not a rule. For hostility there are three steps: insult (a slight), pressure (leaning on you with a pointed question, a demand, or a dare), threat (harm to come). If it chills you, it's a threat. A plain question is none. Most lines are none.
 
 3. words — if took is not none: the words of that line that made you take it so, at most 20, copied exactly. Otherwise null.
 
@@ -592,8 +601,9 @@ In a **Capannello**:
 **The `took` line** *(v0.9; target named in v0.10)*:
 - **Why the target is named** (v0.10): in v0.9's first test, all 4 wrong-line readings in the hand-read were on the character's own line. The model labelled the line it had been answering, not the one it had just said. Naming the line removes the guess
 - **Short on purpose:** `think()` is the most frequent call. The `took` line adds about 50 input tokens to block 9 and 3–5 output tokens (measured: 140 → 143–148 per call). `words` (v0.11) adds about 30 input tokens, and about 15 output tokens when a line is labelled
-- **The scope line for `none`** *(v0.15)*: "A question, a demand, or a dare is none unless it also carries one of these." In the v0.14 re-check, most labels that didn't fit their own thought were threat on a dare or demand, or claim on a question. The thought had already said what the line was, but the menu had no word for it. This line gives those three a home without defining any of the seven, and it's in both 9a and 9b
-- **No definitions:** the character's reading is the measure, so it is never held to 10a's DEFINITIONS. The seven words are plain English (`insult` added in v0.12), and "if it chills you, it's a threat" says whose judgement counts
+- **The hostility ladder** *(v0.16; it replaces v0.15's scope line)*: insult → pressure → threat, plus "a plain question is none". It's the only gloss on any label, and it describes steps, not definitions. Pointed questions, demands, and dares go to `pressure` instead of `none`, so they're remembered without taking a ★ slot
+- **v0.15's scope line, superseded**: "A question, a demand, or a dare is none unless it also carries one of these." In the v0.14 re-check, most labels that didn't fit their own thought were threat on a dare or demand, or claim on a question. The thought had already said what the line was, but the menu had no word for it. This line gives those three a home without defining any of the seven, and it's in both 9a and 9b
+- **No definitions:** the character's reading is the measure, so it is never held to 10a's DEFINITIONS. The words are plain English (`insult` added in v0.12, `pressure` in v0.16), and "if it chills you, it's a threat" says whose judgement counts
 - **"Most lines are none"** answers v0.8's main failure: 10e labelled 91–97% of lines heard. Characters still label 62% (v0.9 test), mostly as claims. That's accepted for now (The perceived notebook, Coherence)
 - **It comes after the thought,** so the label follows the reaction instead of steering it
 - **`words`** *(v0.11)*: the character, not code, says which part of the line carried it. In the v0.10 re-check the lines ran 41–72 words with the commitment usually in the second or third sentence, so no fixed trim could find it. It costs about 15 output tokens on the ~60% of calls that label a line. It's the character's own pick, so it's never judged, only checked against the line
@@ -618,7 +628,7 @@ Say one thing, as {character_name} would say it.
 action — optional. You may take one of these actions with this line, or none:
 {allowed_actions}
 
-meant — what this line is, as you mean it, in one word: promise, deal, threat, admission, claim, denial, insult, or none. It's your own call: if you mean it to frighten, it's a threat. A question, a demand, or a dare is none unless it also carries one of these. Most lines are none.
+meant — what this line is, as you mean it, in one word: promise, deal, threat, admission, claim, denial, insult, pressure, or none. It's your own call. For hostility there are three steps: insult (a slight), pressure (leaning on them with a pointed question, a demand, or a dare), threat (harm to come). If you mean it to frighten, it's a threat. A plain question is none. Most lines are none.
 words — if meant is not none: the words of your line that carry it, at most 20, copied exactly. Otherwise null.
 
 Reply with only this JSON:
@@ -636,7 +646,7 @@ In a **Colloquio** (there is only one other person, so nobody needs designating)
 - `{addressee_instruction}`: empty
 - `{speak_schema}`: `{"utterance": "...", "meant": "none", "words": null, "action": null or {...}}`
 
-**`meant` and `words`** *(v0.13)*: the speaker's own reading of their own line, in the same eight words as `took` (block 9a). Code stores it as an own reading (The perceived notebook). The two lines go after the action list and before the schema line, as every addition must.
+**`meant` and `words`** *(v0.13)*: the speaker's own reading of their own line, in the same words as `took` (block 9a). Code stores it as an own reading (The perceived notebook). The two lines go after the action list and before the schema line, as every addition must.
 - **Why here:** in the v0.12 re-check, `think()` after a character's own line reacted to the line they'd been answering, not to their own (52 fallbacks). The speaker knows what they mean while saying it
 - **Risk:** `speak()` carries the secret-keeping lines measured in S5d, so this is a change to the call most tied to past gate results. The re-check should watch `speak()` repairs and, if it's affordable, leak lines (Models & Research's call)
 - **`words` here are copied from text the speaker has just written,** so they should almost always be found
@@ -1184,6 +1194,7 @@ T5 · Colloquio · ★ Contessa Isabella: "…three Florins for your discretion�
 T5 · Il Notaio: "Signor Raffaello de' Medici was once again seen drawing another aside — this time Captain LeNoir…"
 T5 · Capannello · Francesco Pazzi: "The Captain walks the Embassy gardens most nights." (you took it as a claim)
 T5 · Capannello · Captain Armand LeNoir: "…a coward behind a French sword…" (you took it as an insult)
+T6 · Capannello · Captain Armand LeNoir: "…where were you when the boar seal went missing?" (you took it as pressure)
 T6 · Colloquio with Francesco Pazzi · ★ you: "My lips are sealed, as ever." (you meant it as a promise)
 T6 · your belief (conclusion): Contessa Isabella ordered the killing of Lucien.
 ```
@@ -1605,6 +1616,10 @@ The first build artifact: an internal console for running and debugging the simu
 **Removed (v0.13):**
 - **Own-line labels in `think()`** (v0.9–v0.12): after speaking, the thought reacts to the line being answered. Replaced by `meant` in `speak()`
 
+**Rejected (v0.16):**
+- **Separate labels for question, demand, dare, and challenge:** what matters later is that someone leaned on you, and about what, not which kind of leaning it was. Four words would thin every count
+- **Making `pressure` ★:** it would compete with promises and threats for the ★ slots, which is the problem it fixes
+
 **Rejected (v0.15):**
 - **New labels for challenge, demand, or question:** they aren't things a character needs to remember later, and every new label thins the counts the research compares. `none` is the right home, and the scope line says so
 - **A dedicated re-check of v0.15 now:** the attachment rules this would test already passed, and spend is near the caps. The fit bars ride along with the first full games' hand-read
@@ -1653,7 +1668,7 @@ The first build artifact: an internal console for running and debugging the simu
 - ~~Does v0.7 reach gate 8?~~ No. Closed Oct 25 as a known limit, with DeepSeek recording on v0.7 (Memory Writing, Known limit)
 - **v0.6's or v0.7's ★ pass for the reference record?** Decided by the first full games' hand-read. In the default mode the choice affects knowledge checks and research, not what characters remember
 - **Which plot points can still use knowledge checks?** Logged checks (payments, meetings, ledger) are exact. Knowledge checks carry the known limit. Hand-read their verdicts in the first full games; if they misfire often, Mechanics could limit the Plot Reward to logged plot points
-- **The fit bars after v0.15** (Models & Research's bars; v0.34, Open Questions). In the v0.14 re-check everything passed except fit: own 21 of 30, others 23 of 30, against 26. Check v0.15's scope line in the first full games' hand-read, or in a 2-game play-only run if Models & Research would rather know first. Note that think()'s fit was 28 of 30 on v0.12 and 23 of 30 on v0.14 with a near-identical prompt, so part of the gap may be sampling. Bar size is Models & Research's call
+- **The fit bars after v0.15** (Models & Research's bars; v0.34, Open Questions). In the v0.14 re-check everything passed except fit: own 21 of 30, others 23 of 30, against 26. Check v0.16's hostility ladder in the first full games' hand-read, especially the pressure–threat boundary, or in a 2-game play-only run if Models & Research would rather know first. Note that think()'s fit was 28 of 30 on v0.12 and 23 of 30 on v0.14 with a near-identical prompt, so part of the gap may be sampling. Bar size is Models & Research's call
   - **If own-line fit stays low:** drop own readings from the notebook and keep `meant` in the record for research. Characters then remember their own words only through History
 - **The leak flag** (v0.14 re-check: 16 leak lines against 7 on the same seeds). Is a plot-driven reveal, like Raffaello's debt, a leak? Models & Research decides, and that decision settles whether this flag stands. If it does, and it holds in the full games, the first suspect is `meant` in `speak()`, and the fallback above applies
 - **The perceived notebook in the first full games:**
