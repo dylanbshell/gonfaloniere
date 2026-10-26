@@ -1,20 +1,46 @@
-// Key audit: every run that spends through the OpenRouter key records the key's own usage before
-// and after, and writes whatever the key spent that no ledger recorded as an "unledgered" cost
+// Key audit: every run that spends through the OpenRouter key checks the key's own usage against
+// the ledgers, and writes any spend the key saw that no ledger recorded as an "unledgered" cost
 // record, so the ledgers track the key. Spend that escapes the per-call records: a billed attempt
 // that callModel retried (a client timeout, status null, after the provider finished), a billed
-// reply whose caller wrote no record (an unparseable judge reply), or any call outside the harness
-// while the run was going. The key itself is never logged or printed.
+// reply whose caller wrote no record, or any call outside the harness. The key itself is never
+// logged or printed.
+//
+// The key's usage lags the calls by minutes (Oct 26: a run's last ~$0.07 showed up more than five
+// minutes after it ended), so a before/after window misreads it. The audit works on the cumulative
+// gap instead: key usage minus everything the ledgers recorded through OpenRouter. Lag can only
+// lower that gap, never raise it, so a rise above the baseline is spend no ledger has, and it is
+// recorded once; later checks see it in the ledgers and don't record it again.
 
 import { existsSync } from "node:fs";
-import { JUDGE_DIR, RunLog, priorSpend, type LogRecord } from "./log.ts";
+import { basename } from "node:path";
+import { JUDGE_DIR, RunLog, readRecords, runLogFiles, type LogRecord } from "./log.ts";
 
 /** Every ledger the caps read: probe and judging, pilot, and mini-game. */
 export const LEDGER_DIRS = ["results", "results/pilot", "results/minigame"];
 
+const ledgerDirs = () => [...new Set([...LEDGER_DIRS, JUDGE_DIR])].filter((d) => existsSync(d));
+
 /** Total recorded across all ledgers (and a separate judge ledger, if PROBE_JUDGE_DIR points at one). */
 export function ledgerTotal(): number {
-  const dirs = new Set([...LEDGER_DIRS, JUDGE_DIR]);
-  return [...dirs].filter((d) => existsSync(d)).reduce((sum, d) => sum + priorSpend(d), 0);
+  return ledgerRecords().reduce((sum, r) => sum + r.costUsd, 0);
+}
+
+/** What the ledgers recorded through OpenRouter: everything but Tinker (training, and checkpoints sampled on Tinker). */
+export function openRouterTotal(): number {
+  return ledgerRecords()
+    .filter((r) => !r.tinker)
+    .reduce((sum, r) => sum + r.costUsd, 0);
+}
+
+function ledgerRecords(): { costUsd: number; tinker: boolean }[] {
+  return ledgerDirs().flatMap((d) =>
+    runLogFiles(d).flatMap((f) =>
+      readRecords([f])
+        .map((r) => r as unknown as Record<string, unknown>)
+        .filter((r) => "costUsd" in r)
+        .map((r) => ({ costUsd: Number(r.costUsd) || 0, tinker: r.provider === "Tinker" || basename(f).startsWith("tinker-") })),
+    ),
+  );
 }
 
 /** The key's lifetime usage and limit, from OpenRouter's key-info endpoint; null if it can't be read. */
@@ -29,64 +55,68 @@ export async function keyInfo(key: string): Promise<{ usage: number; limit: numb
   }
 }
 
-export interface KeyAudit {
-  usage: number | null;
-  ledger: number;
-  at: string;
+/** The gap the audit started from (key usage minus OpenRouter ledgers, at its first check); null before that. */
+export function keyBaseline(): number | null {
+  const found = ledgerDirs()
+    .flatMap((d) => readRecords(runLogFiles(d).filter((f) => basename(f).startsWith("key-audit-"))))
+    .map((r) => r as unknown as { type: string; gap?: number })
+    .filter((r) => r.type === "key-baseline" && typeof r.gap === "number");
+  return found.length ? found[0]!.gap! : null;
 }
 
-export async function keyAuditStart(key: string, ledger: () => number = ledgerTotal): Promise<KeyAudit> {
-  return { usage: (await keyInfo(key))?.usage ?? null, ledger: ledger(), at: new Date().toISOString() };
+export interface KeyCheck {
+  usage: number | null;
+  /** Key usage minus the OpenRouter ledgers, before anything this check records. */
+  gap: number | null;
+  /** Unledgered spend recorded by this check. */
+  unledgered: number;
 }
 
 /**
- * Reads the key again (after a short wait, since usage lags the last calls by a few seconds) and
- * writes a "key-usage" record; if the key spent more than every ledger recorded since the start,
- * also an "unledgered" record carrying that difference as its cost. The ledger side counts all
- * ledgers, so another harness run in the same window isn't mistaken for unledgered spend.
+ * Compares the key with the ledgers and records any rise in the gap above the baseline as an
+ * "unledgered" cost record (or, on the very first check, records the gap as the baseline).
  */
-export async function keyAuditEnd(
-  start: KeyAudit,
+export async function keyCheck(
   key: string,
   write: (record: Record<string, unknown>) => void,
   runId: string,
-  settleMs = 8000,
-  ledger: () => number = ledgerTotal,
-): Promise<{ keyDelta: number | null; ledgerDelta: number; unledgered: number }> {
-  // Nothing spent (an estimate, a report, a dry run): no record, and no wait.
-  const now = (await keyInfo(key))?.usage ?? null;
-  if (now === start.usage && ledger() === start.ledger) return { keyDelta: 0, ledgerDelta: 0, unledgered: 0 };
-  await new Promise((r) => setTimeout(r, settleMs));
-  const after = (await keyInfo(key))?.usage ?? null;
-  const ledgerDelta = ledger() - start.ledger;
-  const keyDelta = start.usage !== null && after !== null ? after - start.usage : null;
-  const unledgered = keyDelta !== null ? Math.max(0, keyDelta - ledgerDelta) : 0;
+  phase: "start" | "end",
+  ledgers: { openRouter: () => number; baseline: () => number | null } = { openRouter: openRouterTotal, baseline: keyBaseline },
+): Promise<KeyCheck> {
+  const usage = (await keyInfo(key))?.usage ?? null;
+  if (usage === null) return { usage, gap: null, unledgered: 0 };
+  const gap = usage - ledgers.openRouter();
   const at = new Date().toISOString();
-  write({ type: "key-usage", runId, before: start.usage, after, keyDelta, ledgerDelta, at });
+  const baseline = ledgers.baseline();
+  if (baseline === null) {
+    write({ type: "key-baseline", runId, gap, usage, at });
+    return { usage, gap, unledgered: 0 };
+  }
   // A few tenths of a cent is rounding in the key's usage; anything above a cent is recorded.
-  if (unledgered >= 0.01) write({ type: "unledgered", runId, costUsd: Number(unledgered.toFixed(6)), keyDelta, ledgerDelta, since: start.at, at });
-  return { keyDelta, ledgerDelta, unledgered };
+  const unledgered = gap - baseline >= 0.01 ? gap - baseline : 0;
+  write({ type: "key-usage", runId, phase, usage, gap, baseline, at });
+  if (unledgered) write({ type: "unledgered", runId, costUsd: Number(unledgered.toFixed(6)), usage, gap, baseline, at });
+  return { usage, gap, unledgered };
 }
 
 /**
- * Runs an entry point's main() inside a key audit (OPENROUTER_API_KEY only; other keys aren't
- * audited). The records go to `key-audit-….jsonl` in that entry point's ledger directory, where
- * the caps' totals read them; a run that spent nothing writes none.
+ * Runs an entry point's main() between two key checks (OPENROUTER_API_KEY only; other keys aren't
+ * audited). The records go to `key-audit-….jsonl` in that entry point's ledger directory, where the
+ * caps' totals read them.
  */
 export async function audited(main: () => Promise<void>, dir: string, label: string): Promise<void> {
   const key = process.env.OPENROUTER_API_KEY;
-  const start = key ? await keyAuditStart(key) : null;
+  const runId = `${new Date().toISOString().replace(/[:.]/g, "-")}-${label}`;
+  let log: RunLog | null = null;
+  const write = (r: Record<string, unknown>) => (log ??= new RunLog(runId, "key-audit-", dir)).write(r as unknown as LogRecord);
+  const report = (c: KeyCheck, when: string) => {
+    if (c.unledgered) console.log(`Key audit (${when}): $${c.unledgered.toFixed(4)} the key spent that no ledger had, now recorded as unledgered.`);
+  };
+  if (key) report(await keyCheck(key, write, runId, "start"), "start");
   try {
     await main();
   } finally {
-    if (key && start) {
-      const runId = `${start.at.replace(/[:.]/g, "-")}-${label}`;
-      let log: RunLog | null = null;
-      const write = (r: Record<string, unknown>) => (log ??= new RunLog(runId, "key-audit-", dir)).write(r as unknown as LogRecord);
-      const r = await keyAuditEnd(start, key, write, runId);
-      if (r.keyDelta !== null && (r.keyDelta > 0 || r.ledgerDelta > 0)) {
-        console.log(`Key audit: the key spent $${r.keyDelta.toFixed(4)}, the ledgers recorded $${r.ledgerDelta.toFixed(4)}${r.unledgered >= 0.01 ? `; $${r.unledgered.toFixed(4)} recorded as unledgered` : ""}.`);
-      }
-    }
+    // Usage lags by minutes, so the end check mostly sees earlier runs' spend; this run's settles at a later check.
+    if (key) report(await keyCheck(key, write, runId, "end"), "end");
   }
 }
