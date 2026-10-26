@@ -35,8 +35,8 @@ export type ThinkOutput = z.infer<typeof ThinkOutput> & {
   wordsLog?: WordsLog;
 };
 
-/** TD v0.9's `took` values (block 9a): the six kinds, `insult` (v0.12), or none. */
-export const TOOK_VALUES = ["promise", "deal", "threat", "admission", "claim", "denial", "insult", "none"] as const;
+/** TD v0.9's `took` values (block 9a): the six kinds, `insult` (v0.12), `pressure` (v0.16), or none. */
+export const TOOK_VALUES = ["promise", "deal", "threat", "admission", "claim", "denial", "insult", "pressure", "none"] as const;
 export type Took = (typeof TOOK_VALUES)[number];
 
 /**
@@ -44,11 +44,12 @@ export type Took = (typeof TOOK_VALUES)[number];
  * plural stripped ("a threat" → threat, "Threats" → threat). Missing or unknown → none, which the
  * caller logs as a repair; it never triggers a retry.
  */
-export function normalizeTook(raw: unknown): { took: Took; unknown: boolean } {
+export function normalizeTook(raw: unknown, allowed: readonly string[] = TOOK_VALUES): { took: Took; unknown: boolean } {
   if (typeof raw !== "string") return { took: "none", unknown: true };
   let w = raw.trim().toLowerCase().replace(/[.!"'`]+$/g, "").replace(/^["'`]+/, "");
   w = w.replace(/^(a|an|the)\s+/, "");
-  const hit = (x: string) => (TOOK_VALUES as readonly string[]).includes(x);
+  // `allowed`: the values this TD's prompt offers (an older TD's prompt has no insult or pressure).
+  const hit = (x: string) => allowed.includes(x);
   if (hit(w)) return { took: w as Took, unknown: false };
   // Plurals: "threats", "promises", "denials", "admissions", "claims", "deals".
   const singular = w.endsWith("s") ? w.slice(0, -1) : w;
@@ -175,6 +176,8 @@ export interface ThinkExpectation {
   format?: "td0.2" | "td0.3";
   /** TD v0.9: the prompt asks for `took`, so it's read (and a missing one repaired). */
   took?: boolean;
+  /** The `took` values this TD's prompt offers (default: all of TOOK_VALUES). */
+  tookValues?: readonly string[];
   /**
    * TD v0.11: the prompt asks for `words`; they're checked against this line (null: no spoken line).
    * `cap`: the most words kept (12 in v0.11–v0.12, 20 from v0.13). `others`: the other lines the
@@ -510,7 +513,7 @@ function parseThinkV3(raw: string, expect: ThinkExpectation): ThinkParseResult {
       : { verdict: errors.length ? "meaning" : "valid", errors, warnings: [], value };
 
   // TD v0.9: `took` never fails a call; missing or unknown becomes none, counted as a repair.
-  const took = expect.took ? normalizeTook(v.took) : null;
+  const took = expect.took ? normalizeTook(v.took, expect.tookValues) : null;
   // TD v0.11: `words` never fails a call either; it's kept only when it's found in the line.
   const words = took && expect.words ? checkWords(v.words, took.took, expect.words.line, expect.words) : null;
   const asIs: ThinkOutput = {

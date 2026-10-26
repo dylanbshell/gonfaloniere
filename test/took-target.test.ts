@@ -138,7 +138,7 @@ function checkTargets(g: MiniGame, prompts: { character: string; user: string }[
     const asked = prompts.filter((p) => p.character === c);
     mine.forEach((t, i) => {
       const target = byLine.get(t.target_line ?? "");
-      const expected: TookTarget = t.took_target === "other" ? { type: "other", speaker: target!.speaker! } : { type: t.took_target! };
+      const expected: TookTarget = t.took_target === "other" ? { type: "other", speaker: target!.speaker!, answering: t.target_answering } : { type: t.took_target! };
       assert.ok(asked[i]!.user.includes(`\n2. took — ${tookTargetText(expected, td)}, in one word:`), `${t.id} prompt names ${t.took_target}`);
       if (t.took_target === "own") assert.equal(target?.speaker, c);
       const afterOwn = byLine.get(t.after_line ?? "")?.speaker === c;
@@ -160,8 +160,10 @@ test("TD v0.12, in play: every think() prompt names the line its reading is stor
   assert.ok(g.memory.readings.some((r) => r.own && r.thought !== null));
 });
 
-test("TD v0.13+ (default v0.14), in play: after an own line, think() names the line they were answering; own readings come only from speak()", async () => {
-  const { g, prompts, speaks, td } = await playWith(docs);
+test("TD v0.14, in play: after an own line, think() names the line they were answering; own readings come only from speak()", async () => {
+  const { g, prompts, speaks, td } = await playWith(loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.14") }));
+  assert.equal(g.memory.quoteDropsPunct, false);
+  assert.ok(!g.thoughts.some((t) => t.target_answering) || prompts.every((p) => !p.user.includes("you were answering")), "v0.14 keeps 'last line'");
   const seen = checkTargets(g, prompts, td);
   // speak()'s schema carries meant and words after utterance, in both forms; the two lines come before the reply line.
   const capannello = speaks.filter((u) => u.includes('"addressee"'));
@@ -186,4 +188,25 @@ test("TD v0.13+ (default v0.14), in play: after an own line, think() names the l
   assert.ok(g.memory.readings.filter((r) => r.source !== "speak").every((r) => !r.own), "no own reading from think()");
   // meant and words are on every speak() record.
   assert.ok(g.events.filter((e) => e.type === "speech").every((e) => e.meant === "promise" && e.words === "A fine evening"));
+});
+
+test("TD v0.16 (default), in play: the hostility ladder in think() and speak(), v0.15's wording after an own line, no v0.15 scope line", async () => {
+  assert.equal(docs.versions.technicalDesign, "0.16");
+  const { g, prompts, speaks, td } = await playWith(docs);
+  checkTargets(g, prompts, td);
+  const ladder = (them: string) => `For hostility there are three steps: insult (a slight), pressure (leaning on ${them} with a pointed question, a demand, or a dare), threat (harm to come).`;
+  assert.ok(prompts.length > 0 && prompts.every((p) => p.user.includes(ladder("you")) && p.user.includes("in one word: promise, deal, threat, admission, claim, denial, insult, pressure, or none.")));
+  assert.ok(speaks.length > 0 && speaks.every((u) => u.includes(ladder("them")) && u.includes("If you mean it to frighten, it's a threat.")));
+  for (const u of [...prompts.map((p) => p.user), ...speaks]) assert.ok(!u.includes("A question, a demand, or a dare is none unless"), "v0.15's scope line is gone");
+  // After an own line, the target names the line they were answering (v0.15 wording).
+  const answering = g.thoughts.filter((t) => t.target_answering);
+  assert.ok(answering.length > 0);
+  // Block 6 drops trailing punctuation before "…" from v0.15 on.
+  assert.equal(g.memory.quoteDropsPunct, true);
+  const byLine = new Map(g.lines.map((l) => [l.id, l]));
+  for (const t of answering) {
+    const i = g.thoughts.filter((x) => x.call === "think" && x.character === t.character).indexOf(t);
+    const asked = prompts.filter((p) => p.character === t.character)[i]!;
+    assert.ok(asked.user.includes(`\n2. took — how you take the line of ${byLine.get(t.target_line!)!.speaker}'s you were answering, in one word:`), t.id);
+  }
 });

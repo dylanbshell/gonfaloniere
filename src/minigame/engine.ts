@@ -23,6 +23,7 @@ import {
   thinkAsksWords,
   speakAsksMeant,
   tdMinor,
+  labelValues,
   wordsCap,
   type TookTarget,
   fill,
@@ -194,6 +195,7 @@ export class MiniGame {
     private hooks: GameHooks = {},
   ) {
     this.rng = mulberry32(s.seed);
+    this.memory.quoteDropsPunct = tdMinor(docs.versions.technicalDesign) >= 15;
     this.recorder = new Recorder(docs, this.memory, (kind, c, system, user) => this.systemCall(kind, c, system, user), this.events, formatLine, listJoin);
     Object.assign(this.prefixes, this.recorder.prefixes);
     this.treasury = docs.tunables.embassy_treasury;
@@ -319,7 +321,7 @@ export class MiniGame {
       allowedActions: allowedActionTypes(actions),
       florins: actions.florins,
       addressee: speakHasAddressee(this.docs.templates, conv.kind),
-      ...(speakAsksMeant(this.docs.templates) && { meant: { cap: wordsCap(this.docs.templates, "speak") } }),
+      ...(speakAsksMeant(this.docs.templates) && { meant: { cap: wordsCap(this.docs.templates, "speak"), values: labelValues(this.docs.templates, "speak") } }),
     };
     const out = await this.characterCall("speak", speaker, p, (raw) => {
       const r = parseSpeak(raw, expect);
@@ -389,22 +391,25 @@ export class MiniGame {
     // TD v0.13: own lines are labelled in speak(), so think() names the last line by someone else.
     const ownFromSpeak = speakAsksMeant(this.docs.templates);
     const cap = wordsCap(this.docs.templates, "think");
+    // TD v0.15: "this conversation" starts at the character's latest arrival.
+    const sinceArrival = tdMinor(this.docs.versions.technicalDesign) >= 15;
+    const tookValues = labelValues(this.docs.templates, "think");
     await Promise.all(
       conv.members.map(async (c) => {
         const ctx = this.context(c);
         // TD v0.10: {took_target} names the line the reading will attach to, by the same rule (labelLine).
-        const { line, type } = tookTargetLine(c, conv.id, this.char(c).lines.at(-1)?.id ?? null, this.lines, ownFromSpeak);
+        const { line, type, answering } = tookTargetLine(c, conv.id, this.char(c).lines.at(-1)?.id ?? null, this.lines, ownFromSpeak, sinceArrival);
         // TD v0.13 wrong-line rule: the other spoken lines the character heard, to place words not in the named line.
         // TD v0.14: with each line's speaker, so an earlier line by the named line's speaker counts as the same remark.
         const sameSpeaker = tdMinor(this.docs.versions.technicalDesign) >= 14;
         const others = ownFromSpeak
           ? this.char(c).lines.filter((l) => l.kind === "speech" && l.id !== line?.id).map((l) => ({ id: l.id, text: l.text, ...(sameSpeaker && { speaker: l.speaker }) }))
           : undefined;
-        const target: TookTarget = type === "other" ? { type, speaker: line!.speaker! } : { type };
-        const named = namesTarget ? { took_target: type, target_line: line?.id ?? null } : {};
+        const target: TookTarget = type === "other" ? { type, speaker: line!.speaker!, answering } : { type };
+        const named = namesTarget ? { took_target: type, target_line: line?.id ?? null, ...(answering && { target_answering: true }) } : {};
         const p = assembleThinkPrompt(this.docs.templates, ctx, { tookTarget: target, td: this.docs.versions.technicalDesign });
         const out = await this.characterCall("think", c, p, (raw) => {
-          const r = parseThink(raw, { conversation: conv.kind, livingOthers: ctx.state.livingOthers, format: "td0.3", took: asksTook, ...(asksWords && { words: { line: line?.text ?? null, cap, ...(others && { others }), ...(sameSpeaker && { speaker: line?.speaker ?? null }) } }) });
+          const r = parseThink(raw, { conversation: conv.kind, livingOthers: ctx.state.livingOthers, format: "td0.3", took: asksTook, ...(tookValues && { tookValues }), ...(asksWords && { words: { line: line?.text ?? null, cap, ...(others && { others }), ...(sameSpeaker && { speaker: line?.speaker ?? null }) } }) });
           const repairs = Object.entries(r.repairs ?? {})
             .filter(([, v]) => (Array.isArray(v) ? v.length > 0 : Boolean(v)))
             .map(([k]) => k);
@@ -634,7 +639,7 @@ export class MiniGame {
     const thoughts = this.thoughts.filter((t) => t.turn === this.turn && !t.repeat);
     // TD v0.9: readings come from think()'s `took`, written by code for each character (perceived only).
     if ((this.s.notebook ?? "perceived") === "perceived") {
-      const r = this.memory.writeReadings(this.turn, this.thoughts, this.lines, { ownFromSpeak: speakAsksMeant(this.docs.templates) });
+      const r = this.memory.writeReadings(this.turn, this.thoughts, this.lines, { ownFromSpeak: speakAsksMeant(this.docs.templates), sinceArrival: tdMinor(this.docs.versions.technicalDesign) >= 15 });
       this.events.push({ turn: this.turn, type: "readings", stored: r.stored.map((x) => x.id), logged: r.logged.map((x) => `${x.character} ${x.thought}: ${x.reason}`) });
     }
     await this.recorder.turn(this.turn, this.lines, thoughts);
@@ -834,7 +839,7 @@ export class MiniGame {
     this.memory.addEntry({ turn: this.turn, conversation: conv.id, where: line.where, type, speaker: actor, toward: null, about: [actor], summary: text, quote: null, lines: [line.id], audience: [actor], source: "code" });
   }
 
-  private addThought(c: CharacterName, call: string, text: string, extra: Record<string, unknown> = {}, fields: Pick<Thought, "took" | "conversation" | "closing" | "took_target" | "target_line" | "words" | "words_log"> = {}): void {
+  private addThought(c: CharacterName, call: string, text: string, extra: Record<string, unknown> = {}, fields: Pick<Thought, "took" | "conversation" | "closing" | "took_target" | "target_line" | "target_answering" | "words" | "words_log"> = {}): void {
     // TD v0.6 shortTermHistory: an exact repeat of the previous thought is logged and counted, not shown again.
     const previous = this.thoughts.findLast((t) => t.character === c);
     const repeat = (this.s.dropRepeatedThoughts ?? true) && !!previous && sameThought(previous.text, text);

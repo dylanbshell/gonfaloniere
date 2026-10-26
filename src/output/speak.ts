@@ -40,8 +40,11 @@ export interface SpeakExpectation {
   florins: number;
   /** False when the prompt has no addressee field (TD v0.4's Colloquio); default true. */
   addressee?: boolean;
-  /** TD v0.13: the prompt asks for `meant` and `words`; words are cut at `cap` and checked against the utterance. */
-  meant?: { cap: number };
+  /**
+   * TD v0.13: the prompt asks for `meant` and `words`; words are cut at `cap` and checked against the
+   * utterance. `values`: the `meant` values this TD's prompt offers (default: all of TOOK_VALUES).
+   */
+  meant?: { cap: number; values?: readonly string[] };
 }
 
 export interface SpeakParseResult {
@@ -121,7 +124,7 @@ export function parseSpeak(raw: string, expect: SpeakExpectation): SpeakParseRes
   if (words > 60) warnings.push(`utterance is ${words} words (asked for about 60 at most)`);
 
   // TD v0.13: `meant` is matched like `took`; `words` are kept only when it isn't none, and checked against the utterance.
-  const meant = expect.meant ? normalizeTook(value.meant) : null;
+  const meant = expect.meant ? normalizeTook(value.meant, expect.meant.values) : null;
   const carried = meant && expect.meant ? checkWords(value.words, meant.took, value.utterance, { cap: expect.meant.cap }) : null;
 
   return {

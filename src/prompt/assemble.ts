@@ -135,6 +135,15 @@ export function speakAsksMeant(t: PromptTemplates): boolean {
   return /\nmeant — /.test(t.speak);
 }
 
+/**
+ * The label values a TD's prompt offers ("in one word: promise, …, or none."), from block 9a's `took`
+ * line or block 9b's `meant` line; undefined if the line isn't there.
+ */
+export function labelValues(t: PromptTemplates, call: "think" | "speak"): string[] | undefined {
+  const m = (call === "think" ? /\n2\. took — [^\n]*?in one word: ([a-z, ]+?), or none\./ : /\nmeant — [^\n]*?in one word: ([a-z, ]+?), or none\./).exec(call === "think" ? t.think : t.speak);
+  return m ? [...m[1]!.split(/,\s*/), "none"] : undefined;
+}
+
 /** The most words a `words` line keeps ("at most N" in the TD's own text): 12 in TD v0.11–v0.12, 20 from v0.13. */
 export function wordsCap(t: PromptTemplates, call: "think" | "speak"): number {
   const m = (call === "think" ? /\n3\. words — [^\n]*?at most (\d+)/ : /\nwords — [^\n]*?at most (\d+)/).exec(call === "think" ? t.think : t.speak);
@@ -150,11 +159,12 @@ export function thinkNamesTarget(t: PromptTemplates): boolean {
  * The line {took_target} names (TD v0.10): someone else's (with the speaker's name as History
  * shows it), the character's own, or none when nothing has been said aloud.
  */
-export type TookTarget = { type: "other"; speaker: string } | { type: "own" } | { type: "none" };
+/** `answering` (TD v0.15): after the character's own line, the line of the speaker's they were answering. */
+export type TookTarget = { type: "other"; speaker: string; answering?: boolean } | { type: "own" } | { type: "none" };
 
 /** `td`: the Technical Design version, for the none text (TD v0.14 changed it). */
 export function tookTargetText(target: TookTarget, td?: string): string {
-  if (target.type === "other") return `how you take ${target.speaker}'s last line`;
+  if (target.type === "other") return target.answering && td && tdMinor(td) >= 15 ? `how you take the line of ${target.speaker}'s you were answering` : `how you take ${target.speaker}'s last line`;
   if (target.type === "own") return "what you meant by your own last line";
   return td && tdMinor(td) >= 14 ? "nothing yet, since no one else has spoken here since you arrived" : "how you take the last thing said aloud";
 }

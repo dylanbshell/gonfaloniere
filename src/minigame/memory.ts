@@ -62,6 +62,8 @@ export interface Thought {
   /** TD v0.10, think() only: whose line {took_target} named (other, own, none), and that line's id. */
   took_target?: TookTargetType;
   target_line?: string | null;
+  /** TD v0.15: the named line is the one the character was answering with their own line. */
+  target_answering?: boolean;
   /** TD v0.11, think() only: the words of the target line that carried the label (null: fallback or none). */
   words?: string | null;
   /** TD v0.11: what the words check did, when it did anything (cut at 12, words fallback, ignored with none). */
@@ -99,8 +101,8 @@ export interface MemoryEntry {
   source: "10a" | "10d" | "code";
 }
 
-/** What a character took a line as: the six kinds and `insult` (TD v0.12, not ★), as the character sees them. */
-export const READING_KINDS = ["promise", "deal", "threat", "admission", "claim", "denial", "insult"] as const;
+/** What a character took a line as: the six kinds, `insult` (TD v0.12) and `pressure` (v0.16), neither ★, as the character sees them. */
+export const READING_KINDS = ["promise", "deal", "threat", "admission", "claim", "denial", "insult", "pressure"] as const;
 /** TD v0.8's 10e readings (replay only): the six kinds. */
 const PERCEPTION_KINDS = ["promise", "deal", "threat", "admission", "claim", "denial"] as const;
 const SALIENT_READINGS = ["promise", "deal", "threat", "admission"];
@@ -240,6 +242,8 @@ export class MemoryStore {
   perceptionReadings: PerceptionReading[] = [];
   /** Lines seen by writeReadings, for rendering and retrieval. */
   private lineIndex = new Map<string, GameLine>();
+  /** TD v0.15: block 6 drops trailing sentence punctuation from quoted words before an "…". */
+  quoteDropsPunct = false;
   private nextR = 1;
   private nextM = 1;
   private nextB = 1;
@@ -573,7 +577,7 @@ export class MemoryStore {
    * other than none stands, and a later label for the line is logged, not stored; (4) a label on the
    * character's own line is marked own. Each reading is stored for that character only.
    */
-  writeReadings(turn: number, thoughts: Thought[], lines: GameLine[], opts: { ownFromSpeak?: boolean } = {}): { stored: Reading[]; logged: LabelLogEntry[] } {
+  writeReadings(turn: number, thoughts: Thought[], lines: GameLine[], opts: { ownFromSpeak?: boolean; sinceArrival?: boolean } = {}): { stored: Reading[]; logged: LabelLogEntry[] } {
     for (const l of lines) this.lineIndex.set(l.id, l);
     const stored: Reading[] = [];
     const logged: LabelLogEntry[] = [];
@@ -607,7 +611,7 @@ export class MemoryStore {
     }
     const ordered = thoughts.filter((t) => t.turn === turn && t.call === "think" && t.took && t.took !== "none").sort((a, b) => num(a.id) - num(b.id));
     for (const t of ordered) {
-      const line = labelLine(t, lines, opts.ownFromSpeak);
+      const line = labelLine(t, lines, opts.ownFromSpeak, opts.sinceArrival);
       const log = (reason: LabelLogEntry["reason"], extra: Partial<LabelLogEntry> = {}) => {
         const e: LabelLogEntry = { turn, character: t.character, thought: t.id, took: t.took!, line: line?.id ?? null, reason, ...extra };
         this.labelLog.push(e);
@@ -664,7 +668,7 @@ export class MemoryStore {
     const names = (x: Item): string[] => (x.kind === "reading" ? x.r.about : x.kind === "entry" ? ([x.e.speaker, x.e.toward, ...x.e.about].filter(Boolean) as string[]) : []);
     const salient = (x: Item) => (x.kind === "reading" ? x.r.salient : x.kind === "entry" ? x.e.salient : false);
     const text = (x: Item) => (x.kind === "reading" ? this.lineIndex.get(x.r.line)!.text : x.kind === "entry" ? x.e.summary : x.b.statement);
-    const render = (x: Item) => (x.kind === "reading" ? renderReading(x.r, this.lineIndex.get(x.r.line)!, x.r.words_line ? this.lineIndex.get(x.r.words_line) : undefined) : x.kind === "entry" ? renderCodeEntryFor(x.e, c) : renderBelief(x.b));
+    const render = (x: Item) => (x.kind === "reading" ? renderReading(x.r, this.lineIndex.get(x.r.line)!, x.r.words_line ? this.lineIndex.get(x.r.words_line) : undefined, this.quoteDropsPunct) : x.kind === "entry" ? renderCodeEntryFor(x.e, c) : renderBelief(x.b));
     const picked: Item[] = [];
     const take = (xs: Item[], n: number) => {
       for (const x of xs) {
@@ -866,20 +870,30 @@ export function renderEntry(e: MemoryEntry, forChar?: CharacterName): string {
  * A Colloquio line of the character's own names the other guest; otherwise only the type is shown.
  */
 /** `wordsLine`: the earlier line by the same speaker the words came from (TD v0.14), for placing "…". */
-export function renderReading(r: Reading, line: GameLine, wordsLine?: GameLine): string {
+/**
+ * `wordsLine`: the earlier line by the same speaker the words came from (TD v0.14), for placing "…".
+ * `dropPunct` (TD v0.15): trailing sentence punctuation is dropped from the words before an "…".
+ */
+export function renderReading(r: Reading, line: GameLine, wordsLine?: GameLine, dropPunct = false): string {
   const other = line.where.members.filter((m) => m !== r.character);
   const label = r.own && line.where.kind === "colloquio" && other.length ? `Colloquio with ${other.join(", ")}` : conversationType(line.where);
   const who = r.own ? "you" : r.speaker;
-  const how = r.own ? `you meant it as ${article(r.took)} ${r.took}` : `you took it as ${article(r.took)} ${r.took}`;
-  return `T${r.turn} · ${label} · ${r.salient ? "★ " : ""}${who}: "${r.words ? wordsQuote(r.words, (wordsLine ?? line).text) : trimQuote(line.text)}" (${how})`;
+  const how = r.own ? `you meant it as ${kindPhrase(r.took)}` : `you took it as ${kindPhrase(r.took)}`;
+  return `T${r.turn} · ${label} · ${r.salient ? "★ " : ""}${who}: "${r.words ? wordsQuote(r.words, (wordsLine ?? line).text, dropPunct) : trimQuote(line.text)}" (${how})`;
 }
 
+/** "a deal", "an insult"; `pressure` (TD v0.16) takes no article. */
+const kindPhrase = (kind: string) => (kind === "pressure" ? kind : `${article(kind)} ${kind}`);
+
 /** TD v0.11: the character's words, with "…" before them if they don't start the line and after them if they don't end it. */
-export function wordsQuote(words: string, text: string): string {
+export function wordsQuote(words: string, text: string, dropPunct = false): string {
   const at = text.indexOf(words);
   if (at === -1) return trimQuote(text);
   const hasWord = (s: string) => /[\p{L}\p{N}]/u.test(s);
-  return `${hasWord(text.slice(0, at)) ? "…" : ""}${words}${hasWord(text.slice(at + words.length)) ? "…" : ""}`;
+  const after = hasWord(text.slice(at + words.length));
+  // TD v0.15: no "both.…" — trailing sentence punctuation goes before an "…".
+  const shown = after && dropPunct ? words.replace(/[.,;:!?]+$/, "") : words;
+  return `${hasWord(text.slice(0, at)) ? "…" : ""}${shown}${after ? "…" : ""}`;
 }
 
 /** TD v0.9: the whole line if it's 15 words or fewer; otherwise its first 15 words and "…". */
@@ -950,14 +964,20 @@ const num = (id: string) => Number(id.slice(1));
  * TD v0.9's line for a label: the last spoken line, heard by the character, in the thought's
  * conversation, at or before the line the thought followed (`after_line`). Null if there is none.
  */
-export function labelLine(t: Thought, lines: GameLine[], skipOwn = false): GameLine | null {
+export function labelLine(t: Thought, lines: GameLine[], skipOwn = false, sinceArrival = false): GameLine | null {
   if (!t.after_line || !t.conversation) return null;
   const upTo = num(t.after_line);
+  // TD v0.15 (sinceArrival): "this conversation" starts at the character's latest arrival, so a character
+  // back from a Colloquio isn't asked about lines from before they left: only lines after the last line
+  // they heard elsewhere count.
+  const from = sinceArrival
+    ? Math.max(0, ...lines.filter((l) => num(l.id) <= upTo && l.heardBy.includes(t.character) && l.conversation !== t.conversation).map((l) => num(l.id)))
+    : 0;
   let best: GameLine | null = null;
   for (const l of lines) {
     // TD v0.13 (skipOwn): the character's own lines are labelled in speak(), so think() names the last line by someone else.
     if (skipOwn && l.speaker === t.character) continue;
-    if (l.kind === "speech" && l.conversation === t.conversation && num(l.id) <= upTo && l.heardBy.includes(t.character) && (!best || num(l.id) > num(best.id))) best = l;
+    if (l.kind === "speech" && l.conversation === t.conversation && num(l.id) > from && num(l.id) <= upTo && l.heardBy.includes(t.character) && (!best || num(l.id) > num(best.id))) best = l;
   }
   return best;
 }
@@ -966,9 +986,18 @@ export function labelLine(t: Thought, lines: GameLine[], skipOwn = false): GameL
  * TD v0.10: the line {took_target} names before a think(), by the rule that attaches the reading
  * (labelLine), and whose it is: someone else's, the character's own, or none.
  */
-export function tookTargetLine(c: CharacterName, conversation: string, afterLine: string | null, lines: GameLine[], skipOwn = false): { line: GameLine | null; type: TookTargetType } {
-  const line = labelLine({ character: c, conversation, after_line: afterLine } as Thought, lines, skipOwn);
-  return { line, type: !line ? "none" : line.speaker === c ? "own" : "other" };
+export function tookTargetLine(
+  c: CharacterName,
+  conversation: string,
+  afterLine: string | null,
+  lines: GameLine[],
+  skipOwn = false,
+  sinceArrival = false,
+): { line: GameLine | null; type: TookTargetType; answering: boolean } {
+  const line = labelLine({ character: c, conversation, after_line: afterLine } as Thought, lines, skipOwn, sinceArrival);
+  // After the character's own line (TD v0.13+): the named line is the one they were answering.
+  const answering = !!line && line.speaker !== c && lines.some((l) => l.kind === "speech" && l.speaker === c && l.conversation === conversation && num(l.id) > num(line.id) && num(l.id) <= num(afterLine ?? "L0"));
+  return { line, type: !line ? "none" : line.speaker === c ? "own" : "other", answering };
 }
 
 /** Roster names (full or alias) written in a line, e.g. both parties of "Contessa Isabella gave Lupo 3 Florins." */

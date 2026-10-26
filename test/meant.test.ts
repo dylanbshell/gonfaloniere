@@ -19,8 +19,8 @@ const UTTER = "Three Florins now, Contessa, and I'll keep the chapel's secret un
 const speak = (o: Record<string, unknown>) =>
   parseSpeak(JSON.stringify({ addressee: null, utterance: UTTER, action: null, ...o }), { present: [B], allowedActions: [], florins: 5, meant: { cap: 20 } });
 
-test("TD v0.13+ (default v0.14): Block 9b's meant and words lines sit after the actions and before the reply line; caps are 20", () => {
-  const d = loadDocs(config.docs);
+test("TD v0.14 (from git history): Block 9b's meant and words lines sit after the actions and before the reply line; caps are 20", () => {
+  const d = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.14") });
   assert.equal(d.versions.technicalDesign, "0.14");
   assert.ok(speakAsksMeant(d.templates));
   const t = d.templates.speak;
