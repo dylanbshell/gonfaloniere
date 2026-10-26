@@ -2,7 +2,7 @@
 // same rule that stores the reading (The perceived notebook, "Which line a label belongs to").
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { config } from "../probe.config.ts";
+import { config, technicalDesignPath } from "../probe.config.ts";
 import { CAST, STANDINS, STANDIN_FILE } from "../src/minigame/cast.ts";
 import { MiniGame, type CallRequest, type Caller } from "../src/minigame/engine.ts";
 import { MemoryStore, tookTargetLine, type GameLine, type Thought } from "../src/minigame/memory.ts";
@@ -75,11 +75,12 @@ test("the latest speech wins: own line after someone else's, and someone else's 
 const docs = loadDocs(config.docs);
 const briefings = { ...docs.briefings, ...loadStandinBriefings(STANDIN_FILE, STANDINS, docs.socialAwareness) };
 
-test("TD v0.10 loads: 9a has {took_target}, and thinkAsksTook still matches", () => {
-  assert.equal(docs.versions.technicalDesign, "0.10");
-  assert.ok(thinkAsksTook(docs.templates));
-  assert.ok(thinkNamesTarget(docs.templates));
-  assert.match(docs.templates.think, /\n2\. took — \{took_target\}, in one word: promise, deal, threat, admission, claim, denial, or none\./);
+test("TD v0.10 loads (from git history): 9a has {took_target}, and thinkAsksTook still matches", () => {
+  const v10 = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.10") });
+  assert.equal(v10.versions.technicalDesign, "0.10");
+  assert.ok(thinkAsksTook(v10.templates));
+  assert.ok(thinkNamesTarget(v10.templates));
+  assert.match(v10.templates.think, /\n2\. took — \{took_target\}, in one word: promise, deal, threat, admission, claim, denial, or none\./);
 });
 
 test("in play, every think() prompt names the line its reading is stored on (closing thinks included)", async () => {
@@ -90,7 +91,7 @@ test("in play, every think() prompt names the line its reading is stored on (clo
     if (req.kind === "think") prompts.push({ character: req.character!, user: req.user });
     const content = {
       plan: () => ({ thought: "A plan.", plan: "Goals: win. Threats: all. Next moves: talk." }),
-      think: () => ({ thought: `Thinking ${prompts.length}.`, took: "promise", importance: 50, ...(colloquio && { done: false }) }),
+      think: () => ({ thought: `Thinking ${prompts.length}.`, took: "promise", words: "fine evening", importance: 50, ...(colloquio && { done: false }) }),
       speak: () => (req.user.includes('"addressee"') ? { addressee: null, utterance: "A fine evening.", action: null } : { utterance: "A fine evening.", action: null }),
       move: () => ({ thought: "Move.", contacts: others.map((n) => ({ name: n, urgency: 50, purpose: null })), choice: "colloquio", target: others[0] }),
       murder: () => "x",
@@ -116,6 +117,12 @@ test("in play, every think() prompt names the line its reading is stored on (clo
 
   const thinks = g.thoughts.filter((t) => t.call === "think");
   assert.equal(thinks.length, prompts.length);
+  // TD v0.11's schema: words after took; in a Colloquio, done is step 5.
+  const colloquio = prompts.filter((p) => p.user.includes('"done": false}'));
+  assert.ok(colloquio.length > 0 && colloquio.every((p) => p.user.includes('{"thought": "...", "took": "none", "words": null, "importance": 0, "done": false}') && p.user.includes("\n5. done — ")));
+  assert.ok(prompts.filter((p) => !p.user.includes('"done": false}')).every((p) => p.user.includes('{"thought": "...", "took": "none", "words": null, "importance": 0}') && !p.user.includes(". done — ")));
+  // The fake's words are in every target line, so labelled thoughts keep them.
+  assert.ok(thinks.filter((t) => t.took_target !== "none").every((t) => t.words === "fine evening"));
   const byLine = new Map(g.lines.map((l) => [l.id, l]));
   const seen = new Set<string>();
   for (const c of CAST) {

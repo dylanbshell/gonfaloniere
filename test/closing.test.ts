@@ -17,7 +17,7 @@ function fakeCaller(done: boolean): Caller {
     const others = CAST.filter((c) => c !== req.character);
     const content = {
       plan: () => ({ thought: "A plan.", plan: "Goals: win. Threats: all. Next moves: talk." }),
-      think: () => ({ thought: `Thinking ${Math.random()}.`, took: "promise", importance: 50, ...(colloquio && { done }) }),
+      think: () => ({ thought: `Thinking ${Math.random()}.`, took: "promise", words: "A fine evening.", importance: 50, ...(colloquio && { done }) }),
       speak: () => (req.user.includes('"addressee"') ? { addressee: null, utterance: "A fine evening.", action: null } : { utterance: "A fine evening.", action: null }),
       move: () => ({ thought: "Move.", contacts: others.map((n) => ({ name: n, urgency: 50, purpose: null })), choice: "colloquio", target: others[0] }),
       murder: () => "x",

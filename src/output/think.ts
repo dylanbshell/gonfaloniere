@@ -29,10 +29,14 @@ export const ThinkOutput = z.object({
 export type ThinkOutput = z.infer<typeof ThinkOutput> & {
   /** TD v0.9: how the character takes the last thing said aloud; present only when the prompt asks for it. */
   took?: Took;
+  /** TD v0.11: the words of the labelled line that carried it, as they appear in the line; null if the fallback is used. */
+  words?: string | null;
+  /** TD v0.11: what the words check did (cut at 12, fallback and why), when it did anything. */
+  wordsLog?: WordsLog;
 };
 
-/** TD v0.9's `took` values (block 9a): the six kinds, or none. */
-export const TOOK_VALUES = ["promise", "deal", "threat", "admission", "claim", "denial", "none"] as const;
+/** TD v0.9's `took` values (block 9a): the six kinds, `insult` (v0.12), or none. */
+export const TOOK_VALUES = ["promise", "deal", "threat", "admission", "claim", "denial", "insult", "none"] as const;
 export type Took = (typeof TOOK_VALUES)[number];
 
 /**
@@ -50,6 +54,77 @@ export function normalizeTook(raw: unknown): { took: Took; unknown: boolean } {
   const singular = w.endsWith("s") ? w.slice(0, -1) : w;
   if (singular !== w && hit(singular)) return { took: singular as Took, unknown: false };
   return { took: "none", unknown: true };
+}
+
+export interface WordsLog {
+  /** More than 12 words were given, and they were cut at 12 before the check. */
+  cut?: boolean;
+  /** "words fallback": the reading uses the first-15-words trim instead. */
+  fallback?: "missing" | "not in line" | "no line";
+  /** Words given with a `none` label, which are dropped. */
+  ignored?: boolean;
+  /** As the character wrote them, when they weren't used as given. */
+  raw?: unknown;
+}
+
+const isWord = (w: string) => /[\p{L}\p{N}]/u.test(w);
+const QUOTES = /[\u2018\u2019\u201A\u201B\u2032\u0060\u00B4]/g;
+const DQUOTES = /[\u201C\u201D\u201E\u201F\u2033\u00AB\u00BB]/g;
+
+/**
+ * Normalizes spaces (runs become one), quote marks (curly and angled become straight), and case,
+ * keeping each output character's index in the original text.
+ */
+function normalize(text: string): { text: string; at: number[] } {
+  let out = "";
+  const at: number[] = [];
+  for (let i = 0; i < text.length; i++) {
+    let ch = text[i]!;
+    if (/\s/.test(ch)) {
+      if (out.endsWith(" ") || out === "") continue;
+      ch = " ";
+    }
+    ch = ch.replace(QUOTES, "'").replace(DQUOTES, '"').toLowerCase();
+    for (const c of ch) {
+      out += c;
+      at.push(i);
+    }
+  }
+  return { text: out.trimEnd(), at };
+}
+
+/**
+ * TD v0.11, Output Validation & Repair, `words`: kept only when `took` isn't none; more than 12
+ * words are cut at 12 (logged); the rest must appear in the labelled line, word for word after
+ * normalizing spaces, quote marks, and case, at word boundaries. The words returned are the
+ * line's own text for that span. Missing, null, or not in the line → null, "words fallback".
+ */
+export function checkWords(raw: unknown, took: Took, line: string | null): { words: string | null; log: WordsLog | null } {
+  const given = typeof raw === "string" && raw.trim() !== "" && raw.trim().toLowerCase() !== "null";
+  if (took === "none") return { words: null, log: given ? { ignored: true, raw } : null };
+  if (!given) return { words: null, log: { fallback: "missing", raw: raw ?? null } };
+  if (line === null) return { words: null, log: { fallback: "no line", raw } };
+  // Surrounding quote marks and spaces aren't part of the words.
+  let w = (raw as string).trim().replace(/^["'\u2018\u2019\u201C\u201D«»]+|["'\u2018\u2019\u201C\u201D«»]+$/g, "").trim();
+  const tokens = w.split(/\s+/);
+  let n = 0;
+  const end = tokens.findIndex((t) => isWord(t) && ++n === 12);
+  const cut = end !== -1 && tokens.slice(end + 1).some(isWord);
+  if (cut) w = tokens.slice(0, end + 1).join(" ");
+  const needle = normalize(w).text;
+  const hay = normalize(line);
+  let from = 0;
+  while (needle && (from = hay.text.indexOf(needle, from)) !== -1) {
+    const before = hay.text[from - 1];
+    const after = hay.text[from + needle.length];
+    const bounded = (c: string | undefined, edge: string) => c === undefined || !/[\p{L}\p{N}]/u.test(c) || !/[\p{L}\p{N}]/u.test(edge);
+    if (bounded(before, needle[0]!) && bounded(after, needle.at(-1)!)) {
+      const words = line.slice(hay.at[from], hay.at[from + needle.length - 1]! + 1);
+      return { words, log: cut ? { cut: true, raw } : null };
+    }
+    from++;
+  }
+  return { words: null, log: { ...(cut && { cut: true }), fallback: "not in line", raw } };
 }
 
 /** Strict JSON Schema for constrained decoding; `done` is fixed by conversation type. */
@@ -79,6 +154,8 @@ export interface ThinkExpectation {
   format?: "td0.2" | "td0.3";
   /** TD v0.9: the prompt asks for `took`, so it's read (and a missing one repaired). */
   took?: boolean;
+  /** TD v0.11: the prompt asks for `words`; they're checked against this line (null: no spoken line). */
+  words?: { line: string | null };
 }
 
 export type ThinkVerdict =
@@ -374,6 +451,7 @@ const ThinkOutputV3 = z.object({
   importance: z.number(),
   done: z.boolean().nullable().optional(),
   took: z.unknown().optional(),
+  words: z.unknown().optional(),
 });
 
 /**
@@ -407,7 +485,16 @@ function parseThinkV3(raw: string, expect: ThinkExpectation): ThinkParseResult {
 
   // TD v0.9: `took` never fails a call; missing or unknown becomes none, counted as a repair.
   const took = expect.took ? normalizeTook(v.took) : null;
-  const asIs: ThinkOutput = { thought: v.thought, importance: v.importance, contacts: [], done: v.done ?? null, ...(took && { took: took.took }) };
+  // TD v0.11: `words` never fails a call either; it's kept only when it's found in the line.
+  const words = took && expect.words ? checkWords(v.words, took.took, expect.words.line) : null;
+  const asIs: ThinkOutput = {
+    thought: v.thought,
+    importance: v.importance,
+    contacts: [],
+    done: v.done ?? null,
+    ...(took && { took: took.took }),
+    ...(words && { words: words.words, ...(words.log && { wordsLog: words.log }) }),
+  };
   const fixed: ThinkOutput = {
     ...asIs,
     importance: Math.min(100, Math.max(0, Math.round(v.importance))),

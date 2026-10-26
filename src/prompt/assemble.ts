@@ -104,21 +104,18 @@ export function assembleThinkPrompt(
   if (opts.extraInstruction && t.think.includes(opts.extraInstruction)) {
     throw new Error("This Technical Design's think() task already has that line (TD v0.5 builds in the secret-keeping lines)");
   }
-  // TD v0.9 adds step 2, `took`, so `done` becomes step 4 and the schema carries "took".
+  // TD v0.9 adds step 2, `took`, so `done` becomes step 4 and the schema carries "took";
+  // TD v0.11 adds step 3, `words`, so `done` becomes step 5.
   const took = thinkAsksTook(t);
+  const words = thinkAsksWords(t);
+  const fields = `"thought": "...", ${took ? '"took": "none", ' : ""}${words ? '"words": null, ' : ""}"importance": 0`;
   const task = fill(t.think, {
     character_name: ctx.characterName,
     took_target: tookTargetText(opts.tookTarget ?? tookTargetFromHistory(ctx.history, ctx.characterName)),
     done_instruction: colloquio
-      ? `\n${took ? 4 : 3}. done — true if you have what you came for, or nothing more is to be gained here; otherwise false.\n`
+      ? `\n${3 + Number(took) + Number(words)}. done — true if you have what you came for, or nothing more is to be gained here; otherwise false.\n`
       : "",
-    think_schema: took
-      ? colloquio
-        ? '{"thought": "...", "took": "none", "importance": 0, "done": false}'
-        : '{"thought": "...", "took": "none", "importance": 0}'
-      : colloquio
-        ? '{"thought": "...", "importance": 0, "done": false}'
-        : '{"thought": "...", "importance": 0}',
+    think_schema: colloquio ? `{${fields}, "done": false}` : `{${fields}}`,
   });
   return assemble(t, ctx, opts.extraInstruction ? afterThoughtInstruction(task, opts.extraInstruction) : task);
 }
@@ -126,6 +123,11 @@ export function assembleThinkPrompt(
 /** Whether this TD's Block 9a asks for `took` (TD v0.9's step 2). */
 export function thinkAsksTook(t: PromptTemplates): boolean {
   return /\n2\. took — /.test(t.think);
+}
+
+/** Whether this TD's Block 9a asks for `words` (TD v0.11's step 3). */
+export function thinkAsksWords(t: PromptTemplates): boolean {
+  return /\n3\. words — /.test(t.think);
 }
 
 /** Whether this TD's `took` line names its target line through {took_target} (TD v0.10). */

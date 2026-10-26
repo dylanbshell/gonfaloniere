@@ -11,7 +11,7 @@ import { allowedActionTypes, allowedActionsText, type ActionContext } from "../g
 import { ROSTER, factionOf, type CharacterName } from "../game/roster.ts";
 import { parseSpeak } from "../output/speak.ts";
 import { parseStrategy } from "../output/strategy.ts";
-import { parseThink, type Took } from "../output/think.ts";
+import { parseThink, type Took, type WordsLog } from "../output/think.ts";
 import {
   assembleMovePrompt,
   assembleMurderPrompt,
@@ -20,6 +20,7 @@ import {
   assembleThinkPrompt,
   thinkAsksTook,
   thinkNamesTarget,
+  thinkAsksWords,
   type TookTarget,
   fill,
   speakHasAddressee,
@@ -377,6 +378,7 @@ export class MiniGame {
     conv.needsThink = false;
     const asksTook = thinkAsksTook(this.docs.templates);
     const namesTarget = thinkNamesTarget(this.docs.templates);
+    const asksWords = thinkAsksWords(this.docs.templates);
     await Promise.all(
       conv.members.map(async (c) => {
         const ctx = this.context(c);
@@ -386,7 +388,7 @@ export class MiniGame {
         const named = namesTarget ? { took_target: type, target_line: line?.id ?? null } : {};
         const p = assembleThinkPrompt(this.docs.templates, ctx, { tookTarget: target });
         const out = await this.characterCall("think", c, p, (raw) => {
-          const r = parseThink(raw, { conversation: conv.kind, livingOthers: ctx.state.livingOthers, format: "td0.3", took: asksTook });
+          const r = parseThink(raw, { conversation: conv.kind, livingOthers: ctx.state.livingOthers, format: "td0.3", took: asksTook, ...(asksWords && { words: { line: line?.text ?? null } }) });
           const repairs = Object.entries(r.repairs ?? {})
             .filter(([, v]) => (Array.isArray(v) ? v.length > 0 : Boolean(v)))
             .map(([k]) => k);
@@ -398,10 +400,10 @@ export class MiniGame {
             conv.importance.set(c, 0);
             this.lastDone.set(c, false);
           }
-          this.events.push({ turn: this.turn, type: "think-default", character: c, conversation: conv.id, took: asksTook ? "none" : undefined, ...named, ...(opts.closing && { closing: true }) });
+          this.events.push({ turn: this.turn, type: "think-default", character: c, conversation: conv.id, took: asksTook ? "none" : undefined, ...named, ...(asksWords && { words: null }), ...(opts.closing && { closing: true }) });
           return;
         }
-        const v = out as { thought: string; importance: number; done?: boolean | null; took?: Took };
+        const v = out as { thought: string; importance: number; done?: boolean | null; took?: Took; words?: string | null; wordsLog?: WordsLog };
         if (!opts.closing) {
           conv.importance.set(c, v.importance);
           this.lastDone.set(c, conv.kind === "colloquio" && Boolean(v.done));
@@ -411,7 +413,7 @@ export class MiniGame {
           "think",
           v.thought,
           { importance: v.importance, done: v.done ?? null, conversation: conv.id },
-          { conversation: conv.id, ...(v.took && { took: v.took }), ...named, ...(opts.closing && { closing: true }) },
+          { conversation: conv.id, ...(v.took && { took: v.took }), ...named, ...(asksWords && { words: v.words ?? null, ...(v.wordsLog && { words_log: v.wordsLog }) }), ...(opts.closing && { closing: true }) },
         );
       }),
     );
@@ -816,7 +818,7 @@ export class MiniGame {
     this.memory.addEntry({ turn: this.turn, conversation: conv.id, where: line.where, type, speaker: actor, toward: null, about: [actor], summary: text, quote: null, lines: [line.id], audience: [actor], source: "code" });
   }
 
-  private addThought(c: CharacterName, call: string, text: string, extra: Record<string, unknown> = {}, fields: Pick<Thought, "took" | "conversation" | "closing" | "took_target" | "target_line"> = {}): void {
+  private addThought(c: CharacterName, call: string, text: string, extra: Record<string, unknown> = {}, fields: Pick<Thought, "took" | "conversation" | "closing" | "took_target" | "target_line" | "words" | "words_log"> = {}): void {
     // TD v0.6 shortTermHistory: an exact repeat of the previous thought is logged and counted, not shown again.
     const previous = this.thoughts.findLast((t) => t.character === c);
     const repeat = (this.s.dropRepeatedThoughts ?? true) && !!previous && sameThought(previous.text, text);

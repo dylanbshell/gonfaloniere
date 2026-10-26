@@ -8,7 +8,7 @@
 import { z } from "zod";
 import { ALIASES, ROSTER, resolveAlias, type CharacterName } from "../game/roster.ts";
 import type { MemoryRules } from "../sources/docs.ts";
-import type { Took } from "../output/think.ts";
+import type { Took, WordsLog } from "../output/think.ts";
 import { nearMiss } from "../output/think.ts";
 
 /** One line of the evening, with a game-wide ID (L…). */
@@ -58,6 +58,10 @@ export interface Thought {
   /** TD v0.10, think() only: whose line {took_target} named (other, own, none), and that line's id. */
   took_target?: TookTargetType;
   target_line?: string | null;
+  /** TD v0.11, think() only: the words of the target line that carried the label (null: fallback or none). */
+  words?: string | null;
+  /** TD v0.11: what the words check did, when it did anything (cut at 12, words fallback, ignored with none). */
+  words_log?: WordsLog;
 }
 
 export type TookTargetType = "other" | "own" | "none";
@@ -91,8 +95,10 @@ export interface MemoryEntry {
   source: "10a" | "10d" | "code";
 }
 
-/** What a character took a line as: the six kinds, as the character sees them. */
-export const READING_KINDS = ["promise", "deal", "threat", "admission", "claim", "denial"] as const;
+/** What a character took a line as: the six kinds and `insult` (TD v0.12, not ★), as the character sees them. */
+export const READING_KINDS = ["promise", "deal", "threat", "admission", "claim", "denial", "insult"] as const;
+/** TD v0.8's 10e readings (replay only): the six kinds. */
+const PERCEPTION_KINDS = ["promise", "deal", "threat", "admission", "claim", "denial"] as const;
 const SALIENT_READINGS = ["promise", "deal", "threat", "admission"];
 
 /**
@@ -115,6 +121,8 @@ export interface Reading {
   about: CharacterName[];
   own: boolean;
   salient: boolean;
+  /** TD v0.11: the character's words, as they appear in the line; null when the fallback trim is used. */
+  words: string | null;
 }
 
 /** A `took` label the attachment rule ignored (no spoken line) or logged (not stored), with the reason. */
@@ -142,7 +150,7 @@ export interface PerceptionReading {
   speaker: CharacterName;
   line: string;
   quote: string;
-  took: (typeof READING_KINDS)[number];
+  took: (typeof PERCEPTION_KINDS)[number];
   thought: string | null;
   reaction: string | null;
   about: string[];
@@ -493,7 +501,7 @@ export class MemoryStore {
         drop(`quote not in line (${line.id}: "${n.quote}")`, n);
         continue;
       }
-      if (!(READING_KINDS as readonly string[]).includes(n.took)) {
+      if (!(PERCEPTION_KINDS as readonly string[]).includes(n.took)) {
         drop(`unknown took (${n.took})`, n);
         continue;
       }
@@ -589,6 +597,8 @@ export class MemoryStore {
         about: [...new Set<CharacterName>([line.speaker!, ...(line.addressee ? [line.addressee] : []), ...namesIn(line.text)])],
         own: line.speaker === t.character,
         salient: SALIENT_READINGS.includes(took),
+        // TD v0.11: the character's words for this line; null when the fallback trim is used.
+        words: t.target_line === undefined || t.target_line === line.id ? (t.words ?? null) : null,
       };
       this.readings.push(reading);
       stored.push(reading);
@@ -762,7 +772,7 @@ export const KnowledgeVerdict = z.object({
 /** Gate 8's code counts (TD v0.6): dropped entries by reason, sweep re-asks and gaps, hedge downgrades, repeated thoughts. */
 export function memoryCounts(
   memory: { dropped: { pass: string; reason: string }[]; notes?: { kind: string }[]; repairs?: unknown[]; readings?: { took?: string; own?: boolean; thought?: string; line?: string }[]; labelLog?: { reason: string }[]; label_log?: { reason: string }[] },
-  thoughts: { id?: string; repeat?: boolean; call?: string; took?: string; closing?: boolean; took_target?: string; target_line?: string | null }[],
+  thoughts: { id?: string; repeat?: boolean; call?: string; took?: string; closing?: boolean; took_target?: string; target_line?: string | null; words?: string | null; words_log?: WordsLog }[],
 ) {
   const named = new Map(thoughts.filter((t) => t.took_target).map((t) => [t.id, t.target_line ?? null]));
   const by = <T>(xs: T[], key: (x: T) => string) => xs.reduce<Record<string, number>>((acc, x) => ((acc[key(x)] = (acc[key(x)] ?? 0) + 1), acc), {});
@@ -781,6 +791,17 @@ export function memoryCounts(
     // TD v0.10: which line {took_target} named, and readings stored on a different line than it named.
     took_target: by(thoughts.filter((t) => t.call === "think" && t.took_target), (t) => t.took_target!),
     target_mismatch: (memory.readings ?? []).filter((r) => r.thought && named.has(r.thought) && named.get(r.thought) !== r.line).length,
+    // TD v0.11: labelled think() calls whose words were found, cut at 12, or fell back (by reason).
+    words: (() => {
+      const labelled = thoughts.filter((t) => t.call === "think" && t.took && t.took !== "none" && "words" in t);
+      return {
+        labelled: labelled.length,
+        found: labelled.filter((t) => t.words).length,
+        cut_at_12: labelled.filter((t) => t.words_log?.cut).length,
+        fallback: by(labelled.filter((t) => !t.words), (t) => t.words_log?.fallback ?? "missing"),
+        ignored_with_none: thoughts.filter((t) => t.words_log?.ignored).length,
+      };
+    })(),
   };
 }
 
@@ -802,7 +823,15 @@ export function renderReading(r: Reading, line: GameLine): string {
   const label = r.own && line.where.kind === "colloquio" && other.length ? `Colloquio with ${other.join(", ")}` : conversationType(line.where);
   const who = r.own ? "you" : r.speaker;
   const how = r.own ? `you meant it as ${article(r.took)} ${r.took}` : `you took it as ${article(r.took)} ${r.took}`;
-  return `T${r.turn} · ${label} · ${r.salient ? "★ " : ""}${who}: "${trimQuote(line.text)}" (${how})`;
+  return `T${r.turn} · ${label} · ${r.salient ? "★ " : ""}${who}: "${r.words ? wordsQuote(r.words, line.text) : trimQuote(line.text)}" (${how})`;
+}
+
+/** TD v0.11: the character's words, with "…" before them if they don't start the line and after them if they don't end it. */
+export function wordsQuote(words: string, text: string): string {
+  const at = text.indexOf(words);
+  if (at === -1) return trimQuote(text);
+  const hasWord = (s: string) => /[\p{L}\p{N}]/u.test(s);
+  return `${hasWord(text.slice(0, at)) ? "…" : ""}${words}${hasWord(text.slice(at + words.length)) ? "…" : ""}`;
 }
 
 /** TD v0.9: the whole line if it's 15 words or fewer; otherwise its first 15 words and "…". */
