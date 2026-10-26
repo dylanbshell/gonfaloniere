@@ -46,13 +46,27 @@ test("a different speaker's line: the reading is dropped, logged as wrong-line w
   assert.deepEqual(w.logged.map((e) => [e.reason, e.words_line]), [["wrong-line words", "L11"]]);
 });
 
-test("several matches: the latest line decides, and is the one logged", () => {
-  const lines = [line("L10", B, "Name your price."), line("L11", C, "Name your price, then."), line("L12", B, "I keep my own counsel.")];
-  const o = lines.filter((l) => l.id !== "L12").map((l) => ({ id: l.id, text: l.text, speaker: l.speaker }));
-  assert.equal(checkWords("name your price", "deal", lines[2]!.text, { cap: 20, others: o, speaker: B }).log?.wrong_line, "L11");
-  const flipped = [line("L10", C, "Name your price."), line("L11", B, "Name your price, then."), line("L12", B, "I keep my own counsel.")];
-  const o2 = flipped.filter((l) => l.id !== "L12").map((l) => ({ id: l.id, text: l.text, speaker: l.speaker }));
-  assert.equal(checkWords("name your price", "deal", flipped[2]!.text, { cap: 20, others: o2, speaker: B }).log?.same_speaker, "L11");
+test("both match (TD decision): the named speaker's line wins in either order, quoted from their latest matching line", () => {
+  const check = (lines: GameLine[]) => {
+    const o = lines.filter((l) => l.id !== "L13").map((l) => ({ id: l.id, text: l.text, speaker: l.speaker }));
+    return checkWords("name your price", "deal", "I keep my own counsel.", { cap: 20, others: o, speaker: B });
+  };
+  const named = line("L13", B, "I keep my own counsel.");
+  // Different speaker's match is the latest.
+  const sameFirst = check([line("L10", B, "Name your price."), line("L11", B, "Then name your price, Captain."), line("L12", C, "Name your price, then."), named]);
+  assert.deepEqual(sameFirst, { words: "name your price", log: { same_speaker: "L11", raw: "name your price" } });
+  // Named speaker's match is the latest.
+  const otherFirst = check([line("L10", C, "Name your price, then."), line("L11", B, "Name your price."), named]);
+  assert.deepEqual(otherFirst, { words: "Name your price", log: { same_speaker: "L11", raw: "name your price" } });
+  // Either way the reading stays on the named line and quotes from that line.
+  for (const r of [sameFirst, otherFirst]) {
+    const t: Thought = { id: "T1", turn: 3, character: A, call: "think", text: "…", after_line: "L13", conversation: "C2", took: "deal", target_line: "L13", words: r.words, words_log: r.log! };
+    const w = new MemoryStore().writeReadings(3, [t], [named], { ownFromSpeak: true });
+    assert.deepEqual(w.stored.map((x) => [x.line, x.words_line]), [["L13", "L11"]]);
+    assert.equal(w.logged.length, 0);
+  }
+  // Only a different speaker's line matches: dropped, the latest such line logged.
+  assert.deepEqual(check([line("L10", C, "Name your price."), line("L11", A, "Name your price, Captain."), named]).log, { wrong_line: "L11", raw: "name your price" });
 });
 
 test("TD v0.13 behaviour is unchanged: without the named line's speaker, any other line is a wrong line", () => {

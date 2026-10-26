@@ -124,10 +124,12 @@ export function checkWords(
   const needle = normalize(w).text;
   const words = findWords(needle, line);
   if (words !== null) return { words, log: cut ? { cut: true, raw } : null };
-  // TD v0.13: found in another line the character heard (the latest match) → the label was about that line,
-  // unless (v0.14) the same speaker said it: then it's the same remark, and the words found are quoted.
+  // TD v0.14: an earlier line by the named speaker is the same remark, and wins over any other match: the
+  // words are quoted from the latest such line. Otherwise (v0.13) a line by a different speaker means the
+  // label was about that line (the latest match is logged).
+  const same = opts.speaker ? opts.others?.findLast((o) => o.speaker === opts.speaker && findWords(needle, o.text) !== null) : undefined;
+  if (same) return { words: findWords(needle, same.text), log: { ...(cut && { cut: true }), same_speaker: same.id, raw } };
   const other = opts.others?.findLast((o) => findWords(needle, o.text) !== null);
-  if (other && opts.speaker && other.speaker === opts.speaker) return { words: findWords(needle, other.text), log: { ...(cut && { cut: true }), same_speaker: other.id, raw } };
   if (other) return { words: null, log: { ...(cut && { cut: true }), wrong_line: other.id, raw } };
   return { words: null, log: { ...(cut && { cut: true }), fallback: "not in line", raw } };
 }
