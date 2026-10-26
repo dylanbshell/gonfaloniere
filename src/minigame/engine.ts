@@ -19,6 +19,8 @@ import {
   assembleSpeakPrompt,
   assembleThinkPrompt,
   thinkAsksTook,
+  thinkNamesTarget,
+  type TookTarget,
   fill,
   speakHasAddressee,
   type AssembledPrompt,
@@ -29,7 +31,7 @@ import type { DocSources } from "../sources/docs.ts";
 import { parseJson } from "../output/json.ts";
 import { z } from "zod";
 import { Recorder, sameThought } from "./extract.ts";
-import { MemoryStore, renderBelief, resolveName, whereLabel, type GameLine, type Thought, type Where } from "./memory.ts";
+import { MemoryStore, renderBelief, tookTargetLine, resolveName, whereLabel, type GameLine, type Thought, type Where } from "./memory.ts";
 
 // ---- Calls -----------------------------------------------------------------------------
 
@@ -374,10 +376,15 @@ export class MiniGame {
   private async thinkAll(conv: Conversation, opts: { closing?: boolean } = {}): Promise<void> {
     conv.needsThink = false;
     const asksTook = thinkAsksTook(this.docs.templates);
+    const namesTarget = thinkNamesTarget(this.docs.templates);
     await Promise.all(
       conv.members.map(async (c) => {
         const ctx = this.context(c);
-        const p = assembleThinkPrompt(this.docs.templates, ctx);
+        // TD v0.10: {took_target} names the line the reading will attach to, by the same rule (labelLine).
+        const { line, type } = tookTargetLine(c, conv.id, this.char(c).lines.at(-1)?.id ?? null, this.lines);
+        const target: TookTarget = type === "other" ? { type, speaker: line!.speaker! } : { type };
+        const named = namesTarget ? { took_target: type, target_line: line?.id ?? null } : {};
+        const p = assembleThinkPrompt(this.docs.templates, ctx, { tookTarget: target });
         const out = await this.characterCall("think", c, p, (raw) => {
           const r = parseThink(raw, { conversation: conv.kind, livingOthers: ctx.state.livingOthers, format: "td0.3", took: asksTook });
           const repairs = Object.entries(r.repairs ?? {})
@@ -391,7 +398,7 @@ export class MiniGame {
             conv.importance.set(c, 0);
             this.lastDone.set(c, false);
           }
-          this.events.push({ turn: this.turn, type: "think-default", character: c, conversation: conv.id, took: asksTook ? "none" : undefined, ...(opts.closing && { closing: true }) });
+          this.events.push({ turn: this.turn, type: "think-default", character: c, conversation: conv.id, took: asksTook ? "none" : undefined, ...named, ...(opts.closing && { closing: true }) });
           return;
         }
         const v = out as { thought: string; importance: number; done?: boolean | null; took?: Took };
@@ -404,7 +411,7 @@ export class MiniGame {
           "think",
           v.thought,
           { importance: v.importance, done: v.done ?? null, conversation: conv.id },
-          { conversation: conv.id, ...(v.took && { took: v.took }), ...(opts.closing && { closing: true }) },
+          { conversation: conv.id, ...(v.took && { took: v.took }), ...named, ...(opts.closing && { closing: true }) },
         );
       }),
     );
@@ -809,7 +816,7 @@ export class MiniGame {
     this.memory.addEntry({ turn: this.turn, conversation: conv.id, where: line.where, type, speaker: actor, toward: null, about: [actor], summary: text, quote: null, lines: [line.id], audience: [actor], source: "code" });
   }
 
-  private addThought(c: CharacterName, call: string, text: string, extra: Record<string, unknown> = {}, fields: Pick<Thought, "took" | "conversation" | "closing"> = {}): void {
+  private addThought(c: CharacterName, call: string, text: string, extra: Record<string, unknown> = {}, fields: Pick<Thought, "took" | "conversation" | "closing" | "took_target" | "target_line"> = {}): void {
     // TD v0.6 shortTermHistory: an exact repeat of the previous thought is logged and counted, not shown again.
     const previous = this.thoughts.findLast((t) => t.character === c);
     const repeat = (this.s.dropRepeatedThoughts ?? true) && !!previous && sameThought(previous.text, text);

@@ -98,7 +98,7 @@ export interface AssembledPrompt {
 export function assembleThinkPrompt(
   t: PromptTemplates,
   ctx: CharacterContext,
-  opts: { extraInstruction?: string } = {},
+  opts: { extraInstruction?: string; tookTarget?: TookTarget } = {},
 ): AssembledPrompt {
   const colloquio = ctx.state.conversation.kind === "colloquio";
   if (opts.extraInstruction && t.think.includes(opts.extraInstruction)) {
@@ -108,6 +108,7 @@ export function assembleThinkPrompt(
   const took = thinkAsksTook(t);
   const task = fill(t.think, {
     character_name: ctx.characterName,
+    took_target: tookTargetText(opts.tookTarget ?? tookTargetFromHistory(ctx.history, ctx.characterName)),
     done_instruction: colloquio
       ? `\n${took ? 4 : 3}. done — true if you have what you came for, or nothing more is to be gained here; otherwise false.\n`
       : "",
@@ -125,6 +126,33 @@ export function assembleThinkPrompt(
 /** Whether this TD's Block 9a asks for `took` (TD v0.9's step 2). */
 export function thinkAsksTook(t: PromptTemplates): boolean {
   return /\n2\. took — /.test(t.think);
+}
+
+/** Whether this TD's `took` line names its target line through {took_target} (TD v0.10). */
+export function thinkNamesTarget(t: PromptTemplates): boolean {
+  return t.think.includes("{took_target}");
+}
+
+/**
+ * The line {took_target} names (TD v0.10): someone else's (with the speaker's name as History
+ * shows it), the character's own, or none when nothing has been said aloud.
+ */
+export type TookTarget = { type: "other"; speaker: string } | { type: "own" } | { type: "none" };
+
+export function tookTargetText(target: TookTarget): string {
+  if (target.type === "other") return `how you take ${target.speaker}'s last line`;
+  if (target.type === "own") return "what you meant by your own last line";
+  return "how you take the last thing said aloud";
+}
+
+/**
+ * For callers without the game's line record: the last spoken line in History. The mini-game
+ * passes its own target, from the rule that attaches the reading.
+ */
+export function tookTargetFromHistory(history: HistoryLine[], characterName: string): TookTarget {
+  const last = history.findLast((l) => l.kind === "speech");
+  if (!last || last.kind !== "speech") return { type: "none" };
+  return last.speaker === characterName ? { type: "own" } : { type: "other", speaker: last.speaker };
 }
 
 /**

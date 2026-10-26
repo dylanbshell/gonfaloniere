@@ -55,7 +55,12 @@ export interface Thought {
   conversation?: string;
   /** TD v0.9: a closing think, after a Colloquio's last line (its importance and done are ignored). */
   closing?: boolean;
+  /** TD v0.10, think() only: whose line {took_target} named (other, own, none), and that line's id. */
+  took_target?: TookTargetType;
+  target_line?: string | null;
 }
+
+export type TookTargetType = "other" | "own" | "none";
 
 export const ENTRY_TYPES = ["promise", "deal", "threat", "admission", "claim", "denial"] as const;
 /** Which types each pass records (TD v0.6: 10a ★ pass, 10d claims pass). */
@@ -609,8 +614,11 @@ export class MemoryStore {
    * present, up to 3; then the items most similar to the last two History lines, a reading matched
    * on its full line text. Oldest first. `murder`: ★ threats, deals, and promises first.
    */
-  retrieveNotebook(c: CharacterName, present: CharacterName[], recentLines: string[], opts: { murder?: boolean; limit?: number } = {}): string[] {
+  retrieveNotebook(c: CharacterName, present: CharacterName[], recentLines: string[], opts: { murder?: boolean; limit?: number; budget?: number } = {}): string[] {
     const limit = opts.limit ?? 12;
+    // TD v0.10: block 6 gets ~450 tokens (chars ÷ 3.5), about 10–12 lines; an item that would pass it is skipped.
+    const budget = opts.budget ?? 450;
+    let used = 0;
     type Item = { kind: "reading"; r: Reading } | { kind: "entry"; e: MemoryEntry } | { kind: "belief"; b: Belief };
     const readings: Item[] = this.readings.filter((r) => r.character === c && this.lineIndex.has(r.line)).map((r) => ({ kind: "reading", r }));
     const code: Item[] = this.entriesFor(c).filter((e) => e.source === "code").map((e) => ({ kind: "entry", e }));
@@ -619,12 +627,15 @@ export class MemoryStore {
     const names = (x: Item): string[] => (x.kind === "reading" ? x.r.about : x.kind === "entry" ? ([x.e.speaker, x.e.toward, ...x.e.about].filter(Boolean) as string[]) : []);
     const salient = (x: Item) => (x.kind === "reading" ? x.r.salient : x.kind === "entry" ? x.e.salient : false);
     const text = (x: Item) => (x.kind === "reading" ? this.lineIndex.get(x.r.line)!.text : x.kind === "entry" ? x.e.summary : x.b.statement);
+    const render = (x: Item) => (x.kind === "reading" ? renderReading(x.r, this.lineIndex.get(x.r.line)!) : x.kind === "entry" ? renderCodeEntryFor(x.e, c) : renderBelief(x.b));
     const picked: Item[] = [];
     const take = (xs: Item[], n: number) => {
       for (const x of xs) {
         if (n <= 0) break;
-        if (!picked.includes(x)) {
+        const cost = Math.ceil(render(x).length / 3.5);
+        if (!picked.includes(x) && used + cost <= budget) {
           picked.push(x);
+          used += cost;
           n--;
         }
       }
@@ -636,9 +647,7 @@ export class MemoryStore {
     const query = words(recentLines.join(" "));
     const scored = [...recent, ...beliefs].filter((x) => !picked.includes(x)).map((x) => ({ x, s: overlap(query, words(text(x))) })).sort((a, b) => b.s - a.s);
     take(scored.map((s) => s.x), limit - picked.length);
-    return picked
-      .sort((a, b) => turnOfItem(a) - turnOfItem(b))
-      .map((x) => (x.kind === "reading" ? renderReading(x.r, this.lineIndex.get(x.r.line)!) : x.kind === "entry" ? renderCodeEntryFor(x.e, c) : renderBelief(x.b)));
+    return picked.sort((a, b) => turnOfItem(a) - turnOfItem(b)).map(render);
   }
 
   // ---- Retrieval (TD v0.5, Memory Writing → Retrieval) --------------------------------
@@ -752,9 +761,10 @@ export const KnowledgeVerdict = z.object({
 
 /** Gate 8's code counts (TD v0.6): dropped entries by reason, sweep re-asks and gaps, hedge downgrades, repeated thoughts. */
 export function memoryCounts(
-  memory: { dropped: { pass: string; reason: string }[]; notes?: { kind: string }[]; repairs?: unknown[]; readings?: { took?: string; own?: boolean }[]; labelLog?: { reason: string }[]; label_log?: { reason: string }[] },
-  thoughts: { repeat?: boolean; call?: string; took?: string; closing?: boolean }[],
+  memory: { dropped: { pass: string; reason: string }[]; notes?: { kind: string }[]; repairs?: unknown[]; readings?: { took?: string; own?: boolean; thought?: string; line?: string }[]; labelLog?: { reason: string }[]; label_log?: { reason: string }[] },
+  thoughts: { id?: string; repeat?: boolean; call?: string; took?: string; closing?: boolean; took_target?: string; target_line?: string | null }[],
 ) {
+  const named = new Map(thoughts.filter((t) => t.took_target).map((t) => [t.id, t.target_line ?? null]));
   const by = <T>(xs: T[], key: (x: T) => string) => xs.reduce<Record<string, number>>((acc, x) => ((acc[key(x)] = (acc[key(x)] ?? 0) + 1), acc), {});
   return {
     dropped: memory.dropped.length,
@@ -768,6 +778,9 @@ export function memoryCounts(
     readings: (memory.readings ?? []).length,
     own_readings: (memory.readings ?? []).filter((r) => r.own).length,
     labels_not_stored: by(memory.labelLog ?? memory.label_log ?? [], (e) => e.reason),
+    // TD v0.10: which line {took_target} named, and readings stored on a different line than it named.
+    took_target: by(thoughts.filter((t) => t.call === "think" && t.took_target), (t) => t.took_target!),
+    target_mismatch: (memory.readings ?? []).filter((r) => r.thought && named.has(r.thought) && named.get(r.thought) !== r.line).length,
   };
 }
 
@@ -794,8 +807,12 @@ export function renderReading(r: Reading, line: GameLine): string {
 
 /** TD v0.9: the whole line if it's 15 words or fewer; otherwise its first 15 words and "…". */
 export function trimQuote(text: string, max = 15): string {
-  const words = text.trim().split(/\s+/);
-  return words.length <= max ? words.join(" ") : `${words.slice(0, max).join(" ")}…`;
+  // A word has a letter or digit, so a standalone dash isn't counted (TD v0.10's Il Notaio example).
+  const tokens = text.trim().split(/\s+/);
+  const isWord = (w: string) => /[\p{L}\p{N}]/u.test(w);
+  let words = 0;
+  const end = tokens.findIndex((w) => isWord(w) && ++words === max);
+  return end === -1 || !tokens.slice(end + 1).some(isWord) ? tokens.join(" ") : `${tokens.slice(0, end + 1).join(" ").replace(/[,;:]+$/, "")}…`;
 }
 
 const conversationType = (w: Where) => (w.kind === "colloquio" ? "Colloquio" : w.kind === "capannello" ? "Capannello" : "The gathering");
@@ -815,6 +832,8 @@ const article = (kind: string) => (/^[aeiou]/.test(kind) ? "an" : "a");
  */
 export function renderCodeEntryFor(e: MemoryEntry, c: CharacterName): string {
   const summary = e.summary.startsWith(`${c} `) ? `You ${e.summary.slice(c.length + 1)}` : e.summary;
+  // TD v0.10: Il Notaio's entries are trimmed to 15 words like quotes, shown as `Il Notaio: "…"`.
+  if (e.type === "event") return `T${e.turn} · Il Notaio: "${trimQuote(summary)}"`;
   return `T${e.turn} · ${conversationType(e.where)} · ${e.salient ? "★ " : ""}${summary}`;
 }
 
@@ -862,6 +881,15 @@ export function labelLine(t: Thought, lines: GameLine[]): GameLine | null {
     if (l.kind === "speech" && l.conversation === t.conversation && num(l.id) <= upTo && l.heardBy.includes(t.character) && (!best || num(l.id) > num(best.id))) best = l;
   }
   return best;
+}
+
+/**
+ * TD v0.10: the line {took_target} names before a think(), by the rule that attaches the reading
+ * (labelLine), and whose it is: someone else's, the character's own, or none.
+ */
+export function tookTargetLine(c: CharacterName, conversation: string, afterLine: string | null, lines: GameLine[]): { line: GameLine | null; type: TookTargetType } {
+  const line = labelLine({ character: c, conversation, after_line: afterLine } as Thought, lines);
+  return { line, type: !line ? "none" : line.speaker === c ? "own" : "other" };
 }
 
 /** Roster names (full or alias) written in a line, e.g. both parties of "Contessa Isabella gave Lupo 3 Florins." */
