@@ -17,7 +17,8 @@ export interface PromptTemplates {
   speak: string;
   /** TD v0.4's Capannello {addressee_instruction}; absent in earlier versions. */
   addresseeInstruction?: string;
-  /** TD v0.4 blocks 9d–9g: strategy, Murder Round, ballot, run-off. Absent in earlier versions. */
+  /** TD v0.4 blocks 9c–9g: movement, strategy, Murder Round, ballot, run-off. Absent in earlier versions. */
+  move?: string;
   plan?: string;
   murder?: string;
   ballot?: string;
@@ -139,6 +140,11 @@ export interface SpeakOptions {
    */
   extraInstruction?: string;
   /**
+   * A line appended at the very end of Block 9b, after the JSON schema line, for labelled
+   * variants (the mini-game boldness test, Dylan Oct 25). Omitted for TD's text.
+   */
+  appendLine?: string;
+  /**
    * A sentence inserted into Block 9b right after another one (e.g. after "Do
    * not recite your private thoughts."), for labelled prompt variants.
    */
@@ -175,6 +181,7 @@ export function assembleSpeakPrompt(t: PromptTemplates, ctx: CharacterContext, o
     if (!out.includes(after)) throw new Error(`speak() task has no "${after}" to insert after`);
     out = out.replace(after, `${after} ${text}`);
   }
+  if (opts.appendLine) out = `${out}\n\n${opts.appendLine}`;
   return assemble(t, ctx, out);
 }
 
@@ -186,10 +193,20 @@ export function speakHasAddressee(t: PromptTemplates, kind: ConversationKind | "
   return kind !== "colloquio" || !t.speak.includes("{speak_schema}");
 }
 
-function template(t: PromptTemplates, key: "plan" | "murder" | "ballot" | "runoff"): string {
+function template(t: PromptTemplates, key: "move" | "plan" | "murder" | "ballot" | "runoff"): string {
   const s = t[key];
   if (!s) throw new Error(`This Technical Design has no ${key} task (blocks 9d–9g arrived in TD v0.4)`);
   return s;
+}
+
+/**
+ * Block 9c: the movement task. TD writes {target} inside the choice lines as
+ * if it were filled in, but gives it no value before the model has chosen;
+ * it reads "your target" here (flagged for Technical Design). {colloquio_note}
+ * depends on the target too, so it is empty.
+ */
+export function assembleMovePrompt(t: PromptTemplates, ctx: CharacterContext): AssembledPrompt {
+  return assemble(t, ctx, dropEmptyPlaceholderLines(fill(template(t, "move"), { target: "your target", colloquio_note: "" })));
 }
 
 /** Block 9d: the strategy task. `trigger` is {strategy_trigger}, e.g. "The Medici faction meeting has just ended." */
@@ -336,13 +353,17 @@ function conversationLabel(c: StateValues["conversation"]): string {
 }
 
 function memoryBlock(t: PromptTemplates, ctx: CharacterContext): string {
-  return fill(t.memory, {
+  const block = fill(t.memory, {
     longterm_bullets: ctx.longTermMemory.length
       ? ctx.longTermMemory.map((b) => `- ${b}`).join("\n")
       : "Nothing yet.",
     short_term_thoughts: ctx.shortTermThoughts.length ? ctx.shortTermThoughts.join("\n") : "Nothing yet.",
     history: ctx.history.map(formatHistoryLine).join("\n"),
   });
+  // TD: outside a conversation, block 8 holds the end of the last conversation and any broadcasts since.
+  return ctx.state.conversation.kind === "gathering"
+    ? block.replace("THE CONVERSATION SO FAR (most recent last)", "WHAT YOU LAST HEARD")
+    : block;
 }
 
 export function formatHistoryLine(line: HistoryLine): string {

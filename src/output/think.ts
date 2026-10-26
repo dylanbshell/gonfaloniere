@@ -264,7 +264,7 @@ function repair(
  * once accents, case, and punctuation are ignored; else within two edits; else
  * the only candidate containing all its words ("LeNoir" → "Captain Armand LeNoir").
  */
-function nearMiss(name: string, candidates: string[]): string | null {
+export function nearMiss(name: string, candidates: string[]): string | null {
   const norm = (s: string) =>
     s
       .normalize("NFD")

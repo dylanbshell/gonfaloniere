@@ -39,12 +39,41 @@ export interface JudgeRubric {
   rules: string;
 }
 
+/** A system prompt (blocks 10a–10d): the cached instructions, and the per-call data template. */
+export interface SystemPrompt {
+  system: string;
+  user: string;
+}
+
+/** TD v0.6, Output Validation & Repair: the Summary verbs table and the Beliefs row's hedge list. */
+export interface MemoryRules {
+  /** Allowed first verb after the speaker's name, by entry type. */
+  verbs: Record<string, string[]>;
+  hedges: string[];
+}
+
+/** A plot-point fact the knowledge check tests (TD v0.5, Plot Point Checks). */
+export interface PlotFact {
+  id: string;
+  fact: string;
+  mustInclude: string;
+  doesNotCount: string;
+}
+
 export interface DocSources {
   versions: DocVersions;
   judgeRubric: JudgeRubric;
   templates: PromptTemplates;
   briefings: Partial<Record<CharacterName, string>>;
   tunables: Tunables;
+  /** Characters' standard social awareness text, filled into every briefing. */
+  socialAwareness: string;
+  /** TD v0.6's system prompts (★ pass, claims pass, thought pass, knowledge check), and from v0.8 the perception pass; absent before v0.6. */
+  systemPrompts?: { starPass: SystemPrompt; claimsPass: SystemPrompt; thoughtPass: SystemPrompt; knowledgeCheck: SystemPrompt; perceptionPass?: SystemPrompt };
+  /** TD v0.6's checks on memory writing (Output Validation & Repair); absent before v0.6. */
+  memoryRules?: MemoryRules;
+  /** TD v0.5's plot-point facts (F1–F4, and the optional F5); empty before v0.5. */
+  plotFacts: PlotFact[];
 }
 
 // Heading each written briefing sits under in the Characters doc.
@@ -101,6 +130,7 @@ export function loadDocs(paths: DocPaths): DocSources {
     speak: only(fencesUnder(td, "### Block 9b — speak() task"), "Block 9b"),
     ...(addresseeInstruction && { addresseeInstruction }),
     // TD v0.4's strategy, Murder Round, ballot, and run-off tasks (blocks 9d–9g); absent before v0.4.
+    ...optionalTemplate(td, "### Block 9c — Movement task", "move"),
     ...optionalTemplate(td, "### Block 9d — Strategy task", "plan"),
     ...optionalTemplate(td, "### Block 9e — Murder Round task", "murder"),
     ...optionalTemplate(td, "### Block 9f — Ballot task", "ballot"),
@@ -124,7 +154,119 @@ export function loadDocs(paths: DocPaths): DocSources {
     briefings,
     tunables: parseTunables(mech),
     judgeRubric: judgeRubric(mr),
+    socialAwareness,
+    ...(systemPrompts(td) && { systemPrompts: systemPrompts(td)! }),
+    ...(memoryRules(td) && { memoryRules: memoryRules(td)! }),
+    plotFacts: plotFacts(td),
   };
+}
+
+/**
+ * Blocks 10a–10e (TD v0.6–v0.8): each heading holds the system message's code block, then the user
+ * message's; 10d (claims pass) uses 10a's user message.
+ */
+function systemPrompts(td: string): DocSources["systemPrompts"] | null {
+  const blocks = (heading: string): string[] => {
+    try {
+      return fencesUnder(td, heading);
+    } catch {
+      return [];
+    }
+  };
+  const pair = (heading: string): SystemPrompt | null => {
+    const [system, user] = blocks(heading);
+    return system && user ? { system, user } : null;
+  };
+  const starPass = pair("### Block 10a — ★ pass");
+  const thoughtPass = pair("### Block 10b — Thought pass");
+  const knowledgeCheck = pair("### Block 10c — Knowledge check");
+  const [claimsSystem] = blocks("### Block 10d — Claims pass");
+  if (!starPass || !thoughtPass || !knowledgeCheck || !claimsSystem) return null;
+  // TD v0.8: the perception pass (block 10e); absent before v0.8.
+  const perceptionPass = pair("### Block 10e — Perception pass");
+  return { starPass, claimsPass: { system: claimsSystem, user: starPass.user }, thoughtPass, knowledgeCheck, ...(perceptionPass && { perceptionPass }) };
+}
+
+/** Terms each recorder prompt defines in its DEFINITIONS section (TD v0.7's definitions contract). */
+export const DEFINITION_TERMS = { starPass: ["promise", "deal", "threat", "admission", "toward"], claimsPass: ["claim", "denial"] } as const;
+
+/**
+ * The DEFINITIONS lines of blocks 10a and 10d, verbatim: each is one line beginning "- term:"
+ * (TD v0.7). The gate 8 judge (rubric gate8 v2) reads these, so the judge and the recorder share one
+ * wording. Throws if any of the seven terms is missing or unparseable: there is no fallback.
+ */
+export function memoryDefinitions(docs: DocSources): { term: string; line: string }[] {
+  const sp = docs.systemPrompts;
+  if (!sp) throw new Error(`TD v${docs.versions.technicalDesign} has no recorder prompts (blocks 10a–10d), so it has no DEFINITIONS to judge by`);
+  const out: { term: string; line: string }[] = [];
+  for (const [pass, terms] of Object.entries(DEFINITION_TERMS) as [keyof typeof DEFINITION_TERMS, readonly string[]][]) {
+    const lines = sp[pass].system.split("\n");
+    const start = lines.findIndex((l) => l.trim() === "DEFINITIONS");
+    if (start < 0) throw new Error(`TD v${docs.versions.technicalDesign} block ${pass === "starPass" ? "10a" : "10d"} has no DEFINITIONS section`);
+    const section: string[] = [];
+    for (const l of lines.slice(start + 1)) {
+      if (!l.trim()) break;
+      section.push(l);
+    }
+    for (const term of terms) {
+      const hits = section.filter((l) => l.startsWith(`- ${term}: `));
+      if (hits.length !== 1) throw new Error(`TD v${docs.versions.technicalDesign} block ${pass === "starPass" ? "10a" : "10d"} DEFINITIONS: expected one line starting "- ${term}: ", found ${hits.length}`);
+      out.push({ term, line: hits[0]! });
+    }
+  }
+  return out;
+}
+
+/** The Summary verbs table and the Beliefs row's hedge list, verbatim from Output Validation & Repair. */
+function memoryRules(td: string): MemoryRules | null {
+  let lines: string[];
+  try {
+    lines = section(td, "## Output Validation & Repair");
+  } catch {
+    return null;
+  }
+  const verbs: Record<string, string[]> = {};
+  const start = lines.findIndex((l) => l.startsWith("**Summary verbs**"));
+  if (start < 0) return null;
+  for (const l of lines.slice(start)) {
+    const m = l.match(/^\| (promise|deal|threat|admission|claim|denial) \| ([^|]+) \|$/);
+    if (m) verbs[m[1]!] = m[2]!.split(",").map((v) => v.trim().toLowerCase());
+  }
+  const hedge = lines.join("\n").match(/any hedge from 10b's list \(([^)]+)\)/);
+  if (!hedge || Object.keys(verbs).length !== 6) return null;
+  return { verbs, hedges: hedge[1]!.split(",").map((h) => h.trim().toLowerCase()) };
+}
+
+/**
+ * The plot-point facts table (TD v0.5), plus the optional F5 the same section
+ * describes in prose ("Lupo kills for hire").
+ */
+function plotFacts(td: string): PlotFact[] {
+  let lines: string[];
+  try {
+    lines = section(td, "### Plot-point facts");
+  } catch {
+    return [];
+  }
+  const cells = (l: string) => l.split("|").slice(1, -1).map((c) => c.trim());
+  const facts = lines
+    .filter((l) => /^\| \*\*F\d\*\* \|/.test(l))
+    .map((l) => {
+      const [id, fact, mustInclude, doesNotCount] = cells(l);
+      return { id: id!.replace(/\*/g, ""), fact: fact!, mustInclude: mustInclude!, doesNotCount: doesNotCount! };
+    });
+  const f5 = lines.join("\n").match(/\*\*F5\*\* "([^"]+)" \(must include: ([^;]+); doesn't count: ([^)]+)\)/);
+  if (f5) facts.push({ id: "F5", fact: `${f5[1]}.`, mustInclude: f5[2]!.trim(), doesNotCount: f5[3]!.trim() });
+  return facts;
+}
+
+/**
+ * Briefings from a stand-in file written in Characters' briefing format
+ * (e.g. the mini-game's stand-ins), with the standard social awareness text.
+ */
+export function loadStandinBriefings(path: string, names: CharacterName[], socialAwareness: string): Partial<Record<CharacterName, string>> {
+  const md = readFileSync(path, "utf8");
+  return Object.fromEntries(names.map((n) => [n, extractBriefing(md, `### ${n}`, socialAwareness)]));
 }
 
 function docVersion(md: string, path: string): string {
