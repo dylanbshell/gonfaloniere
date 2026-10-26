@@ -1,8 +1,18 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.16
+### Version 0.17
 
 ---
+
+## Changes in v0.17
+
+*From report CC-20261026-01 (Claude Code, PR #12 at 7086466: a 2-game play-only check of v0.16, plus a leak re-score). The ladder did its job on threats: 16 of 19 hand-read threats were harm to come, against 9 of 15 on v0.14. But `pressure` overshot. It took 33.8% of all `took` calls (about 60% of labelled ones) and 47.4% of `meant`, draining claim, threat, insult, and deal, and it would fill most of block 6's similarity slots. Fit was 24 of 30 on both samples. This is the priming risk v0.16 flagged: the ladder sentence gave `pressure` three examples, and examples attract.*
+
+- **The ladder's `pressure` gloss is narrowed** from "leaning on you with a pointed question, a demand, or a dare" to "pushing you to answer or act" ("pushing them" in `speak()`). It describes what pressure does, with no list of examples to attract lines. Refusals, rebukes, statements of intent, and bargains, which the hand-reads showed being filed as pressure, don't push anyone to answer or act, so they fall back to their own labels or to `none`
+- **Block 6 caps pressure readings at 2 per call** in the similarity fill (step 3), so however often characters use the label, it can't crowd out claims, beliefs, and code entries. It costs no calls and needs no prompt change
+- **Veiled warnings stay the character's call.** "Mind what hunts back" landing as pressure for one character and threat for another is the personality signal the ladder exists to show, so TD doesn't settle it
+- **The leak flag is resolved:** on re-scoring, v0.14 had 6 leaks against Oct 24's 4, not 16 against 7. Most of the surplus was Raffaello's debt repeated to people who already knew it
+- Blocks 10a–10d are unchanged
 
 ## Changes in v0.16
 
@@ -569,7 +579,7 @@ Someone has just spoken (the last line above). Before anyone speaks again, think
 1. thought — 2 to 4 sentences, first person, in your own voice. What does the last moment mean for you? What do you want now? If you have told anyone something untrue, note what you told them so your story stays straight. Consider how your recent behavior looks to the others in the room.
    Separate what this person has shown you from what they only claim. A claim is not proof.
 
-2. took — {took_target}, in one word: promise, deal, threat, admission, claim, denial, insult, pressure, or none. It's your own reading, not a rule. For hostility there are three steps: insult (a slight), pressure (leaning on you with a pointed question, a demand, or a dare), threat (harm to come). If it chills you, it's a threat. A plain question is none. Most lines are none.
+2. took — {took_target}, in one word: promise, deal, threat, admission, claim, denial, insult, pressure, or none. It's your own reading, not a rule. For hostility there are three steps: insult (a slight), pressure (pushing you to answer or act), threat (harm to come). If it chills you, it's a threat. A plain question is none. Most lines are none.
 
 3. words — if took is not none: the words of that line that made you take it so, at most 20, copied exactly. Otherwise null.
 
@@ -601,6 +611,7 @@ In a **Capannello**:
 **The `took` line** *(v0.9; target named in v0.10)*:
 - **Why the target is named** (v0.10): in v0.9's first test, all 4 wrong-line readings in the hand-read were on the character's own line. The model labelled the line it had been answering, not the one it had just said. Naming the line removes the guess
 - **Short on purpose:** `think()` is the most frequent call. The `took` line adds about 50 input tokens to block 9 and 3–5 output tokens (measured: 140 → 143–148 per call). `words` (v0.11) adds about 30 input tokens, and about 15 output tokens when a line is labelled
+- **The `pressure` gloss, narrowed** *(v0.17)*: "pushing you to answer or act" replaces v0.16's three examples. With them, `pressure` took about 60% of labelled `took` calls and 68% of labelled `meant` lines, because the examples pulled in refusals, rebukes, bargains, and claims. The gloss now says what pressure does, not what it looks like
 - **The hostility ladder** *(v0.16; it replaces v0.15's scope line)*: insult → pressure → threat, plus "a plain question is none". It's the only gloss on any label, and it describes steps, not definitions. Pointed questions, demands, and dares go to `pressure` instead of `none`, so they're remembered without taking a ★ slot
 - **v0.15's scope line, superseded**: "A question, a demand, or a dare is none unless it also carries one of these." In the v0.14 re-check, most labels that didn't fit their own thought were threat on a dare or demand, or claim on a question. The thought had already said what the line was, but the menu had no word for it. This line gives those three a home without defining any of the seven, and it's in both 9a and 9b
 - **No definitions:** the character's reading is the measure, so it is never held to 10a's DEFINITIONS. The words are plain English (`insult` added in v0.12, `pressure` in v0.16), and "if it chills you, it's a threat" says whose judgement counts
@@ -628,7 +639,7 @@ Say one thing, as {character_name} would say it.
 action — optional. You may take one of these actions with this line, or none:
 {allowed_actions}
 
-meant — what this line is, as you mean it, in one word: promise, deal, threat, admission, claim, denial, insult, pressure, or none. It's your own call. For hostility there are three steps: insult (a slight), pressure (leaning on them with a pointed question, a demand, or a dare), threat (harm to come). If you mean it to frighten, it's a threat. A plain question is none. Most lines are none.
+meant — what this line is, as you mean it, in one word: promise, deal, threat, admission, claim, denial, insult, pressure, or none. It's your own call. For hostility there are three steps: insult (a slight), pressure (pushing them to answer or act), threat (harm to come). If you mean it to frighten, it's a threat. A plain question is none. Most lines are none.
 words — if meant is not none: the words of your line that carry it, at most 20, copied exactly. Otherwise null.
 
 Reply with only this JSON:
@@ -1211,6 +1222,8 @@ In `notebook: shared`, ★ and claims entries render as in v0.7: `T4 · Colloqui
 2. Held beliefs about anyone present, up to 3
 3. Fill the rest with the entries and beliefs most similar in meaning to the last two History lines. A reading is matched on its full line text, not the trimmed quote
 
+**At most 2 `pressure` readings per call in step 3** (v0.17). The fill skips any further ones, so a pressure-heavy notebook can't crowd out claims, beliefs, and code entries. Steps 1 and 2 are unaffected, since pressure isn't ★.
+
 **The ~450-token budget is a hard cap** (v0.11, as built): items are added in the order above, and one that would pass the cap is skipped, so a shorter item further down can still fit. Lines are capped at 12. Steps 1 and 2 go first, so a fill item never displaces a ★ entry or a belief. Tokens are estimated as characters ÷ 3.5.
 
 Movement, strategy, Murder Round, and vote calls retrieve with their own queries (Murder Round: ★ threats, deals, and promises first; strategy: the most recent turn's ★ entries plus held conclusions).
@@ -1616,6 +1629,11 @@ The first build artifact: an internal console for running and debugging the simu
 **Removed (v0.13):**
 - **Own-line labels in `think()`** (v0.9–v0.12): after speaking, the thought reacts to the line being answered. Replaced by `meant` in `speak()`
 
+**Rejected (v0.17):**
+- **Dropping `pressure`:** it fixed what it was added for. Threats are now mostly real harm, and pointed lines are remembered instead of being promoted to ★
+- **A "refusals are none" line:** another scope line would bring the priming problem back. The narrower gloss excludes refusals, since they push no one to act
+- **Settling veiled warnings as pressure or threat:** that boundary is where personality should show
+
 **Rejected (v0.16):**
 - **Separate labels for question, demand, dare, and challenge:** what matters later is that someone leaned on you, and about what, not which kind of leaning it was. Four words would thin every count
 - **Making `pressure` ★:** it would compete with promises and threats for the ★ slots, which is the problem it fixes
@@ -1669,8 +1687,9 @@ The first build artifact: an internal console for running and debugging the simu
 - **v0.6's or v0.7's ★ pass for the reference record?** Decided by the first full games' hand-read. In the default mode the choice affects knowledge checks and research, not what characters remember
 - **Which plot points can still use knowledge checks?** Logged checks (payments, meetings, ledger) are exact. Knowledge checks carry the known limit. Hand-read their verdicts in the first full games; if they misfire often, Mechanics could limit the Plot Reward to logged plot points
 - **The fit bars after v0.15** (Models & Research's bars; v0.34, Open Questions). In the v0.14 re-check everything passed except fit: own 21 of 30, others 23 of 30, against 26. Check v0.16's hostility ladder in the first full games' hand-read, especially the pressure–threat boundary, or in a 2-game play-only run if Models & Research would rather know first. Note that think()'s fit was 28 of 30 on v0.12 and 23 of 30 on v0.14 with a near-identical prompt, so part of the gap may be sampling. Bar size is Models & Research's call
+- **The v0.17 label mix:** after the narrowed gloss, does `pressure` settle well below v0.16's 33.8% of `took` and 47.4% of `meant`, without threat and claim swinging back to v0.14 levels? v0.16's fit was 24 of 30 on both samples, right at the full-game pass mark of 80%. For own readings, TD's view is that the label should fit the line as said. A line that departs from an earlier plan isn't a misfit if the label matches the line. How to score that is Models & Research's call
   - **If own-line fit stays low:** drop own readings from the notebook and keep `meant` in the record for research. Characters then remember their own words only through History
-- **The leak flag** (v0.14 re-check: 16 leak lines against 7 on the same seeds). Is a plot-driven reveal, like Raffaello's debt, a leak? Models & Research decides, and that decision settles whether this flag stands. If it does, and it holds in the full games, the first suspect is `meant` in `speak()`, and the fallback above applies
+- ~~**The leak flag**~~ Resolved (CC-20261026-01): re-scored by hand, v0.14 had 6 leaks against Oct 24's 4. Whether the secrets judge should know who learned a secret in-game, not just at the start, is Models & Research's call. The fallback (drop own readings, keep `meant` in the record) is no longer needed for this flag
 - **The perceived notebook in the first full games:**
   - How often do characters take the ★ lines they hear as anything (coverage)?
   - How often does a label misunderstand the words rather than read them its own way?
