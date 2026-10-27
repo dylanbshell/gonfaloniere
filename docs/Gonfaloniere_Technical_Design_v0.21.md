@@ -1,8 +1,26 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.19
+### Version 0.21
 
 ---
+
+## Changes in v0.21
+
+*Dylan, Oct 27: log label probabilities as a hedge, with no change to play.*
+
+- **New run setting `logprobs`** (default `labels`): where the provider supports it, `think()` and `speak()` calls ask for log probabilities. Code stores the top 5 candidates and their probabilities at the token where the `took` or `meant` label is written. The prompt and the label used are unchanged, and nothing reads the probabilities during play. They're a research record: how close the runner-up was (for example, pressure 55% against threat 30%), which may later serve as a finer personality measure than the label alone
+- **Never required:** if a provider doesn't return them, the field is null and the call is otherwise normal. Provider choice, and whether to prefer providers that return them, is Models & Research's call (tracker handoff)
+- Blocks 9a–9g and 10a–10d are unchanged
+
+## Changes in v0.20
+
+*Clears Models & Research's "Block 9c fixes" handoff (Oct 24), and records the v0.19 baseline result (report CC-20261026-05). The labelling prompts are unchanged.*
+
+- **Block 9c no longer names a target before there is one.** "Go to wherever {target} is now" and "call {target} aside" become "the guest you name". The runner had been filling "your target"
+- **`{colloquio_note}` is removed.** It could only be known after the choice, so it was always empty and no game ever showed it. The check moves to validation instead: a `join` toward someone already in the character's own group becomes `stay`, logged, and the movement window is used. Play is unchanged, since the note never reached a prompt
+- **v0.19 baseline recorded** (Open Questions): with bare label words, threat rose from 1.3% to 5.5% of `took`, pressure fell from 32.2% to 25.7%, and `none` fell from 40.9% to 30.7%. Fit was 27 of 30 on both samples, and the per-label cap held in all 798 block 6 calls. One short description could swing a label's share several-fold. Per Models & Research v0.38, v0.19's mix is the research baseline and goes to the first full games unchanged
+- **Four questions from the build, answered with no change:** `none` at 30.7% is accepted, since the cap protects block 6. Pressure absorbing a few jabs (3 in 30) is within the fit bar. Bare "threat" covering warnings and taunts is the character's own reading, which is the point. Whether the judge's "deliberate" reveals count as sources is Models & Research's call
+- Blocks 10a–10d are unchanged
 
 ## Changes in v0.19
 
@@ -377,7 +395,7 @@ Every character call returns raw JSON. Code checks and repairs it before use, so
 | Ballot | One vote for the voter's own faction's candidate if any, otherwise a blank ballot; buy none |
 | Run-off | One vote for a tied guest from the voter's own faction if any, otherwise a blank ballot |
 
-**Movement target fallback:** if the target is invalid but the choice is join or Colloquio, use the highest-urgency valid contact; if there is none, stay.
+**Movement target fallback:** if the target is invalid but the choice is join or Colloquio, use the highest-urgency valid contact; if there is none, stay. **A `join` toward someone already in the character's own group** becomes `stay`, logged as "join to own group" (v0.20). The window is used, as for any stay, and it isn't a repair, since the reply was valid. A `colloquio` with a member of one's own group is a real move and stands.
 
 ---
 
@@ -441,6 +459,7 @@ Nothing about the model is hard-coded. Each run reads a config file, and the ful
 | Repeated thoughts | `drop_repeated_thoughts: true` (default, every model): see shortTermHistory | – |
 | Message layout | `system_role: true` (blocks 1–3 as system message) or `false` (all blocks in one user message), per model | Same |
 | Prompt caching | On where the provider supports it | Same |
+| Log probabilities *(v0.21)* | `logprobs: labels` (default): request them where the provider supports it, and store the top 5 at the `took` / `meant` label token. `off` requests none; `all` stores them for every output token (large, for debugging only). Never required: missing means null | `off` |
 
 **Also run settings, not model settings:** `plot_reward` on/off, `notebook` (`perceived`, the default, or `shared`; see The perceived notebook; fixed for a research batch, like the recorder), tunable values (from mechanics), personality assignment seed, random seed (which also drives any draw by lot).
 
@@ -706,9 +725,8 @@ The room shifts. This is your moment to move, if you wish; it will not come agai
 
 3. choice — one of:
    "stay"       remain where you are
-   "join"       go to wherever {target} is now and join that group
-   "colloquio"  call {target} aside for a private word; they cannot refuse, and Il Notaio will note it
-   {colloquio_note}
+   "join"       go to wherever the guest you name is now and join that group
+   "colloquio"  call the guest you name aside for a private word; they cannot refuse, and Il Notaio will note it
 
 4. target — the guest you are moving toward or calling aside, exactly as written. null if you stay.
 
@@ -716,7 +734,7 @@ Reply with only this JSON:
 {"thought": "...", "contacts": [{"name": "...", "urgency": 0, "purpose": "..." or null}], "choice": "stay", "target": null}
 ```
 
-- `{colloquio_note}`: empty normally; if the target would be the character's own current group: "Joining someone already in your group changes nothing; choose stay instead."
+- **No placeholders since v0.20:** `{target}` was used before any target existed, and `{colloquio_note}` could only be known after the choice, so it was always empty. A `join` toward someone in the character's own group is turned into `stay` by validation (Output Validation & Repair, Movement)
 - If a target is already in a Colloquio, the Stage Manager resolves a `join` to the Capannello that target will return to, and a `colloquio` waits until the target is free (it opens when their Colloquio ends, before the next turn). *To confirm in the mini-game*
 
 ### Block 9d — Strategy task *(for S9a)*
@@ -1357,6 +1375,7 @@ Acting on a misreading is legal play. A character may pay, vote, or kill on a de
 So Models & Research can compare each notebook with the transcript (Game Record & Export):
 - **Each `think()` stores `after_line`, `took`, and `words`,** `none` included, plus whether it was a closing think, the target type (other, own, or none), and the target line
 - **Each `speak()` stores `meant` and `words`** (v0.13), `none` included
+- **Label log probabilities** (v0.21): the top 5 candidates and their probabilities at each `took` and `meant` label, where the provider returns them. For example, a character who wrote "pressure" with "threat" close behind. This is a possible finer measure of how each personality takes the same kind of line
 - **Every reading,** with the line it was attached to, and every label ignored or logged by the attachment rule, including "wrong-line words" drops
 - **The reference record as before:** every 10a and 10d entry with its audience, in both modes
 - **Unchanged and already logged:** each listener's importance score for each line, which is a second perception signal (does a Cautious character rate threats higher?), and who was present at each line
@@ -1436,7 +1455,7 @@ So Models & Research can compare each notebook with the transcript (Game Record 
 | Header | Game ID, date, engine version, doc versions (TD, Mechanics, Characters), run config (secrets removed; includes the recorder model and `notebook` mode), seeds, roster and aliases, personality assignment, tunable values, briefings verbatim | Same, without seeds and provider details |
 | Events | Every event in order: speech, Il Notaio lines, action lines, moves, conversations opening and closing, plot checks with their evidence, Murder Round acts and results, ballots, run-off, draw by lot, outcome | Same |
 | Thoughts and plans | Every thought (with its call type and, for `think()`, `after_line`, `took`, `words`, the target type, and whether it was a closing think) and strategy plan | Same (the inner life is the show) |
-| Model calls | Every call: type, character, turn, prompt (static prefix stored once per character, dynamic blocks per call), raw output, parsed output, repairs, tokens, cost, latency, provider | Left out |
+| Model calls | Every call: type, character, turn, prompt (static prefix stored once per character, dynamic blocks per call), raw output, parsed output, label log probabilities (v0.21; null where unsupported), repairs, tokens, cost, latency, provider | Left out |
 | Memory | Every memory entry, reading, and belief, with its source line or thought IDs, plus every dropped extraction entry and every `took` label ignored by the attachment rule, with the reason. Reference entries keep their audience | Readings (how each character took what they heard is part of the show) and the entries behind plot checks; the rest left out |
 | Snapshots | Full state at the end of every turn and every phase boundary | Same |
 
@@ -1655,6 +1674,13 @@ The first build artifact: an internal console for running and debugging the simu
 - **The hostility ladder and every label-specific line** (v0.15–v0.18): each one moved its own label's share
 - **The pressure-only memory cap** (v0.17): replaced by the same cap for every non-★ label
 
+**Removed (v0.20):**
+- **`{colloquio_note}` in block 9c:** it could only be known after the choice it was meant to guide, so it never reached a prompt. Validation does the check instead
+
+**Rejected (v0.20):**
+- **A static "joining your own group changes nothing" line in 9c:** no game ever showed the note, so adding text now would change tested play. Validation handles it without a prompt change
+- **Adjusting any label after the v0.19 baseline:** that measurement is now the research baseline, and every description tried so far moved the ratios it touched
+
 **Rejected (v0.19):**
 - **Uniform short descriptions for all nine labels:** symmetric, but it still steers every label, and the steering differs with each description's wording. Bare words are the cleaner baseline. Descriptions can be layered on later, all at once, if the baseline shows a need
 
@@ -1716,12 +1742,13 @@ The first build artifact: an internal console for running and debugging the simu
 ## Open Questions
 
 - History and shortTermHistory window sizes
+- **Are label log probabilities useful?** (v0.21) Once the full games log them, do the runner-up probabilities separate the personality variants better than the labels alone? Does the label's own probability track hand-read fit? Nothing depends on the answer yet
 - How often knowledge checks misfire, including firm-but-unfounded guesses (mini-game: agreement with hand-checks)
 - ~~Does v0.7 reach gate 8?~~ No. Closed Oct 25 as a known limit, with DeepSeek recording on v0.7 (Memory Writing, Known limit)
 - **v0.6's or v0.7's ★ pass for the reference record?** Decided by the first full games' hand-read. In the default mode the choice affects knowledge checks and research, not what characters remember
 - **Which plot points can still use knowledge checks?** Logged checks (payments, meetings, ledger) are exact. Knowledge checks carry the known limit. Hand-read their verdicts in the first full games; if they misfire often, Mechanics could limit the Plot Reward to logged plot points
 - **The fit bars after v0.15** (Models & Research's bars; v0.34, Open Questions). In the v0.14 re-check everything passed except fit: own 21 of 30, others 23 of 30, against 26. Check v0.16's hostility ladder in the first full games' hand-read, especially the pressure–threat boundary, or in a 2-game play-only run if Models & Research would rather know first. Note that think()'s fit was 28 of 30 on v0.12 and 23 of 30 on v0.14 with a near-identical prompt, so part of the gap may be sampling. Bar size is Models & Research's call
-- **The v0.19 baseline test** (a 2-game play-only run, seeds 2000–2001; details are Models & Research's). How far do the label shares move once every label is a bare word? Compare against v0.14 (bare words, no `pressure`), v0.16 (ladder with examples), and v0.17 (narrowed). Things to watch: does threat recover (it was 1.3% on v0.17), does pressure settle on its own, and do dares and questions stay out of threat and claim now that `pressure` exists as a word? The result decides whether any description is layered back, and if so, for every label at once. The symmetric cap should show in block 6: no non-★ label above 3 per call
+- ~~**The v0.19 baseline test**~~ Done (CC-20261026-05, seeds 2000–2001). Share of `took`, with v0.17 in brackets: none 30.7% (40.9), pressure 25.7% (32.2), claim 17.3% (12.1), insult 10.6% (6.5), threat 5.5% (1.3). Of `meant`: pressure 33.9% (42.7), none 29.2% (29.2). Fit 27 of 30 on both samples. 12 of 20 threats were harm to come, and the rest were warnings and taunts. All 20 pressure readings pushed someone to answer or act. Only 1 of 20 threats and 1 of 20 claims were questions. The cap held in all 798 calls (448 at exactly 3). **This mix is the research baseline** (Models & Research v0.38), and v0.19's prompts go to the first full games unchanged
   - **If own-line fit stays low:** drop own readings from the notebook and keep `meant` in the record for research. Characters then remember their own words only through History
 - ~~**The leak flag**~~ Resolved (CC-20261026-01): re-scored by hand, v0.14 had 6 leaks against Oct 24's 4. Whether the secrets judge should know who learned a secret in-game, not just at the start, is Models & Research's call. The fallback (drop own readings, keep `meant` in the record) is no longer needed for this flag
 - **The perceived notebook in the first full games:**
