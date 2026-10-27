@@ -36,6 +36,7 @@ import type { DocSources } from "../sources/docs.ts";
 import { parseJson } from "../output/json.ts";
 import { z } from "zod";
 import { Recorder, sameThought } from "./extract.ts";
+import type { LogprobsSetting, StoredLogprobs } from "./logprobs.ts";
 import { MemoryStore, renderBelief, tookTargetLine, resolveName, whereLabel, type GameLine, type Thought, type Where } from "./memory.ts";
 
 // ---- Calls -----------------------------------------------------------------------------
@@ -61,6 +62,8 @@ export interface CallResponse {
   provider: string | null;
   /** The model the provider reports serving the call. */
   model: string | null;
+  /** TD v0.21: label log probabilities, on think() and speak() calls (null where unsupported or off); absent on other calls. */
+  logprobs?: StoredLogprobs | null;
 }
 /** Null when the spending cap stops the call. */
 export type Caller = (req: CallRequest) => Promise<CallResponse | null>;
@@ -84,6 +87,8 @@ export interface CallRecord {
   latencyMs: number;
   provider: string | null;
   model: string | null;
+  /** TD v0.21: the top 5 candidates at the `took` / `meant` label token (or every token's, with `all`); null where unsupported. Nothing in play reads it. */
+  logprobs?: StoredLogprobs | null;
 }
 
 /** Runner hooks: a turn-end report, for progress lines. */
@@ -115,6 +120,8 @@ export interface GameSettings {
    * from think()'s `took`; "shared" retrieves the ★ and claims entries, as before v0.8.
    */
   notebook?: "perceived" | "shared";
+  /** TD v0.21 `logprobs`: labels (default), off, or all; the runner requests and stores them, and play never reads them. */
+  logprobs?: LogprobsSetting;
   /** Knowledge checks at the end: (character, fact id). */
   checks: { character: CharacterName; fact: string }[];
 }
@@ -520,7 +527,14 @@ export class MiniGame {
       target = ([...v.contacts].sort((a, b) => b.urgency - a.urgency)[0]?.name as CharacterName | undefined) ?? null;
       if (!target) choice = "stay";
     }
-    this.events.push({ turn: this.turn, type: "move", character: mover, choice, target, contacts: v.contacts });
+    // TD v0.20 (Output Validation & Repair, Movement): a join toward someone already in the mover's own
+    // group becomes stay, logged as "join to own group"; the window is used, and it isn't a repair.
+    let note: string | undefined;
+    if (choice === "join" && target && tdMinor(this.docs.versions.technicalDesign) >= 20 && this.joinsOwnGroup(mover, target)) {
+      choice = "stay";
+      note = "join to own group";
+    }
+    this.events.push({ turn: this.turn, type: "move", character: mover, choice, target, contacts: v.contacts, ...(note && { note, asked: "join" }) });
     if (choice === "join" && target) this.join(mover, target);
     if (choice === "colloquio" && target) {
       if (this.conv(target).kind === "colloquio") {
@@ -529,6 +543,13 @@ export class MiniGame {
         this.events.push({ turn: this.turn, type: "colloquio-waits", mover, target });
       } else this.openColloquio(mover, target);
     }
+  }
+
+  /** Whether a join toward this target lands in the mover's own group (a target in a Colloquio counts by the group they return to). */
+  private joinsOwnGroup(mover: CharacterName, target: CharacterName): boolean {
+    const t = this.conv(target);
+    const to = t.kind === "colloquio" ? this.convs.get(t.returnTo.get(target)!)! : t;
+    return to.id === this.conv(mover).id;
   }
 
   private join(mover: CharacterName, target: CharacterName): void {
@@ -789,6 +810,7 @@ export class MiniGame {
       latencyMs: res.latencyMs,
       provider: res.provider,
       model: res.model,
+      ...(res.logprobs !== undefined && { logprobs: res.logprobs }),
     });
   }
 

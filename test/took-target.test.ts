@@ -228,9 +228,12 @@ test("TD v0.17, in play: the narrowed pressure gloss in think() and speak(), v0.
   assert.deepEqual(g.memory.fillCap, { labels: ["pressure"], max: 2 });
 });
 
-test("TD v0.19 (default), in play: the bare list, then only 'your own reading/call' and 'Most lines are none'; the ladder and descriptions gone; the per-label cap on", async () => {
-  assert.equal(docs.versions.technicalDesign, "0.19");
-  const { g, prompts, speaks, td } = await playWith(docs);
+test("TD v0.19+, in play: the bare list, then only 'your own reading/call' and 'Most lines are none'; the ladder and descriptions gone; the per-label cap on", async () => {
+  for (const v of ["0.19", "0.21"]) await bareListCheck(loadDocs({ ...config.docs, technicalDesign: technicalDesignPath(v) }));
+});
+
+async function bareListCheck(d: typeof docs) {
+  const { g, prompts, speaks, td } = await playWith(d);
   checkTargets(g, prompts, td);
   const list = "in one word: promise, deal, threat, admission, claim, denial, insult, pressure, or none.";
   // The list is followed by exactly these sentences, up to the end of the line.
@@ -239,4 +242,4 @@ test("TD v0.19 (default), in play: the bare list, then only 'your own reading/ca
   const removed = ["For hostility there are three steps", "insult (a slight)", "pressure (pushing", "threat (harm to come", "If it chills you", "If you mean it to frighten", "A plain question is none", "or else"];
   for (const u of [...prompts.map((p) => p.user), ...speaks]) for (const r of removed) assert.ok(!u.includes(r), `removed: ${r}`);
   assert.deepEqual(g.memory.fillCap, { labels: ["claim", "denial", "insult", "pressure"], max: 3 });
-});
+}

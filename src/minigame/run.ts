@@ -23,6 +23,7 @@
 // times). More than 10% of calls needing a retry in a 10-minute window (once
 // it holds 30 calls) drops the run to one game at a time.
 
+import { LOGPROBS_SETTINGS, callWithLogprobs, type LogprobsSetting, type LogprobsState } from "./logprobs.ts";
 import { audited } from "../harness/keyaudit.ts";
 import { execSync } from "node:child_process";
 import { appendFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
@@ -62,6 +63,8 @@ const { values: opts } = parseArgs({
     "keep-repeated-thoughts": { type: "boolean", default: false },
     // TD v0.8–v0.10 notebook: perceived (default) or shared.
     notebook: { type: "string", default: "perceived" },
+    // TD v0.21 Run Configuration: labels (default), off, or all.
+    logprobs: { type: "string", default: "labels" },
     // Projected cost from saved games of the same play model; no calls.
     estimate: { type: "boolean", default: false },
   },
@@ -134,8 +137,20 @@ async function main(): Promise<void> {
     ...(opts["speak-append"] && { speakAppend: opts["speak-append"] }),
     dropRepeatedThoughts: !opts["keep-repeated-thoughts"],
     notebook: opts.notebook as "perceived" | "shared",
+    logprobs: opts.logprobs as LogprobsSetting,
   };
   if (!["perceived", "shared"].includes(settingsBase.notebook)) throw new Error(`--notebook must be perceived or shared`);
+  if (!LOGPROBS_SETTINGS.includes(settingsBase.logprobs)) throw new Error(`--logprobs must be ${LOGPROBS_SETTINGS.join(", ")}`);
+  // TD v0.21: never required. Ask only where the pinned endpoint lists the parameter; say so once if it doesn't.
+  const logprobsState: LogprobsState = { supported: served.character.endpoint.supportedParameters.includes("logprobs"), noted: false };
+  const noteLogprobs = (message: string) => {
+    console.log(`  logprobs: ${message}`);
+    runLog.write({ type: "minigame-note", runId, note: "logprobs", message, at: new Date().toISOString() } as unknown as LogRecord);
+  };
+  if (settingsBase.logprobs !== "off" && !logprobsState.supported) {
+    logprobsState.noted = true;
+    noteLogprobs(`${served.character.endpoint.providerName} doesn't list logprobs for ${charModel.id}; think() and speak() records store null.`);
+  }
   const parallel = Number(opts.parallel);
   const replacements = Number(opts.replacements);
   const wanted = Number(opts.games);
@@ -224,18 +239,23 @@ async function main(): Promise<void> {
       if (!budget.tryReserve(worst)) return null;
       let retried = false;
       // The route decides what is sent: play temperature or the recorder's (0, or none if rejected), thinking off, message layout.
-      const res = await callModel(
-        sv.route.client,
-        { model: sv.model, ...messages(sv.route, req.system, req.user), temperature: sv.route.temperature, maxTokens: req.maxTokens, extra: sv.route.thinking },
-        {
-          ...RETRY,
-          onRetry: (r) => {
-            retried = true;
-            retries++;
-            log.write({ type: "minigame-retry", gameId, kind: req.kind, character: req.character, attempt: r.attempt, status: r.status, error: r.error.slice(0, 300), backoffMs: Math.round(r.backoffMs), at: new Date().toISOString() } as unknown as LogRecord);
+      const send = (extra: Record<string, unknown>) =>
+        callModel(
+          sv.route.client,
+          { model: sv.model, ...messages(sv.route, req.system, req.user), temperature: sv.route.temperature, maxTokens: req.maxTokens, extra: { ...sv.route.thinking, ...extra } },
+          {
+            ...RETRY,
+            onRetry: (r) => {
+              retried = true;
+              retries++;
+              log.write({ type: "minigame-retry", gameId, kind: req.kind, character: req.character, attempt: r.attempt, status: r.status, error: r.error.slice(0, 300), backoffMs: Math.round(r.backoffMs), at: new Date().toISOString() } as unknown as LogRecord);
+            },
           },
-        },
-      );
+        );
+      // TD v0.21: think() and speak() ask for log probabilities (per the setting); system calls never do.
+      const { res, logprobs } = SYSTEM_KINDS.includes(req.kind)
+        ? { res: await send({}), logprobs: undefined }
+        : await callWithLogprobs(send, settingsBase.logprobs, req.kind, logprobsState, noteLogprobs);
       const cost = res.ok ? (res.usage.costUsd ?? res.usage.inputTokens * sv.endpoint.price.input + res.usage.outputTokens * sv.endpoint.price.output) : 0;
       budget.settle(worst, cost);
       noteCall(retried);
@@ -243,7 +263,7 @@ async function main(): Promise<void> {
       if (!res.ok) throw new GameFailure(`${req.kind} call failed (${res.status ?? "no status"}): ${res.error.slice(0, 200)}`);
       if (res.provider !== sv.endpoint.providerName) throw new GameFailure(`${req.kind} call served by ${res.provider}, not the pinned ${sv.endpoint.providerName}`);
       if (sv.servedId !== null && res.model !== sv.servedId) throw new GameFailure(`${req.kind} call served by model ${res.model}, not ${sv.servedId}`);
-      return { ok: true, content: res.content, error: null, costUsd: cost, inputTokens: res.usage.inputTokens, outputTokens: res.usage.outputTokens, latencyMs: res.latencyMs, provider: res.provider, model: res.model };
+      return { ok: true, content: res.content, error: null, costUsd: cost, inputTokens: res.usage.inputTokens, outputTokens: res.usage.outputTokens, latencyMs: res.latencyMs, provider: res.provider, model: res.model, ...(logprobs !== undefined && { logprobs }) };
     };
 
     const started = Date.now();
@@ -388,6 +408,8 @@ function buildRecord(
       working_tree: x.tree,
       // TD v0.8–v0.10: the notebook mode, fixed for a batch.
       notebook: (x.settings as { notebook?: string }).notebook ?? "perceived",
+      // TD v0.21: whether label log probabilities were requested (labels, off, or all).
+      logprobs: (x.settings as { logprobs?: string }).logprobs ?? "off",
       docs: x.docs.versions,
       config: {
         model: x.served.character.model.slug,
@@ -415,7 +437,7 @@ function buildRecord(
       minigame_settings: [
         "Il Notaio's opening line: a smaller gathering of six; the other guests are alive but elsewhere and can't be reached",
         "Interim lone-guest rule: a guest left alone in a Capannello joins the other Capannello at once (permanent rule with Mechanics)",
-        "Block 9c's {target} in the choice lines reads 'your target' (TD fix pending)",
+        ...(x.docs.templates.move?.includes("{target}") ? ["Block 9c's {target} in the choice lines reads 'your target' (fixed in TD v0.20)"] : []),
         ...((x.settings as { speakAppend?: string }).speakAppend ? [`Variant: every character's Block 9b ends with the added line "${(x.settings as { speakAppend?: string }).speakAppend}"`] : []),
       ],
       standins: { characters: STANDINS, source: `${STANDIN_FILE} (adapted from PitP_Original_Rules_Trimmed)` },
