@@ -1,8 +1,16 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.20
+### Version 0.21
 
 ---
+
+## Changes in v0.21
+
+*Dylan, Oct 27: log label probabilities as a hedge, with no change to play.*
+
+- **New run setting `logprobs`** (default `labels`): where the provider supports it, `think()` and `speak()` calls ask for log probabilities. Code stores the top 5 candidates and their probabilities at the token where the `took` or `meant` label is written. The prompt and the label used are unchanged, and nothing reads the probabilities during play. They're a research record: how close the runner-up was (for example, pressure 55% against threat 30%), which may later serve as a finer personality measure than the label alone
+- **Never required:** if a provider doesn't return them, the field is null and the call is otherwise normal. Provider choice, and whether to prefer providers that return them, is Models & Research's call (tracker handoff)
+- Blocks 9a–9g and 10a–10d are unchanged
 
 ## Changes in v0.20
 
@@ -451,6 +459,7 @@ Nothing about the model is hard-coded. Each run reads a config file, and the ful
 | Repeated thoughts | `drop_repeated_thoughts: true` (default, every model): see shortTermHistory | – |
 | Message layout | `system_role: true` (blocks 1–3 as system message) or `false` (all blocks in one user message), per model | Same |
 | Prompt caching | On where the provider supports it | Same |
+| Log probabilities *(v0.21)* | `logprobs: labels` (default): request them where the provider supports it, and store the top 5 at the `took` / `meant` label token. `off` requests none; `all` stores them for every output token (large, for debugging only). Never required: missing means null | `off` |
 
 **Also run settings, not model settings:** `plot_reward` on/off, `notebook` (`perceived`, the default, or `shared`; see The perceived notebook; fixed for a research batch, like the recorder), tunable values (from mechanics), personality assignment seed, random seed (which also drives any draw by lot).
 
@@ -1366,6 +1375,7 @@ Acting on a misreading is legal play. A character may pay, vote, or kill on a de
 So Models & Research can compare each notebook with the transcript (Game Record & Export):
 - **Each `think()` stores `after_line`, `took`, and `words`,** `none` included, plus whether it was a closing think, the target type (other, own, or none), and the target line
 - **Each `speak()` stores `meant` and `words`** (v0.13), `none` included
+- **Label log probabilities** (v0.21): the top 5 candidates and their probabilities at each `took` and `meant` label, where the provider returns them. For example, a character who wrote "pressure" with "threat" close behind. This is a possible finer measure of how each personality takes the same kind of line
 - **Every reading,** with the line it was attached to, and every label ignored or logged by the attachment rule, including "wrong-line words" drops
 - **The reference record as before:** every 10a and 10d entry with its audience, in both modes
 - **Unchanged and already logged:** each listener's importance score for each line, which is a second perception signal (does a Cautious character rate threats higher?), and who was present at each line
@@ -1445,7 +1455,7 @@ So Models & Research can compare each notebook with the transcript (Game Record 
 | Header | Game ID, date, engine version, doc versions (TD, Mechanics, Characters), run config (secrets removed; includes the recorder model and `notebook` mode), seeds, roster and aliases, personality assignment, tunable values, briefings verbatim | Same, without seeds and provider details |
 | Events | Every event in order: speech, Il Notaio lines, action lines, moves, conversations opening and closing, plot checks with their evidence, Murder Round acts and results, ballots, run-off, draw by lot, outcome | Same |
 | Thoughts and plans | Every thought (with its call type and, for `think()`, `after_line`, `took`, `words`, the target type, and whether it was a closing think) and strategy plan | Same (the inner life is the show) |
-| Model calls | Every call: type, character, turn, prompt (static prefix stored once per character, dynamic blocks per call), raw output, parsed output, repairs, tokens, cost, latency, provider | Left out |
+| Model calls | Every call: type, character, turn, prompt (static prefix stored once per character, dynamic blocks per call), raw output, parsed output, label log probabilities (v0.21; null where unsupported), repairs, tokens, cost, latency, provider | Left out |
 | Memory | Every memory entry, reading, and belief, with its source line or thought IDs, plus every dropped extraction entry and every `took` label ignored by the attachment rule, with the reason. Reference entries keep their audience | Readings (how each character took what they heard is part of the show) and the entries behind plot checks; the rest left out |
 | Snapshots | Full state at the end of every turn and every phase boundary | Same |
 
@@ -1732,6 +1742,7 @@ The first build artifact: an internal console for running and debugging the simu
 ## Open Questions
 
 - History and shortTermHistory window sizes
+- **Are label log probabilities useful?** (v0.21) Once the full games log them, do the runner-up probabilities separate the personality variants better than the labels alone? Does the label's own probability track hand-read fit? Nothing depends on the answer yet
 - How often knowledge checks misfire, including firm-but-unfounded guesses (mini-game: agreement with hand-checks)
 - ~~Does v0.7 reach gate 8?~~ No. Closed Oct 25 as a known limit, with DeepSeek recording on v0.7 (Memory Writing, Known limit)
 - **v0.6's or v0.7's ★ pass for the reference record?** Decided by the first full games' hand-read. In the default mode the choice affects knowledge checks and research, not what characters remember
