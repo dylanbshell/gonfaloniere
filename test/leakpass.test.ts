@@ -80,3 +80,35 @@ test("a wording the list doesn't know stays the speaker's own secret, known only
   const { lineKnown } = run([{ line: "L5", speaker: G, secret: "Your pension hopes with Emile" }], { L5: [G, C] });
   assert.equal(lineKnown.get("L5"), false);
 });
+
+test("v0.38: knowledge is cumulative across conversations — each listener may have learned it at a different earlier line", () => {
+  // Lupo learns the debt in a Colloquio (L20), LeNoir in a Capannello (L30); a later line heard by both is already known.
+  const { marks, lineKnown } = run(
+    [
+      { line: "L20", speaker: R, secret: "Debt to Contessa Isabella" },
+      { line: "L30", speaker: R, secret: "His debt to Contessa Isabella" },
+      { line: "L40", speaker: R, secret: "Your debt to Contessa Isabella" },
+    ],
+    { L20: [R, L], L30: [R, C], L40: [R, L, C] },
+  );
+  assert.deepEqual([lineKnown.get("L20"), lineKnown.get("L30"), lineKnown.get("L40")], [false, false, true]);
+  assert.deepEqual(marks.find((m) => m.line === "L40")!.newListeners, []);
+});
+
+test("v0.38: sources are the flagged lines given, whatever their hand-read class; a line not given (unflagged) teaches no one", () => {
+  // L20 would hand-read as deliberate; it's still judge-flagged, so it's a source.
+  const flagged = [
+    { line: "L20", speaker: R, secret: "Debt to Contessa Isabella" },
+    { line: "L40", speaker: R, secret: "Debt to Contessa Isabella" },
+  ];
+  assert.equal(run(flagged, { L20: [R, L], L40: [R, L] }).lineKnown.get("L40"), true);
+  // Without L20 among the flagged lines (the judge didn't flag it), Lupo can't be known to know.
+  assert.equal(run([flagged[1]!], { L40: [R, L] }).lineKnown.get("L40"), false);
+});
+
+test("briefing knowledge counts from the start: F2 for Raffaello only under the judge's v2 notes", () => {
+  const line = [{ line: "L10", speaker: I, secret: "she knows LeNoir is the dead man's brother" }];
+  const heard = { L10: [I, R] };
+  assert.equal(alreadyKnownPass(line, (l) => heard[l as "L10"]!, (l) => Number(l.slice(1)), "v1").lineKnown.get("L10"), false);
+  assert.equal(alreadyKnownPass(line, (l) => heard[l as "L10"]!, (l) => Number(l.slice(1)), "v2").lineKnown.get("L10"), true);
+});

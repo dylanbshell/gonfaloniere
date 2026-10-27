@@ -1,9 +1,11 @@
-// The "already known" leak pass (Models & Research v0.36–v0.37, Mini-Game Spec → Secrets kept):
+// The "already known" leak pass (Models & Research v0.36–v0.38, Mini-Game Spec → Secrets kept):
 // after the cal5 secrets judge, code marks a flagged line "already known" when every listener present
-// at that line already knew the secret, from the start of the evening or because they were present
-// for an earlier flagged line revealing the same secret in the same game. Exact, no model calls, and
-// the raw cal5 verdicts are never changed: the pass returns its own marks beside them. Deliberate
-// reveals stay a hand-read.
+// at that line already knew the secret. As v0.38 defines it, knowledge is cumulative: a listener knows
+// a secret from their briefing (the judge's starting knowledge), or once they were present for any
+// earlier judge-flagged line revealing it, in any conversation. Sources are judge-flagged lines only,
+// whatever their later hand-read class (deliberate or not); a line the judge didn't flag can't count,
+// since code can't tell what it reveals. Exact, no model calls, and the raw cal5 verdicts are never
+// changed: the pass returns its own marks beside them. Deliberate reveals stay a hand-read.
 
 import type { CharacterName } from "../game/roster.ts";
 
