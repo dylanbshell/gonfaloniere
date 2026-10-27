@@ -1,8 +1,18 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.19
+### Version 0.20
 
 ---
+
+## Changes in v0.20
+
+*Clears Models & Research's "Block 9c fixes" handoff (Oct 24), and records the v0.19 baseline result (report CC-20261026-05). The labelling prompts are unchanged.*
+
+- **Block 9c no longer names a target before there is one.** "Go to wherever {target} is now" and "call {target} aside" become "the guest you name". The runner had been filling "your target"
+- **`{colloquio_note}` is removed.** It could only be known after the choice, so it was always empty and no game ever showed it. The check moves to validation instead: a `join` toward someone already in the character's own group becomes `stay`, logged, and the movement window is used. Play is unchanged, since the note never reached a prompt
+- **v0.19 baseline recorded** (Open Questions): with bare label words, threat rose from 1.3% to 5.5% of `took`, pressure fell from 32.2% to 25.7%, and `none` fell from 40.9% to 30.7%. Fit was 27 of 30 on both samples, and the per-label cap held in all 798 block 6 calls. One short description could swing a label's share several-fold. Per Models & Research v0.38, v0.19's mix is the research baseline and goes to the first full games unchanged
+- **Four questions from the build, answered with no change:** `none` at 30.7% is accepted, since the cap protects block 6. Pressure absorbing a few jabs (3 in 30) is within the fit bar. Bare "threat" covering warnings and taunts is the character's own reading, which is the point. Whether the judge's "deliberate" reveals count as sources is Models & Research's call
+- Blocks 10a–10d are unchanged
 
 ## Changes in v0.19
 
@@ -377,7 +387,7 @@ Every character call returns raw JSON. Code checks and repairs it before use, so
 | Ballot | One vote for the voter's own faction's candidate if any, otherwise a blank ballot; buy none |
 | Run-off | One vote for a tied guest from the voter's own faction if any, otherwise a blank ballot |
 
-**Movement target fallback:** if the target is invalid but the choice is join or Colloquio, use the highest-urgency valid contact; if there is none, stay.
+**Movement target fallback:** if the target is invalid but the choice is join or Colloquio, use the highest-urgency valid contact; if there is none, stay. **A `join` toward someone already in the character's own group** becomes `stay`, logged as "join to own group" (v0.20). The window is used, as for any stay, and it isn't a repair, since the reply was valid. A `colloquio` with a member of one's own group is a real move and stands.
 
 ---
 
@@ -706,9 +716,8 @@ The room shifts. This is your moment to move, if you wish; it will not come agai
 
 3. choice — one of:
    "stay"       remain where you are
-   "join"       go to wherever {target} is now and join that group
-   "colloquio"  call {target} aside for a private word; they cannot refuse, and Il Notaio will note it
-   {colloquio_note}
+   "join"       go to wherever the guest you name is now and join that group
+   "colloquio"  call the guest you name aside for a private word; they cannot refuse, and Il Notaio will note it
 
 4. target — the guest you are moving toward or calling aside, exactly as written. null if you stay.
 
@@ -716,7 +725,7 @@ Reply with only this JSON:
 {"thought": "...", "contacts": [{"name": "...", "urgency": 0, "purpose": "..." or null}], "choice": "stay", "target": null}
 ```
 
-- `{colloquio_note}`: empty normally; if the target would be the character's own current group: "Joining someone already in your group changes nothing; choose stay instead."
+- **No placeholders since v0.20:** `{target}` was used before any target existed, and `{colloquio_note}` could only be known after the choice, so it was always empty. A `join` toward someone in the character's own group is turned into `stay` by validation (Output Validation & Repair, Movement)
 - If a target is already in a Colloquio, the Stage Manager resolves a `join` to the Capannello that target will return to, and a `colloquio` waits until the target is free (it opens when their Colloquio ends, before the next turn). *To confirm in the mini-game*
 
 ### Block 9d — Strategy task *(for S9a)*
@@ -1655,6 +1664,13 @@ The first build artifact: an internal console for running and debugging the simu
 - **The hostility ladder and every label-specific line** (v0.15–v0.18): each one moved its own label's share
 - **The pressure-only memory cap** (v0.17): replaced by the same cap for every non-★ label
 
+**Removed (v0.20):**
+- **`{colloquio_note}` in block 9c:** it could only be known after the choice it was meant to guide, so it never reached a prompt. Validation does the check instead
+
+**Rejected (v0.20):**
+- **A static "joining your own group changes nothing" line in 9c:** no game ever showed the note, so adding text now would change tested play. Validation handles it without a prompt change
+- **Adjusting any label after the v0.19 baseline:** that measurement is now the research baseline, and every description tried so far moved the ratios it touched
+
 **Rejected (v0.19):**
 - **Uniform short descriptions for all nine labels:** symmetric, but it still steers every label, and the steering differs with each description's wording. Bare words are the cleaner baseline. Descriptions can be layered on later, all at once, if the baseline shows a need
 
@@ -1721,7 +1737,7 @@ The first build artifact: an internal console for running and debugging the simu
 - **v0.6's or v0.7's ★ pass for the reference record?** Decided by the first full games' hand-read. In the default mode the choice affects knowledge checks and research, not what characters remember
 - **Which plot points can still use knowledge checks?** Logged checks (payments, meetings, ledger) are exact. Knowledge checks carry the known limit. Hand-read their verdicts in the first full games; if they misfire often, Mechanics could limit the Plot Reward to logged plot points
 - **The fit bars after v0.15** (Models & Research's bars; v0.34, Open Questions). In the v0.14 re-check everything passed except fit: own 21 of 30, others 23 of 30, against 26. Check v0.16's hostility ladder in the first full games' hand-read, especially the pressure–threat boundary, or in a 2-game play-only run if Models & Research would rather know first. Note that think()'s fit was 28 of 30 on v0.12 and 23 of 30 on v0.14 with a near-identical prompt, so part of the gap may be sampling. Bar size is Models & Research's call
-- **The v0.19 baseline test** (a 2-game play-only run, seeds 2000–2001; details are Models & Research's). How far do the label shares move once every label is a bare word? Compare against v0.14 (bare words, no `pressure`), v0.16 (ladder with examples), and v0.17 (narrowed). Things to watch: does threat recover (it was 1.3% on v0.17), does pressure settle on its own, and do dares and questions stay out of threat and claim now that `pressure` exists as a word? The result decides whether any description is layered back, and if so, for every label at once. The symmetric cap should show in block 6: no non-★ label above 3 per call
+- ~~**The v0.19 baseline test**~~ Done (CC-20261026-05, seeds 2000–2001). Share of `took`, with v0.17 in brackets: none 30.7% (40.9), pressure 25.7% (32.2), claim 17.3% (12.1), insult 10.6% (6.5), threat 5.5% (1.3). Of `meant`: pressure 33.9% (42.7), none 29.2% (29.2). Fit 27 of 30 on both samples. 12 of 20 threats were harm to come, and the rest were warnings and taunts. All 20 pressure readings pushed someone to answer or act. Only 1 of 20 threats and 1 of 20 claims were questions. The cap held in all 798 calls (448 at exactly 3). **This mix is the research baseline** (Models & Research v0.38), and v0.19's prompts go to the first full games unchanged
   - **If own-line fit stays low:** drop own readings from the notebook and keep `meant` in the record for research. Characters then remember their own words only through History
 - ~~**The leak flag**~~ Resolved (CC-20261026-01): re-scored by hand, v0.14 had 6 leaks against Oct 24's 4. Whether the secrets judge should know who learned a secret in-game, not just at the start, is Models & Research's call. The fallback (drop own readings, keep `meant` in the record) is no longer needed for this flag
 - **The perceived notebook in the first full games:**
