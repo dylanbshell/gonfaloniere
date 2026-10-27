@@ -1,8 +1,21 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.21
+### Version 0.22
 
 ---
+
+## Changes in v0.22
+
+*Dylan, Oct 27: design the lore store now, switched off by default, so it can be built alongside the engine.*
+
+- **New section, Storage and retrieval.** It specifies what the doc had only implied: memory rows live in PostgreSQL, each stored with an embedding, and recall finds the nearest ones with `pgvector`. The embedding model is a run setting, and isolation is enforced inside the database query
+- **New section, The lore store.** It replaces the deferred v0.5 plan:
+  - public and per-character private lore in the same database, retrieved the same way
+  - only entries approved by Dylan and checked against the Characters doc's Shared Canon are loaded
+  - raw real history stays out of the engine
+  - a separate prompt section ("WHAT YOU KNOW OF FLORENCE", up to 3 entries) is inserted only when `lore: on`
+- **New run settings:** `lore` (`off` by default) and `EMBEDDING_MODEL_*`. With `lore: off`, every prompt is exactly as in v0.21
+- Blocks 9a–9g and 10a–10d are unchanged
 
 ## Changes in v0.21
 
@@ -461,7 +474,7 @@ Nothing about the model is hard-coded. Each run reads a config file, and the ful
 | Prompt caching | On where the provider supports it | Same |
 | Log probabilities *(v0.21)* | `logprobs: labels` (default): request them where the provider supports it, and store the top 5 at the `took` / `meant` label token. `off` requests none; `all` stores them for every output token (large, for debugging only). Never required: missing means null | `off` |
 
-**Also run settings, not model settings:** `plot_reward` on/off, `notebook` (`perceived`, the default, or `shared`; see The perceived notebook; fixed for a research batch, like the recorder), tunable values (from mechanics), personality assignment seed, random seed (which also drives any draw by lot).
+**Also run settings, not model settings:** `lore` (`off`, the default, or `on`; see The lore store; fixed for a research batch), the embedding model (`EMBEDDING_MODEL_*`; see Storage and retrieval; recorded and fixed for a batch), `plot_reward` on/off, `notebook` (`perceived`, the default, or `shared`; see The perceived notebook; fixed for a research batch, like the recorder), tunable values (from mechanics), personality assignment seed, random seed (which also drives any draw by lot).
 
 **Secrets** (API keys, private endpoints) are read only from the environment, never from the config file, and never written to logs or game records. The record keeps the provider name and model ID, which is enough to reproduce a run.
 
@@ -1383,6 +1396,63 @@ So Models & Research can compare each notebook with the transcript (Game Record 
 
 **What this allows:** for every line and every listener, the record holds whether they heard it, what they thought, how urgently they wanted to answer, how they took it (`none` included), and how the reference record classed it. Divergence by personality becomes a direct measure: threats read where the reference finds none, ★ lines heard but taken as `none`, and agreement between listeners of the same line. **Caveat:** the reference record carries the known limit, so Models & Research's transcript-first ★ listing (judged from the transcript before seeing any record) is the better yardstick. The reference record is a convenience.
 
+### Storage and retrieval *(new in v0.22)*
+
+*Until v0.22 this doc said memory recall picks entries "most similar in meaning" without saying how. This section fills that gap. The lore store below uses the same machinery.*
+
+**Where memory lives.** While a game runs, every notebook item is a row in the live store (PostgreSQL): code entries, readings, beliefs, and the reference record. At the end of the game, all of it is exported into the game record (Game Record & Export). Nothing about memory lives anywhere else.
+
+**How "similar in meaning" works.** Each row is stored with an **embedding**: a list of numbers, made by an embedding model, that places the text by meaning, so texts about the same thing sit close together. Recall turns the query (the last two History lines) into an embedding the same way, then takes the rows whose embeddings are closest (cosine similarity). In PostgreSQL this is the `pgvector` extension, so storage and similarity search live in the same database.
+- **What gets embedded:** for a reading, the full line text, not the trimmed quote. For a code entry, its rendered text. For a belief, its statement
+- **When:** once, when the row is written at the end of the turn, never per call. Query embeddings are made per call; they're short and cheap
+- **The embedding model is a run setting** (`EMBEDDING_MODEL_*`), model-neutral like the recorder, and recorded in the game record header. It's fixed for a research batch, since changing it changes what characters recall
+- **Isolation is enforced in the query.** Every search filters by the character who owns the row (or, for the reference record, by audience) inside the database query, before similarity is computed. A prompt can never be handed another character's row, however similar its text
+- **If the runner already computes similarity another way,** that stays until the store is built, and the method used is recorded in the game record header
+
+### The lore store *(new in v0.22; it replaces the deferred v0.5 plan)*
+
+*Dylan, Oct 27. Background knowledge (history, places, characters' pasts) kept in the same database as memory and retrieved the same way. **Off by default** (`lore: off`). Built alongside the engine, and switched on only once its content is approved.*
+
+**Two scopes, never mixed:**
+- **Public lore:** what any guest in 1492 Florence would know: the city, the factions, well-known events, public reputations. Every character can retrieve it
+- **Private lore:** one character's own past, which their briefing allows them to know. Only that character can retrieve it, enforced in the query, as for memory
+
+**What doesn't go in:**
+- **Real history as such.** The game departs from real history on purpose, and a store of true facts could pull characters toward the real outcome. A real fact enters only once it's been rewritten as in-world public lore that agrees with the game's own history. Raw historical research stays a reference for Dylan and the Lore chat, outside the engine
+- **Anything a briefing doesn't allow.** Private lore can colour a character's past, but it never adds a secret, a goal, or knowledge of another character beyond what the briefing gives
+
+**A lore entry:**
+
+| Field | Meaning |
+|---|---|
+| `id`, `title` | For the record and the dashboard |
+| `scope` | `public`, or the full name of the one character it belongs to |
+| `text` | One fact or episode, at most ~80 words, in plain prose |
+| `source` | Where it came from: the Lore doc entry, or the Characters doc's Shared Canon |
+| `status` | `draft` or `approved`. Only approved entries are loaded |
+| `canon_checked` | True once the Characters chat has checked it against the Shared Canon and the character's briefing |
+| `embedding` | Made when the entry is loaded, as for memory |
+
+**Where content comes from.** The content is the Lore chat's: generated drafts, then Dylan's edits. The Characters chat checks it against the Shared Canon. Approved entries go into a lore data file in the repo, which the engine loads at the start of a game. The file's hash is recorded in the game record header, so every game says exactly which lore it ran with.
+
+**In the prompt** (only when `lore: on`). Code inserts a short section just before block 6's "WHAT YOU REMEMBER FROM EARLIER TONIGHT":
+
+```
+WHAT YOU KNOW OF FLORENCE
+{lore_bullets}
+```
+
+- `{lore_bullets}`: up to 3 entries from the character's public and private lore, the most similar to the last two History lines, one line each. About 150 tokens at most
+- **With `lore: off`, nothing is inserted,** and the prompt is exactly as it was before v0.22
+- It sits apart from memory on purpose: lore is what the character knew before the evening, and the notebook is what happened tonight. Mixing them in one block would blur that line for the character and for the research
+
+**Research.** `lore` is a run setting like `notebook`: recorded in the header, and fixed for a batch. Baseline and research batches run with it off until the content is final. Switching it on is then a deliberate comparison, since lore changes what characters say.
+
+**Checks once built:**
+- **Isolation:** no character's prompt ever contains another character's private lore, checked automatically over every game record
+- **Canon:** nothing in a lore entry contradicts the character's briefing (hand-read when entries are approved)
+- **Cost:** one query embedding per call, plus ~150 tokens of prompt
+
 ### Strategy Section
 
 - A plan of at most ~150 words per character: goals, threats, next moves
@@ -1452,7 +1522,7 @@ So Models & Research can compare each notebook with the transcript (Game Record 
 | | **Full record** | **Replay record** |
 |---|---|---|
 | Purpose | Debugging, research analysis, the developer dashboard | The public replay viewer |
-| Header | Game ID, date, engine version, doc versions (TD, Mechanics, Characters), run config (secrets removed; includes the recorder model and `notebook` mode), seeds, roster and aliases, personality assignment, tunable values, briefings verbatim | Same, without seeds and provider details |
+| Header | Game ID, date, engine version, doc versions (TD, Mechanics, Characters), run config (secrets removed; includes `lore`, the lore file's hash, and the embedding model; includes the recorder model and `notebook` mode), seeds, roster and aliases, personality assignment, tunable values, briefings verbatim | Same, without seeds and provider details |
 | Events | Every event in order: speech, Il Notaio lines, action lines, moves, conversations opening and closing, plot checks with their evidence, Murder Round acts and results, ballots, run-off, draw by lot, outcome | Same |
 | Thoughts and plans | Every thought (with its call type and, for `think()`, `after_line`, `took`, `words`, the target type, and whether it was a closing think) and strategy plan | Same (the inner life is the show) |
 | Model calls | Every call: type, character, turn, prompt (static prefix stored once per character, dynamic blocks per call), raw output, parsed output, label log probabilities (v0.21; null where unsupported), repairs, tokens, cost, latency, provider | Left out |
@@ -1619,7 +1689,7 @@ The first build artifact: an internal console for running and debugging the simu
 - **Running `think()` less often** (v0.2): decide after the first full game measures cost
 - **Public-claims tracker** (v0.2): a field listing untrue things the character has said, fed back each call. Only if gate 4 (consistent lying) fails
 - **Addressee heuristic** (v0.4): honoring a designation only if the line contains a question mark. Skipped for now (demands often lack one); revisit if the tightened instruction still overfires on the chosen base
-- **Lore store** (v0.5, from the Hub, Oct 23): if lore from the Lore doc ever reaches the characters, it becomes a Technical Design job, not a new chat. The plan: one private lore store per character plus one public store, retrieved like longTermHistory and sitting beside it in block 6 or its own block. Nothing to build until the engine works; any lore given to a character must agree with Characters' Shared Canon and go no further than that character's briefing allows
+- ~~**Lore store** (v0.5)~~ Designed in v0.22 (Memory Architecture, The lore store). It stays off by default until its content is approved
 
 **Removed:**
 - **Esteem matrix** (removed in mechanics v0.9): its only use was breaking /defect ties
