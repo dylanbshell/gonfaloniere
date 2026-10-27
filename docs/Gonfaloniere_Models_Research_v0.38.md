@@ -1,8 +1,15 @@
 # Gonfaloniere
 ## Models & Research — Working Document
-### Version 0.37
+### Version 0.38
 
 ---
+
+## Changes in v0.38
+
+- **Logged the v0.17 check** (CC-20261026-03, from Technical Design's summary in its v0.18 changelog). It failed v0.37's decision rule: `pressure` barely moved (32.2% of `took`, 42.7% of `meant`), and **threat collapsed to 1.3% of `took`**, since a conditional threat ("pay, or the city hears") both pushes and threatens and characters chose pressure. The labels themselves fit: 18 of 20 pressure readings really were pushing; fit 27 of 30 (own) and 26 of 30 (others'); the retrieval cap held in all 828 block 6 calls. See Findings Log
+- **Dylan overrode the "one final adjustment, untested" rule** (Oct 26): v0.18 never ran, and TD v0.19 replaces it with a **symmetric baseline** (nine bare label words, an even memory cap of 3 per non-★ label), tested once. Reason: every label description added since v0.12 moved its own label's share, so the wording was setting the ratios as much as the characters were
+- **The v0.19 test is a baseline measurement, not a gate.** No result sends it back to Technical Design; whatever the mix, v0.19 goes to the first full games, and its label shares become the reference the personality variants are compared against. That's what makes it worth running despite the loop: it answers a research question (how much does wording set the mix?) rather than tuning the prompt again
+- **"Already known" pass, defined** (Claude Code's two questions): knowledge is **cumulative**: a listener knows a secret once they've been present for *any* earlier flagged line revealing it, in any conversation. A line is "already known" when every listener knows it by then. **Sources are judge-flagged lines only,** whatever their later hand-read class (deliberate or not), plus briefing knowledge, which the judge already has. Unflagged lines can't count, since code can't tell what they reveal; this errs toward counting more leaks, not fewer
 
 ## Changes in v0.37
 
@@ -892,10 +899,12 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
     - Both fail → it's a limit of the task, not the model. Keep v0.7 with DeepSeek, log the measured error rates as a known limit in the research data, and move on. Revisit only if full games show memory errors changing outcomes
   - Total ~$5.25; mini-game ledger stays under $25
 - [x] **Perceived notebook mini-game checks: done** (v0.9–v0.16, Oct 26; Findings Log). Attachment, gate 1, `words`, `insult`, and `pressure`'s main job all pass; the leak flag is resolved
-- [ ] **Last check: TD v0.17's narrowed `pressure`** (Dylan, Oct 26). 2 DeepSeek mini-games, seeds 2000–2001 (as the v0.16 check), `notebook: perceived`, no judge, cap $0.40. Decided in advance:
-  - **Done if** `pressure` is 10–25% of all `took` calls, threat under 12%, and claim under 20%; and `pressure` is at most 35% of all `meant` calls
-  - **If not:** Technical Design makes one final adjustment, and that version goes to the first full games untested, whatever happens
-  - Also reported: the retrieval cap (no block 6 call with more than 2 pressure readings), hand-reads of up to 20 pressure and 20 threat readings, and fit on 30 + 30 readings (information only; fit is settled in the full games)
+- [x] **Last check: TD v0.17's narrowed `pressure`** (Oct 26, CC-20261026-03): failed the decision rule (pressure 32.2% of `took`, 42.7% of `meant`; threat 1.3%). Superseded by Dylan's v0.19 baseline (Findings Log)
+- [ ] **TD v0.19 baseline test** (Dylan, Oct 26). 2 DeepSeek mini-games, seeds 2000–2001, `notebook: perceived`, no judge, cap $0.40. **Report only; a measurement, not a gate:** whatever it shows, v0.19 goes to the first full games, and its mix becomes the research baseline
+  - **Label mix** for `took` and `meant` separately, next to v0.14 (bare words, no pressure), v0.16 (ladder with examples), and v0.17 (narrowed), all on seeds 2000–2001 so the columns compare
+  - **Questions:** does threat recover from v0.17's 1.3% of `took`? Does `pressure` settle without a description? Do dares and questions stay out of threat and claim?
+  - **Hand-reads:** 30 own and 30 others' readings (right line, key part, fit; own judged against the line as said, plan departures counted separately); up to 20 threat (harm to come?), 20 pressure (pushing to answer or act?), and 20 claim readings (any questions or dares?)
+  - **Memory cap:** block 6 calls with more than 3 readings of one non-★ label (should be 0)
 - [ ] **Perceived notebook in the first full games:**
   - **Fit bars:** at least 60 hand-read readings per kind (own, others'); pass ≥48 (80%), fail ≤42 (70%), read more in between. Own readings are judged against the line as said; departures from the speaker's earlier plan are counted separately
   - **Label mix:** `pressure` well below v0.16's 33.8% of `took` and 47.4% of `meant`, without threat and claim swinging back to v0.14 levels (14.4% and 24.1% of `took`)
@@ -908,6 +917,24 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 ## Findings Log
 
 *Record each test result here: date, model, provider and quantization, prompt and briefing versions, gate tested, result, and what it changes. Tooling and price checks go in Tooling Status, not here.*
+
+### 2026-10-26 — TD v0.17 check: narrowed `pressure` (CC-20261026-03)
+
+*Logged from Technical Design's summary (TD v0.18 changelog); the full report went to Technical Design.*
+
+**Setup:** TD v0.17 (`pressure` gloss narrowed to "pushing you to answer or act"; at most 2 pressure readings per block 6 call). 2 DeepSeek mini-games, seeds 2000–2001, `notebook: perceived`, no judge. Decision rule set in advance (v0.37). Mini-game ledger afterwards $32.55 of $35.
+
+**Results:**
+- **Label mix:** `pressure` 32.2% of `took` (target 10–25%) and 42.7% of `meant` (target ≤35%), barely below v0.16's 33.8% and 47.4%. **Threat fell to 1.3% of `took`** (v0.14: 14.4%)
+- **The labels fit:** 18 of 20 hand-read pressure readings really were someone pushing to answer or act. Fit 27 of 30 (own, judged against the line as said) and 26 of 30 (others')
+- **Retrieval cap held:** 0 of 828 block 6 calls had more than 2 pressure readings
+- **Decision rule: failed** on the label mix
+
+**What it shows:**
+- **Threat lost its conditional cases to pressure.** "Pay, or the city hears" both pushes and threatens; given a word for pushing, characters chose it. A threat is the core of blackmail and needs ★ status to reach the Murder Round's retrieval, so this matters more than pressure's share
+- **Each description moved its own label.** `insult` jumped to ~10% on arrival, `pressure` took a third of labels with three examples and barely gave ground when they were cut, and threat swung 14% → 4% → 1% as its neighbours' descriptions changed. The prompt's wording was setting the ratios as much as the characters were
+
+**What it changed:** v0.37's rule gave Technical Design one final, untested adjustment (v0.18: threat described as "harm to come, even if only 'or else'"). **Dylan replaced it before it ran** with v0.19's symmetric baseline: nine bare words, no label-specific text, and an even memory cap (at most 3 readings of any non-★ label per block 6 call). It's tested once, as a measurement (Open Questions).
 
 ### 2026-10-26 — TD v0.16 play-only check and leak re-score (CC-20261026-01)
 
