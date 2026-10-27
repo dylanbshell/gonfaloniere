@@ -196,7 +196,7 @@ export class MiniGame {
   ) {
     this.rng = mulberry32(s.seed);
     this.memory.quoteDropsPunct = tdMinor(docs.versions.technicalDesign) >= 15;
-    this.memory.fillPressureCap = tdMinor(docs.versions.technicalDesign) >= 17 ? 2 : null;
+    this.memory.fillCap = fillCapFor(docs.versions.technicalDesign);
     this.recorder = new Recorder(docs, this.memory, (kind, c, system, user) => this.systemCall(kind, c, system, user), this.events, formatLine, listJoin);
     Object.assign(this.prefixes, this.recorder.prefixes);
     this.treasury = docs.tunables.embassy_treasury;
@@ -972,3 +972,11 @@ function shuffle<T>(xs: T[], rng: () => number): T[] {
 }
 
 export { renderBelief };
+
+/** Block 6's per-label fill cap for a TD version: none before v0.17, pressure ≤2 in v0.17–v0.18, each non-★ label ≤3 from v0.19. */
+export function fillCapFor(td: string): { labels: string[]; max: number } | null {
+  const minor = tdMinor(td);
+  if (minor >= 19) return { labels: ["claim", "denial", "insult", "pressure"], max: 3 };
+  if (minor >= 17) return { labels: ["pressure"], max: 2 };
+  return null;
+}

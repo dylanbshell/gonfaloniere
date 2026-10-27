@@ -194,7 +194,7 @@ test("TD v0.16, in play: the hostility ladder in think() and speak(), v0.15's wo
   const v16 = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.16") });
   assert.equal(v16.versions.technicalDesign, "0.16");
   const { g, prompts, speaks, td } = await playWith(v16);
-  assert.equal(g.memory.fillPressureCap, null, "no fill cap before v0.17");
+  assert.equal(g.memory.fillCap, null, "no fill cap before v0.17");
   checkTargets(g, prompts, td);
   const ladder = (them: string) => `For hostility there are three steps: insult (a slight), pressure (leaning on ${them} with a pointed question, a demand, or a dare), threat (harm to come).`;
   assert.ok(prompts.length > 0 && prompts.every((p) => p.user.includes(ladder("you")) && p.user.includes("in one word: promise, deal, threat, admission, claim, denial, insult, pressure, or none.")));
@@ -213,9 +213,10 @@ test("TD v0.16, in play: the hostility ladder in think() and speak(), v0.15's wo
   }
 });
 
-test("TD v0.17 (default), in play: the narrowed pressure gloss in think() and speak(), v0.16's gloss gone, the fill cap on", async () => {
-  assert.equal(docs.versions.technicalDesign, "0.17");
-  const { g, prompts, speaks, td } = await playWith(docs);
+test("TD v0.17, in play: the narrowed pressure gloss in think() and speak(), v0.16's gloss gone, the fill cap on", async () => {
+  const v17 = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.17") });
+  assert.equal(v17.versions.technicalDesign, "0.17");
+  const { g, prompts, speaks, td } = await playWith(v17);
   checkTargets(g, prompts, td);
   const ladder = (them: string) => `For hostility there are three steps: insult (a slight), pressure (pushing ${them} to answer or act), threat (harm to come).`;
   assert.ok(prompts.length > 0 && prompts.every((p) => p.user.includes(ladder("you"))));
@@ -224,5 +225,18 @@ test("TD v0.17 (default), in play: the narrowed pressure gloss in think() and sp
     assert.ok(!u.includes("with a pointed question, a demand, or a dare"), "v0.16's gloss is gone");
     assert.ok(u.includes("in one word: promise, deal, threat, admission, claim, denial, insult, pressure, or none."));
   }
-  assert.equal(g.memory.fillPressureCap, 2);
+  assert.deepEqual(g.memory.fillCap, { labels: ["pressure"], max: 2 });
+});
+
+test("TD v0.19 (default), in play: the bare list, then only 'your own reading/call' and 'Most lines are none'; the ladder and descriptions gone; the per-label cap on", async () => {
+  assert.equal(docs.versions.technicalDesign, "0.19");
+  const { g, prompts, speaks, td } = await playWith(docs);
+  checkTargets(g, prompts, td);
+  const list = "in one word: promise, deal, threat, admission, claim, denial, insult, pressure, or none.";
+  // The list is followed by exactly these sentences, up to the end of the line.
+  assert.ok(prompts.length > 0 && prompts.every((p) => new RegExp(`\\n2\\. took — [^\\n]*${list.replace(/[.*+?^\${}()|[\]\\]/g, "\\$&")} It's your own reading, not a rule\\. Most lines are none\\.\\n`).test(p.user)), "think(): bare list");
+  assert.ok(speaks.length > 0 && speaks.every((u) => u.includes(`\nmeant — what this line is, as you mean it, ${list} It's your own call. Most lines are none.\n`)), "speak(): bare list");
+  const removed = ["For hostility there are three steps", "insult (a slight)", "pressure (pushing", "threat (harm to come", "If it chills you", "If you mean it to frighten", "A plain question is none", "or else"];
+  for (const u of [...prompts.map((p) => p.user), ...speaks]) for (const r of removed) assert.ok(!u.includes(r), `removed: ${r}`);
+  assert.deepEqual(g.memory.fillCap, { labels: ["claim", "denial", "insult", "pressure"], max: 3 });
 });

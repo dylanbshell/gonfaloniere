@@ -244,8 +244,12 @@ export class MemoryStore {
   private lineIndex = new Map<string, GameLine>();
   /** TD v0.15: block 6 drops trailing sentence punctuation from quoted words before an "…". */
   quoteDropsPunct = false;
-  /** TD v0.17: at most this many `pressure` readings in block 6's similarity fill (null: no cap, as before). */
-  fillPressureCap: number | null = null;
+  /**
+   * Block 6's similarity fill takes at most `max` readings of each of these labels per call (own
+   * readings included): TD v0.17–v0.18 cap pressure at 2; TD v0.19 caps claim, denial, insult, and
+   * pressure at 3 each. Null: no cap, as before v0.17.
+   */
+  fillCap: { labels: string[]; max: number } | null = null;
   private nextR = 1;
   private nextM = 1;
   private nextB = 1;
@@ -691,9 +695,18 @@ export class MemoryStore {
     take(beliefs.filter((x) => x.kind === "belief" && present.some((p) => x.b.statement.includes(p))), 3);
     const query = words(recentLines.join(" "));
     const scored = [...recent, ...beliefs].filter((x) => !picked.includes(x)).map((x) => ({ x, s: overlap(query, words(text(x))) })).sort((a, b) => b.s - a.s);
-    // TD v0.17: at most this many pressure readings in the fill; further ones are skipped (steps 1 and 2 never hold any, since pressure isn't ★).
-    let pressure = 0;
-    const underCap = (x: Item) => this.fillPressureCap === null || x.kind !== "reading" || x.r.took !== "pressure" || pressure++ < this.fillPressureCap;
+    // TD v0.17: at most 2 pressure readings in the fill; TD v0.19: at most 3 each of claim, denial,
+    // insult, and pressure. Further ones of a capped label are skipped; steps 1 and 2 hold none of
+    // these labels, since none is ★. A reading counts only once it's added, so one skipped for the
+    // token budget doesn't use a slot.
+    const added = new Map<string, number>();
+    const underCap = (x: Item) => {
+      if (!this.fillCap || x.kind !== "reading" || !this.fillCap.labels.includes(x.r.took)) return true;
+      const n = added.get(x.r.took) ?? 0;
+      if (n >= this.fillCap.max) return false;
+      added.set(x.r.took, n + 1);
+      return true;
+    };
     take(scored.map((s) => s.x), limit - picked.length, underCap);
     return picked.sort((a, b) => turnOfItem(a) - turnOfItem(b)).map(render);
   }
