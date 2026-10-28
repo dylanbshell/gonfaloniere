@@ -1,8 +1,15 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.23
+### Version 0.24
 
 ---
+
+## Changes in v0.24
+
+*Clears Mechanics' "Seating edge cases confirmed" handoff (Mechanics v0.25, Oct 28).*
+
+- **The three seating edge cases are now Mechanics' rules,** exactly as v0.23 wrote them: a free Colloquio's caller is placed as if their Capannello had dissolved; a waiting Colloquio call opens before the guest is seated; a `join` toward a guest in a Colloquio waits until they're seated and lapses after the next turn. Only the labels change ("until Mechanics says otherwise" is gone); the procedure is unchanged
+- Every prompt block is unchanged
 
 ## Changes in v0.23
 
@@ -1263,7 +1270,7 @@ The design is adapted from *Who Speaks Next?* (Nonomura & Mori, 2025), which fou
 
 ### Seating *(new in v0.23)*
 
-*The rules are Mechanics v0.24's (Conversation Types; Ending a Colloquio; A Capannello Left With One Guest). They replace the mini-game's interim rule, where a lone guest joined the fullest other group with room.*
+*The rules are Mechanics' (v0.24, with the edge cases confirmed in v0.25: Conversation Types; Ending a Colloquio; Movement; A Capannello Left With One Guest). They replace the mini-game's interim rule, where a lone guest joined the fullest other group with room.*
 
 **What code tracks:**
 - **Open Capannello:** at least one guest, and room under the maximum (Mechanics, Capannello). A Capannello that reaches zero guests closes for good; a new group always gets a new ID
@@ -1292,7 +1299,7 @@ Returners enter at the end of the current cycle like any joiner, and Il Notaio n
 4. **None:** the guest stays where they are. Their Capannello of one is itself open, so the next returning or seatless guest is placed with them (it always has the fewest guests). That's Mechanics' "pairs with the next guest who has no seat" without a separate queue
 5. Their own movement window still comes as usual
 
-**Edge cases TD settles until Mechanics says otherwise** (tracker handoff to ⚙️ 1):
+**Edge cases** (proposed by TD in v0.23, confirmed as rules in Mechanics v0.25):
 - **(a) A free Colloquio's caller has no Capannello to go back to,** since they came from a Colloquio. When it ends they're placed as if theirs had dissolved
 - **(b) A Colloquio call waiting on a guest** (block 9c notes) opens as soon as that guest's Colloquio ends, before step 2, so a guest can't be seated and pulled out again in the same moment. They are the invitee of the new Colloquio, so they choose first when it ends
 - **(c) A `join` toward a guest in a Colloquio** waits until that guest is seated, then goes to their group under the usual collision rules (a no-op if that's the mover's own group, logged). If the target isn't seated by the end of the next turn, the join lapses and the mover stays, logged. Before v0.23 it went to the Capannello the target would return to, which is no longer known in advance
@@ -1956,7 +1963,7 @@ The first build artifact: an internal console for running and debugging the simu
 - Whether characters should see Il Notaio's tally of *other* characters' withdrawals, or only infer it from witnessed notes (currently: only witnessed notes)
 - **Should characters see where everyone is?** In a real palazzo you could see across the room. Currently they see only their own group; showing the room would make movement easier and make Il Notaio's notes less special. Since v0.23 the seat call (9h) shows the groups with room, the first glimpse past a character's own group
 - **Does a caller know they may lose their seat?** (v0.23) Block 9c doesn't say that the invitee chooses first, or that a full or dissolved Capannello sends the caller elsewhere. Left out so 9c stays as tested; add a line if the full games show callers surprised by where they land
-- Movement edge cases: joining or calling someone who is in a Colloquio (Seating, Edge cases since v0.23; sent to Mechanics to confirm)
+- ~~**Movement edge cases**~~ Settled: joining or calling someone in a Colloquio follows Seating, Edge cases (Mechanics v0.25)
 - Is 0.7 the right play temperature on the chosen model? (Revisit after probes)
 - ~~**Run-off announcement**~~ Settled: no vote count is ever announced, the final result included (Mechanics v0.24)
 - Does the real-history line in block 1 dull useful period knowledge? (Watch voice and play in the mini-game; Models & Research may probe leakage)
