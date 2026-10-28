@@ -228,6 +228,12 @@ export interface MemoryNote {
   detail: string;
 }
 
+/** A row from the live store's owner-filtered query, with its cosine similarity to the query (TD v0.22). */
+export interface Ranked {
+  id: string;
+  similarity: number;
+}
+
 export class MemoryStore {
   entries: MemoryEntry[] = [];
   beliefs: Belief[] = [];
@@ -660,16 +666,22 @@ export class MemoryStore {
    * retrieved. ★ items naming anyone present, most recent first, up to 6; held beliefs about anyone
    * present, up to 3; then the items most similar to the last two History lines, a reading matched
    * on its full line text. Oldest first. `murder`: ★ threats, deals, and promises first.
+   * `ranked` (TD v0.22, `retrieval: pgvector`): the live store's owner-filtered rows with their cosine
+   * similarity. Only those rows are candidates, and their similarity replaces word overlap; the order,
+   * caps, and budget are unchanged.
    */
-  retrieveNotebook(c: CharacterName, present: CharacterName[], recentLines: string[], opts: { murder?: boolean; limit?: number; budget?: number } = {}): string[] {
+  retrieveNotebook(c: CharacterName, present: CharacterName[], recentLines: string[], opts: { murder?: boolean; limit?: number; budget?: number; ranked?: Ranked[] } = {}): string[] {
     const limit = opts.limit ?? 12;
     // TD v0.10: block 6 gets ~450 tokens (chars ÷ 3.5), about 10–12 lines; an item that would pass it is skipped.
     const budget = opts.budget ?? 450;
     let used = 0;
     type Item = { kind: "reading"; r: Reading } | { kind: "entry"; e: MemoryEntry } | { kind: "belief"; b: Belief };
-    const readings: Item[] = this.readings.filter((r) => r.character === c && this.lineIndex.has(r.line)).map((r) => ({ kind: "reading", r }));
-    const code: Item[] = this.entriesFor(c).filter((e) => e.source === "code").map((e) => ({ kind: "entry", e }));
-    const beliefs: Item[] = this.beliefsOf(c).map((b) => ({ kind: "belief", b }));
+    const sim = opts.ranked ? new Map(opts.ranked.map((r) => [r.id, r.similarity])) : null;
+    const idOf = (x: Item) => (x.kind === "reading" ? x.r.id : x.kind === "entry" ? x.e.id : x.b.id);
+    const inStore = (x: Item) => !sim || sim.has(idOf(x));
+    const readings: Item[] = this.readings.filter((r) => r.character === c && this.lineIndex.has(r.line)).map((r): Item => ({ kind: "reading", r })).filter(inStore);
+    const code: Item[] = this.entriesFor(c).filter((e) => e.source === "code").map((e): Item => ({ kind: "entry", e })).filter(inStore);
+    const beliefs: Item[] = this.beliefsOf(c).map((b): Item => ({ kind: "belief", b })).filter(inStore);
     const turnOfItem = (x: Item) => (x.kind === "reading" ? x.r.turn : x.kind === "entry" ? x.e.turn : x.b.firstTurn);
     const names = (x: Item): string[] => (x.kind === "reading" ? x.r.about : x.kind === "entry" ? ([x.e.speaker, x.e.toward, ...x.e.about].filter(Boolean) as string[]) : []);
     const salient = (x: Item) => (x.kind === "reading" ? x.r.salient : x.kind === "entry" ? x.e.salient : false);
@@ -694,7 +706,7 @@ export class MemoryStore {
     take(recent.filter((x) => salient(x) && names(x).some((n) => present.includes(n as CharacterName))), 6);
     take(beliefs.filter((x) => x.kind === "belief" && present.some((p) => x.b.statement.includes(p))), 3);
     const query = words(recentLines.join(" "));
-    const scored = [...recent, ...beliefs].filter((x) => !picked.includes(x)).map((x) => ({ x, s: overlap(query, words(text(x))) })).sort((a, b) => b.s - a.s);
+    const scored = [...recent, ...beliefs].filter((x) => !picked.includes(x)).map((x) => ({ x, s: sim ? sim.get(idOf(x))! : overlap(query, words(text(x))) })).sort((a, b) => b.s - a.s);
     // TD v0.17: at most 2 pressure readings in the fill; TD v0.19: at most 3 each of claim, denial,
     // insult, and pressure. Further ones of a capped label are skipped; steps 1 and 2 hold none of
     // these labels, since none is ★. A reading counts only once it's added, so one skipped for the
@@ -718,12 +730,14 @@ export class MemoryStore {
    * recent first, up to 6), held beliefs about anyone present (up to 3), then
    * the entries and beliefs most similar to the last two History lines.
    * Similarity is word overlap, a stand-in for embeddings until the engine has
-   * them. `murder`: the Murder Round query (★ threats, deals, promises first).
+   * them. `murder`: the Murder Round query (★ threats, deals, promises first). `ranked`: as in
+   * retrieveNotebook, the live store's rows and similarity in place of word overlap.
    */
-  retrieve(c: CharacterName, present: CharacterName[], recentLines: string[], opts: { murder?: boolean; limit?: number } = {}): string[] {
+  retrieve(c: CharacterName, present: CharacterName[], recentLines: string[], opts: { murder?: boolean; limit?: number; ranked?: Ranked[] } = {}): string[] {
     const limit = opts.limit ?? 12;
-    const mine = this.entriesFor(c);
-    const beliefs = this.beliefsOf(c);
+    const sim = opts.ranked ? new Map(opts.ranked.map((r) => [r.id, r.similarity])) : null;
+    const mine = this.entriesFor(c).filter((e) => !sim || sim.has(e.id));
+    const beliefs = this.beliefsOf(c).filter((b) => !sim || sim.has(b.id));
     const names = (e: MemoryEntry) => [e.speaker, e.toward, ...e.about, ...(e.parties ?? [])].filter(Boolean) as string[];
     const picked: (MemoryEntry | Belief)[] = [];
     const take = (xs: (MemoryEntry | Belief)[], n: number) => {
@@ -742,7 +756,7 @@ export class MemoryStore {
     const query = words(recentLines.join(" "));
     const scored = [...mine, ...beliefs]
       .filter((x) => !picked.includes(x))
-      .map((x) => ({ x, s: overlap(query, words("summary" in x ? `${x.summary} ${x.quote ?? ""}` : x.statement)) }))
+      .map((x) => ({ x, s: sim ? sim.get(x.id)! : overlap(query, words("summary" in x ? `${x.summary} ${x.quote ?? ""}` : x.statement)) }))
       .sort((a, b) => b.s - a.s);
     take(scored.map((s) => s.x), limit - picked.length);
     // Oldest first within the selection, as TD renders it.
@@ -1055,6 +1069,11 @@ export function isHedged(quote: string, thought: string, hedges: string[]): bool
 
 const STOP = new Set("the a an and or of to in on at for is was be he she it his her they them i you that this with as by not no from but have has had are were will would".split(" "));
 const words = (s: string) => new Set(s.toLowerCase().replace(/[^a-z' ]/g, " ").split(/\s+/).filter((w) => w.length > 2 && !STOP.has(w)));
+/** Word overlap between the last History lines and a row's text: the similarity measure before the live store, and still the default (TD v0.22). */
+export function overlapScore(recentLines: string[], text: string): number {
+  return overlap(words(recentLines.join(" ")), words(text));
+}
+
 const overlap = (a: Set<string>, b: Set<string>) => {
   let n = 0;
   for (const w of b) if (a.has(w)) n++;

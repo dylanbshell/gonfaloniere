@@ -136,6 +136,8 @@ export function loadDocs(paths: DocPaths): DocSources {
     ...optionalTemplate(td, "### Block 9f — Ballot task", "ballot"),
     ...optionalTemplate(td, "### Block 9g — Run-off task", "runoff"),
     ...seatTemplate(td),
+    // TD v0.22's lore section, inserted only with `lore: on`.
+    ...optionalTemplate(td, "### The lore store", "lore"),
   };
 
   const socialAwareness = standardSocialAwareness(chars);

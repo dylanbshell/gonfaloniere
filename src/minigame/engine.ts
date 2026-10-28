@@ -39,6 +39,8 @@ import { parseJson } from "../output/json.ts";
 import { z } from "zod";
 import { Recorder, sameThought } from "./extract.ts";
 import type { LogprobsSetting, StoredLogprobs } from "./logprobs.ts";
+import { loreLines, type LoreSetting } from "./lore.ts";
+import type { RetrievalMethod, VectorStore } from "./store.ts";
 import { MemoryStore, renderBelief, tookTargetLine, resolveName, whereLabel, type GameLine, type Thought, type Where } from "./memory.ts";
 
 // ---- Calls -----------------------------------------------------------------------------
@@ -124,6 +126,14 @@ export interface GameSettings {
   notebook?: "perceived" | "shared";
   /** TD v0.21 `logprobs`: labels (default), off, or all; the runner requests and stores them, and play never reads them. */
   logprobs?: LogprobsSetting;
+  /**
+   * TD v0.22 Storage and retrieval: how block 6's fill measures similarity. `overlap` (the default,
+   * as every baseline was measured) or `pgvector` (the live store: embeddings, cosine similarity,
+   * owner-filtered in the query). Needs the store.
+   */
+  retrieval?: RetrievalMethod;
+  /** TD v0.22 `lore`: off (default) inserts nothing; on inserts WHAT YOU KNOW OF FLORENCE from the store. */
+  lore?: LoreSetting;
   /** Knowledge checks at the end: (character, fact id). */
   checks: { character: CharacterName; fact: string }[];
 }
@@ -225,7 +235,10 @@ export class MiniGame {
     private s: GameSettings,
     private call: Caller,
     private hooks: GameHooks = {},
+    /** TD v0.22's live store, for `retrieval: pgvector` and `lore: on`. */
+    private store: VectorStore | null = null,
   ) {
+    if (((s.retrieval ?? "overlap") === "pgvector" || s.lore === "on") && !store) throw new Error("retrieval: pgvector and lore: on need the live store (PostgreSQL with pgvector, and an embedding model)");
     this.rng = mulberry32(s.seed);
     this.seating = tdMinor(docs.versions.technicalDesign) >= 23;
     this.memory.quoteDropsPunct = tdMinor(docs.versions.technicalDesign) >= 15;
@@ -297,7 +310,7 @@ export class MiniGame {
   private async opening(): Promise<void> {
     await Promise.all(
       this.s.cast.map(async (c) => {
-        const ctx = this.context(c);
+        const ctx = await this.context(c);
         const p = assemblePlanPrompt(this.docs.templates, ctx, "The evening has begun, and the guests are gathering.");
         const r = await this.characterCall("plan", c, p, (raw) => {
           const parsed = parseStrategy("plan", raw, { character: c, livingOthers: this.living(c) });
@@ -347,7 +360,7 @@ export class MiniGame {
         : conv.kind === "colloquio" && conv.utterances >= cap - 1
           ? ({ reason: "cap" } as const)
           : undefined;
-    const ctx = this.context(speaker);
+    const ctx = await this.context(speaker);
     const actions = this.actionContext(speaker);
     const p = assembleSpeakPrompt(this.docs.templates, ctx, { allowedActions: allowedActionsText(actions), ...(closing && { closing }), ...(this.s.speakAppend && { appendLine: this.s.speakAppend }) });
     const expect = {
@@ -431,7 +444,7 @@ export class MiniGame {
     const tookValues = labelValues(this.docs.templates, "think");
     await Promise.all(
       conv.members.map(async (c) => {
-        const ctx = this.context(c);
+        const ctx = await this.context(c);
         // TD v0.10: {took_target} names the line the reading will attach to, by the same rule (labelLine).
         const { line, type, answering } = tookTargetLine(c, conv.id, this.char(c).lines.at(-1)?.id ?? null, this.lines, ownFromSpeak, sinceArrival);
         // TD v0.13 wrong-line rule: the other spoken lines the character heard, to place words not in the named line.
@@ -541,7 +554,7 @@ export class MiniGame {
       this.events.push({ turn: this.turn, type: "move", character: mover, choice: "stay", note: "in a Colloquio when the window arrived" });
       return;
     }
-    const ctx = this.context(mover);
+    const ctx = await this.context(mover);
     const p = assembleMovePrompt(this.docs.templates, ctx);
     const living = this.living(mover);
     const out = await this.characterCall("move", mover, p, (raw) => parseMove(raw, living));
@@ -825,7 +838,7 @@ export class MiniGame {
     const v = k.invitee;
     const groups = this.openGroups();
     const offered = this.offered(groups, k.snapshot?.capannello);
-    const p = assembleSeatPrompt(this.docs.templates, this.context(v, { seat: true }), { form: "invitee", initiator: k.initiator }, offered);
+    const p = assembleSeatPrompt(this.docs.templates, await this.context(v, { seat: true }), { form: "invitee", initiator: k.initiator }, offered);
     const check = (choice: string, t: CharacterName | null): string | null => {
       if (choice === "join") return t && groups.some((g) => g.members.includes(t)) ? null : "join target not in a group with room";
       if (choice === "colloquio") return t && t !== v && this.s.cast.includes(t) && !this.inColloquio(t) ? null : "colloquio target not a free living guest";
@@ -926,7 +939,7 @@ export class MiniGame {
         to = groups[0]!;
         rule = "only one open";
       } else {
-        const p = assembleSeatPrompt(this.docs.templates, this.context(lone, { seat: true }), { form: "lone" }, this.offered(groups));
+        const p = assembleSeatPrompt(this.docs.templates, await this.context(lone, { seat: true }), { form: "lone" }, this.offered(groups));
         const check = (_: string, t: CharacterName | null) => (t && groups.some((g) => g.members.includes(t)) ? null : "target not in another group with room");
         const out = (await this.characterCall("seat", lone, p, (raw) => parseSeat(raw, "lone", check))) as SeatOutput | null;
         if (out) this.addThought(lone, "seat", out.thought);
@@ -1024,6 +1037,8 @@ export class MiniGame {
       this.events.push({ turn: this.turn, type: "readings", stored: r.stored.map((x) => x.id), logged: r.logged.map((x) => `${x.character} ${x.thought}: ${x.reason}`) });
     }
     await this.recorder.turn(this.turn, this.lines, thoughts);
+    // TD v0.22: rows are embedded once, when written at the end of the turn.
+    if ((this.s.retrieval ?? "overlap") === "pgvector") await this.store!.flush(this.memory);
   }
 
   // ---- End of game: Murder Round calls, knowledge checks ------------------------------------------
@@ -1031,7 +1046,7 @@ export class MiniGame {
   private async murderRound(): Promise<void> {
     await Promise.all(
       this.s.cast.map(async (c) => {
-        const ctx = this.context(c, { gathering: true });
+        const ctx = await this.context(c, { gathering: true });
         const p = assembleMurderPrompt(this.docs.templates, ctx);
         const out = await this.characterCall("murder", c, p, (raw) => {
           const r = parseStrategy("murder", raw, { character: c, livingOthers: this.living(c) });
@@ -1054,7 +1069,7 @@ export class MiniGame {
 
   /** A character's context for one call, per TD's blocks (State, memory retrieval, History). */
   /** `seat` (block 9h): block 5 reads as for a call outside a conversation, block 8 as WHAT YOU LAST HEARD, and retrieval is the movement call's. */
-  private context(c: CharacterName, opts: { gathering?: boolean; seat?: boolean } = {}): CharacterContext {
+  private async context(c: CharacterName, opts: { gathering?: boolean; seat?: boolean } = {}): Promise<CharacterContext> {
     const me = this.char(c);
     const conv = this.conv(c);
     const others = conv.members.filter((m) => m !== c);
@@ -1063,6 +1078,11 @@ export class MiniGame {
     const history = me.lines.slice(-this.s.historyWindow);
     const outside = opts.gathering || opts.seat;
     const present = outside ? [] : others;
+    // TD v0.22: the query is the last two History lines, for memory and lore alike.
+    const recent = history.slice(-2).map((l) => l.text);
+    const notebook = this.s.notebook ?? "perceived";
+    const ranked = (this.s.retrieval ?? "overlap") === "pgvector" ? await this.storeRank(c, notebook, recent) : undefined;
+    const lore = this.s.lore === "on" ? loreLines(await this.store!.rankLore(c, recent.join("\n"))) : undefined;
     return {
       characterName: c,
       briefing: this.s.briefings[c]!,
@@ -1086,12 +1106,19 @@ export class MiniGame {
       },
       // TD v0.9: in "perceived", block 6 is the notebook (readings and code entries); the reference record is never shown.
       longTermMemory:
-        (this.s.notebook ?? "perceived") === "perceived"
-          ? this.memory.retrieveNotebook(c, present.length ? present : others, history.slice(-2).map((l) => l.text), { murder: opts.gathering })
-          : this.memory.retrieve(c, present.length ? present : others, history.slice(-2).map((l) => l.text), { murder: opts.gathering }),
+        notebook === "perceived"
+          ? this.memory.retrieveNotebook(c, present.length ? present : others, recent, { murder: opts.gathering, ...(ranked && { ranked }) })
+          : this.memory.retrieve(c, present.length ? present : others, recent, { murder: opts.gathering, ...(ranked && { ranked }) }),
       shortTermThoughts: me.thoughts.slice(-this.s.thoughtWindow),
       history: history.map(toHistoryLine),
+      ...(lore?.length && { lore }),
     };
+  }
+
+  /** The character's rows from the live store, ranked; rows written since the last flush are stored (and embedded) first. */
+  private async storeRank(c: CharacterName, notebook: "perceived" | "shared", recent: string[]) {
+    await this.store!.flush(this.memory);
+    return this.store!.rank(c, notebook, recent.join("\n"));
   }
 
   private actionContext(c: CharacterName): ActionContext {

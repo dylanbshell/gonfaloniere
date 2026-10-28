@@ -23,6 +23,8 @@ export interface PromptTemplates {
   murder?: string;
   ballot?: string;
   runoff?: string;
+  /** TD v0.22's lore section ("WHAT YOU KNOW OF FLORENCE" and {lore_bullets}), inserted only with `lore: on`. Absent in earlier versions. */
+  lore?: string;
   /** TD v0.23 block 9h, the seat task, and its two forms' placeholder values. Absent in earlier versions. */
   seat?: string;
   seatForms?: {
@@ -85,6 +87,8 @@ export interface CharacterContext {
   longTermMemory: string[];
   shortTermThoughts: string[];
   history: HistoryLine[];
+  /** TD v0.22, `lore: on` only: the lore lines for this call. Absent (or empty) inserts nothing, so the prompt is as before v0.22. */
+  lore?: string[];
 }
 
 export interface AssembledPrompt {
@@ -484,9 +488,17 @@ function memoryBlock(t: PromptTemplates, ctx: CharacterContext): string {
     history: ctx.history.map(formatHistoryLine).join("\n"),
   });
   // TD: outside a conversation, block 8 holds the end of the last conversation and any broadcasts since.
-  return ctx.state.conversation.kind === "gathering"
-    ? block.replace("THE CONVERSATION SO FAR (most recent last)", "WHAT YOU LAST HEARD")
-    : block;
+  const memory =
+    ctx.state.conversation.kind === "gathering"
+      ? block.replace("THE CONVERSATION SO FAR (most recent last)", "WHAT YOU LAST HEARD")
+      : block;
+  return ctx.lore?.length ? `${loreSection(t, ctx.lore)}\n\n${memory}` : memory;
+}
+
+/** TD v0.22's lore section, placed just before block 6's heading. */
+function loreSection(t: PromptTemplates, lore: string[]): string {
+  if (!t.lore) throw new Error("This Technical Design has no lore section (it arrived in TD v0.22)");
+  return fill(t.lore, { lore_bullets: lore.map((l) => `- ${l}`).join("\n") });
 }
 
 export function formatHistoryLine(line: HistoryLine): string {
