@@ -135,6 +135,7 @@ export function loadDocs(paths: DocPaths): DocSources {
     ...optionalTemplate(td, "### Block 9e — Murder Round task", "murder"),
     ...optionalTemplate(td, "### Block 9f — Ballot task", "ballot"),
     ...optionalTemplate(td, "### Block 9g — Run-off task", "runoff"),
+    ...seatTemplate(td),
   };
 
   const socialAwareness = standardSocialAwareness(chars);
@@ -319,6 +320,50 @@ function optionalTemplate(td: string, heading: string, key: string): Record<stri
   } catch {
     return {};
   }
+}
+
+/**
+ * Block 9h (TD v0.23): the task, and each form's placeholder values, which TD writes as inline code
+ * under "Lone-guest form" and "Invitee form" (the invitee's steps as an indented code block, and the
+ * wait form as replacements). Nothing before v0.23.
+ */
+function seatTemplate(td: string): Pick<PromptTemplates, "seat" | "seatForms"> {
+  const heading = "### Block 9h — Seat task";
+  let lines: string[];
+  try {
+    lines = section(td, heading);
+  } catch {
+    return {};
+  }
+  const task = only(fencesUnder(td, heading).slice(0, 1), "Block 9h");
+  const text = lines.join("\n");
+  const formPart = (label: string) => {
+    const start = text.indexOf(`**${label}:**`);
+    if (start < 0) throw new Error(`Block 9h: no "${label}" part`);
+    const end = text.indexOf("\n\n**", start + 1);
+    return text.slice(start, end < 0 ? undefined : end);
+  };
+  const inline = (part: string, key: string): string | null => {
+    const m = part.match(new RegExp("- `\\{" + key + "\\}`: `([^`]+)`"));
+    return m?.[1] ?? null;
+  };
+  const lone = formPart("Lone-guest form");
+  const invitee = formPart("Invitee form");
+  const [inviteeSteps] = fencesUnder(`${heading}\n${invitee}`, heading, { indented: true });
+  const wait = invitee.match(/the `"join"` line is replaced by `([^`]+)`, and step 3 ends `([^`]+)`/);
+  return {
+    seat: task,
+    seatForms: {
+      lone: { situation: required(inline(lone, "seat_situation") ?? undefined, "9h lone situation"), steps: required(inline(lone, "seat_steps") ?? undefined, "9h lone steps"), schema: required(inline(lone, "seat_schema") ?? undefined, "9h lone schema") },
+      invitee: {
+        situation: required(inline(invitee, "seat_situation") ?? undefined, "9h invitee situation"),
+        steps: required(inviteeSteps, "9h invitee steps"),
+        schema: required(inline(invitee, "seat_schema") ?? undefined, "9h invitee schema"),
+        waitLine: required(wait?.[1], "9h wait line"),
+        waitTargetEnd: required(wait?.[2], "9h wait target ending"),
+      },
+    },
+  };
 }
 
 function only(fences: string[], label: string): string {

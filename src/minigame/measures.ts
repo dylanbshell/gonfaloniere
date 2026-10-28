@@ -29,6 +29,7 @@ import { loadDocs, memoryDefinitions } from "../sources/docs.ts";
 import { MINIGAME_TOTAL_USD } from "./ledger.ts";
 import { CAST, KNOWS_AT_START } from "./cast.ts";
 import { alreadyKnownPass } from "./leakpass.ts";
+import { seatingHealth, seatingHealthLine } from "./seating-health.ts";
 import { formatLine, type CallRecord } from "./engine.ts";
 import { memoryCounts, whereLabel, type Belief, type GameLine, type MemoryEntry, type Thought } from "./memory.ts";
 
@@ -422,7 +423,8 @@ function codeMeasures(rec: GameRecord) {
       pingPongFires: rec.events.filter((e) => e.type === "ping-pong-guard").length,
       colloquios,
       moves: rec.events.filter((e) => e.type === "move").map((e) => `${e.character}: ${e.choice}${e.target ? ` ${e.target}` : ""}`),
-      loneGuestJoins: rec.events.filter((e) => e.type === "lone-guest-join").length,
+      // TD v0.23: the Seating health metric (it replaces the interim rule's lone-guest join count).
+      seating: seatingHealth(rec.events),
       stalls: rec.events.filter((e) => e.type === "stall").length,
     },
     format,
@@ -521,7 +523,8 @@ function report(results: Result[]): void {
     const f = r.code.flow;
     out.push(
       "",
-      `**Flow:** ${f.speechLines} lines (${Object.entries(f.linesBy).map(([c, n]) => `${short(c)} ${n}`).join(", ")}); everyone spoke: ${f.everyoneSpoke}; designations per line ${f.designationsPerLine.toFixed(2)}; ping-pong guard ${f.pingPongFires}; Colloquii ${f.colloquios.map((c) => `${c.utterances} lines (${c.why})`).join(", ") || "none"}; lone-guest joins ${f.loneGuestJoins}; stalls ${f.stalls}`,
+      `**Flow:** ${f.speechLines} lines (${Object.entries(f.linesBy).map(([c, n]) => `${short(c)} ${n}`).join(", ")}); everyone spoke: ${f.everyoneSpoke}; designations per line ${f.designationsPerLine.toFixed(2)}; ping-pong guard ${f.pingPongFires}; Colloquii ${f.colloquios.map((c) => `${c.utterances} lines (${c.why})`).join(", ") || "none"}; stalls ${f.stalls}`,
+      `**Seating:** ${seatingHealthLine(f.seating)}`,
       `**Moves:** ${f.moves.join("; ")}`,
       `**Format (pass: ≥95% valid after repair per call type):** ${Object.entries(r.code.format).map(([k, v]) => `${k} ${v.validAfterRepair}/${v.calls} (retried ${v.retried}, repaired ${v.repaired}, defaulted ${v.defaulted})`).join("; ")}`,
       `**Knowledge checks (10c):** ${r.code.knowledge.filter((k) => k.verdict !== "none" || k.flags.length).map((k) => `(${short(k.character)}, ${k.fact}) ${k.verdict}${k.knewAtStart ? " [knew at start]" : ""}${k.toldBy.length ? ` by ${k.toldBy.join(", ")}` : ""}${k.flags.length ? ` ⚑ ${k.flags.join("; ")}` : ""}`).join("; ") || "all none"}`,

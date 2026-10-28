@@ -129,7 +129,7 @@ async function main(): Promise<void> {
     thoughtWindow: 4,
     maxCapannello: 4,
     // TD v0.6 Run Configuration: ★ pass ~1,500 including the sweep, claims pass ~1,000, thought pass ~600, knowledge check ~300.
-    maxTokens: { plan: 400, think: 250, speak: 200, move: 500, murder: 300, "star-pass": 1800, "claims-pass": 1000, "sweep-reask": 1800, "thought-pass": 600, "perception-pass": 800, "knowledge-check": 300 },
+    maxTokens: { plan: 400, think: 250, speak: 200, move: 500, seat: 250, murder: 300, "star-pass": 1800, "claims-pass": 1000, "sweep-reask": 1800, "thought-pass": 600, "perception-pass": 800, "knowledge-check": 300 },
     playTemperature: 0.7,
     // The engine's nominal value; what is actually sent comes from the recorder route, recorded as config.recorder.temperature_sent.
     systemTemperature: recorder.temperature ?? 0,

@@ -143,6 +143,7 @@ async function play(d: typeof docs21, moveJoinsOwnGroup: boolean) {
       think: () => ({ thought: "Thinking.", took: "promise", words: "fine evening", importance: 50, ...(colloquio && { done: false }) }),
       speak: () => (req.user.includes('"addressee"') ? { addressee: null, ...said } : said),
       move: () => ({ thought: "Move.", contacts: others.map((n) => ({ name: n, urgency: 50, purpose: null })), choice: moveJoinsOwnGroup && present.length ? "join" : "colloquio", target: moveJoinsOwnGroup && present.length ? present[0] : others[0] }),
+      seat: () => ({ thought: "A seat.", choice: "join", target: others[0] }),
       murder: () => "x",
       "star-pass": () => ({ sweep: [], entries: [] }),
       "claims-pass": () => ({ entries: [] }),

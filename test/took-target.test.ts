@@ -98,6 +98,7 @@ async function playWith(d: typeof docs) {
       think: () => ({ thought: `Thinking ${prompts.length}.`, took: "promise", words: "fine evening", importance: 50, ...(colloquio && { done: false }) }),
       speak: () => (req.user.includes('"addressee"') ? { addressee: null, ...said } : said),
       move: () => ({ thought: "Move.", contacts: others.map((n) => ({ name: n, urgency: 50, purpose: null })), choice: "colloquio", target: others[0] }),
+      seat: () => ({ thought: "A seat.", choice: "join", target: others[0] }),
       murder: () => "x",
       "star-pass": () => ({ sweep: [], entries: [] }),
       "claims-pass": () => ({ entries: [] }),

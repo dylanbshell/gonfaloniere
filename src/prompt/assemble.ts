@@ -23,6 +23,13 @@ export interface PromptTemplates {
   murder?: string;
   ballot?: string;
   runoff?: string;
+  /** TD v0.23 block 9h, the seat task, and its two forms' placeholder values. Absent in earlier versions. */
+  seat?: string;
+  seatForms?: {
+    lone: { situation: string; steps: string; schema: string };
+    /** `waitLine` replaces the `"join"` line when no group has room, and step 3 then ends with `waitTargetEnd`. */
+    invitee: { situation: string; steps: string; schema: string; waitLine: string; waitTargetEnd: string };
+  };
 }
 
 export interface RulesValues {
@@ -277,6 +284,52 @@ function template(t: PromptTemplates, key: "move" | "plan" | "murder" | "ballot"
  */
 export function assembleMovePrompt(t: PromptTemplates, ctx: CharacterContext): AssembledPrompt {
   return assemble(t, ctx, dropEmptyPlaceholderLines(fill(template(t, "move"), { target: "your target", colloquio_note: "" })));
+}
+
+/** An open Capannello as block 9h offers it: its guests, its free seats, and (invitee form) whether the initiator came from it. */
+export interface SeatGroup {
+  members: string[];
+  room: number;
+  initiatorsOwn?: boolean;
+}
+
+export type SeatForm = { form: "lone" } | { form: "invitee"; initiator: string };
+
+/**
+ * Block 9h (TD v0.23): the seat task, in the lone-guest or invitee form. Block 5 reads as for a call
+ * outside a conversation and block 8 as WHAT YOU LAST HEARD, so `ctx` comes in as "the gathering".
+ * The invitee form with no group open swaps the `"join"` line for the wait line.
+ */
+export function assembleSeatPrompt(t: PromptTemplates, ctx: CharacterContext, form: SeatForm, groups: SeatGroup[]): AssembledPrompt {
+  if (!t.seat || !t.seatForms) throw new Error("This Technical Design has no seat task (block 9h arrived in TD v0.23)");
+  const initiator = form.form === "invitee" ? form.initiator : "";
+  const open = groups.length
+    ? groups.map((g) => `- ${g.members.join(", ")} (room for ${g.room})${g.initiatorsOwn ? ` — ${initiator} came from here` : ""}`).join("\n")
+    : "None: every group is full.";
+  let values: { situation: string; steps: string; schema: string };
+  if (form.form === "lone") values = t.seatForms.lone;
+  else {
+    const f = t.seatForms.invitee;
+    let steps = f.steps;
+    if (!groups.length) {
+      const lines = steps.split("\n");
+      const join = lines.findIndex((l) => l.trimStart().startsWith('"join"'));
+      if (join < 0) throw new Error('Block 9h: no "join" line in the invitee steps');
+      lines[join] = `${lines[join]!.slice(0, lines[join]!.length - lines[join]!.trimStart().length)}${f.waitLine}`;
+      const target = lines.findIndex((l) => /^\s*3\. target/.test(l));
+      if (target < 0) throw new Error("Block 9h: no step 3 in the invitee steps");
+      lines[target] = `${lines[target]} ${f.waitTargetEnd}`;
+      steps = lines.join("\n");
+    }
+    values = { situation: f.situation, steps, schema: f.schema };
+  }
+  const task = fill(t.seat, {
+    seat_situation: fill(values.situation, { initiator }),
+    open_groups: open,
+    seat_steps: fill(values.steps, { initiator }),
+    seat_schema: values.schema,
+  });
+  return assemble(t, ctx, task);
 }
 
 /** Block 9d: the strategy task. `trigger` is {strategy_trigger}, e.g. "The Medici faction meeting has just ended." */

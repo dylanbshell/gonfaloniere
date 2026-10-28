@@ -20,6 +20,7 @@ function fakeCaller(done: boolean): Caller {
       think: () => ({ thought: `Thinking ${Math.random()}.`, took: "promise", words: "A fine evening.", importance: 50, ...(colloquio && { done }) }),
       speak: () => (req.user.includes('"addressee"') ? { addressee: null, utterance: "A fine evening.", meant: "promise", words: "A fine evening", action: null } : { utterance: "A fine evening.", meant: "promise", words: "A fine evening", action: null }),
       move: () => ({ thought: "Move.", contacts: others.map((n) => ({ name: n, urgency: 50, purpose: null })), choice: "colloquio", target: others[0] }),
+      seat: () => ({ thought: "A seat.", choice: "join", target: others[0] }),
       murder: () => "x",
       "star-pass": () => ({ sweep: [], entries: [] }),
       "claims-pass": () => ({ entries: [] }),
