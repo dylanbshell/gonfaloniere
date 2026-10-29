@@ -23,3 +23,13 @@ test("a label flags only when its share both doubles or halves and moves 5 point
   assert.equal(labelFlag(0, 5), true);
   assert.equal(labelFlag(0, 4.9), false);
 });
+
+test("the voice check: flourish markers, and a read whose two boxes the scorer reads back", async () => {
+  const { FLOURISH, readMd } = await import("../src/minigame/voice.ts");
+  const { readMarks } = await import("../src/minigame/blindread.ts");
+  assert.deepEqual(["He fights like a cornered dog.", "As a widow, I pray.", "You look as if you'd seen a ghost.", "I like apples.", "Ask a friend."].map((t) => FLOURISH.test(t)), [true, true, true, false, false]);
+  const md = readMd([{ side: "new", game: "g1", id: "L1", who: "Lupo", text: "One." }, { side: "baseline", game: "g1", id: "L2", who: "Lupo", text: "Two." }]);
+  assert.ok(!md.includes("Lupo") && !md.includes("L1"), "text only");
+  const marked = md.replace("- [ ] hard to follow", "- [x] hard to follow").replace(/(\*\*2\.\*\*[\s\S]*?)- \[ \] has real character/, "$1- [x] has real character");
+  assert.deepEqual([...readMarks(marked).get("Spoken lines")!], [[1, ["hard to follow"]], [2, ["has real character (a line only this person would say)"]]]);
+});

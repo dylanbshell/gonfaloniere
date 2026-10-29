@@ -19,7 +19,7 @@ import { pathToFileURL } from "node:url";
 import { KNOWS_AT_START } from "./cast.ts";
 import { readRecord } from "./view.ts";
 
-type Rec = {
+export type Rec = {
   header: { game_id: string; seed: number; docs: { technicalDesign: string } };
   lines: { id: string; kind: string; speaker: string | null; text: string; meant?: string | null }[];
   thoughts: { id: string; character: string; call: string; text: string; took?: string | null; took_target?: string }[];
@@ -61,7 +61,7 @@ export function fkGrade(texts: string[]): number {
   return w ? 0.39 * (w / s) + 11.8 * (syl / w) - 15.59 : 0;
 }
 
-function textStats(texts: string[]) {
+export function textStats(texts: string[]) {
   const n = texts.map((t) => words(t).length);
   const s = texts.map(sentences);
   const mean = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
@@ -80,7 +80,7 @@ function textStats(texts: string[]) {
 
 // ---- Guardrails -----------------------------------------------------------------------------------
 
-function shares(values: (string | null | undefined)[]): Record<string, { n: number; pct: number }> {
+export function shares(values: (string | null | undefined)[]): Record<string, { n: number; pct: number }> {
   const total = values.length;
   return Object.fromEntries(LABELS.map((l) => {
     const n = values.filter((v) => v === l).length;
@@ -95,7 +95,7 @@ export function labelFlag(base: number, now: number): boolean {
 }
 
 /** Who learned a secret they didn't start with, from the runner's knowledge checks (F2–F5 × cast). */
-function spread(recs: Rec[]) {
+export function spread(recs: Rec[]) {
   const out = { checks: 0, knows: 0, suspicion: 0, toldBy: 0 };
   for (const r of recs)
     for (const k of r.knowledge_checks) {
@@ -108,7 +108,7 @@ function spread(recs: Rec[]) {
   return out;
 }
 
-function repairs(recs: Rec[], kind: "think" | "speak") {
+export function repairs(recs: Rec[], kind: "think" | "speak") {
   const calls = recs.flatMap((r) => r.calls.filter((c) => c.kind === kind));
   const firsts = calls.filter((c) => c.attempt === 1);
   return { calls: firsts.length, repaired: firsts.filter((c) => c.repairs.length).length, reasked: calls.filter((c) => c.attempt === 2).length, defaulted: calls.filter((c) => c.verdict === "default").length };
@@ -116,7 +116,7 @@ function repairs(recs: Rec[], kind: "think" | "speak") {
 
 // ---- The blind read -----------------------------------------------------------------------------
 
-function mulberry32(seed: number): () => number {
+export function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -126,7 +126,7 @@ function mulberry32(seed: number): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-function shuffle<T>(xs: T[], rand: () => number): T[] {
+export function shuffle<T>(xs: T[], rand: () => number): T[] {
   const a = xs.slice();
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(rand() * (i + 1));
@@ -135,36 +135,39 @@ function shuffle<T>(xs: T[], rand: () => number): T[] {
   return a;
 }
 
-type Item = { side: "baseline" | "new"; game: string; id: string; who: string; text: string };
+export type Item = { side: "baseline" | "new"; game: string; id: string; who: string; text: string };
 
-function draw(pool: Item[], n: number, rand: () => number): Item[] {
+export function draw(pool: Item[], n: number, rand: () => number): Item[] {
   if (pool.length < n) throw new Error(`only ${pool.length} to draw ${n} from`);
   return shuffle(pool, rand).slice(0, n);
 }
 
 // ---- Main -----------------------------------------------------------------------------------------
 
+export const speech = (recs: Rec[], side: Item["side"]): Item[] => recs.flatMap((r) => r.lines.filter((l) => l.kind === "speech" && words(l.text).length).map((l) => ({ side, game: r.header.game_id, id: l.id, who: l.speaker ?? "", text: l.text.replace(/\s+/g, " ").trim() })));
+export const thinks = (recs: Rec[], side: Item["side"]): Item[] => recs.flatMap((r) => r.thoughts.filter((t) => t.call === "think" && words(t.text).length).map((t) => ({ side, game: r.header.game_id, id: t.id, who: t.character, text: t.text.replace(/\s+/g, " ").trim() })));
+
+/** One side's code measures and guardrail counts. */
+export function measureSide(recs: Rec[], side: Item["side"]) {
+  const labelled = recs.flatMap((r) => r.thoughts.filter((t) => t.call === "think" && t.took_target !== "none"));
+  return {
+    games: recs.map((r) => ({ id: r.header.game_id, seed: r.header.seed, td: r.header.docs.technicalDesign, costUsd: r.summary.cost_usd, rateLimitRetries: r.summary.rate_limit_retries ?? 0 })),
+    lines: textStats(speech(recs, side).map((x) => x.text)),
+    thoughts: textStats(thinks(recs, side).map((x) => x.text)),
+    took: shares(labelled.map((t) => t.took)),
+    tookCount: labelled.length,
+    meant: shares(recs.flatMap((r) => r.lines.filter((l) => l.kind === "speech").map((l) => l.meant))),
+    meantCount: recs.reduce((n, r) => n + r.lines.filter((l) => l.kind === "speech").length, 0),
+    spread: spread(recs),
+    think: repairs(recs, "think"),
+    speak: repairs(recs, "speak"),
+  };
+}
+
 export function registerCheck(baselinePaths: string[], newPaths: string[], seed: number) {
   const load = (ps: string[]) => ps.map((p) => readRecord(p) as unknown as Rec);
   const sides = { baseline: load(baselinePaths), new: load(newPaths) };
-  const speech = (recs: Rec[], side: Item["side"]): Item[] => recs.flatMap((r) => r.lines.filter((l) => l.kind === "speech" && words(l.text).length).map((l) => ({ side, game: r.header.game_id, id: l.id, who: l.speaker ?? "", text: l.text.replace(/\s+/g, " ").trim() })));
-  const thinks = (recs: Rec[], side: Item["side"]): Item[] => recs.flatMap((r) => r.thoughts.filter((t) => t.call === "think" && words(t.text).length).map((t) => ({ side, game: r.header.game_id, id: t.id, who: t.character, text: t.text.replace(/\s+/g, " ").trim() })));
-  const measure = (recs: Rec[], side: Item["side"]) => {
-    const labelled = recs.flatMap((r) => r.thoughts.filter((t) => t.call === "think" && t.took_target !== "none"));
-    return {
-      games: recs.map((r) => ({ id: r.header.game_id, seed: r.header.seed, td: r.header.docs.technicalDesign, costUsd: r.summary.cost_usd, rateLimitRetries: r.summary.rate_limit_retries ?? 0 })),
-      lines: textStats(speech(recs, side).map((x) => x.text)),
-      thoughts: textStats(thinks(recs, side).map((x) => x.text)),
-      took: shares(labelled.map((t) => t.took)),
-      tookCount: labelled.length,
-      meant: shares(recs.flatMap((r) => r.lines.filter((l) => l.kind === "speech").map((l) => l.meant))),
-      meantCount: recs.reduce((n, r) => n + r.lines.filter((l) => l.kind === "speech").length, 0),
-      spread: spread(recs),
-      think: repairs(recs, "think"),
-      speak: repairs(recs, "speak"),
-    };
-  };
-  const m = { baseline: measure(sides.baseline, "baseline"), new: measure(sides.new, "new") };
+  const m = { baseline: measureSide(sides.baseline, "baseline"), new: measureSide(sides.new, "new") };
   const flags = {
     took: LABELS.filter((l) => labelFlag(m.baseline.took[l]!.pct, m.new.took[l]!.pct)),
     meant: LABELS.filter((l) => labelFlag(m.baseline.meant[l]!.pct, m.new.meant[l]!.pct)),
