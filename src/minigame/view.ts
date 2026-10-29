@@ -149,6 +149,7 @@ export function viewHtml(replay: object, html = readFileSync(VIEWER, "utf8"), co
 
 const NUMBER_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
 const words = (n: number) => NUMBER_WORDS[n] ?? String(n);
+const capital = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
 
 /** A site's address as og:url gives it: no #fragment, and a trailing slash so preview.png sits beside the page. */
 export function siteUrl(site: string): string {
@@ -162,17 +163,15 @@ export function siteUrl(site: string): string {
 /** Title and description from the record: counts only, nothing from the briefings. */
 export function siteMeta(replay: Record<string, any>, site: string, content: SiteContent = siteContent()): SiteMeta {
   const header = replay.header ?? {};
-  const id = String(header.game_id ?? "");
   const cast: unknown[] = Array.isArray(header.cast) && header.cast.length ? header.cast : header.config?.cast ?? [];
   const turns = header.turns ?? header.config?.turns ?? Math.max(0, ...(replay.events ?? []).map((e: { turn?: number }) => e.turn ?? 0));
   const talks = (replay.events ?? []).filter((e: { type?: string }) => e.type === "colloquio-open").length;
-  const fill = (t: string) => t
-    .replace(/\{game\}/g, id.match(/-g(\d+)$/)?.[1] ?? id)
-    .replace(/\{cast\}/g, words(cast.length))
+  const fill = (t: string, cap: boolean) => t
+    .replace(/\{cast\}/g, cap ? capital(words(cast.length)) : words(cast.length))
     .replace(/\{turns\}/g, String(turns))
     .replace(/\{privateTalks\}/g, `${words(talks)} private talk${talks === 1 ? "" : "s"}`);
-  const title = fill(content.title);
-  const description = fill(content.description);
+  const title = fill(content.title, true);
+  const description = fill(content.description, false);
   if (title.length >= 60) throw new Error(`Site title is ${title.length} characters, over 60: ${title}`);
   if (description.length >= 160) throw new Error(`Site description is ${description.length} characters, over 160: ${description}`);
   const url = siteUrl(site);

@@ -15,3 +15,6 @@ pilot/.venv/
 pilot/adapters/
 __pycache__/
 pilot/runs/
+
+# Netlify CLI working folder (deploys go through the CLI with --site; never commit its state)
+.netlify/

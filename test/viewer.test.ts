@@ -222,11 +222,11 @@ test("every export carries the content credit, in its footer and <head> (CC-2026
 test("a --site page: link-preview tags from the record, an absolute image URL, and no fragment in og:url", () => {
   const replay = loader.toReplay(fakeFull);
   const meta = siteMeta(replay, "https://replay.example/games#step=40");
+  const say = (n: number) => ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"][n] ?? String(n);
   assert.equal(meta.url, "https://replay.example/games/");
   assert.equal(meta.image, "https://replay.example/games/preview.png");
-  assert.equal(meta.title, "Gonfaloniere: Minigame Replay #1");
+  assert.equal(meta.title, `Gonfaloniere: ${say(replay.header.cast.length).replace(/^./, (c) => c.toUpperCase())} AIs Scheme in 1492 Florence`);
   const talks = fake.game.events.filter((e) => e.type === "colloquio-open").length;
-  const say = (n: number) => ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"][n] ?? String(n);
   assert.ok(meta.description.includes(` ${say(replay.header.cast.length)} AI characters `), meta.description);
   assert.ok(meta.description.includes(" over 6 turns.") && meta.description.includes(` ${say(talks)} private talk${talks === 1 ? "" : "s"}.`), meta.description);
   assert.ok(meta.title.length < 60 && meta.description.length < 160);
@@ -235,7 +235,8 @@ test("a --site page: link-preview tags from the record, an absolute image URL, a
   const html = viewHtml(replay, undefined, undefined, meta);
   for (const k of SITE_TAGS) assert.ok(metaTag(html, k), k);
   assert.ok(html.includes(`<link rel="canonical" href="https://replay.example/games/">`));
-  assert.ok(html.includes(`<title>Gonfaloniere: Minigame Replay #1</title>`));
+  assert.ok(html.includes(`<title>${meta.title}</title>`));
+  for (const k of ["og:title", "twitter:title"]) assert.equal(metaTag(html, k), meta.title, k);
   assert.deepEqual(siteHeadTags(meta).filter((t) => !html.includes(t)), []);
   assert.equal(siteUrl("https://a.example"), "https://a.example/");
   assert.throws(() => siteUrl("file:///tmp/x"), /http/);

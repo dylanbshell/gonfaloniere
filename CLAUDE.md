@@ -62,6 +62,12 @@ Work arrives as tasks from Dylan, often relayed from Technical Design (TD). The 
 - The export embeds the replay variant of the record: no model calls, seeds, or provider details. It refuses to write if it finds anything key-shaped.
 - After a viewer change, re-export every `.view.html` in `results/published/minigame/`.
 
+## Hosted replays
+
+- Deploy to Netlify only when Dylan asks, and only with the Netlify CLI. Its login stays in the CLI's own config on this Mac; never put the token in the repo, `.env`, a game record, or a report.
+- Export with `npm run minigame:view -- <record> --site <url> --out results/published/sites/<folder>`, then deploy that folder by site ID without linking the repo: `netlify deploy --prod --no-build --dir results/published/sites/<folder> --site <site id>`.
+- Record each site's name, URL, and game in the site list in `results/published/README.md`.
+
 ## Tests
 
 - Run `npm test` and `npm run typecheck`.

@@ -30,9 +30,11 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * In the page: over the steps of turns `from` to `to` (both included), the one whose
- * fully shown conversations (no scrolling, inside the viewport) hold the most lines. Leaves the page
- * there, following the guest who spoke last in the largest of them. Returns that moment.
+ * fully shown conversations (no scrolling, inside the viewport) hold the most lines, where the largest
+ * holds at least two. Leaves the page there, following the guest who spoke last in the largest of
+ * them, and returns that moment; null if no step has one.
  */
+const WINDOWS: [number, number][] = [[3, 5], [2, 6], [0, 99]];
 const PICK_MOMENT = (from: number, to: number) => `(() => {
   const slider = document.getElementById("slider");
   const go = (i) => { slider.value = String(i); slider.dispatchEvent(new Event("input")); };
@@ -51,7 +53,7 @@ const PICK_MOMENT = (from: number, to: number) => `(() => {
       lines += n;
       if (!top || n > top.n) top = { n, panel: p };
     }
-    if (top && (!best || lines > best.lines)) best = { step: i, lines, speaker: [...top.panel.querySelectorAll(".ln.speech .sp [data-name]")].map((s) => s.dataset.name).at(-1) ?? null };
+    if (top && top.n >= 2 && (!best || lines > best.lines)) best = { step: i, lines, speaker: [...top.panel.querySelectorAll(".ln.speech .sp [data-name]")].map((s) => s.dataset.name).at(-1) ?? null };
   }
   if (!best) return null;
   go(best.step);
@@ -62,8 +64,8 @@ const PICK_MOMENT = (from: number, to: number) => `(() => {
 
 export interface Preview { png: Buffer; moment: { step: number; lines: number; focus: string | null; turn: string }; requests: string[] }
 
-/** Screenshots an exported page (index.html on disk) at 1200×630, a few turns in. */
-export async function capturePreview(htmlPath: string, opts: { fromTurn?: number; toTurn?: number } = {}): Promise<Preview> {
+/** Screenshots an exported page (index.html on disk) at 1200×630, a few turns in: turns 3–5, else 2–6, else anywhere. */
+export async function capturePreview(htmlPath: string): Promise<Preview> {
   const chrome = findChrome();
   if (!chrome) throw new Error("No Chrome found for the preview image: set CHROME_PATH");
   const profile = mkdtempSync(join(tmpdir(), "gonf-preview-"));
@@ -118,8 +120,9 @@ export async function capturePreview(htmlPath: string, opts: { fromTurn?: number
     if (!loaded) throw new Error("The page didn't finish loading");
     if (!(await evaluate(`!document.getElementById("game").hidden`))) throw new Error(`The page didn't open its game${errors.length ? `: ${errors.join("; ")}` : ""}`);
 
-    const moment = await evaluate(PICK_MOMENT(opts.fromTurn ?? 3, opts.toTurn ?? 5));
-    if (!moment) throw new Error("No moment with a conversation in full view");
+    let moment = null;
+    for (const [from, to] of WINDOWS) if (!moment) moment = await evaluate(PICK_MOMENT(from, to));
+    if (!moment) throw new Error("No moment with a conversation of two or more lines in full view");
     await sleep(300);
     const shot = await send("Page.captureScreenshot", { format: "png", clip: { x: 0, y: 0, width: PREVIEW.width, height: PREVIEW.height, scale: 1 } });
     if (errors.length) throw new Error(`The page threw: ${errors.join("; ")}`);
