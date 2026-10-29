@@ -110,6 +110,39 @@ test("TD v0.27's register wording: every prompt is v0.24's with only block 1's n
   assert.ok(thinks > 200 && speaks > 50, `${thinks} thinks, ${speaks} speaks`);
 });
 
+test("TD v0.29's voice wording: every prompt is v0.27's with only block 1's line and 9b's ornament sentence changed, anchors intact", async () => {
+  const before = (await playFakeOn(loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.27") }))).calls;
+  const after = (await playFakeOn(loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.29") }))).calls;
+  assert.deepEqual(after.map((c) => `${c.kind}|${c.character}`), before.map((c) => `${c.kind}|${c.character}`));
+  const swaps: [string, string][] = [
+    ['no "thee" or "thou", no proverbs or flowery metaphors, and no modern slang.', 'no "thee" or "thou", and no modern slang.'],
+    [
+      'No "thee" or "thou", no proverbs, riddles, or flowery metaphors, and no speeches.',
+      `No "thee" or "thou", and no speeches. A sharp turn of phrase now and then is fine, if it's purposeful and in your own voice; just don't build every line on a metaphor or a proverb.`,
+    ],
+  ];
+  const swapped = (s: string) => swaps.reduce((t, [x, y]) => t.replace(x, y), s);
+  let systems = 0;
+  let speaks = 0;
+  after.forEach((c, i) => {
+    const b = before[i]!;
+    if (b.system.includes(swaps[0]![0])) systems++;
+    assert.equal(c.system, swapped(b.system), `${c.kind} ${i}: system`);
+    assert.equal(c.user, swapped(b.user), `${c.kind} ${i}: user`);
+    if (c.kind === "speak") {
+      speaks++;
+      assert.ok(c.user.includes(swaps[1]![1]), `${c.kind} ${i}: 9b's new sentence`);
+      assert.match(c.user, /^- One to three short sentences, about 40 words at most\. Spoken words only/m);
+    }
+    if (c.kind === "think") {
+      assert.match(c.user, /^1\. thought — 2 to 4 sentences, first person, in plain words, the way you'd talk to yourself\./m);
+      assert.match(c.user, /^2\. took — /m);
+    }
+  });
+  assert.ok(after.every((c) => !/proverbs or flowery|riddles, or flowery/.test(c.system + c.user)));
+  assert.ok(systems > 200 && speaks > 50, `${systems} systems with block 1, ${speaks} speaks`);
+});
+
 test("lore file: only approved, canon-checked entries load; scopes are public or a full name; the hash is of the file's bytes", () => {
   const dir = mkdtempSync(join(tmpdir(), "lore-"));
   const path = join(dir, "lore.json");
