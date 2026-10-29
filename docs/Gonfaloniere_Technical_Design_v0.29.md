@@ -1,8 +1,29 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.27
+### Version 0.29
 
 ---
+
+## Changes in v0.29
+
+*Dylan, Oct 29: v0.28's plain lines are easier to follow, but some of the characters' own language was lost. The ban on proverbs and metaphors, not the length cap, is the likely cause: new lines averaged 31 words, and only 8 of 192 passed 40. Dylan's wording loosens the ban instead.*
+
+- **Block 9b's register line, loosened** (Dylan's wording): "No 'thee' or 'thou', and no speeches. A sharp turn of phrase now and then is fine, if it's purposeful and in your own voice; just don't build every line on a metaphor or a proverb. Being vague or evasive is fine; being ornate is not." It replaces "No 'thee' or 'thou', no proverbs, riddles, or flowery metaphors, and no speeches." and the sentence after it. "Purposeful" ties a flourish to a goal (a jab, a threat, flattery) rather than decoration
+- **Block 1's shared line drops "no proverbs or flowery metaphors"** so it doesn't contradict 9b. It keeps "plain, everyday English" and "no modern slang". Thoughts stay plain through 9a's "in plain words, the way you'd talk to yourself"
+- **The ~40-word cap is unchanged,** so the test measures the wording alone
+- **Under test against v0.28** (Open Questions, "The voice check"). If it isn't adopted, v0.28's wording stays
+- Blocks 9a and 9c–9h, and 10a–10d, are unchanged
+
+## Changes in v0.28
+
+*The register check (CC-20261028-09: 2 DeepSeek mini-games on v0.27, seeds 2000–2001, against v0.19 on the same seeds; $0.21).*
+
+- **v0.27's plain-English wording is adopted.** Dylan's blind read, the deciding measure: **11 of 15 baseline lines marked hard to follow, against 1 of 15 new lines**, a gap of 10 against the bar of 5. Thoughts (reported only): 6 of 10 baseline marked, 2 of 10 new. From code: spoken lines averaged 31.4 words against 44.9 (longest 49 against 66), and the Flesch–Kincaid grade fell from 6.6 to 3.9 for lines and from 9.7 to 8.0 for thoughts. 0 repairs or retries on either side
+- **The guardrail flag is accepted.** `took: insult` fell from 11.6% to 4.8%, halving and moving 6.8 points. The likely reason is the change itself: ornate lines carried veiled jabs ("a heavy purse buys silence, not absolution"), and plain lines say what they want, so `meant: pressure` rose by about the same amount (33.9% to 40.6%). Insult isn't ★, so block 6 hardly feels it. To confirm against the readings themselves: Claude Code's `labels.md` listing
+- **One guardrail is still open: secret leaks.** The judge wasn't run (it would have passed the spend stop). `took: admission` rose from 0.8% to 4.8% (below the flag, since it moved only 4.1 points), which is where plainer speech could mean secrets slipping. The runner's knowledge checks show no rise (suspicions 9 against 7; no secret learned on either side). Settled before the first full games by reading the admission readings, and running the judge (~$1.59) if they look like secrets (Open Questions)
+- **The research baseline moves to the v0.27 games** (CC-20261028-09, seeds 2000–2001), in place of v0.19's, since every full game will use the new wording. Models & Research records the label mix (tracker handoff)
+- **Noticed in the read: a prompt echo.** Many thoughts restate "my story stays straight" or "I have told no untruth tonight", parroting 9a's claim line ("note what you told them so your story stays straight"). It's harmless to play but adds filler to every thought and makes characters sound alike. That line is one of the three tested secret-keeping lines, so any change is Models & Research's to test (Open Questions)
+- Every prompt block is as in v0.27
 
 ## Changes in v0.27
 
@@ -625,7 +646,7 @@ You know only two things: what is in your briefing, and what you have personally
 
 This is not the Florence of the history books. Who these people are, how they are related, and what has happened are exactly as your briefing and this evening show you, even where that differs from history as you know it. No one knows what the years ahead will bring.
 
-Speak and think in plain, everyday English: no "thee" or "thou", no proverbs or flowery metaphors, and no modern slang.
+Speak and think in plain, everyday English: no "thee" or "thou", and no modern slang.
 ```
 
 ### Block 2 — Rules primer (shared)
@@ -771,7 +792,7 @@ It is your turn to speak. {closing_line_note}
 
 Say one thing, as {character_name} would say it.
 - One to three short sentences, about 40 words at most. Spoken words only: no narration, no stage directions, no thoughts.
-- Speak plainly and directly, the way people really talk: short sentences, sometimes blunt. Names, titles, and Florins belong; modern slang does not. No "thee" or "thou", no proverbs, riddles, or flowery metaphors, and no speeches. Being vague or evasive is fine; being ornate is not.
+- Speak plainly and directly, the way people really talk: short sentences, sometimes blunt. Names, titles, and Florins belong; modern slang does not. No "thee" or "thou", and no speeches. A sharp turn of phrase now and then is fine, if it's purposeful and in your own voice; just don't build every line on a metaphor or a proverb. Being vague or evasive is fine; being ornate is not.
 - If someone has just addressed you directly, answer them.
 - You may tell the truth, lie, bluff, flatter, threaten, or stay vague — whatever serves your goals. Your secrets are yours: reveal one only as a deliberate move, never by accident. Do not recite your private thoughts.
 - Someone claiming to know your secret, or threatening you, is not a reason to confirm it. Never confirm a secret you have not chosen to reveal: refuse, deflect, or demand proof instead.
@@ -805,7 +826,7 @@ In a **Colloquio** (there is only one other person, so nobody needs designating)
 - **Risk:** `speak()` carries the secret-keeping lines measured in S5d, so this is a change to the call most tied to past gate results. The re-check should watch `speak()` repairs and, if it's affordable, leak lines (Models & Research's call)
 - **`words` here are copied from text the speaker has just written,** so they should almost always be found
 
-**Register** *(v0.27; under test)*: the first two bullets replace "One to three sentences, about 60 words at most" and "Speak as a person of 1492 Florence would, in clear modern English." With the old line, DeepSeek kept the period and dropped the plain: ornate metaphor, every character alike, 45 words a line on average. The new line describes the target's qualities (short, direct, sometimes blunt, modern grammar, the world's own names) without naming any drama, and it bars both ornament and slang. "Sometimes blunt" could push labels toward pressure or insult, which is one of the check's guardrails. Distinct voices per character are the briefings' job, not this line's (Characters).
+**Register** *(v0.27; adopted in v0.28 after the register check; ornament ban loosened in v0.29, under test)*: the first two bullets replace "One to three sentences, about 60 words at most" and "Speak as a person of 1492 Florence would, in clear modern English." With the old line, DeepSeek kept the period and dropped the plain: ornate metaphor, every character alike, 45 words a line on average. The new line describes the target's qualities (short, direct, sometimes blunt, modern grammar, the world's own names) without naming any drama, and it bars both ornament and slang. "Sometimes blunt" could push labels toward pressure or insult, which is one of the check's guardrails. Distinct voices per character are the briefings' job, not this line's (Characters).
 
 **The three secret-keeping lines** (v0.5, from Models & Research's Oct 23 findings): the **claim line** (9a), the **reply line**, and the **audience line** (9b). They go in every `think()` and `speak()` call, Colloquio included. The audience line was tested in all conversation types, and keeping one wording everywhere avoids an untested variant. On DeepSeek V4.1 they took S5d from 2/10 to 9/10 held and the held-out script from 1/10 to 5/10, with no rise in lying and clean S1, S4, and S6. They did little on Qwen3.8, so re-test them if the play model changes.
 
@@ -2016,7 +2037,7 @@ It reads all 86 saved mini-game records, degrading gracefully where older ones l
 - **v0.6's or v0.7's ★ pass for the reference record?** Decided by the first full games' hand-read. In the default mode the choice affects knowledge checks and research, not what characters remember
 - **Which plot points can still use knowledge checks?** Logged checks (payments, meetings, ledger) are exact. Knowledge checks carry the known limit. Hand-read their verdicts in the first full games; if they misfire often, Mechanics could limit the Plot Reward to logged plot points
 - **The fit bars after v0.15** (Models & Research's bars; v0.34, Open Questions). In the v0.14 re-check everything passed except fit: own 21 of 30, others 23 of 30, against 26. Check v0.16's hostility ladder in the first full games' hand-read, especially the pressure–threat boundary, or in a 2-game play-only run if Models & Research would rather know first. Note that think()'s fit was 28 of 30 on v0.12 and 23 of 30 on v0.14 with a near-identical prompt, so part of the gap may be sampling. Bar size is Models & Research's call
-- ~~**The v0.19 baseline test**~~ Done (CC-20261026-05, seeds 2000–2001). Share of `took`, with v0.17 in brackets: none 30.7% (40.9), pressure 25.7% (32.2), claim 17.3% (12.1), insult 10.6% (6.5), threat 5.5% (1.3). Of `meant`: pressure 33.9% (42.7), none 29.2% (29.2). Fit 27 of 30 on both samples. 12 of 20 threats were harm to come, and the rest were warnings and taunts. All 20 pressure readings pushed someone to answer or act. Only 1 of 20 threats and 1 of 20 claims were questions. The cap held in all 798 calls (448 at exactly 3). **This mix is the research baseline** (Models & Research v0.38), and v0.19's prompts go to the first full games unchanged
+- ~~**The v0.19 baseline test**~~ Done (CC-20261026-05, seeds 2000–2001). Share of `took`, with v0.17 in brackets: none 30.7% (40.9), pressure 25.7% (32.2), claim 17.3% (12.1), insult 10.6% (6.5), threat 5.5% (1.3). Of `meant`: pressure 33.9% (42.7), none 29.2% (29.2). Fit 27 of 30 on both samples. 12 of 20 threats were harm to come, and the rest were warnings and taunts. All 20 pressure readings pushed someone to answer or act. Only 1 of 20 threats and 1 of 20 claims were questions. The cap held in all 798 calls (448 at exactly 3). **This mix was the research baseline** (Models & Research v0.38) until v0.28, when the register check's v0.27 games replaced it
   - **If own-line fit stays low:** drop own readings from the notebook and keep `meant` in the record for research. Characters then remember their own words only through History
 - ~~**The leak flag**~~ Resolved (CC-20261026-01): re-scored by hand, v0.14 had 6 leaks against Oct 24's 4. Whether the secrets judge should know who learned a secret in-game, not just at the start, is Models & Research's call. The fallback (drop own readings, keep `meant` in the record) is no longer needed for this flag
 - **The perceived notebook in the first full games:**
@@ -2045,5 +2066,13 @@ It reads all 86 saved mini-game records, degrading gracefully where older ones l
   - **Guardrails:** a `took` or `meant` label whose share doubles or halves and moves 5 points or more; secret leaks or deliberate reveals more than 2 above baseline. If one flags, Technical Design decides with the numbers
   - **If the lines aren't clearly easier,** the next step is sample voice lines in the briefings (Characters), not another round of prompt wording
   - **If adopted,** the new games' label mix replaces v0.19's as the research baseline
+  - **Result (v0.28): adopted.** Blind read 11 of 15 baseline lines marked against 1 of 15 new. The insult flag is accepted (Changes in v0.28); the leak guardrail is the item below
+- **The voice check** (v0.29, against v0.28): 2 DeepSeek mini-games, seeds 2000–2001, against the register check's v0.27 games on the same seeds (CC-20261028-09). Only 9b's ornament sentence and block 1's line differ.
+  - **Dylan's blind read:** 15 spoken lines from each side, shuffled and unlabelled, each marked for two things: hard to follow, and has real character (a line only that person would say)
+  - **Rule, set in advance:** adopt v0.29 if it gets at least 3 more "real character" marks than v0.28, at most 2 more "hard to follow" marks, and no guardrail flags. Otherwise v0.28 stays
+  - **Guardrails, against the v0.27 games:** words per line (flag a mean above 36), the label-mix rule of the register check, and the runner's knowledge checks
+  - **If the voices still sound alike,** the next lever is sample voice lines in the briefings (Characters), not more prompt wording
+- **Leaks under the plain register** (v0.28): `took: admission` rose from 0.8% to 4.8%. Read the admission readings in `labels.md`; if they're secrets slipping rather than ordinary admissions ("fine, I paid him"), run the secrets judge on the four register-check games (~$1.59) before the first full games. If leaks rose by more than 2, the fix is in the secret-keeping lines, not a return to ornate speech
+- **The claim-line echo** (v0.28): thoughts often restate "my story stays straight" or "I have told no untruth tonight". Rewording 9a's claim line could cut the filler, but it's a tested gate result (S5d), so Models & Research decides whether to test a variant
 - Does the real-history line in block 1 dull useful period knowledge? (Watch voice and play in the mini-game; Models & Research may probe leakage)
 - Does the tightened addressee instruction bring false positives down on non-DeepSeek bases? (Models & Research to re-measure)
