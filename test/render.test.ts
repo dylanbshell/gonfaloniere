@@ -23,6 +23,7 @@ test("Il Notaio's entries: trimmed to 15 words, shown as Il Notaio: \"…\", the
     renderCodeEntryFor(E("Signor Raffaello de' Medici was once again seen drawing another aside — this time Captain LeNoir, by the loggia.", "event"), "Lupo" as CharacterName),
     'T5 · Il Notaio: "Signor Raffaello de\' Medici was once again seen drawing another aside — this time Captain LeNoir…"',
   );
+  assert.equal(renderCodeEntryFor(E("Lupo was once again seen withdrawing in private, this time with Giorgia Pazzi.", "event", 5), "Lupo" as CharacterName), 'T5 · Il Notaio: "You were once again seen withdrawing in private, this time with Giorgia Pazzi."');
   assert.equal(renderCodeEntryFor(E("Lupo joined Contessa Isabella and Francesco Pazzi.", "event", 2), "Lupo" as CharacterName), 'T2 · Il Notaio: "You joined Contessa Isabella and Francesco Pazzi."');
   // The mini-game's opening attendance note (~90 tokens before v0.10).
   const attendance = renderCodeEntryFor(E("Present this evening at the Palazzo: Lupo, Contessa Isabella, Francesco Pazzi, Giorgia Pazzi, Captain Armand LeNoir, Raffaello de' Medici, and others of the city.", "event", 1), "Lupo" as CharacterName);

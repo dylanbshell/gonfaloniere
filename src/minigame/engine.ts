@@ -674,11 +674,7 @@ export class MiniGame {
     const a = this.conv(mover);
     const b = this.conv(target);
     for (const c of [mover, target]) this.char(c).withdrawals++;
-    const n = this.char(mover).withdrawals;
-    const note =
-      n <= 1
-        ? `${mover} drew ${target} aside from company — a private word, where none could hear.`
-        : `${mover} was once again seen drawing another aside — this time ${target}. Some note it is not the first private word sought this evening.`;
+    const note = withdrawalNote(mover, target, this.char(mover).withdrawals, this.docs.versions.technicalDesign);
     // Witnesses: everyone in the Capannelli the two leave.
     for (const conv of a.id === b.id ? [a] : [a, b]) this.notaio(conv, note);
     const colloquio = this.newConversation("colloquio", [mover, target]);
@@ -763,11 +759,7 @@ export class MiniGame {
     const a = this.seatOf(mover);
     const b = this.seatOf(target);
     for (const c of [mover, target]) this.char(c).withdrawals++;
-    const n = this.char(mover).withdrawals;
-    const note =
-      n <= 1
-        ? `${mover} drew ${target} aside from company — a private word, where none could hear.`
-        : `${mover} was once again seen drawing another aside — this time ${target}. Some note it is not the first private word sought this evening.`;
+    const note = withdrawalNote(mover, target, this.char(mover).withdrawals, this.docs.versions.technicalDesign);
     const left = [...new Set([a, b])].filter((x): x is Conversation => !!x && x.open && x.kind === "capannello");
     for (const conv of left) this.notaio(conv, note);
     const snapshot = !opts.after && a?.kind === "capannello" ? { capannello: a.id, guests: a.members.filter((m) => m !== mover) } : null;
@@ -1401,6 +1393,18 @@ export function formatLine(l: GameLine): string {
   if (l.kind === "notaio") return `[Il Notaio] ${l.text}`;
   if (l.kind === "event" || l.kind === "private") return `[${l.text}]`;
   return l.addressee ? `${l.speaker} (to ${l.addressee}): ${l.text}` : `${l.speaker}: ${l.text}`;
+}
+
+/**
+ * Il Notaio's Colloquio note. Escalation follows the caller's withdrawal count, which also rises
+ * when they were the one called aside, so from TD v0.26 the repeat wording says they withdrew
+ * before, not that they drew someone aside before (Il Notaio: Delivery Mechanism).
+ */
+function withdrawalNote(mover: CharacterName, target: CharacterName, n: number, td: string): string {
+  if (n <= 1) return `${mover} drew ${target} aside from company — a private word, where none could hear.`;
+  return tdMinor(td) >= 26
+    ? `${mover} was once again seen withdrawing in private, this time with ${target}.`
+    : `${mover} was once again seen drawing another aside — this time ${target}. Some note it is not the first private word sought this evening.`;
 }
 
 function listJoin(items: string[]): string {

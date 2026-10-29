@@ -12,6 +12,7 @@ import { seatingHealth } from "../src/minigame/seating-health.ts";
 
 const docs24 = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.24") });
 const docs21 = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.21") });
+const docs27 = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.27") });
 const briefings = { ...docs24.briefings, ...loadStandinBriefings(STANDIN_FILE, STANDINS, docs24.socialAwareness) };
 
 const L: CharacterName = "Lupo";
@@ -27,7 +28,7 @@ type Reply = object | string;
  * A game with these Capannelli, at turn 1. Seat calls take the queued replies in order (a function
  * gets the request); any other call fails the test, since seating makes only seat calls.
  */
-function seated(groups: CharacterName[][], replies: (Reply | ((req: CallRequest) => Reply))[] = [], opts: { td?: "0.24" | "0.21"; max?: number; seed?: number } = {}) {
+function seated(groups: CharacterName[][], replies: (Reply | ((req: CallRequest) => Reply))[] = [], opts: { td?: "0.27" | "0.24" | "0.21"; max?: number; seed?: number } = {}) {
   const calls: CallRequest[] = [];
   const caller: Caller = async (req) => {
     calls.push(req);
@@ -38,7 +39,7 @@ function seated(groups: CharacterName[][], replies: (Reply | ((req: CallRequest)
     return { ok: true, content: typeof r === "string" ? r : JSON.stringify(r), error: null, costUsd: 0, inputTokens: 0, outputTokens: 0, latencyMs: 0, provider: "fake", model: "fake" };
   };
   const g = new MiniGame(
-    opts.td === "0.21" ? docs21 : docs24,
+    opts.td === "0.21" ? docs21 : opts.td === "0.27" ? docs27 : docs24,
     {
       cast: CAST,
       briefings,
@@ -174,6 +175,18 @@ test("invitee calls a free Colloquio: Il Notaio tells the target's group, both w
   // Lupo goes back to his own Capannello: Isabella is still in it.
   assert.deepEqual(s.groups(), sorted([I, L], [F, R]));
   assert.equal(s.convOf(A).kind, "colloquio");
+});
+
+test("from TD v0.26 the repeat note says the caller withdrew before, true when their first Colloquio was as the invitee", async () => {
+  const s = seated([[L, G, I], [A, F, R]], [seat("Giorgia Pazzi", "colloquio")], { td: "0.27" });
+  await s.move(L, "colloquio", A);
+  await s.end(A);
+  const notes = new Set(s.g.lines.filter((l) => l.kind === "notaio" && /aside|withdrawing/.test(l.text)).map((l) => l.text));
+  assert.deepEqual(
+    [...notes],
+    [`${L} drew ${A} aside from company — a private word, where none could hear.`, `${A} was once again seen withdrawing in private, this time with ${G}.`],
+  );
+  assert.ok(!s.g.lines.some((l) => l.text.includes("drawing another aside")));
 });
 
 test("invitee waits when no group has room (wait form); both go seatless and pair into a new Capannello", async () => {

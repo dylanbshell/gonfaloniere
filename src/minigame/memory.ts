@@ -954,7 +954,8 @@ const article = (kind: string) => (/^[aeiou]/.test(kind) ? "an" : "a");
  * `T4 · Colloquio · ★ You gave Lupo 3 Florins.`): conversation type only, second person for the actor.
  */
 export function renderCodeEntryFor(e: MemoryEntry, c: CharacterName): string {
-  const summary = e.summary.startsWith(`${c} `) ? `You ${e.summary.slice(c.length + 1)}` : e.summary;
+  // Il Notaio's v0.26 repeat note is the one "X was …" entry; the pre-v0.26 note keeps its "You was" so old replays stay byte-identical.
+  const summary = e.summary.startsWith(`${c} `) ? `You ${e.summary.slice(c.length + 1)}`.replace(/^You was (?=once again seen withdrawing)/, "You were ") : e.summary;
   // TD v0.10: Il Notaio's entries are trimmed to 15 words like quotes, shown as `Il Notaio: "…"`.
   if (e.type === "event") return `T${e.turn} · Il Notaio: "${trimQuote(summary)}"`;
   return `T${e.turn} · ${conversationType(e.where)} · ${e.salient ? "★ " : ""}${summary}`;
