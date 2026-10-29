@@ -22,6 +22,7 @@
     "minigame": "tsx src/minigame/run.ts",
     "minigame:measures": "tsx src/minigame/measures.ts",
     "minigame:replay": "tsx src/minigame/replay.ts",
+    "minigame:view": "tsx src/minigame/view.ts",
     "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {

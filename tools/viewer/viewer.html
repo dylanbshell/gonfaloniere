@@ -1,0 +1,893 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gonfaloniere replay</title>
+<!--
+  The mini-game replay viewer (CC-20261028-08). One self-contained file: no build step, no network,
+  no server. Open it by double-click and load a game record (.json or .json.gz) by picker or drop,
+  or open a game-<id>.view.html written by `npm run minigame:view`, which embeds the replay variant
+  of one record below. The loader (script#loader) is the one shared with the export command and the
+  tests, as TD's Game Record & Export asks of the dashboard and the replay viewer.
+-->
+<style>
+:root {
+  --page: #eef0ee;
+  --surface: #ffffff;
+  --sunk: #e3e7e5;
+  --ink: #1e2430;
+  --muted: #5d6673;
+  --line: #cfd5d2;
+  --lapis: #2b4c8f;
+  --lapis-wash: #e3e9f6;
+  --verdigris: #3f7f6e;
+  --ochre: #a87a1e;
+  --ochre-wash: #f5ecd8;
+  --madder: #9e3348;
+  --madder-wash: #f6e3e7;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page: #141922; --surface: #1c2330; --sunk: #232b3a; --ink: #dfe4ec; --muted: #9aa4b3; --line: #313b4c;
+    --lapis: #8ea9e8; --lapis-wash: #24304a; --verdigris: #79b8a5; --ochre: #d9ad55; --ochre-wash: #3a3121;
+    --madder: #e08a9c; --madder-wash: #3c2430; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --page: #141922; --surface: #1c2330; --sunk: #232b3a; --ink: #dfe4ec; --muted: #9aa4b3; --line: #313b4c;
+  --lapis: #8ea9e8; --lapis-wash: #24304a; --verdigris: #79b8a5; --ochre: #d9ad55; --ochre-wash: #3a3121;
+  --madder: #e08a9c; --madder-wash: #3c2430; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--page); color: var(--ink); font: 14px/1.45 var(--sans); }
+button, select, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--lapis); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+/* Top bar */
+.bar { display: flex; align-items: baseline; gap: 16px; padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--surface); flex-wrap: wrap; }
+.bar h1 { font: 600 19px/1.2 var(--serif); margin: 0; letter-spacing: 0.01em; }
+.bar .meta { color: var(--muted); font-size: 13px; }
+.bar .spacer { flex: 1; }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 5px 12px; }
+.btn:hover { border-color: var(--lapis); }
+.btn.primary { background: var(--lapis); border-color: var(--lapis); color: var(--surface); }
+
+/* Empty state */
+#drop { max-width: 560px; margin: 12vh auto; padding: 36px 32px; border: 1.5px dashed var(--line); border-radius: 10px; text-align: center; background: var(--surface); }
+#drop.over { border-color: var(--lapis); background: var(--lapis-wash); }
+#drop h2 { font: 600 24px/1.25 var(--serif); margin: 0 0 8px; }
+#drop p { color: var(--muted); margin: 0 0 18px; }
+#drop .err { color: var(--madder); margin-top: 14px; }
+
+/* Controls */
+.controls { position: sticky; top: 0; z-index: 5; background: var(--page); padding: 10px 20px 8px; border-bottom: 1px solid var(--line); }
+.row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.now { font: 600 15px/1.2 var(--serif); min-width: 9em; }
+.now small { font: 13px var(--sans); color: var(--muted); font-weight: 400; margin-left: 4px; }
+.track { position: relative; flex: 1 1 320px; min-width: 220px; padding-bottom: 16px; }
+.track input[type=range] { width: 100%; accent-color: var(--lapis); margin: 0; }
+.ticks { position: absolute; left: 0; right: 0; bottom: 0; height: 14px; }
+.ticks button { position: absolute; transform: translateX(-50%); border: 0; background: none; padding: 0 3px; font-size: 11px; color: var(--muted); }
+.ticks button.cur { color: var(--lapis); font-weight: 700; }
+label.toggle { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); }
+details.filters { margin-top: 6px; }
+details.filters summary { color: var(--muted); cursor: pointer; width: max-content; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; align-items: center; }
+.chips .lbl { color: var(--muted); font-size: 12px; min-width: 7.5em; }
+.chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 2px 10px; font-size: 12.5px; }
+.chip[aria-pressed="false"] { opacity: 0.45; text-decoration: line-through; }
+
+/* Stage */
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; padding: 16px 20px 24px; align-items: start; }
+#panels { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; align-items: start; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; display: flex; flex-direction: column; max-height: 72vh; }
+.panel.colloquio { border-color: var(--lapis); border-style: double; border-width: 3px; }
+.panel header { padding: 10px 14px 8px; border-bottom: 1px solid var(--line); }
+.panel h3 { margin: 0; font: 600 15px/1.3 var(--serif); }
+.panel .who { color: var(--muted); font-size: 12.5px; }
+.chain { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 4px; background: var(--lapis-wash); color: var(--lapis); font: 600 11.5px/1.6 var(--sans); vertical-align: 1px; }
+.panel .body { overflow-y: auto; padding: 8px 14px 12px; }
+.panel .empty { color: var(--muted); font-style: italic; padding: 6px 0; }
+
+/* Lines */
+.ln { padding: 7px 0; border-bottom: 1px solid var(--sunk); }
+.ln:last-child { border-bottom: 0; }
+.ln.fresh { animation: arrive 0.6s ease-out; }
+@keyframes arrive { from { background: var(--lapis-wash); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .ln.fresh { animation: none; } }
+.ln .sp { font-weight: 600; font-size: 12.5px; }
+.ln .to { color: var(--muted); font-size: 12.5px; margin-left: 4px; }
+.ln .tx { font: 15.5px/1.55 var(--serif); margin-top: 1px; }
+.ln.notaio .tx { font-style: italic; color: var(--verdigris); }
+.ln.notaio .sp { color: var(--verdigris); }
+.ln.event { border-left: 3px solid var(--ochre); padding-left: 9px; }
+.ln.event .tx { font: 13.5px/1.5 var(--sans); }
+.ln.private { border-left: 3px dashed var(--muted); padding-left: 9px; }
+.ln.private .tx { font: 13.5px/1.5 var(--sans); color: var(--muted); }
+mark.took { background: none; color: inherit; text-decoration: underline 2px var(--lapis); text-underline-offset: 3px; }
+mark.meant { background: none; color: inherit; text-decoration: underline dotted 2px var(--ochre); text-underline-offset: 3px; }
+.focused .sp.me { color: var(--lapis); }
+
+/* Marginalia: inner life */
+.margin { margin: 6px 0 2px 10px; padding: 2px 0 2px 10px; border-left: 2px solid var(--lapis); }
+.margin.own { border-left-color: var(--ochre); }
+.margin .tag { font-size: 12px; color: var(--muted); }
+.margin .tag b { color: var(--lapis); font-weight: 600; }
+.margin.own .tag b { color: var(--ochre); }
+.margin .th { font: italic 14px/1.5 var(--serif); }
+.margin .words { font-size: 12.5px; color: var(--muted); }
+.imp { display: inline-block; min-width: 2.2em; text-align: center; border-radius: 4px; background: var(--sunk); font-size: 11.5px; padding: 0 4px; margin-left: 4px; }
+
+/* Side column */
+aside { display: flex; flex-direction: column; gap: 14px; position: sticky; top: 118px; max-height: calc(100vh - 130px); overflow-y: auto; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+.card h2 { font: 600 15px/1.3 var(--serif); margin: 0 0 8px; }
+.room { display: flex; flex-direction: column; gap: 8px; }
+.group { border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+.group.colloquio { border-color: var(--lapis); background: var(--lapis-wash); }
+.group .gh { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.guest { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; width: 100%; text-align: left; border: 0; background: none; padding: 2px 4px; border-radius: 4px; }
+.guest:hover { background: var(--sunk); }
+.guest.on { background: var(--lapis); color: var(--surface); }
+.guest.on .purse { color: var(--surface); }
+.guest .purse { font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.away { font-size: 12.5px; color: var(--muted); }
+.feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.feed li { font-size: 13px; padding: 5px 8px; border-radius: 5px; background: var(--sunk); }
+.feed li.seat { background: var(--ochre-wash); }
+.feed li.colloq { background: var(--lapis-wash); }
+.feed li.murder { background: var(--madder-wash); }
+.feed li.quiet { background: none; color: var(--muted); padding: 1px 8px; }
+.feed .t { color: var(--muted); font-size: 11.5px; margin-right: 4px; }
+.feed .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.feed .th { font: italic 13px/1.45 var(--serif); margin-top: 3px; }
+.notebook { white-space: pre-wrap; font: 12.5px/1.5 var(--sans); background: var(--sunk); border-radius: 6px; padding: 8px 10px; margin: 0; max-height: 46vh; overflow-y: auto; }
+.note { color: var(--muted); font-size: 12.5px; }
+
+/* End of game */
+#end { padding: 0 20px 40px; }
+#end > .card { margin-bottom: 14px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; vertical-align: top; padding: 5px 8px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; }
+td .th { font: italic 13.5px/1.45 var(--serif); }
+.v-told, .v-firm { color: var(--verdigris); font-weight: 600; }
+.v-none { color: var(--muted); }
+.v-suspicion { color: var(--ochre); font-weight: 600; }
+.flag-bad { color: var(--madder); font-weight: 600; }
+.flag-ok { color: var(--verdigris); }
+.missing { color: var(--muted); font-size: 12.5px; }
+
+@media (max-width: 900px) {
+  .stage { grid-template-columns: 1fr; padding: 12px 16px; }
+  aside { position: static; max-height: none; }
+  #panels { grid-template-columns: 1fr; }
+  .controls, .bar, #end { padding-left: 16px; padding-right: 16px; }
+}
+</style>
+</head>
+<body>
+<div class="bar">
+  <h1>Gonfaloniere replay</h1>
+  <span class="meta" id="meta"></span>
+  <span class="spacer"></span>
+  <button class="btn" id="open">Open a record</button>
+  <input type="file" id="file" accept=".json,.gz,application/json,application/gzip" hidden>
+</div>
+
+<section id="drop">
+  <h2>Watch a mini-game</h2>
+  <p>Drop a game record here (<code>.json</code> or <code>.json.gz</code>), or choose one. Nothing leaves this page.</p>
+  <button class="btn primary" id="open2">Choose a record</button>
+  <div class="err" id="err" hidden></div>
+</section>
+
+<section id="game" hidden>
+  <div class="controls">
+    <div class="row">
+      <button class="btn primary" id="play" aria-label="Play">Play</button>
+      <button class="btn" id="back" aria-label="Previous line" title="Previous (Left arrow)">&#8249;</button>
+      <button class="btn" id="fwd" aria-label="Next line" title="Next (Right arrow)">&#8250;</button>
+      <select id="speed" aria-label="Speed">
+        <option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option>
+        <option value="4">4×</option><option value="8">8×</option><option value="20">20×</option>
+      </select>
+      <span class="now" id="now"></span>
+      <div class="track">
+        <input type="range" id="slider" min="0" max="0" value="0" aria-label="Position in the game">
+        <div class="ticks" id="ticks"></div>
+      </div>
+      <label class="toggle"><input type="checkbox" id="inner" checked> Inner life</label>
+      <button class="btn" id="toend">End of game</button>
+    </div>
+    <details class="filters">
+      <summary>Filters</summary>
+      <div class="chips" id="fchars"></div>
+      <div class="chips" id="fconvs"></div>
+    </details>
+  </div>
+  <div class="stage">
+    <div id="panels"></div>
+    <aside>
+      <div class="card"><h2>The room</h2><div class="room" id="room"></div></div>
+      <div class="card" id="focuscard" hidden></div>
+      <div class="card"><h2>Moves and seating</h2><ul class="feed" id="feed"></ul></div>
+    </aside>
+  </div>
+  <section id="end" hidden></section>
+</section>
+
+<script type="application/json" id="embedded-record"></script>
+
+<script id="loader">
+(function (root) {
+  "use strict";
+
+  const NOTEBOOK_HEAD = "WHAT YOU REMEMBER FROM EARLIER TONIGHT";
+  const CHARACTER_CALLS = ["plan", "think", "speak", "move", "seat", "murder"];
+  const PROVIDER_FIELDS = ["provider", "quantization", "served_model", "system_provider", "system_quantization", "system_served_model"];
+  const RECORDER_PROVIDER_FIELDS = ["endpoint", "provider", "quantization", "served_model"];
+  // Events that are a step of playback (a line is always one). Moves that stay are listed but not stepped.
+  const MARKED = ["move", "colloquio-open", "colloquio-close", "colloquio-done", "colloquio-waits", "colloquio-wait-lapsed", "seat", "seatless", "seatless-pair", "capannello-closed", "join-waits", "join-resolved", "join-lapsed", "lone-guest-join", "move-noop", "bribe", "borrow", "murder-act", "think-default"];
+
+  const clone = (x) => (x === undefined ? undefined : JSON.parse(JSON.stringify(x)));
+  const arr = (x) => (Array.isArray(x) ? x : []);
+
+  /** Block 6 as the character saw it in one call's prompt, or null. */
+  function block6(user) {
+    if (typeof user !== "string") return null;
+    const i = user.indexOf(NOTEBOOK_HEAD + "\n");
+    if (i < 0) return null;
+    const body = user.slice(i + NOTEBOOK_HEAD.length + 1);
+    const end = body.indexOf("\n\n");
+    return (end < 0 ? body : body.slice(0, end)).trim();
+  }
+
+  function replyField(parsed, key) {
+    if (!parsed || typeof parsed !== "object") return null;
+    const v = parsed.value && typeof parsed.value === "object" ? parsed.value : parsed;
+    return typeof v[key] === "string" ? v[key] : null;
+  }
+
+  /**
+   * Each character's block 6 each time it changed, placed at the event its call produced (a thought,
+   * or for speak() the speech), so the viewer can show the notebook as of any moment. Derived from
+   * the full record's prompts; the replay variant keeps only this, not the prompts.
+   */
+  function notebookViews(full) {
+    const events = arr(full.events);
+    const byKey = new Map();
+    events.forEach((e, i) => {
+      const k = e.type === "thought" ? `${e.character}|${e.call}|${e.text}` : e.type === "speech" ? `${e.speaker}|speak|${e.text}` : null;
+      if (k === null) return;
+      if (!byKey.has(k)) byKey.set(k, []);
+      byKey.get(k).push(i);
+    });
+    const firstOfTurn = new Map();
+    events.forEach((e, i) => { if (!firstOfTurn.has(e.turn)) firstOfTurn.set(e.turn, i); });
+    const used = new Set();
+    const lastText = new Map();
+    const lastAt = new Map();
+    const views = [];
+    for (const c of arr(full.calls)) {
+      if (!c || !c.character || !CHARACTER_CALLS.includes(c.kind)) continue;
+      const text = block6(c.user);
+      if (text === null) continue;
+      const said = replyField(c.parsed, c.kind === "speak" ? "utterance" : "thought");
+      const hits = said === null ? null : byKey.get(`${c.character}|${c.kind}|${said}`);
+      let at = hits ? hits.find((i) => !used.has(i)) : undefined;
+      if (at !== undefined) used.add(at);
+      else at = lastAt.get(c.character) ?? firstOfTurn.get(c.turn) ?? 0;
+      at = Math.max(at, lastAt.get(c.character) ?? 0);
+      lastAt.set(c.character, at);
+      if (lastText.get(c.character) === text) continue;
+      lastText.set(c.character, text);
+      views.push({ character: c.character, turn: c.turn, event: at, call: c.kind, text });
+    }
+    return views.sort((a, b) => a.event - b.event);
+  }
+
+  /**
+   * TD's replay variant of a full record: no model calls (prompts, raw output, tokens per call),
+   * no static prefixes, no seeds, no provider details. Readings and the entries behind knowledge
+   * checks stay; the rest of memory is left out. Added for the viewer: each character's block 6
+   * over the game (notebook_views), and the post-game checks when the runner wrote them.
+   */
+  function toReplay(full, checks) {
+    if (full && full.variant === "replay") return full;
+    const header = clone(full.header || {});
+    delete header.seed;
+    if (header.config && typeof header.config === "object") {
+      for (const k of PROVIDER_FIELDS) delete header.config[k];
+      delete header.config.seed;
+      if (header.briefings) delete header.config.briefings;
+      if (header.config.recorder && typeof header.config.recorder === "object") for (const k of RECORDER_PROVIDER_FIELDS) delete header.config.recorder[k];
+    }
+    const mem = full.memory || {};
+    const entryIds = new Set();
+    const beliefIds = new Set();
+    for (const k of arr(full.knowledge_checks)) {
+      const shown = k.evidenceShown || {};
+      for (const id of arr(shown.entries)) entryIds.add(id);
+      for (const id of arr(shown.beliefs)) beliefIds.add(id);
+      for (const id of arr(k.verdict && k.verdict.evidence)) if (typeof id === "string") (id.startsWith("B") ? beliefIds : entryIds).add(id);
+    }
+    const summary = clone(full.summary || {});
+    return {
+      schema_version: full.schema_version ?? 1,
+      variant: "replay",
+      complete: full.complete ?? null,
+      failure: full.failure ?? null,
+      header,
+      events: clone(arr(full.events)),
+      lines: clone(arr(full.lines)),
+      thoughts: clone(arr(full.thoughts)),
+      memory: {
+        readings: clone(arr(mem.readings)),
+        entries: clone(arr(mem.entries).filter((e) => entryIds.has(e.id))),
+        beliefs: clone(arr(mem.beliefs).filter((b) => beliefIds.has(b.id))),
+      },
+      snapshots: clone(arr(full.snapshots)),
+      murder_round: clone(full.murder_round ?? null),
+      knowledge_checks: clone(arr(full.knowledge_checks)),
+      summary,
+      notebook_views: notebookViews(full),
+      post_game_checks: checks ?? null,
+    };
+  }
+
+  /** Accepts a full or replay record; returns everything the viewer draws, with the fields it couldn't find. */
+  function load(input, checks) {
+    if (!input || typeof input !== "object" || !Array.isArray(input.events)) throw new Error("This file isn't a mini-game record: it has no events list.");
+    const rec = toReplay(input, checks);
+    const header = rec.header || {};
+    const events = arr(rec.events);
+    const missing = [];
+    const need = (ok, name) => { if (!ok) missing.push(name); };
+
+    const lines = new Map();
+    for (const l of arr(rec.lines)) lines.set(l.id, Object.assign({}, l));
+    for (const e of events) {
+      if (e.type !== "speech" || !lines.has(e.line)) continue;
+      const l = lines.get(e.line);
+      if (l.meant === undefined && e.meant !== undefined) l.meant = e.meant;
+      if (l.words === undefined && e.words !== undefined) l.words = e.words;
+    }
+    const allLines = [...lines.values()];
+    const cast = arr(header.cast).length ? header.cast.slice() : arr(header.config && header.config.cast).length ? header.config.cast.slice() : [...new Set(allLines.flatMap((l) => arr(l.heardBy)))];
+
+    const speech = allLines.filter((l) => l.kind === "speech");
+    const thoughtEvents = events.filter((e) => e.type === "thought");
+    need(allLines.length > 0, "lines");
+    need(speech.some((l) => "meant" in l), "speech meant (TD v0.12+)");
+    need(speech.some((l) => "words" in l), "speech words");
+    need(thoughtEvents.some((e) => "after_line" in e), "thought after_line (TD v0.8+)");
+    need(thoughtEvents.some((e) => "took" in e), "thought took (TD v0.9+)");
+    need(thoughtEvents.some((e) => "words" in e), "thought words (TD v0.11+)");
+    need(thoughtEvents.some((e) => "importance" in e), "thought importance");
+    need(events.some((e) => e.type === "seat"), "seat events (TD v0.23+; none in this game, or older)");
+    need(events.some((e) => e.type === "colloquio-open" && "chain" in e), "Colloquio chain and position (TD v0.23+)");
+    need(arr(rec.snapshots).length > 0, "snapshots");
+    need(arr(rec.snapshots).some((s) => arr(s.characters).some((c) => "withdrawals" in c)), "withdrawal counts");
+    need(arr(rec.notebook_views).length > 0, "block 6 notebooks (prompts)");
+    need(arr(rec.memory && rec.memory.readings).length > 0, "readings (TD v0.8+)");
+    need(rec.murder_round && arr(rec.murder_round.acts).length > 0, "Murder Round acts");
+    need(arr(rec.knowledge_checks).length > 0, "knowledge checks");
+    need(rec.post_game_checks && typeof rec.post_game_checks === "object", "post-game checks");
+
+    // Readings keyed by character and line, for records whose thoughts carry no `took` (TD v0.8).
+    const readings = new Map();
+    for (const r of arr(rec.memory && rec.memory.readings)) readings.set(`${r.character}|${r.line}`, r);
+
+    // Steps: every line once, in event order (lines no event names go just before the next one
+    // that does), and the marked events. A step index is a moment of the game.
+    const steps = [];
+    const eventStep = new Array(events.length).fill(-1);
+    const named = new Set(events.map((e) => e.line).filter(Boolean));
+    const num = (id) => Number(String(id).replace(/\D/g, "")) || 0;
+    const unnamed = allLines.filter((l) => !named.has(l.id)).sort((a, b) => num(a.id) - num(b.id));
+    let ui = 0;
+    const done = new Set();
+    const lastHeard = new Map();
+    const lineStep = new Map();
+    const thoughtsByLine = new Map();
+    const thoughtsByTarget = new Map();
+    const looseThoughts = [];
+
+    // Room state as the game unfolds.
+    const snaps = arr(rec.snapshots);
+    const snapByTurn = new Map(snaps.map((s) => [s.turn, s]));
+    const st = { loc: {}, convs: {}, florins: {}, pensions: {}, withdrawals: {} };
+    for (const c of cast) { st.loc[c] = null; st.withdrawals[c] = 0; st.florins[c] = null; st.pensions[c] = null; }
+    if (snaps.length) {
+      // Purses before the first snapshot: that snapshot, less the turn's payments (borrowing and pensions aren't in events).
+      const s0 = snaps[0];
+      for (const c of arr(s0.characters)) { st.florins[c.name] = c.florins; st.pensions[c.name] = c.pensions; }
+      for (const e of events) if (e.type === "bribe" && e.turn <= s0.turn) { st.florins[e.from] = (st.florins[e.from] ?? 0) + e.amount; st.florins[e.to] = (st.florins[e.to] ?? 0) - e.amount; }
+    }
+    const conv = (id, kind) => {
+      if (!st.convs[id]) st.convs[id] = { id, kind: kind || "capannello", open: true, chain: null, position: null, free: false };
+      if (kind) st.convs[id].kind = kind;
+      return st.convs[id];
+    };
+    const states = [];
+    const freeze = () => ({ loc: Object.assign({}, st.loc), convs: JSON.parse(JSON.stringify(st.convs)), florins: Object.assign({}, st.florins), pensions: Object.assign({}, st.pensions), withdrawals: Object.assign({}, st.withdrawals) });
+    const addStep = (s) => { steps.push(s); states.push(freeze()); };
+
+    function applyLine(l) {
+      const w = l.where || {};
+      if (w.kind !== "capannello" && w.kind !== "colloquio") return;
+      const c = conv(l.conversation, w.kind);
+      c.open = true;
+      const members = arr(w.members);
+      for (const m of members) st.loc[m] = c.id;
+      for (const m of cast) if (st.loc[m] === c.id && !members.includes(m)) st.loc[m] = null;
+    }
+    function emitLine(l) {
+      if (done.has(l.id)) return;
+      done.add(l.id);
+      applyLine(l);
+      for (const h of arr(l.heardBy)) lastHeard.set(h, l.id);
+      lineStep.set(l.id, steps.length);
+      addStep({ kind: "line", line: l.id, turn: l.turn ?? 0 });
+    }
+    function emitUnnamedBefore(id) {
+      while (ui < unnamed.length && (id === null || num(unnamed[ui].id) < num(id))) emitLine(unnamed[ui++]);
+    }
+    function applyEvent(e) {
+      switch (e.type) {
+        case "capannelli":
+          arr(e.groups).forEach((g, i) => { const c = conv(`C${i + 1}`, "capannello"); for (const m of arr(g)) st.loc[m] = c.id; });
+          break;
+        case "colloquio-open": {
+          const c = conv(e.conversation, "colloquio");
+          c.open = true;
+          c.chain = e.chain ?? null; c.position = e.position ?? null; c.free = Boolean(e.free);
+          const a = e.initiator ?? e.mover, b = e.invitee ?? e.target;
+          if (a) { st.loc[a] = c.id; st.withdrawals[a] = (st.withdrawals[a] ?? 0) + 1; }
+          if (b) st.loc[b] = c.id;
+          break;
+        }
+        case "colloquio-close": case "capannello-closed": {
+          const c = conv(e.conversation);
+          c.open = false;
+          for (const m of cast) if (st.loc[m] === c.id) st.loc[m] = null;
+          break;
+        }
+        case "seat": if (e.to) { conv(e.to, "capannello").open = true; st.loc[e.character] = e.to; } break;
+        case "seatless": st.loc[e.character] = null; break;
+        case "seatless-pair": conv(e.conversation, "capannello").open = true; for (const m of arr(e.members)) st.loc[m] = e.conversation; break;
+        case "lone-guest-join": st.loc[e.character] = e.to; break;
+        case "join-resolved": st.loc[e.mover] = e.to; break;
+        case "move":
+          if (e.choice === "join" && e.target && st.loc[e.target] && st.convs[st.loc[e.target]] && st.convs[st.loc[e.target]].kind === "capannello") st.loc[e.character] = st.loc[e.target];
+          break;
+        case "bribe": st.florins[e.from] = (st.florins[e.from] ?? 0) - e.amount; st.florins[e.to] = (st.florins[e.to] ?? 0) + e.amount; break;
+        case "turn-end": {
+          const s = snapByTurn.get(e.turn);
+          if (!s) break;
+          const open = new Set(arr(s.conversations).map((c) => c.id));
+          for (const c of arr(s.conversations)) conv(c.id, c.kind).open = true;
+          for (const id of Object.keys(st.convs)) if (!open.has(id)) st.convs[id].open = false;
+          for (const c of arr(s.characters)) {
+            st.loc[c.name] = c.conversation || null;
+            if ("florins" in c) st.florins[c.name] = c.florins;
+            if ("pensions" in c) st.pensions[c.name] = c.pensions;
+            if ("withdrawals" in c) st.withdrawals[c.name] = c.withdrawals;
+          }
+          break;
+        }
+      }
+    }
+
+    events.forEach((e, i) => {
+      if (e.line && lines.has(e.line) && !done.has(e.line)) {
+        emitUnnamedBefore(e.line);
+        applyEvent(e);
+        emitLine(lines.get(e.line));
+        if (MARKED.includes(e.type)) steps[steps.length - 1].event = i;
+      } else {
+        applyEvent(e);
+        if (MARKED.includes(e.type) && !(e.type === "move" && e.choice === "stay")) addStep({ kind: "event", event: i, turn: e.turn ?? 0 });
+      }
+      eventStep[i] = steps.length - 1;
+      if (e.type === "thought") {
+        // `target_line` (TD v0.10): the line the `took` label is about, which can be earlier than the line it followed.
+        const t = { character: e.character, call: e.call, text: e.text, took: e.took, words: e.words, importance: e.importance, closing: Boolean(e.closing), repeat: Boolean(e.repeat), after: e.after_line !== undefined ? e.after_line : lastHeard.get(e.character) ?? null, target: e.target_line ?? null, step: steps.length - 1, turn: e.turn, event: i };
+        if (e.call === "think" && t.after) {
+          if (!thoughtsByLine.has(t.after)) thoughtsByLine.set(t.after, []);
+          thoughtsByLine.get(t.after).push(t);
+          const on = t.target ?? t.after;
+          if (!thoughtsByTarget.has(on)) thoughtsByTarget.set(on, []);
+          thoughtsByTarget.get(on).push(t);
+        } else looseThoughts.push(t);
+      }
+    });
+    emitUnnamedBefore(null);
+
+    const turnStart = new Map();
+    steps.forEach((s, i) => { if (!turnStart.has(s.turn)) turnStart.set(s.turn, i); });
+    const notebooks = new Map();
+    for (const v of arr(rec.notebook_views)) {
+      if (!notebooks.has(v.character)) notebooks.set(v.character, []);
+      notebooks.get(v.character).push({ step: eventStep[v.event] ?? -1, turn: v.turn, call: v.call, text: v.text });
+    }
+    const spoke = new Set(speech.map((l) => l.speaker));
+
+    return {
+      record: rec,
+      header,
+      cast,
+      lines,
+      steps,
+      states,
+      events,
+      eventStep,
+      turnStart,
+      thoughtsByLine,
+      thoughtsByTarget,
+      looseThoughts,
+      readings,
+      lineStep,
+      notebooks,
+      neverSpoke: cast.filter((c) => !spoke.has(c)),
+      missing,
+    };
+  }
+
+  root.GonfaloniereLoader = { load, toReplay, notebookViews, block6 };
+})(typeof globalThis !== "undefined" ? globalThis : this);
+</script>
+
+<script id="app">
+(function () {
+  "use strict";
+  const L = globalThis.GonfaloniereLoader;
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+  let G = null;
+  const ui = { step: 0, playing: false, timer: null, focus: null, inner: true, speed: 1, hideChars: new Set(), hideConvs: new Set(), showEnd: false, lastStep: -1 };
+
+  // ---- Loading -------------------------------------------------------------------------------
+  async function readFile(file) {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    let text;
+    if (buf[0] === 0x1f && buf[1] === 0x8b) {
+      const stream = new Blob([buf]).stream().pipeThrough(new DecompressionStream("gzip"));
+      text = await new Response(stream).text();
+    } else text = new TextDecoder().decode(buf);
+    return JSON.parse(text);
+  }
+  function showError(msg) { const e = $("err"); e.textContent = msg; e.hidden = false; }
+  async function openFile(file) {
+    try { start(L.load(await readFile(file))); }
+    catch (err) { $("game").hidden = true; $("drop").hidden = false; showError(`Couldn't open ${file.name}: ${err.message}`); }
+  }
+  function start(model) {
+    G = model;
+    stop();
+    $("drop").hidden = true;
+    $("game").hidden = false;
+    $("err").hidden = true;
+    const h = G.header;
+    const td = h.docs && h.docs.technicalDesign ? `TD v${h.docs.technicalDesign}` : "";
+    const turns = h.turns ?? (h.config && h.config.turns);
+    $("meta").textContent = [h.game_id, h.date ? h.date.slice(0, 10) : "", td, turns ? `${turns} turns` : "", G.record.complete === false ? "incomplete" : ""].filter(Boolean).join("   ");
+    document.title = `${h.game_id || "Game"}: Gonfaloniere replay`;
+    $("slider").max = String(Math.max(0, G.steps.length - 1));
+    ui.hideChars.clear(); ui.hideConvs.clear(); ui.focus = null; ui.showEnd = false; ui.lastStep = -1;
+    fromHash();
+    buildTicks();
+    buildFilters();
+    render();
+  }
+
+  // ---- URL state: #step=120&focus=Lupo&inner=0 -------------------------------------------------
+  function fromHash() {
+    const p = new URLSearchParams(location.hash.slice(1));
+    if (p.has("step")) ui.step = Math.max(0, Math.min(G.steps.length - 1, Number(p.get("step")) || 0));
+    else if (p.has("turn")) ui.step = G.turnStart.get(Number(p.get("turn"))) ?? 0;
+    else ui.step = 0;
+    if (p.has("focus") && G.cast.includes(p.get("focus"))) ui.focus = p.get("focus");
+    if (p.has("inner")) ui.inner = p.get("inner") !== "0";
+    $("inner").checked = ui.inner;
+    if (p.has("end")) ui.showEnd = true;
+  }
+  function toHash() {
+    const p = new URLSearchParams();
+    p.set("step", String(ui.step));
+    if (ui.focus) p.set("focus", ui.focus);
+    if (!ui.inner) p.set("inner", "0");
+    try { history.replaceState(null, "", "#" + p.toString()); } catch (_) { /* file:// in some browsers */ }
+  }
+
+  // ---- Playback --------------------------------------------------------------------------------
+  function stop() { ui.playing = false; clearInterval(ui.timer); ui.timer = null; $("play").textContent = "Play"; $("play").setAttribute("aria-label", "Play"); }
+  function play() {
+    if (ui.step >= G.steps.length - 1) ui.step = 0;
+    ui.playing = true;
+    $("play").textContent = "Pause"; $("play").setAttribute("aria-label", "Pause");
+    clearInterval(ui.timer);
+    ui.timer = setInterval(() => { if (ui.step >= G.steps.length - 1) { stop(); ui.showEnd = true; render(); return; } go(ui.step + 1); }, 1400 / ui.speed);
+  }
+  function go(step) { ui.step = Math.max(0, Math.min(G.steps.length - 1, step)); render(); }
+  function turnOf(step) { return G.steps[step] ? G.steps[step].turn : 0; }
+  function buildTicks() {
+    const n = Math.max(1, G.steps.length - 1);
+    $("ticks").innerHTML = [...G.turnStart.entries()].map(([t, i]) => `<button data-step="${i}" style="left:${(100 * i) / n}%" title="Turn ${t}">${t === 0 ? "Start" : t}</button>`).join("");
+  }
+
+  // ---- Filters ---------------------------------------------------------------------------------
+  function buildFilters() {
+    const convs = [...new Set([...G.lines.values()].map((l) => l.conversation).filter(Boolean))].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
+    $("fchars").innerHTML = `<span class="lbl">Heard by</span>` + G.cast.map((c) => `<button class="chip" data-char="${esc(c)}" aria-pressed="true">${esc(c)}</button>`).join("");
+    $("fconvs").innerHTML = `<span class="lbl">Conversations</span>` + convs.map((c) => `<button class="chip" data-conv="${esc(c)}" aria-pressed="true">${esc(c)}</button>`).join("");
+  }
+
+  // ---- Rendering -------------------------------------------------------------------------------
+  function highlight(text, words, cls) {
+    const t = esc(text);
+    if (!words) return t;
+    const w = esc(String(words).replace(/^[…."'\s]+|[…."'\s]+$/g, ""));
+    if (!w) return t;
+    const i = t.toLowerCase().indexOf(w.toLowerCase());
+    if (i < 0) return t;
+    return t.slice(0, i) + `<mark class="${cls}">` + t.slice(i, i + w.length) + "</mark>" + t.slice(i + w.length);
+  }
+  function lineVisible(l) { return !l.heardBy || l.heardBy.length === 0 || l.heardBy.some((h) => !ui.hideChars.has(h)); }
+
+  function innerFor(l, who) {
+    // Marginalia under one line for one character: their think() after it, or their meant for their own line.
+    const out = [];
+    if (l.kind === "speech" && l.speaker === who && (l.meant !== undefined || l.words)) {
+      out.push(`<div class="margin own"><div class="tag">${who === ui.focus ? "" : esc(who) + " "}meant it as <b>${esc(l.meant ?? "?")}</b></div>${l.words ? `<div class="words">“${esc(l.words)}”</div>` : ""}</div>`);
+    }
+    for (const t of (G.thoughtsByLine.get(l.id) || [])) {
+      if (t.character !== who || t.step > ui.step) continue;
+      let took = t.took;
+      let words = t.words;
+      if (took === undefined) { const r = G.readings.get(`${who}|${l.id}`); if (r) { took = r.took; words = r.words ?? r.quote; } }
+      const tag = [
+        who === ui.focus ? "" : `<span>${esc(who)}</span>`,
+        t.closing ? "closing think" : "",
+        took !== undefined ? tookTag(t, l, who, took) : "",
+        t.importance !== undefined && !t.closing ? `importance<span class="imp">${esc(t.importance)}</span>` : "",
+      ].filter(Boolean).join(", ");
+      const on = t.target && G.lines.get(t.target) ? G.lines.get(t.target) : l;
+      out.push(`<div class="margin"><div class="tag">${tag}</div>${t.repeat ? `<div class="words">(same thought again)</div>` : `<div class="th">${esc(t.text)}</div>`}${words && (on !== l || !lineHas(l, words)) ? `<div class="words">words: “${esc(words)}”</div>` : ""}</div>`);
+    }
+    return out.join("");
+  }
+  function tookTag(t, l, who, took) {
+    const tl = t.target && t.target !== l.id ? G.lines.get(t.target) : null;
+    if (tl) return `took ${tl.speaker === who ? "their own" : `${esc(tl.speaker ?? "Il Notaio")}'s`} earlier line as <b>${esc(took)}</b>`;
+    return l.speaker === who && took !== "none" ? `took own line as <b>${esc(took)}</b>` : `took it as <b>${esc(took)}</b>`;
+  }
+  function lineHas(l, words) { return esc(l.text).toLowerCase().includes(esc(String(words).replace(/^[…."'\s]+|[…."'\s]+$/g, "")).toLowerCase()); }
+
+  function renderLine(l, fresh) {
+    const cls = l.kind === "notaio" ? "notaio" : l.kind === "event" || l.kind === "action" ? "event" : l.kind === "private" ? "private" : "speech";
+    let text = esc(l.text);
+    const who = ui.focus;
+    if (ui.inner && who) {
+      if (l.speaker === who && l.words) text = highlight(l.text, l.words, "meant");
+      else {
+        const t = (G.thoughtsByTarget.get(l.id) || []).find((x) => x.character === who && x.step <= ui.step && x.words);
+        const r = !t && G.readings.get(`${who}|${l.id}`);
+        const w = t ? t.words : r ? r.words ?? r.quote : null;
+        if (w) text = highlight(l.text, w, "took");
+      }
+    }
+    const sp = l.kind === "notaio" ? "Il Notaio" : l.kind === "private" ? `Private to ${esc(l.speaker)}` : l.speaker ? esc(l.speaker) : "";
+    const to = l.addressee ? `<span class="to">(to ${esc(l.addressee)})</span>` : "";
+    let inner = "";
+    if (ui.inner) {
+      if (who) { if (arr(l.heardBy).includes(who) || l.speaker === who) inner = innerFor(l, who); }
+      else inner = arr(l.heardBy).map((h) => innerFor(l, h)).join("");
+    }
+    return `<div class="ln ${cls}${fresh ? " fresh" : ""}">${sp ? `<span class="sp${l.speaker === who && who ? " me" : ""}">${sp}</span>` : ""}${to}<div class="tx">${text}</div>${inner}</div>`;
+  }
+  const arr = (x) => (Array.isArray(x) ? x : []);
+
+  function membersOf(state, id) { return G.cast.filter((c) => state.loc[c] === id); }
+
+  function renderPanels(state) {
+    const open = Object.values(state.convs).filter((c) => c.open && membersOf(state, c.id).length > 0);
+    const byConv = new Map();
+    for (const [id, s] of G.lineStep) {
+      if (s > ui.step) continue;
+      const l = G.lines.get(id);
+      if (!byConv.has(l.conversation)) byConv.set(l.conversation, []);
+      byConv.get(l.conversation).push(l);
+    }
+    const shown = open.filter((c) => !ui.hideConvs.has(c.id) && membersOf(state, c.id).some((m) => !ui.hideChars.has(m)));
+    shown.sort((a, b) => Number(a.id.slice(1)) - Number(b.id.slice(1)));
+    const freshLine = G.steps[ui.step] && G.steps[ui.step].kind === "line" && ui.step === ui.lastStep + 1 ? G.steps[ui.step].line : null;
+    const html = shown.map((c) => {
+      const ls = (byConv.get(c.id) || []).filter(lineVisible);
+      const mem = membersOf(state, c.id);
+      const title = c.kind === "colloquio" ? `Colloquio ${c.id}` : `Capannello ${c.id}`;
+      const chain = c.chain ? `<span class="chain" title="Colloquio chain and position">${esc(c.chain)}, ${esc(c.position)}${c.free ? ", free" : ""}</span>` : "";
+      return `<section class="panel ${c.kind}${ui.focus && mem.includes(ui.focus) ? " focused" : ""}" data-conv="${esc(c.id)}"><header><h3>${title}${chain}</h3><div class="who">${mem.map(esc).join(", ")}</div></header><div class="body">${ls.length ? ls.map((l) => renderLine(l, l.id === freshLine)).join("") : `<div class="empty">Nothing said here yet.</div>`}</div></section>`;
+    }).join("");
+    $("panels").innerHTML = html || `<div class="card note">No conversation is open at this moment${ui.hideConvs.size || ui.hideChars.size ? " that the filters show" : ""}.</div>`;
+    for (const b of document.querySelectorAll(".panel .body")) b.scrollTop = b.scrollHeight;
+  }
+
+  function purse(state, c) {
+    const f = state.florins[c];
+    const p = state.pensions[c];
+    const w = state.withdrawals[c];
+    return [f === null || f === undefined ? "" : `${f} fl`, p ? `${p} pension${p > 1 ? "s" : ""}` : "", `${w ?? 0} withdrawn`].filter(Boolean).join(", ");
+  }
+  function renderRoom(state) {
+    const groups = Object.values(state.convs).filter((c) => c.open && membersOf(state, c.id).length).sort((a, b) => Number(a.id.slice(1)) - Number(b.id.slice(1)));
+    const guest = (c) => `<button class="guest${ui.focus === c ? " on" : ""}" data-focus="${esc(c)}" aria-pressed="${ui.focus === c}"><span>${esc(c)}</span><span class="purse">${esc(purse(state, c))}</span></button>`;
+    let html = groups.map((g) => `<div class="group ${g.kind}"><div class="gh">${g.kind === "colloquio" ? "Colloquio" : "Capannello"} ${esc(g.id)}${g.chain ? `, chain ${esc(g.chain)} position ${esc(g.position)}` : ""}</div>${membersOf(state, g.id).map(guest).join("")}</div>`).join("");
+    const away = G.cast.filter((c) => !state.loc[c] || !state.convs[state.loc[c]] || !state.convs[state.loc[c]].open);
+    if (away.length) html += `<div class="group"><div class="gh">Not in a group</div>${away.map(guest).join("")}</div>`;
+    html += `<div class="note">Click a guest to follow them. Purses are exact at each turn's end.</div>`;
+    $("room").innerHTML = html;
+  }
+
+  function seatThought(i) {
+    // The seat call's thought is the thought event just before its seat event.
+    for (let j = i - 1; j >= 0 && j >= i - 4; j--) { const e = G.events[j]; if (e.type === "thought" && e.call === "seat" && e.character === G.events[i].character) return e.text; }
+    return null;
+  }
+  function describe(e, i) {
+    const t = `<span class="t">T${e.turn}</span>`;
+    const offered = (o) => arr(o).length ? `<div class="sub">Offered: ${arr(o).map((g) => `${esc(g.conversation)} (${arr(g.members).map(esc).join(", ")}; room for ${esc(g.room)})${g.initiators_own ? " where the caller came from" : ""}`).join("; ")}</div>` : `<div class="sub">Offered: no group had room</div>`;
+    const th = (x) => (x && ui.inner ? `<div class="th">${esc(x)}</div>` : "");
+    switch (e.type) {
+      case "move":
+        if (e.choice === "stay") return { cls: "quiet", html: `${t}${esc(e.character)} stays${e.note ? ` (${esc(e.note)})` : ""}` };
+        return { cls: "", html: `${t}<b>${esc(e.character)}</b> moves: ${e.choice === "colloquio" ? `calls ${esc(e.target)} aside` : e.choice === "join" ? `joins ${esc(e.target)}` : esc(e.choice)}${e.note ? `<div class="sub">${esc(e.note)}</div>` : ""}` };
+      case "colloquio-open":
+        return { cls: "colloq", html: `${t}<b>${esc(e.initiator ?? e.mover)}</b> calls <b>${esc(e.invitee ?? e.target)}</b> aside: Colloquio ${esc(e.conversation)} opens${e.chain ? `<div class="sub">Chain ${esc(e.chain)}, position ${esc(e.position)}${e.free ? ", a free Colloquio" : ""}${e.snapshot ? `; ${esc(e.initiator)} left ${esc(e.snapshot.capannello)} (${arr(e.snapshot.guests).map(esc).join(", ")})` : ""}</div>` : ""}` };
+      case "colloquio-close":
+        return { cls: "colloq", html: `${t}Colloquio ${esc(e.conversation)} closes (${esc(e.why)}, ${esc(e.utterances)} lines)${e.chain ? `<div class="sub">Chain ${esc(e.chain)}, position ${esc(e.position)}</div>` : ""}` };
+      case "colloquio-done": return { cls: "colloq", html: `${t}${esc(e.by)} ends Colloquio ${esc(e.conversation)}` };
+      case "colloquio-waits": return { cls: "colloq", html: `${t}${esc(e.mover)}'s call to ${esc(e.target)} waits until ${esc(e.target)}'s Colloquio ends` };
+      case "colloquio-wait-lapsed": return { cls: "colloq", html: `${t}${esc(e.mover)}'s waiting call to ${esc(e.target)} lapses (${esc(e.note)})` };
+      case "seat": {
+        const head = e.form === "invitee" ? `<b>${esc(e.character)}</b> finds a seat after Colloquio ${esc(e.colloquio)} (invitee, chooses first)`
+          : e.form === "initiator" ? `<b>${esc(e.character)}</b> is placed after Colloquio ${esc(e.colloquio)} (initiator${e.reason ? `: ${esc(e.reason)}` : ""})`
+          : e.form === "lone" ? `<b>${esc(e.character)}</b> is alone in ${esc(e.from)} and finds a seat`
+          : `<b>${esc(e.character)}</b> is seated by the safety net`;
+        const choice = e.choice ? `chose ${esc(e.choice)}${e.target ? ` ${esc(e.target)}` : ""}` : e.target ? `chose ${esc(e.target)}'s group` : "";
+        const asked = e.asked || e.asked_target ? `; asked ${esc(e.asked ?? "")} ${esc(e.asked_target ?? "")}` : "";
+        const outcome = `${choice ? choice + ", " : ""}rule: ${esc(e.rule)}${asked}; ${e.to ? `to ${esc(e.to)}` : e.choice === "colloquio" ? "into a new Colloquio" : e.choice === "wait" ? "seatless for now" : "stays"}${e.note ? ` (${esc(e.note)})` : ""}`;
+        return { cls: "seat", html: `${t}${head}${e.chain ? ` <span class="chain">${esc(e.chain)}, ${esc(e.position)}</span>` : ""}${e.form !== "initiator" || e.offered ? offered(e.offered) : ""}<div class="sub">${outcome}</div>${th(seatThought(i))}` };
+      }
+      case "seatless": return { cls: "seat", html: `${t}${esc(e.character)} is seatless` };
+      case "seatless-pair": return { cls: "seat", html: `${t}${arr(e.members).map(esc).join(" and ")} form a new group, ${esc(e.conversation)}` };
+      case "capannello-closed": return { cls: "seat", html: `${t}Capannello ${esc(e.conversation)} closes: no one left` };
+      case "join-waits": return { cls: "seat", html: `${t}${esc(e.mover)}'s join toward ${esc(e.target)} waits until ${esc(e.target)} is seated` };
+      case "join-resolved": return { cls: "seat", html: `${t}${esc(e.mover)}'s waiting join goes through: to ${esc(e.to)}${e.note ? ` (${esc(e.note)})` : ""}` };
+      case "join-lapsed": return { cls: "seat", html: `${t}${esc(e.mover)}'s join toward ${esc(e.target)} lapses` };
+      case "lone-guest-join": return { cls: "seat", html: `${t}${esc(e.character)} was left alone in ${esc(e.from)} and joins ${esc(e.to)} (interim rule)` };
+      case "move-noop": return { cls: "quiet", html: `${t}${esc(e.character)}: ${esc(e.note)}` };
+      case "bribe": return { cls: "", html: `${t}${esc(e.from)} gives ${esc(e.to)} ${esc(e.amount)} Florins` };
+      case "borrow": return { cls: "", html: `${t}${esc(e.character)} borrows` };
+      case "think-default": return { cls: "quiet", html: `${t}${esc(e.character)}'s think() failed; default used` };
+      case "murder-act": return { cls: "murder", html: `${t}<b>${esc(e.character)}</b> in the Murder Round: ${arr(e.acts).map((a) => `${esc(a.type)}${a.target ? ` ${esc(a.target)}` : ""}`).join(", ") || "no act"}` };
+      case "capannelli": return { cls: "", html: `${t}The guests drift into ${arr(e.groups).length} groups` };
+      default: return null;
+    }
+  }
+  const FEED = new Set(["move", "colloquio-open", "colloquio-close", "colloquio-done", "colloquio-waits", "colloquio-wait-lapsed", "seat", "seatless", "seatless-pair", "capannello-closed", "join-waits", "join-resolved", "join-lapsed", "lone-guest-join", "move-noop", "bribe", "borrow", "murder-act", "think-default", "capannelli"]);
+  function renderFeed() {
+    const items = [];
+    for (let i = G.events.length - 1; i >= 0 && items.length < 80; i--) {
+      const e = G.events[i];
+      if (!FEED.has(e.type) || G.eventStep[i] > ui.step) continue;
+      if (ui.focus && ![e.character, e.mover, e.target, e.initiator, e.invitee, e.from, e.to, e.by, ...arr(e.members)].includes(ui.focus)) continue;
+      const d = describe(e, i);
+      if (d) items.push(`<li class="${d.cls}">${d.html}</li>`);
+    }
+    $("feed").innerHTML = items.join("") || `<li class="quiet">No moves yet.</li>`;
+  }
+
+  function renderFocus(state) {
+    const card = $("focuscard");
+    if (!ui.focus) { card.hidden = true; return; }
+    card.hidden = false;
+    const who = ui.focus;
+    const views = (G.notebooks.get(who) || []).filter((v) => v.step <= ui.step);
+    const nb = views.at(-1);
+    const latest = G.looseThoughts.filter((t) => t.character === who && t.step <= ui.step).at(-1);
+    const where = state.loc[who] && state.convs[state.loc[who]] ? `${state.convs[state.loc[who]].kind === "colloquio" ? "Colloquio" : "Capannello"} ${state.loc[who]}` : "not in a group";
+    card.innerHTML = `<h2>${esc(who)}</h2><div class="note">${esc(where)}; ${esc(purse(state, who))}. <button class="btn" data-focus="">Stop following</button></div>`
+      + (ui.inner ? (latest ? `<div class="margin"><div class="tag">Latest ${esc(latest.call)} thought, turn ${esc(latest.turn)}</div><div class="th">${esc(latest.text)}</div></div>` : "")
+      + `<h2 style="margin-top:10px">What they remember (block 6)</h2>`
+      + (nb ? `<div class="note">As they saw it in their last call, turn ${esc(nb.turn)} (${esc(nb.call)}).</div><pre class="notebook">${esc(nb.text)}</pre>` : `<div class="note">${G.notebooks.size ? "No call yet at this moment." : "This record has no prompts, so block 6 can't be shown."}</div>`)
+      : `<div class="note">Inner life is hidden.</div>`);
+  }
+
+  function renderEnd() {
+    const sec = $("end");
+    const atEnd = ui.showEnd || ui.step >= G.steps.length - 1;
+    sec.hidden = !atEnd;
+    if (!atEnd) return;
+    const r = G.record;
+    const mr = r.murder_round;
+    const acts = mr && arr(mr.acts).length ? `<table><thead><tr><th>Guest</th><th>Act</th>${ui.inner ? "<th>Thought</th>" : ""}</tr></thead><tbody>${arr(mr.acts).map((a) => `<tr><td>${esc(a.character)}</td><td>${arr(a.acts).map((x) => `${esc(x.type)}${x.target ? ` ${esc(x.target)}` : ""}${x.amount ? ` (${esc(x.amount)})` : ""}`).join(", ") || "none"}${a.failed ? " <span class='flag-bad'>(call failed)</span>" : ""}</td>${ui.inner ? `<td><div class="th">${esc(a.thought)}</div></td>` : ""}</tr>`).join("")}</tbody></table><p class="note">${mr.resolved ? "Resolved." : "The mini-game logs each act and doesn't resolve them, so there are no deaths."}</p>` : `<p class="missing">This record has no Murder Round acts.</p>`;
+    const kcs = arr(r.knowledge_checks);
+    const kc = kcs.length ? `<table><thead><tr><th>Guest</th><th>Fact</th><th>Verdict</th><th>Told by</th><th>Reasoning</th></tr></thead><tbody>${kcs.map((k) => { const v = k.verdict || {}; const vv = String(v.verdict ?? "none"); return `<tr><td>${esc(k.character)}</td><td>${esc(k.fact)}</td><td class="v-${esc(vv.split(" ")[0])}">${esc(vv)}${arr(k.flags).length ? `<div class="flag-bad">${arr(k.flags).map(esc).join("; ")}</div>` : ""}</td><td>${arr(v.told_by).map(esc).join(", ")}</td><td><details><summary>${esc(String(v.reasoning ?? "").slice(0, 70))}${String(v.reasoning ?? "").length > 70 ? "…" : ""}</summary>${esc(v.reasoning)}${arr(v.evidence).length ? `<div class="note">Evidence: ${arr(v.evidence).map(esc).join(", ")}</div>` : ""}</details></td></tr>`; }).join("")}</tbody></table>` : `<p class="missing">This record has no knowledge checks.</p>`;
+    const pc = r.post_game_checks;
+    const flags = pc && typeof pc === "object" ? `<table><tbody>${Object.entries(pc).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="${v === true ? "flag-ok" : "flag-bad"}">${v === true ? "passed" : esc(typeof v === "object" ? JSON.stringify(v) : v)}</td></tr>`).join("")}</tbody></table>` : `<p class="missing">This record has no post-game checks (the runner writes them beside the record; an exported view carries them).</p>`;
+    const silent = G.neverSpoke.length ? `<p><span class="flag-bad">Never spoke:</span> ${G.neverSpoke.map(esc).join(", ")}</p>` : `<p class="flag-ok">Every guest spoke.</p>`;
+    const miss = G.missing.length ? `<p class="missing">Not in this record: ${G.missing.map(esc).join("; ")}.</p>` : "";
+    sec.innerHTML = `<div class="card"><h2>Murder Round</h2>${acts}</div><div class="card"><h2>Knowledge checks</h2>${kc}</div><div class="card"><h2>Post-game checks</h2>${silent}${flags}${miss}</div>`;
+  }
+
+  function render() {
+    if (!G) return;
+    const state = G.states[ui.step] || G.states[0] || { loc: {}, convs: {}, florins: {}, pensions: {}, withdrawals: {} };
+    $("slider").value = String(ui.step);
+    const t = turnOf(ui.step);
+    $("now").innerHTML = `${t === 0 ? "Arrival" : `Turn ${t}`}<small>${ui.step + 1} of ${G.steps.length}</small>`;
+    for (const b of $("ticks").children) b.classList.toggle("cur", Number(b.dataset.step) === (G.turnStart.get(t) ?? -1));
+    for (const b of $("fchars").querySelectorAll("[data-char]")) b.setAttribute("aria-pressed", String(!ui.hideChars.has(b.dataset.char)));
+    for (const b of $("fconvs").querySelectorAll("[data-conv]")) b.setAttribute("aria-pressed", String(!ui.hideConvs.has(b.dataset.conv)));
+    renderPanels(state);
+    renderRoom(state);
+    renderFocus(state);
+    renderFeed();
+    renderEnd();
+    ui.lastStep = ui.step;
+    toHash();
+  }
+
+  // ---- Wiring ----------------------------------------------------------------------------------
+  const pick = () => $("file").click();
+  $("open").onclick = pick;
+  $("open2").onclick = pick;
+  $("file").onchange = (e) => { const f = e.target.files && e.target.files[0]; if (f) openFile(f); e.target.value = ""; };
+  for (const ev of ["dragenter", "dragover"]) document.addEventListener(ev, (e) => { e.preventDefault(); $("drop").classList.add("over"); });
+  document.addEventListener("dragleave", (e) => { if (!e.relatedTarget) $("drop").classList.remove("over"); });
+  document.addEventListener("drop", (e) => { e.preventDefault(); $("drop").classList.remove("over"); const f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f) openFile(f); });
+  $("play").onclick = () => (ui.playing ? stop() : play());
+  $("back").onclick = () => { stop(); go(ui.step - 1); };
+  $("fwd").onclick = () => { stop(); go(ui.step + 1); };
+  $("speed").onchange = (e) => { ui.speed = Number(e.target.value); if (ui.playing) play(); };
+  $("slider").oninput = (e) => { stop(); go(Number(e.target.value)); };
+  $("ticks").onclick = (e) => { const b = e.target.closest("[data-step]"); if (b) { stop(); go(Number(b.dataset.step)); } };
+  $("inner").onchange = (e) => { ui.inner = e.target.checked; render(); };
+  $("toend").onclick = () => { stop(); ui.showEnd = true; go(G.steps.length - 1); $("end").scrollIntoView({ behavior: "smooth" }); };
+  document.addEventListener("click", (e) => {
+    const f = e.target.closest("[data-focus]");
+    if (f && G) { ui.focus = f.dataset.focus && ui.focus !== f.dataset.focus ? f.dataset.focus : null; render(); return; }
+    const c = e.target.closest("[data-char]");
+    if (c && G) { const n = c.dataset.char; ui.hideChars.has(n) ? ui.hideChars.delete(n) : ui.hideChars.add(n); render(); return; }
+    const v = e.target.closest("[data-conv]");
+    if (v && G && v.classList.contains("chip")) { const n = v.dataset.conv; ui.hideConvs.has(n) ? ui.hideConvs.delete(n) : ui.hideConvs.add(n); render(); }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (!G || e.target.closest("input, select, textarea")) return;
+    if (e.key === " ") { e.preventDefault(); ui.playing ? stop() : play(); }
+    else if (e.key === "ArrowRight") { stop(); go(ui.step + 1); }
+    else if (e.key === "ArrowLeft") { stop(); go(ui.step - 1); }
+    else if (e.key === "]") { stop(); const t = turnOf(ui.step) + 1; if (G.turnStart.has(t)) go(G.turnStart.get(t)); }
+    else if (e.key === "[") { stop(); const t = Math.max(0, turnOf(ui.step) - (ui.step === G.turnStart.get(turnOf(ui.step)) ? 1 : 0)); go(G.turnStart.get(t) ?? 0); }
+  });
+
+  // An exported view carries its game.
+  const embedded = $("embedded-record").textContent.trim();
+  if (embedded) {
+    try { start(L.load(JSON.parse(embedded))); }
+    catch (err) { showError(`The embedded game couldn't be read: ${err.message}`); }
+  }
+})();
+</script>
+</body>
+</html>

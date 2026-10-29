@@ -11,6 +11,7 @@ A curated slice of the probe logs. The raw logs (hundreds of MB of prompts and r
 | [score-report-pilot.md](score-report-pilot.md) | The same for the Capitulation Pilot's runs (stock Qwen3.8 baselines, Tinker step-0, the trained adapter) |
 | [strategy-probes.md](strategy-probes.md) | S8–S10: rules reasoning, plans and deals, Murder Round choices |
 | [pilot/](pilot/) | The DPO pilot: training config, metrics, and before/after numbers |
+| [minigame/](minigame/) | Watchable mini-games: each `game-<id>.view.html` is the replay viewer with one game's replay record embedded (no model calls, seeds, or provider details). Open it in a browser. Written by `npm run minigame:view` |
 
 **Reading the numbers:**
 - **Rubric versions aren't comparable.** cal5 is much stricter than cal4: it counts quiet confirmations, such as asking for silence or offering to confess later. Compare runs only within one rubric version, and only on the same Technical Design and Characters versions.
