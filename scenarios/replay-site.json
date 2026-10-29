@@ -1,0 +1,10 @@
+{
+  "_comment": "Text for a published replay (npm run minigame:view): the credit every export carries, and the link preview a --site export writes. {game} is the game's number (the g<n> in its id), {cast} the cast size in words, {turns} the turn count, and {privateTalks} how many times one guest drew another aside.",
+  "title": "Gonfaloniere: Minigame Replay #{game}",
+  "description": "A replay of {cast} AI characters scheming in 1492 Florence over {turns} turns. They drew each other aside for {privateTalks}.",
+  "credit": {
+    "text": "Adapted from Matt Clifford's Plots in the Palazzo (CC BY-NC-SA 4.0)",
+    "link": "CC BY-NC-SA 4.0",
+    "licenceUrl": "https://creativecommons.org/licenses/by-nc-sa/4.0/"
+  }
+}

@@ -14,6 +14,7 @@ A curated slice of the probe logs. The raw logs (hundreds of MB of prompts and r
 | [register-check/](register-check/) | TD v0.27's register check, published once Dylan's blind read was done: the read as he marked it, its key, the score, and the admission, insult, and pressure readings in full. Written by `npm run minigame:register`, `minigame:score`, and `minigame:labels` |
 | [voice-check/](voice-check/) | TD v0.29's voice check: Dylan's blind read only, 15 spoken lines from v0.27 and 15 from v0.29, unlabelled. The key and the admission readings stay unpublished until the read is done. Written by `npm run minigame:voice` |
 | [minigame/](minigame/) | Watchable mini-games: each `game-<id>.view.html` is the replay viewer with one game's replay record embedded (no model calls, seeds, or provider details). Open it in a browser. Written by `npm run minigame:view` |
+| [sites/](sites/) | Replays ready to deploy as websites: each folder is one game's `index.html` (the viewer with the game embedded, plus link-preview tags for the site's address) and `preview.png`, the 1200×630 image link previews show. Deploy a folder by dragging it onto the site's Deploys page in Netlify. Written by `npm run minigame:view -- <record> --site <url>` |
 
 **Reading the numbers:**
 - **Rubric versions aren't comparable.** cal5 is much stricter than cal4: it counts quiet confirmations, such as asking for silence or offering to confess later. Compare runs only within one rubric version, and only on the same Technical Design and Characters versions.

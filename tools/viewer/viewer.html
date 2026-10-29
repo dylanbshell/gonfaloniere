@@ -15,6 +15,8 @@
   member's name shows a short description on hover or focus. Sections a record has no data for are hidden.
   CC-20261029-03: the transcript is the dialogue alone; a line's inner life is only in its modal, and a
   followed character's inner life sits in a sidebar box that starts collapsed.
+  CC-20261029-04: the export fills footer#credit and adds the licence to <head>; a --site export also
+  writes the link-preview tags.
 -->
 <style>
 :root {
@@ -216,11 +218,16 @@ dialog#linebox::backdrop { background: rgba(20, 25, 34, 0.45); }
 #tip .bf { font: italic 13px/1.45 var(--serif); margin: 5px 0 6px; }
 #tip .st { opacity: 0.85; }
 
+/* The content credit, filled in by the export (CC-20261029-04) */
+.credit { padding: 14px 20px 22px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12.5px; }
+.credit:empty { display: none; }
+.credit a { color: inherit; }
+
 @media (max-width: 900px) {
   .stage { grid-template-columns: 1fr; padding: 12px 16px; }
   aside { position: static; max-height: none; }
   #panels { grid-template-columns: 1fr; }
-  .controls, .bar, #end { padding-left: 16px; padding-right: 16px; }
+  .controls, .bar, #end, .credit { padding-left: 16px; padding-right: 16px; }
 }
 </style>
 </head>
@@ -282,6 +289,7 @@ dialog#linebox::backdrop { background: rgba(20, 25, 34, 0.45); }
   </div>
   <section id="end" hidden></section>
 </section>
+<footer class="credit" id="credit"></footer>
 
 <dialog id="linebox" aria-labelledby="lb-title">
   <div class="lb-head">
@@ -666,7 +674,8 @@ dialog#linebox::backdrop { background: rgba(20, 25, 34, 0.45); }
     try { start(L.load(await readFile(file))); }
     catch (err) { $("game").hidden = true; $("drop").hidden = false; showError(`Couldn't open ${file.name}: ${err.message}`); }
   }
-  function start(model) {
+  /** `embedded`: the page's own game, whose title the export already wrote (a hosted page keeps its site title). */
+  function start(model, embedded) {
     G = model;
     stop();
     $("drop").hidden = true;
@@ -676,7 +685,7 @@ dialog#linebox::backdrop { background: rgba(20, 25, 34, 0.45); }
     const td = h.docs && h.docs.technicalDesign ? `TD v${h.docs.technicalDesign}` : "";
     const turns = h.turns ?? (h.config && h.config.turns);
     $("meta").textContent = [h.game_id, h.date ? h.date.slice(0, 10) : "", td, turns ? `${turns} turns` : "", G.record.complete === false ? "incomplete" : ""].filter(Boolean).join("   ");
-    document.title = `${h.game_id || "Game"}: Gonfaloniere replay`;
+    if (!embedded) document.title = `${h.game_id || "Game"}: Gonfaloniere replay`;
     $("slider").max = String(Math.max(0, G.steps.length - 1));
     ui.hideChars.clear(); ui.hideConvs.clear(); ui.focus = null; ui.showEnd = false; ui.lastStep = -1;
     fromHash();
@@ -1172,7 +1181,7 @@ dialog#linebox::backdrop { background: rgba(20, 25, 34, 0.45); }
   // An exported view carries its game.
   const embedded = $("embedded-record").textContent.trim();
   if (embedded) {
-    try { start(L.load(JSON.parse(embedded))); }
+    try { start(L.load(JSON.parse(embedded)), true); }
     catch (err) { showError(`The embedded game couldn't be read: ${err.message}`); }
   }
 })();

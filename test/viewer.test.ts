@@ -11,7 +11,8 @@ import { test } from "node:test";
 import { gzipSync } from "node:zlib";
 import { ROSTER } from "../src/game/roster.ts";
 import type { MiniGame } from "../src/minigame/engine.ts";
-import { exportView, keyFindings, readRecord, viewerLoader, viewHtml } from "../src/minigame/view.ts";
+import { pngSize } from "../src/minigame/preview.ts";
+import { exportView, keyFindings, readRecord, siteContent, siteHeadTags, siteMeta, siteUrl, viewerLoader, viewHtml } from "../src/minigame/view.ts";
 import { playFake } from "./fixtures/fake-game.ts";
 
 const loader = viewerLoader();
@@ -67,6 +68,16 @@ function publishedViews(): string[] {
   const dir = "results/published/minigame";
   return existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith(".view.html")).map((f) => join(dir, f)) : [];
 }
+function publishedSites(): string[] {
+  const dir = "results/published/sites";
+  return existsSync(dir) ? readdirSync(dir).map((d) => join(dir, d)).filter((d) => existsSync(join(d, "index.html"))) : [];
+}
+/** The content of a <meta property|name="key"> tag, or null. */
+function metaTag(html: string, key: string): string | null {
+  const m = html.match(new RegExp(`<meta (?:property|name)="${key.replace(/[.:]/g, "\\$&")}" content="([^"]*)">`));
+  return m ? m[1]! : null;
+}
+const SITE_TAGS = ["description", "og:type", "og:title", "og:description", "og:url", "og:image", "og:image:alt", "twitter:card", "twitter:title", "twitter:description", "twitter:image"];
 function embedded(html: string): unknown {
   const m = html.match(/<script type="application\/json" id="embedded-record">([\s\S]*?)<\/script>/);
   assert.ok(m && m[1]!.trim(), "an embedded record");
@@ -195,4 +206,57 @@ test("an export embeds one replay record, contains no key-shaped strings, and re
   assert.ok(keyFindings("token Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4z here").includes("key-shaped token"));
   assert.deepEqual(keyFindings("2026-10-28T23-46-26-090Z-minigame-g1 Gonfaloniere_Technical_Design_v0.25 " + "a".repeat(64)), []);
   assert.throws(() => viewHtml({}, "<html></html>"), /embedded-record/);
+});
+
+test("every export carries the content credit, in its footer and <head> (CC-20261029-04)", () => {
+  const credit = siteContent().credit;
+  for (const html of [viewHtml(loader.toReplay(fakeFull)), ...publishedViews().map((p) => readFileSync(p, "utf8"))]) {
+    const footer = html.match(/<footer class="credit" id="credit">([\s\S]*?)<\/footer>/)?.[1] ?? "";
+    assert.equal(footer.replace(/<[^>]+>/g, ""), credit.text);
+    assert.ok(footer.includes(`<a href="${credit.licenceUrl}" rel="license">${credit.link}</a>`));
+    assert.ok(html.includes(`<link rel="license" href="${credit.licenceUrl}">`));
+    assert.equal(metaTag(html, "dcterms.rights"), credit.text);
+  }
+});
+
+test("a --site page: link-preview tags from the record, an absolute image URL, and no fragment in og:url", () => {
+  const replay = loader.toReplay(fakeFull);
+  const meta = siteMeta(replay, "https://replay.example/games#step=40");
+  assert.equal(meta.url, "https://replay.example/games/");
+  assert.equal(meta.image, "https://replay.example/games/preview.png");
+  assert.equal(meta.title, "Gonfaloniere: Minigame Replay #1");
+  const talks = fake.game.events.filter((e) => e.type === "colloquio-open").length;
+  const say = (n: number) => ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"][n] ?? String(n);
+  assert.ok(meta.description.includes(` ${say(replay.header.cast.length)} AI characters `), meta.description);
+  assert.ok(meta.description.includes(" over 6 turns.") && meta.description.includes(` ${say(talks)} private talk${talks === 1 ? "" : "s"}.`), meta.description);
+  assert.ok(meta.title.length < 60 && meta.description.length < 160);
+  // Nothing from the briefings.
+  assert.ok(!meta.description.includes("a guest tonight"));
+  const html = viewHtml(replay, undefined, undefined, meta);
+  for (const k of SITE_TAGS) assert.ok(metaTag(html, k), k);
+  assert.ok(html.includes(`<link rel="canonical" href="https://replay.example/games/">`));
+  assert.ok(html.includes(`<title>Gonfaloniere: Minigame Replay #1</title>`));
+  assert.deepEqual(siteHeadTags(meta).filter((t) => !html.includes(t)), []);
+  assert.equal(siteUrl("https://a.example"), "https://a.example/");
+  assert.throws(() => siteUrl("file:///tmp/x"), /http/);
+});
+
+test("published sites: every preview tag, an absolute https image, a 1200×630 preview under 1 MB, nothing fetched, nothing key-shaped", () => {
+  for (const dir of publishedSites()) {
+    const html = readFileSync(join(dir, "index.html"), "utf8");
+    for (const k of SITE_TAGS) assert.ok(metaTag(html, k), `${dir}: ${k}`);
+    const url = metaTag(html, "og:url")!;
+    assert.ok(!url.includes("#"), url);
+    for (const k of ["og:image", "twitter:image"]) assert.equal(metaTag(html, k), new URL("preview.png", url).href, k);
+    assert.match(metaTag(html, "og:image")!, /^https:\/\//);
+    assert.equal(metaTag(html, "twitter:card"), "summary_large_image");
+    assert.ok(metaTag(html, "og:title")!.length < 60 && metaTag(html, "og:description")!.length < 160);
+    // Opens offline: no external scripts, stylesheets, images, or frames.
+    assert.doesNotMatch(html, /<(script|img|iframe)[^>]+src="https?:|<link[^>]+rel="(stylesheet|preload|modulepreload|icon)"[^>]+href="https?:/);
+    const png = readFileSync(join(dir, "preview.png"));
+    assert.deepEqual(pngSize(png), { width: 1200, height: 630 });
+    assert.ok(png.length < 1024 * 1024, `${png.length} bytes`);
+    assert.deepEqual(keyFindings(html, {}), [], dir);
+    assert.deepEqual(keyFindings(png.toString("latin1"), {}), [], `${dir}/preview.png`);
+  }
 });
