@@ -1,8 +1,17 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.30
+### Version 0.31
 
 ---
+
+## Changes in v0.31
+
+*Dylan, Oct 29, after reading the v0.29 games in the viewer: the language, and how cloying everyone is, bothered him. Back to v0.28's wording.*
+
+- **Blocks 1 and 9b return to v0.28's wording, word for word:** block 1 again bars "proverbs or flowery metaphors", and 9b again reads "No 'thee' or 'thou', no proverbs, riddles, or flowery metaphors, and no speeches. Being vague or evasive is fine; being ornate is not." Every prompt is now identical to v0.27/v0.28's
+- **The research baseline returns to the v0.27 games** (CC-20261028-09, seeds 2000–2001), the last games on this wording. The v0.29 games stay in the record as a tested variant
+- **Cloying is a separate problem, possibly not the wording's** (Open Questions): characters flattering each other may come from 9b's own list ("tell the truth, lie, bluff, flatter, threaten, or stay vague"), which both versions share
+- Everything else in v0.30 stands: the leak guardrail closed by reading the readings, Raffaello's plot point, the counting fix, the viewer
 
 ## Changes in v0.30
 
@@ -666,7 +675,7 @@ You know only two things: what is in your briefing, and what you have personally
 
 This is not the Florence of the history books. Who these people are, how they are related, and what has happened are exactly as your briefing and this evening show you, even where that differs from history as you know it. No one knows what the years ahead will bring.
 
-Speak and think in plain, everyday English: no "thee" or "thou", and no modern slang.
+Speak and think in plain, everyday English: no "thee" or "thou", no proverbs or flowery metaphors, and no modern slang.
 ```
 
 ### Block 2 — Rules primer (shared)
@@ -812,7 +821,7 @@ It is your turn to speak. {closing_line_note}
 
 Say one thing, as {character_name} would say it.
 - One to three short sentences, about 40 words at most. Spoken words only: no narration, no stage directions, no thoughts.
-- Speak plainly and directly, the way people really talk: short sentences, sometimes blunt. Names, titles, and Florins belong; modern slang does not. No "thee" or "thou", and no speeches. A sharp turn of phrase now and then is fine, if it's purposeful and in your own voice; just don't build every line on a metaphor or a proverb. Being vague or evasive is fine; being ornate is not.
+- Speak plainly and directly, the way people really talk: short sentences, sometimes blunt. Names, titles, and Florins belong; modern slang does not. No "thee" or "thou", no proverbs, riddles, or flowery metaphors, and no speeches. Being vague or evasive is fine; being ornate is not.
 - If someone has just addressed you directly, answer them.
 - You may tell the truth, lie, bluff, flatter, threaten, or stay vague — whatever serves your goals. Your secrets are yours: reveal one only as a deliberate move, never by accident. Do not recite your private thoughts.
 - Someone claiming to know your secret, or threatening you, is not a reason to confirm it. Never confirm a secret you have not chosen to reveal: refuse, deflect, or demand proof instead.
@@ -846,7 +855,7 @@ In a **Colloquio** (there is only one other person, so nobody needs designating)
 - **Risk:** `speak()` carries the secret-keeping lines measured in S5d, so this is a change to the call most tied to past gate results. The re-check should watch `speak()` repairs and, if it's affordable, leak lines (Models & Research's call)
 - **`words` here are copied from text the speaker has just written,** so they should almost always be found
 
-**Register** *(v0.27; adopted in v0.28 after the register check; ornament ban loosened in v0.29 and adopted in v0.30)*: the first two bullets replace "One to three sentences, about 60 words at most" and "Speak as a person of 1492 Florence would, in clear modern English." With the old line, DeepSeek kept the period and dropped the plain: ornate metaphor, every character alike, 45 words a line on average. The new line describes the target's qualities (short, direct, sometimes blunt, modern grammar, the world's own names) without naming any drama, and it bars both ornament and slang. "Sometimes blunt" could push labels toward pressure or insult, which is one of the check's guardrails. Distinct voices per character are the briefings' job, not this line's (Characters).
+**Register** *(v0.27; adopted in v0.28 after the register check; ornament ban loosened in v0.29 and v0.30, restored in v0.31)*: the first two bullets replace "One to three sentences, about 60 words at most" and "Speak as a person of 1492 Florence would, in clear modern English." With the old line, DeepSeek kept the period and dropped the plain: ornate metaphor, every character alike, 45 words a line on average. The new line describes the target's qualities (short, direct, sometimes blunt, modern grammar, the world's own names) without naming any drama, and it bars both ornament and slang. "Sometimes blunt" could push labels toward pressure or insult, which is one of the check's guardrails. Distinct voices per character are the briefings' job, not this line's (Characters).
 
 **The three secret-keeping lines** (v0.5, from Models & Research's Oct 23 findings): the **claim line** (9a), the **reply line**, and the **audience line** (9b). They go in every `think()` and `speak()` call, Colloquio included. The audience line was tested in all conversation types, and keeping one wording everywhere avoids an untested variant. On DeepSeek V4.1 they took S5d from 2/10 to 9/10 held and the held-out script from 1/10 to 5/10, with no rise in lying and clean S1, S4, and S6. They did little on Qwen3.8, so re-test them if the play model changes.
 
@@ -2095,8 +2104,9 @@ It reads all 86 saved mini-game records, degrading gracefully where older ones l
   - **Rule, set in advance:** adopt v0.29 if it gets at least 3 more "real character" marks than v0.28, at most 2 more "hard to follow" marks, and no guardrail flags. Otherwise v0.28 stays
   - **Guardrails, against the v0.27 games:** words per line (flag a mean above 36), the label-mix rule of the register check, and the runner's knowledge checks
   - **If the voices still sound alike,** the next lever is sample voice lines in the briefings (Characters), not more prompt wording
-  - **Result (v0.30): adopted on Dylan's judgment,** without the marked read; code measures and guardrails clean (Changes in v0.30). Further register tuning comes with the briefings' voice lines
+  - **Reverted in v0.31** after Dylan read the v0.29 games in the viewer and found the language cloying. **Earlier result (v0.30): adopted on Dylan's judgment,** without the marked read; code measures and guardrails clean (Changes in v0.30). Further register tuning comes with the briefings' voice lines
 - ~~**Leaks under the plain register**~~ Closed in v0.30 by reading the readings: the admission rise is mostly private-talk invitations and deliberate cover stories, with no secret learned. Original item (v0.28): `took: admission` rose from 0.8% to 4.8%. Read the admission readings in `labels.md`; if they're secrets slipping rather than ordinary admissions ("fine, I paid him"), run the secrets judge on the four register-check games (~$1.59) before the first full games. If leaks rose by more than 2, the fix is in the secret-keeping lines, not a return to ornate speech
+- **Cloying characters** (v0.31): in the v0.29 games, Dylan found everyone too sweet with each other. If the v0.27 wording shows it too, the cause is likely not the ornament line but 9b's permission list ("tell the truth, lie, bluff, flatter, threaten, or stay vague"), the only place a prompt names flattery, or the model's own politeness. Check first by reading the v0.27 games in the viewer; any rewording of that list touches a tested secret-keeping bullet, so it would get its own check
 - **The claim-line echo** (v0.28): thoughts often restate "my story stays straight" or "I have told no untruth tonight". Rewording 9a's claim line could cut the filler, but it's a tested gate result (S5d), so Models & Research decides whether to test a variant
 - Does the real-history line in block 1 dull useful period knowledge? (Watch voice and play in the mini-game; Models & Research may probe leakage)
 - Does the tightened addressee instruction bring false positives down on non-DeepSeek bases? (Models & Research to re-measure)
