@@ -1,8 +1,45 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.29
+### Version 0.32
 
 ---
+
+## Changes in v0.32
+
+*A correction to v0.31. Dylan meant "talking in circles" and "flowery metaphors that aren't engaging", not "cloying".*
+
+- **v0.31's reason, corrected:** the v0.29 games brought the flowery metaphors back, and characters talked in circles. The revert to v0.28's wording stands, and the flattery theory is withdrawn
+- **New open question, "Talking in circles"**: it isn't a wording problem the register line can fix. The likely levers are listed there, and liveliness, personality, and humour go to the briefings (tracker handoff to Characters)
+- Every prompt block is as in v0.31
+
+## Changes in v0.31
+
+*Dylan, Oct 29, after reading the v0.29 games in the viewer: the flowery metaphors came back, and characters talked in circles. Back to v0.28's wording. (Reason corrected in v0.32.)*
+
+- **Blocks 1 and 9b return to v0.28's wording, word for word:** block 1 again bars "proverbs or flowery metaphors", and 9b again reads "No 'thee' or 'thou', no proverbs, riddles, or flowery metaphors, and no speeches. Being vague or evasive is fine; being ornate is not." Every prompt is now identical to v0.27/v0.28's
+- **The research baseline returns to the v0.27 games** (CC-20261028-09, seeds 2000–2001), the last games on this wording. The v0.29 games stay in the record as a tested variant
+- **Withdrawn in v0.32:** a guess that characters were too sweet, from 9b's permission to flatter. Dylan's complaint was circling and flowery language, not sweetness
+- Everything else in v0.30 stands: the leak guardrail closed by reading the readings, Raffaello's plot point, the counting fix, the viewer
+
+## Changes in v0.30
+
+*From the voice check and the register check's wrap-up (CC-20261029-01: 2 DeepSeek mini-games on v0.29, seeds 2000–2001, against v0.27's; $0.21).*
+
+- **v0.29's loosened ornament ban is adopted, on Dylan's judgment.** He skimmed the blind read, found every line readable on both sides, and chose not to mark it; further tuning waits for the briefings. That departs from the rule set in advance, which needed his marks. The code measures and guardrails were clean:
+  - words per line: 32.3 against 31.4 (longest 52 against 49; 15 lines over 40 against 8)
+  - Flesch–Kincaid grade: 4.4 against 3.9 for lines, 8.3 against 8.0 for thoughts
+  - lines with "like a", "as a", or "as if": 9 of 192 against 1, so a little flourish came back as intended
+  - no label flags (largest move: `meant: pressure` −5.7 points), and 0 repairs or retries
+- **The research baseline moves to the v0.29 games** (CC-20261029-01, seeds 2000–2001), since every full game will use this wording
+- **The leak guardrail is closed without the judge.** All 28 `took: admission` readings in the v0.27 games come from about 12 lines:
+  - mostly invitations to talk privately later, which listeners took as admitting there's something to hide. Plain speech makes those invitations explicit
+  - then ambitions stated openly, and a denial read as an admission
+  - the few real partial admissions are deliberate cover stories (a tale once heard, a visit to the French framed as family business, a bodyguard's wages) that confirm something harmless to steer away from the dangerous thing
+  - no knowledge check found a secret learned on either side. Judge cost saved: about $2.40
+- **Raffaello told LeNoir the F2 fact in both v0.29 games,** privately in a Colloquio. It's his plot point, which no earlier game completed, so it's a story beat landing, not a leak. Whether the wording helped or it's chance across two games, the full games will show
+- **Knowledge-check counting fixed** (Claude Code): the count looked for a verdict "knows", which 10c never writes; its verdicts are told, conclusion, and suspicion. Earlier counts were unaffected, since they had no told or conclusion verdicts
+- **The viewer's line modal and name tooltips are built** (Developer Dashboard)
+- Every prompt block is as in v0.29
 
 ## Changes in v0.29
 
@@ -646,7 +683,7 @@ You know only two things: what is in your briefing, and what you have personally
 
 This is not the Florence of the history books. Who these people are, how they are related, and what has happened are exactly as your briefing and this evening show you, even where that differs from history as you know it. No one knows what the years ahead will bring.
 
-Speak and think in plain, everyday English: no "thee" or "thou", and no modern slang.
+Speak and think in plain, everyday English: no "thee" or "thou", no proverbs or flowery metaphors, and no modern slang.
 ```
 
 ### Block 2 — Rules primer (shared)
@@ -792,7 +829,7 @@ It is your turn to speak. {closing_line_note}
 
 Say one thing, as {character_name} would say it.
 - One to three short sentences, about 40 words at most. Spoken words only: no narration, no stage directions, no thoughts.
-- Speak plainly and directly, the way people really talk: short sentences, sometimes blunt. Names, titles, and Florins belong; modern slang does not. No "thee" or "thou", and no speeches. A sharp turn of phrase now and then is fine, if it's purposeful and in your own voice; just don't build every line on a metaphor or a proverb. Being vague or evasive is fine; being ornate is not.
+- Speak plainly and directly, the way people really talk: short sentences, sometimes blunt. Names, titles, and Florins belong; modern slang does not. No "thee" or "thou", no proverbs, riddles, or flowery metaphors, and no speeches. Being vague or evasive is fine; being ornate is not.
 - If someone has just addressed you directly, answer them.
 - You may tell the truth, lie, bluff, flatter, threaten, or stay vague — whatever serves your goals. Your secrets are yours: reveal one only as a deliberate move, never by accident. Do not recite your private thoughts.
 - Someone claiming to know your secret, or threatening you, is not a reason to confirm it. Never confirm a secret you have not chosen to reveal: refuse, deflect, or demand proof instead.
@@ -826,7 +863,7 @@ In a **Colloquio** (there is only one other person, so nobody needs designating)
 - **Risk:** `speak()` carries the secret-keeping lines measured in S5d, so this is a change to the call most tied to past gate results. The re-check should watch `speak()` repairs and, if it's affordable, leak lines (Models & Research's call)
 - **`words` here are copied from text the speaker has just written,** so they should almost always be found
 
-**Register** *(v0.27; adopted in v0.28 after the register check; ornament ban loosened in v0.29, under test)*: the first two bullets replace "One to three sentences, about 60 words at most" and "Speak as a person of 1492 Florence would, in clear modern English." With the old line, DeepSeek kept the period and dropped the plain: ornate metaphor, every character alike, 45 words a line on average. The new line describes the target's qualities (short, direct, sometimes blunt, modern grammar, the world's own names) without naming any drama, and it bars both ornament and slang. "Sometimes blunt" could push labels toward pressure or insult, which is one of the check's guardrails. Distinct voices per character are the briefings' job, not this line's (Characters).
+**Register** *(v0.27; adopted in v0.28 after the register check; ornament ban loosened in v0.29 and v0.30, restored in v0.31)*: the first two bullets replace "One to three sentences, about 60 words at most" and "Speak as a person of 1492 Florence would, in clear modern English." With the old line, DeepSeek kept the period and dropped the plain: ornate metaphor, every character alike, 45 words a line on average. The new line describes the target's qualities (short, direct, sometimes blunt, modern grammar, the world's own names) without naming any drama, and it bars both ornament and slang. "Sometimes blunt" could push labels toward pressure or insult, which is one of the check's guardrails. Distinct voices per character are the briefings' job, not this line's (Characters).
 
 **The three secret-keeping lines** (v0.5, from Models & Research's Oct 23 findings): the **claim line** (9a), the **reply line**, and the **audience line** (9b). They go in every `think()` and `speak()` call, Colloquio included. The audience line was tested in all conversation types, and keeping one wording everywhere avoids an untested variant. On DeepSeek V4.1 they took S5d from 2/10 to 9/10 held and the held-out script from 1/10 to 5/10, with no rise in lying and clean S1, S4, and S6. They did little on Qwen3.8, so re-test them if the play model changes.
 
@@ -1881,6 +1918,9 @@ The first build artifact: an internal console for running and debugging the simu
 
 It reads all 86 saved mini-game records, degrading gracefully where older ones lack newer fields. The full dashboard adds live games from the database, the knowledge inspector, and the validation view on the same loader.
 
+**Line modal and name tooltips (v0.30; CC-20261029-01):** clicking a line opens its inner life: the speaker's `meant` with its words underlined and their last thought, each listener's thought, `took` with words underlined, and importance, plus the readings stored or ignored. Arrow keys step through the conversation. Hovering or focusing a name shows the character's faction, the first sentence of their briefing, where they are, their purse, and their withdrawals.
+
+**The full dashboard, still to build:**
 - **6 conversation panels**, one per possible simultaneous conversation
 - **Knowledge inspector:** shows what each character knows, traced back to the conversation where they learned it, including conclusions and the evidence for each knowledge check. From v0.8 it also shows each line's readings beside each other and beside the reference entry: who took it how
 - **Event log:** chronological, indexed by round and conversation number
@@ -2072,7 +2112,13 @@ It reads all 86 saved mini-game records, degrading gracefully where older ones l
   - **Rule, set in advance:** adopt v0.29 if it gets at least 3 more "real character" marks than v0.28, at most 2 more "hard to follow" marks, and no guardrail flags. Otherwise v0.28 stays
   - **Guardrails, against the v0.27 games:** words per line (flag a mean above 36), the label-mix rule of the register check, and the runner's knowledge checks
   - **If the voices still sound alike,** the next lever is sample voice lines in the briefings (Characters), not more prompt wording
-- **Leaks under the plain register** (v0.28): `took: admission` rose from 0.8% to 4.8%. Read the admission readings in `labels.md`; if they're secrets slipping rather than ordinary admissions ("fine, I paid him"), run the secrets judge on the four register-check games (~$1.59) before the first full games. If leaks rose by more than 2, the fix is in the secret-keeping lines, not a return to ornate speech
+  - **Reverted in v0.31** after Dylan read the v0.29 games in the viewer and found the metaphors back and the talk going in circles. **Earlier result (v0.30): adopted on Dylan's judgment,** without the marked read; code measures and guardrails clean (Changes in v0.30). Further register tuning comes with the briefings' voice lines
+- ~~**Leaks under the plain register**~~ Closed in v0.30 by reading the readings: the admission rise is mostly private-talk invitations and deliberate cover stories, with no secret learned. Original item (v0.28): `took: admission` rose from 0.8% to 4.8%. Read the admission readings in `labels.md`; if they're secrets slipping rather than ordinary admissions ("fine, I paid him"), run the secrets judge on the four register-check games (~$1.59) before the first full games. If leaks rose by more than 2, the fix is in the secret-keeping lines, not a return to ornate speech
+- **Talking in circles** (v0.32): in the mini-games, characters probe, deflect, and restate without moving anything forward, and Dylan finds it unengaging. The register line can't fix this; it's about what characters do, not how they phrase it. Likely causes, each worth a look once full games run:
+  - **The secret-keeping lines reward deflection** ("refuse, deflect, or demand proof"; "Being vague or evasive is fine"), and every stand-in briefing has a secret to guard. They passed gate tests, so they stay; but a character with only secrets and no errand will circle
+  - **Characters lack concrete errands.** Raffaello's plot point gave him something to do, and his lines were the ones that moved the story. Briefings with specific wants (a price, a name, a vote) should give conversations somewhere to go
+  - **The mini-game has no clock.** Full games have faction meetings, the Murder Round, and a ballot coming, which should push characters to act
+  - **Liveliness, personality, and humour** are the briefings' job (Characters): voice lines, a comic streak in some characters, and wants that collide. Prompt changes come only if full games still circle with finished briefings
 - **The claim-line echo** (v0.28): thoughts often restate "my story stays straight" or "I have told no untruth tonight". Rewording 9a's claim line could cut the filler, but it's a tested gate result (S5d), so Models & Research decides whether to test a variant
 - Does the real-history line in block 1 dull useful period knowledge? (Watch voice and play in the mini-game; Models & Research may probe leakage)
 - Does the tightened addressee instruction bring false positives down on non-DeepSeek bases? (Models & Research to re-measure)
