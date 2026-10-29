@@ -143,6 +143,16 @@ test("TD v0.29's voice wording: every prompt is v0.27's with only block 1's line
   assert.ok(systems > 200 && speaks > 50, `${systems} systems with block 1, ${speaks} speaks`);
 });
 
+test("TD v0.32 reverts v0.29's voice wording: every prompt is byte-identical to v0.27's", async () => {
+  const before = (await playFakeOn(loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.27") }))).calls;
+  const after = (await playFakeOn(loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.32") }))).calls;
+  assert.equal(after.length, before.length);
+  after.forEach((c, i) => assert.deepEqual(c, before[i], `${c.kind} ${i}`));
+  assert.equal(promptHash(after), promptHash(before));
+  assert.ok(after.filter((c) => c.kind === "speak").every((c) => c.user.includes('No "thee" or "thou", no proverbs, riddles, or flowery metaphors, and no speeches. Being vague or evasive is fine; being ornate is not.')));
+  assert.ok(after.every((c) => !/sharp turn of phrase/.test(c.system + c.user)));
+});
+
 test("lore file: only approved, canon-checked entries load; scopes are public or a full name; the hash is of the file's bytes", () => {
   const dir = mkdtempSync(join(tmpdir(), "lore-"));
   const path = join(dir, "lore.json");
@@ -384,7 +394,7 @@ describe("live store (PostgreSQL + pgvector)", { skip: DB ? false : "TEST_DATABA
   });
 
   test("lore off with the store present: prompts still byte-identical to before", async () => {
-    const { calls } = await playFake({ lore: "off" }, {}, store());
+    const { calls } = await playFakeOn(docs24, { lore: "off" }, {}, store());
     assert.equal(promptHash(calls), PROMPTS_BEFORE_STORE);
   });
 
