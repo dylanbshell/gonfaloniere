@@ -303,7 +303,7 @@ export class MiniGame {
       this.notaio(conv, smaller);
       this.notaio(conv, `The guests drifted into company: ${listJoin(conv.members)}.`);
     }
-    this.events.push({ turn: 0, type: "capannelli", groups: [...this.convs.values()].map((c) => c.members), rotation: this.rotation });
+    this.events.push({ turn: 0, type: "capannelli", groups: [...this.convs.values()].map((c) => [...c.members]), rotation: this.rotation });
   }
 
   /** No faction meeting in the mini-game: one strategy call (9d) per character to open. */
@@ -887,10 +887,12 @@ export class MiniGame {
       return;
     }
     const groups = this.openGroups();
+    // Logged before placing, so it shows the groups as they were offered.
+    const offered = this.offeredLog(groups);
     const pick = this.fewest(i, groups);
     if (pick) this.place(pick.conv, i);
     else this.makeSeatless(i);
-    this.events.push({ ...base, reason, offered: this.offeredLog(groups), rule: pick ? pick.rule : "seatless", to: pick?.conv.id ?? null });
+    this.events.push({ ...base, reason, offered, rule: pick ? pick.rule : "seatless", to: pick?.conv.id ?? null });
   }
 
   /** After any change of seats: seatless guests pair, waiting joins whose target is seated go, then lone guests. */
@@ -965,10 +967,11 @@ export class MiniGame {
     for (const c of [...this.seatless]) {
       this.seatless = this.seatless.filter((x) => x !== c);
       const groups = this.openGroups();
+      const offered = this.offeredLog(groups);
       const pick = this.fewest(c, groups);
       const to = pick ? pick.conv : this.newConversation("capannello", []);
       this.place(to, c);
-      this.events.push({ turn: this.turn, type: "seat", form: "safety net", character: c, offered: this.offeredLog(groups), rule: pick ? pick.rule : "new group of one", to: to.id });
+      this.events.push({ turn: this.turn, type: "seat", form: "safety net", character: c, offered, rule: pick ? pick.rule : "new group of one", to: to.id });
     }
     for (const w of this.waitingJoins.filter((x) => x.turn < this.turn)) {
       this.waitingJoins = this.waitingJoins.filter((x) => x !== w);
@@ -1266,7 +1269,8 @@ export class MiniGame {
     this.snapshots.push({
       label,
       turn: this.turn,
-      conversations: [...this.convs.values()].filter((c) => c.open).map((c) => ({ id: c.id, kind: c.kind, members: c.members, ...(c.seating && { seating: c.seating }) })),
+      // Copies: members change in place later (a seat is pushed), and the record must keep this moment.
+      conversations: [...this.convs.values()].filter((c) => c.open).map((c) => ({ id: c.id, kind: c.kind, members: [...c.members], ...(c.seating && { seating: structuredClone(c.seating) }) })),
       characters: [...this.chars.values()].map((c) => ({ name: c.name, florins: c.florins, pensions: c.pensions, withdrawals: c.withdrawals, conversation: c.conversation })),
       treasury: this.treasury,
       ledger: Object.fromEntries(this.ledger),

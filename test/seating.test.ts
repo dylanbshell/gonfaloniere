@@ -225,7 +225,22 @@ test("initiator: own group full because the invitee took the last seat → the o
   const ini = s.events("seat").find((e) => e.form === "initiator")!;
   assert.equal(ini.reason, "own full");
   assert.equal(ini.rule, "fewest guests");
+  // The groups as offered, before the initiator took the seat (CC-20261028-08: was logged after).
+  assert.deepEqual(ini.offered, [{ conversation: s.convOf(F).id, members: [F, R], room: 1 }]);
   assert.deepEqual(s.groups(), sorted([A, G, I], [F, L, R]));
+});
+
+test("the record keeps each moment: snapshots and the opening groups copy members, not share them (CC-20261028-08)", async () => {
+  const s = seated([], []);
+  s.x.openCapannelli();
+  const opening = structuredClone(s.events("capannelli")[0]!.groups);
+  s.x.snapshot("before");
+  const before = structuredClone(s.x.snapshots[0].conversations);
+  // A seat pushed into a group later (as a lone guest's or a returner's) must not reach back.
+  const [c1, c2] = [...s.x.convs.values()];
+  c1.members.push(c2.members[0]);
+  assert.deepEqual(s.events("capannelli")[0]!.groups, opening);
+  assert.deepEqual(s.x.snapshots[0].conversations, before);
 });
 
 test("initiator: own group dissolved because it emptied (closed for good)", async () => {
