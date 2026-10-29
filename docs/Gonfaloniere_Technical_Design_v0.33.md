@@ -1,8 +1,16 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.32
+### Version 0.33
 
 ---
+
+## Changes in v0.33
+
+*Dylan, Oct 29: the first full games may use Clifford's original briefings as stand-ins for the 9 characters not yet rewritten. Before the full game loop, he'll have voice examples invented in another chat, to get a feel for the game.*
+
+- **Stand-in briefings for the first full games** (Block 3): the 3 rewritten briefings (Lupo, Isabella, LeNoir) plus original-briefing stand-ins for the other 9, as the mini-game already does for 3. Fine for testing the engine and the game's feel; research batches wait for the rewritten set
+- **Voice examples: what the engine needs from them** (Block 3, "Voice examples"): where they sit, how long, and the rules that keep them from overriding the register, leaking secrets, or being copied word for word. They're content, so the Characters chat writes them; this section only fixes the shape
+- Every prompt block's wording is unchanged
 
 ## Changes in v0.32
 
@@ -721,6 +729,17 @@ When off: empty.
 ### Block 3 — Briefing
 
 The character's briefing from Characters, verbatim, under the heading `YOUR BRIEFING`.
+
+**Stand-ins for the first full games** *(v0.33, Dylan)*: until all 12 briefings are rewritten, a character without one uses Clifford's original briefing, trimmed as the mini-game's stand-ins are (`scenarios/minigame-standin-briefings.md`), with the economy, cut characters, and dropped mechanics removed. Fine for engine testing and for judging the game's feel. **Research batches wait for the rewritten set,** since a stand-in changes what the character wants and knows. The game record header lists which briefings were stand-ins.
+
+**Voice examples** *(v0.33; the content is the Characters chat's)*: a short "How you speak" passage inside "Who you are" (Characters, Briefing Template, item 1). What the engine needs from it:
+- **Size:** 2–3 plain sentences describing the voice (sentence length, temperament, what they joke about or avoid), then 3–5 example lines. About 100–150 tokens in all, inside the briefing's ~1,000
+- **The examples must obey the register** (block 9b): plain English, about 40 words at most, no "thee" or "thou", no proverbs or flowery metaphors, no modern slang. Models copy examples more readily than they follow instructions, so one ornate example would undo the register line
+- **Varied situations, no catchphrases:** a deflection, a bargain, a jab, a joke, a refusal, each tied to a moment rather than a reusable phrase. Introduce them as "how you sound, not lines to repeat", since a memorable line would otherwise be said every game
+- **No secrets or plot facts in the examples.** They sit in every prompt, so a line hinting at a secret would prime leaks. Keep them on public matters or invented small talk
+- **Voice, not strategy.** Examples should change how a character sounds, not how bold or cautious they are, since boldness and caution are the personality variants the research measures (Models & Research, Research Design). A voice line like "I never back down" would confound that
+- **Distinct across the cast:** vary sentence length, formality, and humour, so any line could be told apart without the name. Humour should come from the character (dry, boastful, pious, blunt), not from modern references
+- **Checking them:** once written, a play-only mini-game with voice examples in the stand-in briefings, read in the viewer, shows whether they help. That's Models & Research's to schedule
 
 ### Block 4 — Strategy
 
