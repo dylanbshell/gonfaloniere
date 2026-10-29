@@ -1,8 +1,18 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.28
+### Version 0.29
 
 ---
+
+## Changes in v0.29
+
+*Dylan, Oct 29: v0.28's plain lines are easier to follow, but some of the characters' own language was lost. The ban on proverbs and metaphors, not the length cap, is the likely cause: new lines averaged 31 words, and only 8 of 192 passed 40. Dylan's wording loosens the ban instead.*
+
+- **Block 9b's register line, loosened** (Dylan's wording): "No 'thee' or 'thou', and no speeches. A sharp turn of phrase now and then is fine, if it's purposeful and in your own voice; just don't build every line on a metaphor or a proverb. Being vague or evasive is fine; being ornate is not." It replaces "No 'thee' or 'thou', no proverbs, riddles, or flowery metaphors, and no speeches." and the sentence after it. "Purposeful" ties a flourish to a goal (a jab, a threat, flattery) rather than decoration
+- **Block 1's shared line drops "no proverbs or flowery metaphors"** so it doesn't contradict 9b. It keeps "plain, everyday English" and "no modern slang". Thoughts stay plain through 9a's "in plain words, the way you'd talk to yourself"
+- **The ~40-word cap is unchanged,** so the test measures the wording alone
+- **Under test against v0.28** (Open Questions, "The voice check"). If it isn't adopted, v0.28's wording stays
+- Blocks 9a and 9c–9h, and 10a–10d, are unchanged
 
 ## Changes in v0.28
 
@@ -636,7 +646,7 @@ You know only two things: what is in your briefing, and what you have personally
 
 This is not the Florence of the history books. Who these people are, how they are related, and what has happened are exactly as your briefing and this evening show you, even where that differs from history as you know it. No one knows what the years ahead will bring.
 
-Speak and think in plain, everyday English: no "thee" or "thou", no proverbs or flowery metaphors, and no modern slang.
+Speak and think in plain, everyday English: no "thee" or "thou", and no modern slang.
 ```
 
 ### Block 2 — Rules primer (shared)
@@ -782,7 +792,7 @@ It is your turn to speak. {closing_line_note}
 
 Say one thing, as {character_name} would say it.
 - One to three short sentences, about 40 words at most. Spoken words only: no narration, no stage directions, no thoughts.
-- Speak plainly and directly, the way people really talk: short sentences, sometimes blunt. Names, titles, and Florins belong; modern slang does not. No "thee" or "thou", no proverbs, riddles, or flowery metaphors, and no speeches. Being vague or evasive is fine; being ornate is not.
+- Speak plainly and directly, the way people really talk: short sentences, sometimes blunt. Names, titles, and Florins belong; modern slang does not. No "thee" or "thou", and no speeches. A sharp turn of phrase now and then is fine, if it's purposeful and in your own voice; just don't build every line on a metaphor or a proverb. Being vague or evasive is fine; being ornate is not.
 - If someone has just addressed you directly, answer them.
 - You may tell the truth, lie, bluff, flatter, threaten, or stay vague — whatever serves your goals. Your secrets are yours: reveal one only as a deliberate move, never by accident. Do not recite your private thoughts.
 - Someone claiming to know your secret, or threatening you, is not a reason to confirm it. Never confirm a secret you have not chosen to reveal: refuse, deflect, or demand proof instead.
@@ -816,7 +826,7 @@ In a **Colloquio** (there is only one other person, so nobody needs designating)
 - **Risk:** `speak()` carries the secret-keeping lines measured in S5d, so this is a change to the call most tied to past gate results. The re-check should watch `speak()` repairs and, if it's affordable, leak lines (Models & Research's call)
 - **`words` here are copied from text the speaker has just written,** so they should almost always be found
 
-**Register** *(v0.27; adopted in v0.28 after the register check)*: the first two bullets replace "One to three sentences, about 60 words at most" and "Speak as a person of 1492 Florence would, in clear modern English." With the old line, DeepSeek kept the period and dropped the plain: ornate metaphor, every character alike, 45 words a line on average. The new line describes the target's qualities (short, direct, sometimes blunt, modern grammar, the world's own names) without naming any drama, and it bars both ornament and slang. "Sometimes blunt" could push labels toward pressure or insult, which is one of the check's guardrails. Distinct voices per character are the briefings' job, not this line's (Characters).
+**Register** *(v0.27; adopted in v0.28 after the register check; ornament ban loosened in v0.29, under test)*: the first two bullets replace "One to three sentences, about 60 words at most" and "Speak as a person of 1492 Florence would, in clear modern English." With the old line, DeepSeek kept the period and dropped the plain: ornate metaphor, every character alike, 45 words a line on average. The new line describes the target's qualities (short, direct, sometimes blunt, modern grammar, the world's own names) without naming any drama, and it bars both ornament and slang. "Sometimes blunt" could push labels toward pressure or insult, which is one of the check's guardrails. Distinct voices per character are the briefings' job, not this line's (Characters).
 
 **The three secret-keeping lines** (v0.5, from Models & Research's Oct 23 findings): the **claim line** (9a), the **reply line**, and the **audience line** (9b). They go in every `think()` and `speak()` call, Colloquio included. The audience line was tested in all conversation types, and keeping one wording everywhere avoids an untested variant. On DeepSeek V4.1 they took S5d from 2/10 to 9/10 held and the held-out script from 1/10 to 5/10, with no rise in lying and clean S1, S4, and S6. They did little on Qwen3.8, so re-test them if the play model changes.
 
@@ -2057,6 +2067,11 @@ It reads all 86 saved mini-game records, degrading gracefully where older ones l
   - **If the lines aren't clearly easier,** the next step is sample voice lines in the briefings (Characters), not another round of prompt wording
   - **If adopted,** the new games' label mix replaces v0.19's as the research baseline
   - **Result (v0.28): adopted.** Blind read 11 of 15 baseline lines marked against 1 of 15 new. The insult flag is accepted (Changes in v0.28); the leak guardrail is the item below
+- **The voice check** (v0.29, against v0.28): 2 DeepSeek mini-games, seeds 2000–2001, against the register check's v0.27 games on the same seeds (CC-20261028-09). Only 9b's ornament sentence and block 1's line differ.
+  - **Dylan's blind read:** 15 spoken lines from each side, shuffled and unlabelled, each marked for two things: hard to follow, and has real character (a line only that person would say)
+  - **Rule, set in advance:** adopt v0.29 if it gets at least 3 more "real character" marks than v0.28, at most 2 more "hard to follow" marks, and no guardrail flags. Otherwise v0.28 stays
+  - **Guardrails, against the v0.27 games:** words per line (flag a mean above 36), the label-mix rule of the register check, and the runner's knowledge checks
+  - **If the voices still sound alike,** the next lever is sample voice lines in the briefings (Characters), not more prompt wording
 - **Leaks under the plain register** (v0.28): `took: admission` rose from 0.8% to 4.8%. Read the admission readings in `labels.md`; if they're secrets slipping rather than ordinary admissions ("fine, I paid him"), run the secrets judge on the four register-check games (~$1.59) before the first full games. If leaks rose by more than 2, the fix is in the secret-keeping lines, not a return to ornate speech
 - **The claim-line echo** (v0.28): thoughts often restate "my story stays straight" or "I have told no untruth tonight". Rewording 9a's claim line could cut the filler, but it's a tested gate result (S5d), so Models & Research decides whether to test a variant
 - Does the real-history line in block 1 dull useful period knowledge? (Watch voice and play in the mini-game; Models & Research may probe leakage)
