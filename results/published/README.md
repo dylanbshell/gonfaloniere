@@ -11,6 +11,7 @@ A curated slice of the probe logs. The raw logs (hundreds of MB of prompts and r
 | [score-report-pilot.md](score-report-pilot.md) | The same for the Capitulation Pilot's runs (stock Qwen3.8 baselines, Tinker step-0, the trained adapter) |
 | [strategy-probes.md](strategy-probes.md) | S8–S10: rules reasoning, plans and deals, Murder Round choices |
 | [pilot/](pilot/) | The DPO pilot: training config, metrics, and before/after numbers |
+| [register-check/](register-check/) | TD v0.27's register check, published once Dylan's blind read was done: the read as he marked it, its key, the score, and the admission, insult, and pressure readings in full. Written by `npm run minigame:register`, `minigame:score`, and `minigame:labels` |
 | [minigame/](minigame/) | Watchable mini-games: each `game-<id>.view.html` is the replay viewer with one game's replay record embedded (no model calls, seeds, or provider details). Open it in a browser. Written by `npm run minigame:view` |
 
 **Reading the numbers:**

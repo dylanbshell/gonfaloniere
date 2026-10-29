@@ -24,6 +24,8 @@
     "minigame:replay": "tsx src/minigame/replay.ts",
     "minigame:view": "tsx src/minigame/view.ts",
     "minigame:register": "tsx src/minigame/register.ts",
+    "minigame:labels": "tsx src/minigame/labels.ts",
+    "minigame:score": "tsx src/minigame/blindread.ts",
     "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
