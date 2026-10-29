@@ -1,4 +1,4 @@
-// TD v0.22–v0.24: the live store (PostgreSQL with pgvector) and the lore store. Database tests run
+// TD v0.22–v0.25: the live store (PostgreSQL with pgvector) and the lore store. Database tests run
 // against TEST_DATABASE_URL, a real local PostgreSQL with pgvector, with a deterministic fake
 // embedder; they're skipped, saying so, when it isn't set. Nothing here mocks the database.
 
@@ -90,12 +90,14 @@ test("lore file: only approved, canon-checked entries load; scopes are public or
   assert.deepEqual(readLoreFile().all, []);
 });
 
-test("lore lines: up to 3, about 150 tokens at most; one that would pass the cap is skipped and a shorter one can fit", () => {
-  const long = { text: "x".repeat(400) }; // ~115 tokens
+test("lore lines (TD v0.25): up to 2, about 250 tokens at most; one that would pass the cap is skipped and a shorter one can fit", () => {
+  const entry = { text: "x".repeat(400) }; // ~115 tokens, an ~80-word entry
+  const long = { text: "x".repeat(600) }; // ~172 tokens
   const short = (n: number) => ({ text: `Short fact ${n}.` });
-  assert.deepEqual(loreLines([long, long, short(1), short(2), short(3)]), [long.text, short(1).text, short(2).text]);
-  assert.deepEqual(loreLines([short(1), short(2), short(3), short(4)]).length, 3);
-  assert.ok(loreLines([long, long]).join("").length / 3.5 <= LORE_BUDGET);
+  assert.deepEqual(loreLines([entry, entry, short(1)]), [entry.text, entry.text], "two ~80-word entries now fit");
+  assert.deepEqual(loreLines([long, entry, short(1), short(2)]), [long.text, short(1).text]);
+  assert.deepEqual(loreLines([short(1), short(2), short(3), short(4)]).length, 2);
+  assert.ok(loreLines([long, long, long]).join("").length / 3.5 <= LORE_BUDGET);
 });
 
 test("embedders: the OpenAI-compatible one keeps input order and reported cost; the env one needs all three variables", async () => {
@@ -269,7 +271,7 @@ describe("live store (PostgreSQL + pgvector)", { skip: DB ? false : "TEST_DATABA
     assert.deepEqual(m.retrieveNotebook(L, [R], query, { ranked }), m.retrieveNotebook(L, [R], query));
   });
 
-  test("under pgvector: ★ first (up to 6), held beliefs (up to 3), then the most similar, ≤3 per capped label, ≤12 lines, ≤450 tokens", async () => {
+  test("under embeddings: ★ first (up to 6), held beliefs (up to 3), then the most similar, ≤3 per capped label, ≤12 lines, ≤450 tokens", async () => {
     const m = rich();
     const s = store();
     await s.flush(m);
@@ -289,9 +291,9 @@ describe("live store (PostgreSQL + pgvector)", { skip: DB ? false : "TEST_DATABA
     assert.ok(fill.some((x) => x.includes(m.lineOf(top.line)!.text.slice(0, 30))));
   });
 
-  test("a pgvector game: rows written each turn, every prompt passes the isolation check; a planted leak is caught", async () => {
+  test("an embeddings game: rows written each turn, every prompt passes the isolation check; a planted leak is caught", async () => {
     const s = store();
-    const { game, calls } = await playFake({ retrieval: "pgvector", turns: 4 }, {}, s);
+    const { game, calls } = await playFake({ retrieval: "embeddings", turns: 4 }, {}, s);
     const { rows } = await pool.query("SELECT owner, count(*)::int AS n FROM memory_rows WHERE game_id = $1 GROUP BY owner", [s.gameId]);
     assert.ok(rows.length >= 6, "rows for every character");
     assert.equal(rows.reduce((t, r) => t + r.n, 0), storeRows(game.memory).length);
@@ -312,7 +314,7 @@ describe("live store (PostgreSQL + pgvector)", { skip: DB ? false : "TEST_DATABA
     assert.equal(promptHash(calls), PROMPTS_BEFORE_STORE);
   });
 
-  test("lore on: placed just before block 6's heading, ≤3 lines and ~150 tokens, drafts and unchecked excluded, no one else's private lore", async () => {
+  test("lore on: placed just before block 6's heading, ≤2 lines and ~250 tokens, drafts and unchecked excluded, no one else's private lore", async () => {
     const dir = mkdtempSync(join(tmpdir(), "lore-"));
     const path = join(dir, "lore.json");
     const entry = (id: string, scope: string, text: string, status = "approved", canon_checked = true) => ({ id, title: id, scope, text, source: "test", status, canon_checked });
@@ -336,8 +338,8 @@ describe("live store (PostgreSQL + pgvector)", { skip: DB ? false : "TEST_DATABA
     assert.ok(withLore.length > 100, `${withLore.length} prompts with lore`);
     for (const c of withLore) {
       const sec = loreSection(c.user);
-      assert.ok(sec.lines.length >= 1 && sec.lines.length <= 3);
-      assert.ok(tokens(sec.lines) <= 150);
+      assert.ok(sec.lines.length >= 1 && sec.lines.length <= 2);
+      assert.ok(tokens(sec.lines) <= 250);
       assert.equal(sec.next, "", "a blank line, then block 6");
       assert.equal(sec.after, "WHAT YOU REMEMBER FROM EARLIER TONIGHT");
       assert.ok(!c.user.includes("DRAFT") && !c.user.includes("UNCHECKED"));

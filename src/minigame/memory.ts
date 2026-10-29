@@ -666,7 +666,7 @@ export class MemoryStore {
    * retrieved. ★ items naming anyone present, most recent first, up to 6; held beliefs about anyone
    * present, up to 3; then the items most similar to the last two History lines, a reading matched
    * on its full line text. Oldest first. `murder`: ★ threats, deals, and promises first.
-   * `ranked` (TD v0.22, `retrieval: pgvector`): the live store's owner-filtered rows with their cosine
+   * `ranked` (TD v0.22, `retrieval: embeddings`): the live store's owner-filtered rows with their cosine
    * similarity. Only those rows are candidates, and their similarity replaces word overlap; the order,
    * caps, and budget are unchanged.
    */

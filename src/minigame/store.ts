@@ -19,8 +19,8 @@ import type { Embedder } from "./embed.ts";
 import { renderCodeEntryFor, type MemoryStore, type Ranked } from "./memory.ts";
 import type { LoreEntry } from "./lore.ts";
 
-export type RetrievalMethod = "overlap" | "pgvector";
-export const RETRIEVAL_METHODS: readonly RetrievalMethod[] = ["overlap", "pgvector"];
+export type RetrievalMethod = "overlap" | "embeddings";
+export const RETRIEVAL_METHODS: readonly RetrievalMethod[] = ["overlap", "embeddings"];
 
 export const SCHEMA = `
 CREATE EXTENSION IF NOT EXISTS vector;

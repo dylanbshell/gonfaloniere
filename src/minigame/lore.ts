@@ -1,4 +1,4 @@
-// The lore store (Technical Design v0.22–v0.24, Memory Architecture › The lore store): background
+// The lore store (Technical Design v0.22–v0.25, Memory Architecture › The lore store): background
 // knowledge in the same database as memory, retrieved the same way, and off by default (`lore: off`).
 //
 // The lore data file (lore/lore.json) is a JSON array of entries. Its content is the Lore chat's,
@@ -58,9 +58,9 @@ export function loreHeader(file: LoreFile, setting: LoreSetting) {
   return { lore: setting, lore_file: { path: file.path, hash: file.hash, entries_in_file: file.all.length, entries_loaded: setting === "on" ? file.loadable.length : 0 } };
 }
 
-/** Up to 3 entries for the prompt, about 150 tokens at most (characters ÷ 3.5, as block 6 counts them). */
-export const LORE_MAX = 3;
-export const LORE_BUDGET = 150;
+/** TD v0.25: up to 2 entries for the prompt, about 250 tokens at most (characters ÷ 3.5, as block 6 counts them). */
+export const LORE_MAX = 2;
+export const LORE_BUDGET = 250;
 
 /**
  * The lore lines for a call, from the character's entries ranked most similar first. As block 6's

@@ -71,7 +71,7 @@ const { values: opts } = parseArgs({
     notebook: { type: "string", default: "perceived" },
     // TD v0.21 Run Configuration: labels (default), off, or all.
     logprobs: { type: "string", default: "labels" },
-    // TD v0.22 Storage and retrieval: overlap (default, as the baselines were measured) or pgvector
+    // TD v0.22 Storage and retrieval: overlap (default, as the baselines were measured) or embeddings
     // (DATABASE_URL and EMBEDDING_MODEL_*). Lore: off (default) or on (needs the same).
     retrieval: { type: "string", default: "overlap" },
     lore: { type: "string", default: "off" },
@@ -160,10 +160,10 @@ async function main(): Promise<void> {
   // The live store, only when a setting needs it. DATABASE_URL and the embedding endpoint are never logged or recorded.
   let storeDb: pg.Pool | null = null;
   let embedder: Embedder | null = null;
-  if (settingsBase.retrieval === "pgvector" || settingsBase.lore === "on") {
-    if (!process.env.DATABASE_URL) throw new Error("--retrieval pgvector and --lore on need DATABASE_URL (PostgreSQL with pgvector)");
+  if (settingsBase.retrieval === "embeddings" || settingsBase.lore === "on") {
+    if (!process.env.DATABASE_URL) throw new Error("--retrieval embeddings and --lore on need DATABASE_URL (PostgreSQL with pgvector)");
     embedder = embedderFromEnv();
-    if (!embedder) throw new Error("--retrieval pgvector and --lore on need EMBEDDING_MODEL_BASE_URL, EMBEDDING_MODEL_API_KEY, and EMBEDDING_MODEL_ID");
+    if (!embedder) throw new Error("--retrieval embeddings and --lore on need EMBEDDING_MODEL_BASE_URL, EMBEDDING_MODEL_API_KEY, and EMBEDDING_MODEL_ID");
     storeDb = await openStoreDb(process.env.DATABASE_URL);
   }
   // TD v0.21: never required. Ask only where the pinned endpoint lists the parameter; say so once if it doesn't.

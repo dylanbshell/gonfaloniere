@@ -128,7 +128,7 @@ export interface GameSettings {
   logprobs?: LogprobsSetting;
   /**
    * TD v0.22 Storage and retrieval: how block 6's fill measures similarity. `overlap` (the default,
-   * as every baseline was measured) or `pgvector` (the live store: embeddings, cosine similarity,
+   * as every baseline was measured) or `embeddings` (TD v0.25's name; the live store: pgvector cosine similarity,
    * owner-filtered in the query). Needs the store.
    */
   retrieval?: RetrievalMethod;
@@ -235,10 +235,10 @@ export class MiniGame {
     private s: GameSettings,
     private call: Caller,
     private hooks: GameHooks = {},
-    /** TD v0.22's live store, for `retrieval: pgvector` and `lore: on`. */
+    /** TD v0.22's live store, for `retrieval: embeddings` and `lore: on`. */
     private store: VectorStore | null = null,
   ) {
-    if (((s.retrieval ?? "overlap") === "pgvector" || s.lore === "on") && !store) throw new Error("retrieval: pgvector and lore: on need the live store (PostgreSQL with pgvector, and an embedding model)");
+    if (((s.retrieval ?? "overlap") === "embeddings" || s.lore === "on") && !store) throw new Error("retrieval: embeddings and lore: on need the live store (PostgreSQL with pgvector, and an embedding model)");
     this.rng = mulberry32(s.seed);
     this.seating = tdMinor(docs.versions.technicalDesign) >= 23;
     this.memory.quoteDropsPunct = tdMinor(docs.versions.technicalDesign) >= 15;
@@ -1038,7 +1038,7 @@ export class MiniGame {
     }
     await this.recorder.turn(this.turn, this.lines, thoughts);
     // TD v0.22: rows are embedded once, when written at the end of the turn.
-    if ((this.s.retrieval ?? "overlap") === "pgvector") await this.store!.flush(this.memory);
+    if ((this.s.retrieval ?? "overlap") === "embeddings") await this.store!.flush(this.memory);
   }
 
   // ---- End of game: Murder Round calls, knowledge checks ------------------------------------------
@@ -1081,7 +1081,7 @@ export class MiniGame {
     // TD v0.22: the query is the last two History lines, for memory and lore alike.
     const recent = history.slice(-2).map((l) => l.text);
     const notebook = this.s.notebook ?? "perceived";
-    const ranked = (this.s.retrieval ?? "overlap") === "pgvector" ? await this.storeRank(c, notebook, recent) : undefined;
+    const ranked = (this.s.retrieval ?? "overlap") === "embeddings" ? await this.storeRank(c, notebook, recent) : undefined;
     const lore = this.s.lore === "on" ? loreLines(await this.store!.rankLore(c, recent.join("\n"))) : undefined;
     return {
       characterName: c,
