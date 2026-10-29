@@ -444,7 +444,10 @@ td .th { font: italic 13.5px/1.45 var(--serif); }
     function applyEvent(e) {
       switch (e.type) {
         case "capannelli":
-          arr(e.groups).forEach((g, i) => { const c = conv(`C${i + 1}`, "capannello"); for (const m of arr(g)) st.loc[m] = c.id; });
+          // Records before aa6e187 share each group's members array with later seating, so a guest
+          // seated later shows here too (TD v0.26). The opening lines just before are copies, and the
+          // guests they placed stay; turn ends then take each character's own `conversation` field.
+          arr(e.groups).forEach((g, i) => { const c = conv(`C${i + 1}`, "capannello"); for (const m of arr(g)) if (!st.loc[m]) st.loc[m] = c.id; });
           break;
         case "colloquio-open": {
           const c = conv(e.conversation, "colloquio");

@@ -105,6 +105,25 @@ test("the loader reads the fake game: seat events place guests, and block 6 is k
   assert.deepEqual([...m.missing.filter((x) => !/post-game|readings|knowledge|Murder/.test(x))], []);
 });
 
+test("rooms from a record before aa6e187: an opening group rewritten by later seating doesn't move a guest the opening lines placed", () => {
+  const rec = structuredClone(fakeFull) as unknown as { events: { type: string; groups?: string[][]; line?: string }[]; lines: { id: string; turn: number; conversation: string }[] };
+  const cap = rec.events.find((e) => e.type === "capannelli")!;
+  const [first, second] = cap.groups!;
+  // The bug's shape: a guest of the first group also shows in the second, which is read last.
+  const guest = first![0]!;
+  second!.push(guest);
+  // So that the next line shown is the second group's, drop the first group's lines before it.
+  const firstC2 = rec.lines.find((l) => l.turn > 0 && l.conversation === "C2")!;
+  const dropped = new Set(rec.lines.filter((l) => l.turn > 0 && l.conversation === "C1" && Number(l.id.slice(1)) < Number(firstC2.id.slice(1))).map((l) => l.id));
+  assert.ok(dropped.size > 0);
+  rec.lines = rec.lines.filter((l) => !dropped.has(l.id));
+  rec.events = rec.events.filter((e) => !(e.line && dropped.has(e.line)));
+  const m = loader.load(rec) as Loaded;
+  checkLoaded(m, "rewritten opening");
+  const at = m.steps.findIndex((s) => s.line === firstC2.id);
+  assert.equal(m.states[at]!.loc[guest], "C1", `${guest} stays where the opening lines put them`);
+});
+
 test("the replay variant has no model calls, prefixes, seeds, or provider details, and keeps the inner life", () => {
   const r = loader.toReplay(fakeFull) as Record<string, any>;
   assert.equal(r.variant, "replay");
