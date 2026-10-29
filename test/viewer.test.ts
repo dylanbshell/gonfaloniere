@@ -161,6 +161,16 @@ test("the line modal's indexes: readings and ignored labels by line, each spoken
   assert.ok(m.thoughts.every((t, i) => t.id && (i === 0 || t.event > m.thoughts[i - 1]!.event)), "thought ids, in event order");
 });
 
+test("a clean transcript: no inner-life toggle, lines carry only their dialogue, and the focus box starts collapsed (CC-20261029-03)", () => {
+  const src = readFileSync("tools/viewer/viewer.html", "utf8");
+  assert.doesNotMatch(src, /type="checkbox" id="inner"|ui\.inner\b/);
+  const renderLine = src.slice(src.indexOf("function renderLine("), src.indexOf("\n  }\n", src.indexOf("function renderLine(")));
+  for (const inline of ["margin", "<mark", "took", "meant", "importance", "thought"]) assert.ok(!renderLine.includes(inline), inline);
+  assert.match(src, /id="fc-toggle" aria-expanded="false" aria-controls="fc-inner"/);
+  assert.match(src, /<div id="fc-inner" hidden><\/div>/);
+  assert.match(src, /innerOpen: false/);
+});
+
 test("an export embeds one replay record, contains no key-shaped strings, and refuses one that would", () => {
   const dir = mkdtempSync(join(tmpdir(), "view-"));
   const rec = join(dir, "game-fake-g1.full.json.gz");

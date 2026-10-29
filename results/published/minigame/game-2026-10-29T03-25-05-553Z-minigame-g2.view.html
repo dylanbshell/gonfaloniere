@@ -13,6 +13,8 @@
   CC-20261029-01: a line opens into a modal with its inner life (the speaker's meant and last thought,
   each listener's took, the readings stored from it, and what the attachment rule ignored), and a cast
   member's name shows a short description on hover or focus. Sections a record has no data for are hidden.
+  CC-20261029-03: the transcript is the dialogue alone; a line's inner life is only in its modal, and a
+  followed character's inner life sits in a sidebar box that starts collapsed.
 -->
 <style>
 :root {
@@ -79,7 +81,6 @@ button { cursor: pointer; }
 .ticks { position: absolute; left: 0; right: 0; bottom: 0; height: 14px; }
 .ticks button { position: absolute; transform: translateX(-50%); border: 0; background: none; padding: 0 3px; font-size: 11px; color: var(--muted); }
 .ticks button.cur { color: var(--lapis); font-weight: 700; }
-label.toggle { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); }
 details.filters { margin-top: 6px; }
 details.filters summary { color: var(--muted); cursor: pointer; width: max-content; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; align-items: center; }
@@ -118,14 +119,18 @@ mark.took { background: none; color: inherit; text-decoration: underline 2px var
 mark.meant { background: none; color: inherit; text-decoration: underline dotted 2px var(--ochre); text-underline-offset: 3px; }
 .focused .sp.me { color: var(--lapis); }
 
-/* Marginalia: inner life */
+/* Inner life: the followed character's box */
 .margin { margin: 6px 0 2px 10px; padding: 2px 0 2px 10px; border-left: 2px solid var(--lapis); }
-.margin.own { border-left-color: var(--ochre); }
 .margin .tag { font-size: 12px; color: var(--muted); }
-.margin .tag b { color: var(--lapis); font-weight: 600; }
-.margin.own .tag b { color: var(--ochre); }
 .margin .th { font: italic 14px/1.5 var(--serif); }
-.margin .words { font-size: 12.5px; color: var(--muted); }
+.fc-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.fc-head h2 { margin-bottom: 4px; }
+.disclose { flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; margin: -4px -6px 0 0; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--muted); }
+.disclose:hover { border-color: var(--line); color: var(--ink); }
+.disclose svg { transition: transform 0.15s ease; }
+.disclose[aria-expanded="true"] svg { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .disclose svg { transition: none; } }
+#fc-inner { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--sunk); }
 .imp { display: inline-block; min-width: 2.2em; text-align: center; border-radius: 4px; background: var(--sunk); font-size: 11.5px; padding: 0 4px; margin-left: 4px; }
 
 /* Side column */
@@ -250,7 +255,6 @@ dialog#linebox::backdrop { background: rgba(20, 25, 34, 0.45); }
         <input type="range" id="slider" min="0" max="0" value="0" aria-label="Position in the game">
         <div class="ticks" id="ticks"></div>
       </div>
-      <label class="toggle"><input type="checkbox" id="inner" checked> Inner life</label>
       <button class="btn" id="toend">End of game</button>
     </div>
     <details class="filters">
@@ -263,7 +267,16 @@ dialog#linebox::backdrop { background: rgba(20, 25, 34, 0.45); }
     <div id="panels"></div>
     <aside>
       <div class="card"><h2>The room</h2><div class="room" id="room"></div></div>
-      <div class="card" id="focuscard" hidden></div>
+      <div class="card" id="focuscard" hidden>
+        <div class="fc-head">
+          <h2 id="fc-name"></h2>
+          <button class="disclose" id="fc-toggle" aria-expanded="false" aria-controls="fc-inner" aria-label="Inner life">
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 5l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <div class="note" id="fc-status"></div>
+        <div id="fc-inner" hidden></div>
+      </div>
       <div class="card"><h2>Moves and seating</h2><ul class="feed" id="feed"></ul></div>
     </aside>
   </div>
@@ -635,7 +648,8 @@ dialog#linebox::backdrop { background: rgba(20, 25, 34, 0.45); }
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
   let G = null;
-  const ui = { step: 0, playing: false, timer: null, focus: null, inner: true, speed: 1, hideChars: new Set(), hideConvs: new Set(), showEnd: false, lastStep: -1 };
+  // innerOpen belongs to the inner-life box, not to whom it shows: following someone else keeps it as it is.
+  const ui = { step: 0, playing: false, timer: null, focus: null, innerOpen: false, speed: 1, hideChars: new Set(), hideConvs: new Set(), showEnd: false, lastStep: -1 };
 
   // ---- Loading -------------------------------------------------------------------------------
   async function readFile(file) {
@@ -671,22 +685,19 @@ dialog#linebox::backdrop { background: rgba(20, 25, 34, 0.45); }
     render();
   }
 
-  // ---- URL state: #step=120&focus=Lupo&inner=0 -------------------------------------------------
+  // ---- URL state: #step=120&focus=Lupo -----------------------------------------------------------
   function fromHash() {
     const p = new URLSearchParams(location.hash.slice(1));
     if (p.has("step")) ui.step = Math.max(0, Math.min(G.steps.length - 1, Number(p.get("step")) || 0));
     else if (p.has("turn")) ui.step = G.turnStart.get(Number(p.get("turn"))) ?? 0;
     else ui.step = 0;
     if (p.has("focus") && G.cast.includes(p.get("focus"))) ui.focus = p.get("focus");
-    if (p.has("inner")) ui.inner = p.get("inner") !== "0";
-    $("inner").checked = ui.inner;
     if (p.has("end")) ui.showEnd = true;
   }
   function toHash() {
     const p = new URLSearchParams();
     p.set("step", String(ui.step));
     if (ui.focus) p.set("focus", ui.focus);
-    if (!ui.inner) p.set("inner", "0");
     try { history.replaceState(null, "", "#" + p.toString()); } catch (_) { /* file:// in some browsers */ }
   }
 
@@ -714,67 +725,15 @@ dialog#linebox::backdrop { background: rgba(20, 25, 34, 0.45); }
   }
 
   // ---- Rendering -------------------------------------------------------------------------------
-  function highlight(text, words, cls) {
-    const t = esc(text);
-    if (!words) return t;
-    const w = esc(String(words).replace(/^[…."'\s]+|[…."'\s]+$/g, ""));
-    if (!w) return t;
-    const i = t.toLowerCase().indexOf(w.toLowerCase());
-    if (i < 0) return t;
-    return t.slice(0, i) + `<mark class="${cls}">` + t.slice(i, i + w.length) + "</mark>" + t.slice(i + w.length);
-  }
   function lineVisible(l) { return !l.heardBy || l.heardBy.length === 0 || l.heardBy.some((h) => !ui.hideChars.has(h)); }
 
-  function innerFor(l, who) {
-    // Marginalia under one line for one character: their think() after it, or their meant for their own line.
-    const out = [];
-    if (l.kind === "speech" && l.speaker === who && (l.meant !== undefined || l.words)) {
-      out.push(`<div class="margin own"><div class="tag">${who === ui.focus ? "" : esc(who) + " "}meant it as <b>${esc(l.meant ?? "?")}</b></div>${l.words ? `<div class="words">“${esc(l.words)}”</div>` : ""}</div>`);
-    }
-    for (const t of (G.thoughtsByLine.get(l.id) || [])) {
-      if (t.character !== who || t.step > ui.step) continue;
-      let took = t.took;
-      let words = t.words;
-      if (took === undefined) { const r = G.readings.get(`${who}|${l.id}`); if (r) { took = r.took; words = r.words ?? r.quote; } }
-      const tag = [
-        who === ui.focus ? "" : `<span>${esc(who)}</span>`,
-        t.closing ? "closing think" : "",
-        took !== undefined ? tookTag(t, l, who, took) : "",
-        t.importance !== undefined && !t.closing ? `importance<span class="imp">${esc(t.importance)}</span>` : "",
-      ].filter(Boolean).join(", ");
-      const on = t.target && G.lines.get(t.target) ? G.lines.get(t.target) : l;
-      out.push(`<div class="margin"><div class="tag">${tag}</div>${t.repeat ? `<div class="words">(same thought again)</div>` : `<div class="th">${esc(t.text)}</div>`}${words && (on !== l || !lineHas(l, words)) ? `<div class="words">words: “${esc(words)}”</div>` : ""}</div>`);
-    }
-    return out.join("");
-  }
-  function tookTag(t, l, who, took) {
-    const tl = t.target && t.target !== l.id ? G.lines.get(t.target) : null;
-    if (tl) return `took ${tl.speaker === who ? "their own" : `${esc(tl.speaker ?? "Il Notaio")}'s`} earlier line as <b>${esc(took)}</b>`;
-    return l.speaker === who && took !== "none" ? `took own line as <b>${esc(took)}</b>` : `took it as <b>${esc(took)}</b>`;
-  }
-  function lineHas(l, words) { return esc(l.text).toLowerCase().includes(esc(String(words).replace(/^[…."'\s]+|[…."'\s]+$/g, "")).toLowerCase()); }
-
+  /** One line of the transcript: the dialogue alone. Its inner life is in its modal (CC-20261029-03). */
   function renderLine(l, fresh) {
     const cls = l.kind === "notaio" ? "notaio" : l.kind === "event" || l.kind === "action" ? "event" : l.kind === "private" ? "private" : "speech";
-    let text = esc(l.text);
     const who = ui.focus;
-    if (ui.inner && who) {
-      if (l.speaker === who && l.words) text = highlight(l.text, l.words, "meant");
-      else {
-        const t = (G.thoughtsByTarget.get(l.id) || []).find((x) => x.character === who && x.step <= ui.step && x.words);
-        const r = !t && G.readings.get(`${who}|${l.id}`);
-        const w = t ? t.words : r ? r.words ?? r.quote : null;
-        if (w) text = highlight(l.text, w, "took");
-      }
-    }
     const sp = l.kind === "notaio" ? "Il Notaio" : l.kind === "private" ? `Private to ${nameTag(l.speaker)}` : l.speaker ? nameTag(l.speaker) : "";
     const to = l.addressee ? `<span class="to">(to ${nameTag(l.addressee)})</span>` : "";
-    let inner = "";
-    if (ui.inner) {
-      if (who) { if (arr(l.heardBy).includes(who) || l.speaker === who) inner = innerFor(l, who); }
-      else inner = arr(l.heardBy).map((h) => innerFor(l, h)).join("");
-    }
-    return `<div class="ln ${cls}${fresh ? " fresh" : ""}" data-line="${esc(l.id)}" tabindex="0" role="button" aria-haspopup="dialog">${sp ? `<span class="sp${l.speaker === who && who ? " me" : ""}">${sp}</span>` : ""}${to}<div class="tx">${text}</div>${inner}</div>`;
+    return `<div class="ln ${cls}${fresh ? " fresh" : ""}" data-line="${esc(l.id)}" tabindex="0" role="button" aria-haspopup="dialog">${sp ? `<span class="sp${l.speaker === who && who ? " me" : ""}">${sp}</span>` : ""}${to}<div class="tx">${esc(l.text)}</div></div>`;
   }
   const arr = (x) => (Array.isArray(x) ? x : []);
   /** A cast member's name that shows their tooltip on hover or focus; anyone else's is plain text. */
@@ -829,7 +788,7 @@ dialog#linebox::backdrop { background: rgba(20, 25, 34, 0.45); }
   function describe(e, i) {
     const t = `<span class="t">T${e.turn}</span>`;
     const offered = (o) => arr(o).length ? `<div class="sub">Offered: ${arr(o).map((g) => `${esc(g.conversation)} (${arr(g.members).map(esc).join(", ")}; room for ${esc(g.room)})${g.initiators_own ? " where the caller came from" : ""}`).join("; ")}</div>` : `<div class="sub">Offered: no group had room</div>`;
-    const th = (x) => (x && ui.inner ? `<div class="th">${esc(x)}</div>` : "");
+    const th = (x) => (x ? `<div class="th">${esc(x)}</div>` : "");
     switch (e.type) {
       case "move":
         if (e.choice === "stay") return { cls: "quiet", html: `${t}${esc(e.character)} stays${e.note ? ` (${esc(e.note)})` : ""}` };
@@ -889,11 +848,17 @@ dialog#linebox::backdrop { background: rgba(20, 25, 34, 0.45); }
     const nb = views.at(-1);
     const latest = G.looseThoughts.filter((t) => t.character === who && t.step <= ui.step).at(-1);
     const where = state.loc[who] && state.convs[state.loc[who]] ? `${state.convs[state.loc[who]].kind === "colloquio" ? "Colloquio" : "Capannello"} ${state.loc[who]}` : "not in a group";
-    card.innerHTML = `<h2>${esc(who)}</h2><div class="note">${esc(where)}; ${esc(purse(state, who))}. <button class="btn" data-focus="">Stop following</button></div>`
-      + (ui.inner ? (latest ? `<div class="margin"><div class="tag">Latest ${esc(latest.call)} thought, turn ${esc(latest.turn)}</div><div class="th">${esc(latest.text)}</div></div>` : "")
+    // The heading and its toggle stay in place across renders, so the toggle keeps keyboard focus.
+    $("fc-name").textContent = who;
+    $("fc-status").innerHTML = `${esc(where)}; ${esc(purse(state, who))}. <button class="btn" data-focus="">Stop following</button>`;
+    $("fc-toggle").setAttribute("aria-expanded", String(ui.innerOpen));
+    $("fc-toggle").setAttribute("aria-label", `${ui.innerOpen ? "Hide" : "Show"} ${who}'s inner life`);
+    const inner = $("fc-inner");
+    inner.hidden = !ui.innerOpen;
+    if (!ui.innerOpen) { inner.innerHTML = ""; return; }
+    inner.innerHTML = (latest ? `<div class="margin"><div class="tag">Latest ${esc(latest.call)} thought, turn ${esc(latest.turn)}</div><div class="th">${esc(latest.text)}</div></div>` : "")
       + `<h2 style="margin-top:10px">What they remember (block 6)</h2>`
-      + (nb ? `<div class="note">As they saw it in their last call, turn ${esc(nb.turn)} (${esc(nb.call)}).</div><pre class="notebook">${esc(nb.text)}</pre>` : `<div class="note">${G.notebooks.size ? "No call yet at this moment." : "This record has no prompts, so block 6 can't be shown."}</div>`)
-      : `<div class="note">Inner life is hidden.</div>`);
+      + (nb ? `<div class="note">As they saw it in their last call, turn ${esc(nb.turn)} (${esc(nb.call)}).</div><pre class="notebook">${esc(nb.text)}</pre>` : `<div class="note">${G.notebooks.size ? "No call yet at this moment." : "This record has no prompts, so block 6 can't be shown."}</div>`);
   }
 
   function renderEnd() {
@@ -903,7 +868,7 @@ dialog#linebox::backdrop { background: rgba(20, 25, 34, 0.45); }
     if (!atEnd) return;
     const r = G.record;
     const mr = r.murder_round;
-    const acts = mr && arr(mr.acts).length ? `<table><thead><tr><th>Guest</th><th>Act</th>${ui.inner ? "<th>Thought</th>" : ""}</tr></thead><tbody>${arr(mr.acts).map((a) => `<tr><td>${esc(a.character)}</td><td>${arr(a.acts).map((x) => `${esc(x.type)}${x.target ? ` ${esc(x.target)}` : ""}${x.amount ? ` (${esc(x.amount)})` : ""}`).join(", ") || "none"}${a.failed ? " <span class='flag-bad'>(call failed)</span>" : ""}</td>${ui.inner ? `<td><div class="th">${esc(a.thought)}</div></td>` : ""}</tr>`).join("")}</tbody></table><p class="note">${mr.resolved ? "Resolved." : "The mini-game logs each act and doesn't resolve them, so there are no deaths."}</p>` : `<p class="missing">This record has no Murder Round acts.</p>`;
+    const acts = mr && arr(mr.acts).length ? `<table><thead><tr><th>Guest</th><th>Act</th><th>Thought</th></tr></thead><tbody>${arr(mr.acts).map((a) => `<tr><td>${esc(a.character)}</td><td>${arr(a.acts).map((x) => `${esc(x.type)}${x.target ? ` ${esc(x.target)}` : ""}${x.amount ? ` (${esc(x.amount)})` : ""}`).join(", ") || "none"}${a.failed ? " <span class='flag-bad'>(call failed)</span>" : ""}</td><td><div class="th">${esc(a.thought)}</div></td></tr>`).join("")}</tbody></table><p class="note">${mr.resolved ? "Resolved." : "The mini-game logs each act and doesn't resolve them, so there are no deaths."}</p>` : `<p class="missing">This record has no Murder Round acts.</p>`;
     const kcs = arr(r.knowledge_checks);
     const kc = kcs.length ? `<table><thead><tr><th>Guest</th><th>Fact</th><th>Verdict</th><th>Told by</th><th>Reasoning</th></tr></thead><tbody>${kcs.map((k) => { const v = k.verdict || {}; const vv = String(v.verdict ?? "none"); return `<tr><td>${esc(k.character)}</td><td>${esc(k.fact)}</td><td class="v-${esc(vv.split(" ")[0])}">${esc(vv)}${arr(k.flags).length ? `<div class="flag-bad">${arr(k.flags).map(esc).join("; ")}</div>` : ""}</td><td>${arr(v.told_by).map(esc).join(", ")}</td><td><details><summary>${esc(String(v.reasoning ?? "").slice(0, 70))}${String(v.reasoning ?? "").length > 70 ? "…" : ""}</summary>${esc(v.reasoning)}${arr(v.evidence).length ? `<div class="note">Evidence: ${arr(v.evidence).map(esc).join(", ")}</div>` : ""}</details></td></tr>`; }).join("")}</tbody></table>` : `<p class="missing">This record has no knowledge checks.</p>`;
     const pc = r.post_game_checks;
@@ -1013,7 +978,7 @@ dialog#linebox::backdrop { background: rgba(20, 25, 34, 0.45); }
   function paintLine() {
     const l = G.lines.get(lb.line);
     const el = document.getElementById("lb-text");
-    if (el) el.innerHTML = ui.inner ? markText(l.text, lineSpans(l, lb.hot)) : esc(l.text);
+    if (el) el.innerHTML = markText(l.text, lineSpans(l, lb.hot));
     for (const c of document.querySelectorAll("#lb-body .react")) c.classList.toggle("hot", Number(c.dataset.k) === lb.hot);
   }
 
@@ -1025,40 +990,36 @@ dialog#linebox::backdrop { background: rgba(20, 25, 34, 0.45); }
     $("lb-title").innerHTML = l.kind === "speech" ? nameTag(l.speaker) : l.kind === "notaio" ? "Il Notaio" : l.kind === "private" ? `Private to ${nameTag(l.speaker)}` : l.speaker ? `Action: ${nameTag(l.speaker)}` : "Action";
     $("lb-sub").innerHTML = [`${l.turn === 0 ? "Arrival" : `Turn ${esc(l.turn)}`}`, conv ? `${kind} ${esc(conv)}` : "", esc(l.id), l.addressee ? `to ${nameTag(l.addressee)}` : ""].filter(Boolean).join(", ")
       + (l.kind === "speech" && heard.length ? `<br>Present: ${heard.map(nameTag).join(", ")}` : "");
-    lb.reacts = ui.inner ? reactionsTo(l) : [];
+    lb.reacts = reactionsTo(l);
     lb.hot = null;
     const secs = [];
     const lineCls = l.kind === "notaio" ? "notaio" : l.kind === "speech" ? "" : l.kind === "private" ? "private" : "event";
     secs.push(`<p class="lb-line ${lineCls}" id="lb-text"></p>`);
     const anyTook = lb.reacts.some((t) => readingOf(t, l).range);
-    if (ui.inner && ((l.kind === "speech" && l.words) || anyTook)) secs.push(`<p class="lb-legend">${l.kind === "speech" && l.words ? `<mark class="meant">Dotted</mark>: the words ${nameTag(l.speaker)} meant. ` : ""}${anyTook ? `<mark class="took">Underlined</mark>: words a listener took; point at a reaction to see only its words.` : ""}</p>`);
+    if ((l.kind === "speech" && l.words) || anyTook) secs.push(`<p class="lb-legend">${l.kind === "speech" && l.words ? `<mark class="meant">Dotted</mark>: the words ${nameTag(l.speaker)} meant. ` : ""}${anyTook ? `<mark class="took">Underlined</mark>: words a listener took; point at a reaction to see only its words.` : ""}</p>`);
     if (l.kind !== "speech") secs.push(`<section class="lb-sec"><h3>Received by</h3><div>${heard.length ? heard.map(nameTag).join(", ") : "No one is recorded as receiving it."}</div></section>`);
-    if (!ui.inner) {
-      secs.push(`<p class="note">Inner life is hidden. Turn on Inner life to see thoughts, labels, and readings.</p>`);
-    } else {
-      // The speaker's own side.
-      if (l.kind === "speech") {
-        const parts = [];
-        if ("meant" in l || l.words) parts.push(`<div class="react own"><div class="tag">Meant it as <b>${esc(l.meant ?? "?")}</b></div>${l.words ? `<div class="words">words: “${esc(l.words)}”${spanOf(l.text, l.words) ? "" : " (not found in the line)"}</div>` : ""}</div>`);
-        const at = G.lineEvent.has(l.id) ? G.lineEvent.get(l.id) : null;
-        const before = at === null ? null : G.thoughts.filter((t) => t.character === l.speaker && t.call === "think" && t.event < at).at(-1);
-        if (before) parts.push(`<div class="react own"><div class="tag">Last thought before speaking, turn ${esc(before.turn)}${before.closing ? ", closing think" : ""}${before.importance !== undefined && !before.closing ? `, importance<span class="imp">${esc(before.importance)}</span>` : ""}</div><div class="th">${esc(before.text)}</div></div>`);
-        else if (at !== null && G.thoughts.length) parts.push(`<p class="note">No think() of theirs before this line.</p>`);
-        if (parts.length) secs.push(`<section class="lb-sec"><h3>${nameTag(l.speaker)}'s side</h3>${parts.join("")}</section>`);
-      }
-      // Each listener's reaction.
-      const others = lb.reacts;
-      if (others.length) secs.push(`<section class="lb-sec"><h3>How it was taken</h3>${others.map((t, k) => reactionHtml(t, l, k)).join("")}</section>`);
-      else if (!missingHas(/after_line/)) secs.push(`<section class="lb-sec"><h3>How it was taken</h3><p class="note">No thought follows this line.</p></section>`);
-      // Readings stored from it, and labels the attachment rule ignored.
-      if (!missingHas(/^readings/)) {
-        const rs = G.readingsByLine.get(l.id) || [];
-        secs.push(`<section class="lb-sec"><h3>Readings stored from it</h3>${rs.length ? `<ul class="lb-list">${rs.map((r) => `<li><span class="rid">${esc(r.id ?? "")}</span>${nameTag(r.character)}: ${r.own ? "meant" : "took"} <b>${esc(r.took)}</b>${r.thought ? ` (from ${esc(r.thought)})` : r.source ? ` (from ${esc(r.source)})` : ""}${r.words ?? r.quote ? `, “${esc(r.words ?? r.quote)}”` : ""}</li>`).join("")}</ul>` : `<p class="note">None.</p>`}</section>`);
-      }
-      if (!missingHas(/label_log/)) {
-        const xs = G.ignoredByLine.get(l.id) || [];
-        secs.push(`<section class="lb-sec"><h3>Ignored by the attachment rule</h3>${xs.length ? `<ul class="lb-list">${xs.map((x) => `<li><span class="rid">${esc(x.thought ?? "")}</span>${nameTag(x.character)} took it as <b>${esc(x.took)}</b>: ${esc(x.reason)}${x.standing ? ` (reading ${esc(x.standing)} stands)` : ""}</li>`).join("")}</ul>` : `<p class="note">Nothing.</p>`}</section>`);
-      }
+    // The speaker's own side.
+    if (l.kind === "speech") {
+      const parts = [];
+      if ("meant" in l || l.words) parts.push(`<div class="react own"><div class="tag">Meant it as <b>${esc(l.meant ?? "?")}</b></div>${l.words ? `<div class="words">words: “${esc(l.words)}”${spanOf(l.text, l.words) ? "" : " (not found in the line)"}</div>` : ""}</div>`);
+      const at = G.lineEvent.has(l.id) ? G.lineEvent.get(l.id) : null;
+      const before = at === null ? null : G.thoughts.filter((t) => t.character === l.speaker && t.call === "think" && t.event < at).at(-1);
+      if (before) parts.push(`<div class="react own"><div class="tag">Last thought before speaking, turn ${esc(before.turn)}${before.closing ? ", closing think" : ""}${before.importance !== undefined && !before.closing ? `, importance<span class="imp">${esc(before.importance)}</span>` : ""}</div><div class="th">${esc(before.text)}</div></div>`);
+      else if (at !== null && G.thoughts.length) parts.push(`<p class="note">No think() of theirs before this line.</p>`);
+      if (parts.length) secs.push(`<section class="lb-sec"><h3>${nameTag(l.speaker)}'s side</h3>${parts.join("")}</section>`);
+    }
+    // Each listener's reaction.
+    const others = lb.reacts;
+    if (others.length) secs.push(`<section class="lb-sec"><h3>How it was taken</h3>${others.map((t, k) => reactionHtml(t, l, k)).join("")}</section>`);
+    else if (!missingHas(/after_line/)) secs.push(`<section class="lb-sec"><h3>How it was taken</h3><p class="note">No thought follows this line.</p></section>`);
+    // Readings stored from it, and labels the attachment rule ignored.
+    if (!missingHas(/^readings/)) {
+      const rs = G.readingsByLine.get(l.id) || [];
+      secs.push(`<section class="lb-sec"><h3>Readings stored from it</h3>${rs.length ? `<ul class="lb-list">${rs.map((r) => `<li><span class="rid">${esc(r.id ?? "")}</span>${nameTag(r.character)}: ${r.own ? "meant" : "took"} <b>${esc(r.took)}</b>${r.thought ? ` (from ${esc(r.thought)})` : r.source ? ` (from ${esc(r.source)})` : ""}${r.words ?? r.quote ? `, “${esc(r.words ?? r.quote)}”` : ""}</li>`).join("")}</ul>` : `<p class="note">None.</p>`}</section>`);
+    }
+    if (!missingHas(/label_log/)) {
+      const xs = G.ignoredByLine.get(l.id) || [];
+      secs.push(`<section class="lb-sec"><h3>Ignored by the attachment rule</h3>${xs.length ? `<ul class="lb-list">${xs.map((x) => `<li><span class="rid">${esc(x.thought ?? "")}</span>${nameTag(x.character)} took it as <b>${esc(x.took)}</b>: ${esc(x.reason)}${x.standing ? ` (reading ${esc(x.standing)} stands)` : ""}</li>`).join("")}</ul>` : `<p class="note">Nothing.</p>`}</section>`);
     }
     $("lb-body").innerHTML = secs.join("");
     $("lb-body").scrollTop = 0;
@@ -1159,7 +1120,7 @@ dialog#linebox::backdrop { background: rgba(20, 25, 34, 0.45); }
   $("speed").onchange = (e) => { ui.speed = Number(e.target.value); if (ui.playing) play(); };
   $("slider").oninput = (e) => { stop(); go(Number(e.target.value)); };
   $("ticks").onclick = (e) => { const b = e.target.closest("[data-step]"); if (b) { stop(); go(Number(b.dataset.step)); } };
-  $("inner").onchange = (e) => { ui.inner = e.target.checked; render(); };
+  $("fc-toggle").onclick = () => { ui.innerOpen = !ui.innerOpen; render(); };
   $("toend").onclick = () => { stop(); ui.showEnd = true; go(G.steps.length - 1); $("end").scrollIntoView({ behavior: "smooth" }); };
   document.addEventListener("click", (e) => {
     const f = e.target.closest("[data-focus]");
@@ -1192,6 +1153,8 @@ dialog#linebox::backdrop { background: rgba(20, 25, 34, 0.45); }
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") hideTip();
     if (!G || e.target.closest("input, select, textarea")) return;
+    // Space and Enter on the inner-life toggle work it, not playback.
+    if ((e.key === " " || e.key === "Enter") && e.target.closest("#fc-toggle")) return;
     if ($("linebox").open) {
       if (e.key === "ArrowLeft") { e.preventDefault(); stepLine(-1); }
       else if (e.key === "ArrowRight") { e.preventDefault(); stepLine(1); }
