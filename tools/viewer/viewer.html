@@ -10,6 +10,9 @@
   or open a game-<id>.view.html written by `npm run minigame:view`, which embeds the replay variant
   of one record below. The loader (script#loader) is the one shared with the export command and the
   tests, as TD's Game Record & Export asks of the dashboard and the replay viewer.
+  CC-20261029-01: a line opens into a modal with its inner life (the speaker's meant and last thought,
+  each listener's took, the readings stored from it, and what the attachment rule ignored), and a cast
+  member's name shows a short description on hover or focus. Sections a record has no data for are hidden.
 -->
 <style>
 :root {
@@ -165,6 +168,49 @@ td .th { font: italic 13.5px/1.45 var(--serif); }
 .flag-ok { color: var(--verdigris); }
 .missing { color: var(--muted); font-size: 12.5px; }
 
+/* Lines open into the line modal (CC-20261029-01) */
+.ln[data-line] { cursor: pointer; border-radius: 4px; }
+.ln[data-line]:hover { background: var(--sunk); }
+mark.took.meant { text-decoration: underline 2px var(--lapis); text-underline-offset: 2px; border-bottom: 2px dotted var(--ochre); padding-bottom: 2px; }
+[data-name] { text-decoration: underline dotted transparent; text-underline-offset: 3px; }
+[data-name]:hover, [data-name]:focus-visible { text-decoration-color: currentColor; }
+.guest[data-name], .chip[data-name] { text-decoration: none; }
+
+dialog#linebox { width: min(760px, calc(100vw - 32px)); max-height: min(88vh, 940px); padding: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); box-shadow: 0 18px 50px rgba(20, 25, 34, 0.3); }
+dialog#linebox[open] { display: flex; flex-direction: column; }
+dialog#linebox::backdrop { background: rgba(20, 25, 34, 0.45); }
+.lb-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 14px 18px 10px; border-bottom: 1px solid var(--line); }
+.lb-head h2 { font: 600 18px/1.3 var(--serif); margin: 0; }
+.lb-sub { color: var(--muted); font-size: 13px; margin-top: 3px; }
+.lb-body { overflow-y: auto; padding: 14px 18px 4px; }
+.lb-line { font: 18px/1.65 var(--serif); margin: 0 0 6px; }
+.lb-line.notaio { font-style: italic; color: var(--verdigris); }
+.lb-line.event, .lb-line.private { font: 15px/1.55 var(--sans); }
+.lb-legend { font-size: 12px; color: var(--muted); margin: 0 0 4px; }
+.lb-sec { margin: 16px 0; }
+.lb-sec h3 { font: 600 14.5px/1.3 var(--serif); margin: 0 0 8px; }
+.react { margin: 0 0 10px; padding: 4px 8px 5px 12px; border-left: 2px solid var(--lapis); border-radius: 0 5px 5px 0; }
+.react.own { border-left-color: var(--ochre); }
+.react.hot { background: var(--lapis-wash); }
+.react .tag { font-size: 12.5px; color: var(--muted); }
+.react .tag b { color: var(--lapis); font-weight: 600; }
+.react.own .tag b { color: var(--ochre); }
+.react .th { font: italic 14.5px/1.5 var(--serif); margin-top: 2px; }
+.react .words { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.lb-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
+.lb-list li { padding: 4px 8px; border-radius: 5px; background: var(--sunk); }
+.lb-list .rid { color: var(--muted); font-size: 12px; margin-right: 4px; }
+.lb-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 18px 12px; border-top: 1px solid var(--line); }
+.lb-foot .btn:disabled { opacity: 0.4; cursor: default; }
+.lb-pos { color: var(--muted); font-size: 12.5px; text-align: center; }
+
+/* Name tooltip */
+#tip { position: fixed; z-index: 50; max-width: 320px; padding: 9px 12px 10px; border-radius: 8px; background: var(--ink); color: var(--page); font-size: 12.5px; line-height: 1.45; box-shadow: 0 8px 24px rgba(20, 25, 34, 0.28); pointer-events: none; }
+#tip .nm { display: block; font: 600 14.5px/1.3 var(--serif); }
+#tip .fac { opacity: 0.75; }
+#tip .bf { font: italic 13px/1.45 var(--serif); margin: 5px 0 6px; }
+#tip .st { opacity: 0.85; }
+
 @media (max-width: 900px) {
   .stage { grid-template-columns: 1fr; padding: 12px 16px; }
   aside { position: static; max-height: none; }
@@ -223,6 +269,20 @@ td .th { font: italic 13.5px/1.45 var(--serif); }
   </div>
   <section id="end" hidden></section>
 </section>
+
+<dialog id="linebox" aria-labelledby="lb-title">
+  <div class="lb-head">
+    <div><h2 id="lb-title"></h2><div class="lb-sub" id="lb-sub"></div></div>
+    <button class="btn" id="lb-close" autofocus>Close</button>
+  </div>
+  <div class="lb-body" id="lb-body"></div>
+  <div class="lb-foot">
+    <button class="btn" id="lb-prev" title="Previous line in this conversation (Left arrow)">&#8249; Previous line</button>
+    <span class="lb-pos" id="lb-pos"></span>
+    <button class="btn" id="lb-next" title="Next line in this conversation (Right arrow)">Next line &#8250;</button>
+  </div>
+</dialog>
+<div id="tip" role="tooltip" hidden></div>
 
 <script type="application/json" id="embedded-record"></script>
 
@@ -296,8 +356,9 @@ td .th { font: italic 13.5px/1.45 var(--serif); }
 
   /**
    * TD's replay variant of a full record: no model calls (prompts, raw output, tokens per call),
-   * no static prefixes, no seeds, no provider details. Readings and the entries behind knowledge
-   * checks stay; the rest of memory is left out. Added for the viewer: each character's block 6
+   * no static prefixes, no seeds, no provider details. Readings, the attachment rule's log of labels
+   * it didn't store (label_log), and the entries behind knowledge checks stay; the rest of memory is
+   * left out. Added for the viewer: each character's block 6
    * over the game (notebook_views), and the post-game checks when the runner wrote them.
    */
   function toReplay(full, checks) {
@@ -331,6 +392,7 @@ td .th { font: italic 13.5px/1.45 var(--serif); }
       thoughts: clone(arr(full.thoughts)),
       memory: {
         readings: clone(arr(mem.readings)),
+        label_log: clone(arr(mem.label_log ?? mem.labelLog)),
         entries: clone(arr(mem.entries).filter((e) => entryIds.has(e.id))),
         beliefs: clone(arr(mem.beliefs).filter((b) => beliefIds.has(b.id))),
       },
@@ -378,13 +440,21 @@ td .th { font: italic 13.5px/1.45 var(--serif); }
     need(arr(rec.snapshots).some((s) => arr(s.characters).some((c) => "withdrawals" in c)), "withdrawal counts");
     need(arr(rec.notebook_views).length > 0, "block 6 notebooks (prompts)");
     need(arr(rec.memory && rec.memory.readings).length > 0, "readings (TD v0.8+)");
+    need(arr(rec.memory && rec.memory.label_log).length > 0, "the attachment rule's ignored labels (label_log, TD v0.9+)");
+    need(header.briefings || (header.config && header.config.briefings), "briefings");
+    need(arr(header.roster).length > 0, "roster (factions)");
     need(rec.murder_round && arr(rec.murder_round.acts).length > 0, "Murder Round acts");
     need(arr(rec.knowledge_checks).length > 0, "knowledge checks");
     need(rec.post_game_checks && typeof rec.post_game_checks === "object", "post-game checks");
 
     // Readings keyed by character and line, for records whose thoughts carry no `took` (TD v0.8).
     const readings = new Map();
-    for (const r of arr(rec.memory && rec.memory.readings)) readings.set(`${r.character}|${r.line}`, r);
+    const readingsByLine = new Map();
+    const push = (m, k, v) => { if (!m.has(k)) m.set(k, []); m.get(k).push(v); };
+    for (const r of arr(rec.memory && rec.memory.readings)) { readings.set(`${r.character}|${r.line}`, r); push(readingsByLine, r.line, r); }
+    // Labels the attachment rule didn't store, with its reason, by the line they were about.
+    const ignoredByLine = new Map();
+    for (const x of arr(rec.memory && rec.memory.label_log)) push(ignoredByLine, x.line, x);
 
     // Steps: every line once, in event order (lines no event names go just before the next one
     // that does), and the marked events. A step index is a moment of the game.
@@ -400,6 +470,8 @@ td .th { font: italic 13.5px/1.45 var(--serif); }
     const thoughtsByLine = new Map();
     const thoughtsByTarget = new Map();
     const looseThoughts = [];
+    const thoughts = [];
+    const lineEvent = new Map();
 
     // Room state as the game unfolds.
     const snaps = arr(rec.snapshots);
@@ -501,9 +573,11 @@ td .th { font: italic 13.5px/1.45 var(--serif); }
         if (MARKED.includes(e.type) && !(e.type === "move" && e.choice === "stay")) addStep({ kind: "event", event: i, turn: e.turn ?? 0 });
       }
       eventStep[i] = steps.length - 1;
+      if (e.type === "speech" && e.line && !lineEvent.has(e.line)) lineEvent.set(e.line, i);
       if (e.type === "thought") {
         // `target_line` (TD v0.10): the line the `took` label is about, which can be earlier than the line it followed.
-        const t = { character: e.character, call: e.call, text: e.text, took: e.took, words: e.words, importance: e.importance, closing: Boolean(e.closing), repeat: Boolean(e.repeat), after: e.after_line !== undefined ? e.after_line : lastHeard.get(e.character) ?? null, target: e.target_line ?? null, step: steps.length - 1, turn: e.turn, event: i };
+        const t = { id: e.thought ?? null, character: e.character, call: e.call, text: e.text, took: e.took, words: e.words, wordsLog: e.words_log ?? null, importance: e.importance, closing: Boolean(e.closing), repeat: Boolean(e.repeat), after: e.after_line !== undefined ? e.after_line : lastHeard.get(e.character) ?? null, target: e.target_line ?? null, step: steps.length - 1, turn: e.turn, event: i };
+        thoughts.push(t);
         if (e.call === "think" && t.after) {
           if (!thoughtsByLine.has(t.after)) thoughtsByLine.set(t.after, []);
           thoughtsByLine.get(t.after).push(t);
@@ -537,7 +611,11 @@ td .th { font: italic 13.5px/1.45 var(--serif); }
       thoughtsByLine,
       thoughtsByTarget,
       looseThoughts,
+      thoughts,
+      lineEvent,
       readings,
+      readingsByLine,
+      ignoredByLine,
       lineStep,
       notebooks,
       neverSpoke: cast.filter((c) => !spoke.has(c)),
@@ -631,7 +709,7 @@ td .th { font: italic 13.5px/1.45 var(--serif); }
   // ---- Filters ---------------------------------------------------------------------------------
   function buildFilters() {
     const convs = [...new Set([...G.lines.values()].map((l) => l.conversation).filter(Boolean))].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
-    $("fchars").innerHTML = `<span class="lbl">Heard by</span>` + G.cast.map((c) => `<button class="chip" data-char="${esc(c)}" aria-pressed="true">${esc(c)}</button>`).join("");
+    $("fchars").innerHTML = `<span class="lbl">Heard by</span>` + G.cast.map((c) => `<button class="chip" data-char="${esc(c)}" data-name="${esc(c)}" aria-pressed="true">${esc(c)}</button>`).join("");
     $("fconvs").innerHTML = `<span class="lbl">Conversations</span>` + convs.map((c) => `<button class="chip" data-conv="${esc(c)}" aria-pressed="true">${esc(c)}</button>`).join("");
   }
 
@@ -689,16 +767,18 @@ td .th { font: italic 13.5px/1.45 var(--serif); }
         if (w) text = highlight(l.text, w, "took");
       }
     }
-    const sp = l.kind === "notaio" ? "Il Notaio" : l.kind === "private" ? `Private to ${esc(l.speaker)}` : l.speaker ? esc(l.speaker) : "";
-    const to = l.addressee ? `<span class="to">(to ${esc(l.addressee)})</span>` : "";
+    const sp = l.kind === "notaio" ? "Il Notaio" : l.kind === "private" ? `Private to ${nameTag(l.speaker)}` : l.speaker ? nameTag(l.speaker) : "";
+    const to = l.addressee ? `<span class="to">(to ${nameTag(l.addressee)})</span>` : "";
     let inner = "";
     if (ui.inner) {
       if (who) { if (arr(l.heardBy).includes(who) || l.speaker === who) inner = innerFor(l, who); }
       else inner = arr(l.heardBy).map((h) => innerFor(l, h)).join("");
     }
-    return `<div class="ln ${cls}${fresh ? " fresh" : ""}">${sp ? `<span class="sp${l.speaker === who && who ? " me" : ""}">${sp}</span>` : ""}${to}<div class="tx">${text}</div>${inner}</div>`;
+    return `<div class="ln ${cls}${fresh ? " fresh" : ""}" data-line="${esc(l.id)}" tabindex="0" role="button" aria-haspopup="dialog">${sp ? `<span class="sp${l.speaker === who && who ? " me" : ""}">${sp}</span>` : ""}${to}<div class="tx">${text}</div>${inner}</div>`;
   }
   const arr = (x) => (Array.isArray(x) ? x : []);
+  /** A cast member's name that shows their tooltip on hover or focus; anyone else's is plain text. */
+  function nameTag(n) { return G.cast.includes(n) ? `<span data-name="${esc(n)}" tabindex="0">${esc(n)}</span>` : esc(n); }
 
   function membersOf(state, id) { return G.cast.filter((c) => state.loc[c] === id); }
 
@@ -733,7 +813,7 @@ td .th { font: italic 13.5px/1.45 var(--serif); }
   }
   function renderRoom(state) {
     const groups = Object.values(state.convs).filter((c) => c.open && membersOf(state, c.id).length).sort((a, b) => Number(a.id.slice(1)) - Number(b.id.slice(1)));
-    const guest = (c) => `<button class="guest${ui.focus === c ? " on" : ""}" data-focus="${esc(c)}" aria-pressed="${ui.focus === c}"><span>${esc(c)}</span><span class="purse">${esc(purse(state, c))}</span></button>`;
+    const guest = (c) => `<button class="guest${ui.focus === c ? " on" : ""}" data-focus="${esc(c)}" data-name="${esc(c)}" aria-pressed="${ui.focus === c}"><span>${esc(c)}</span><span class="purse">${esc(purse(state, c))}</span></button>`;
     let html = groups.map((g) => `<div class="group ${g.kind}"><div class="gh">${g.kind === "colloquio" ? "Colloquio" : "Capannello"} ${esc(g.id)}${g.chain ? `, chain ${esc(g.chain)} position ${esc(g.position)}` : ""}</div>${membersOf(state, g.id).map(guest).join("")}</div>`).join("");
     const away = G.cast.filter((c) => !state.loc[c] || !state.convs[state.loc[c]] || !state.convs[state.loc[c]].open);
     if (away.length) html += `<div class="group"><div class="gh">Not in a group</div>${away.map(guest).join("")}</div>`;
@@ -851,6 +931,220 @@ td .th { font: italic 13.5px/1.45 var(--serif); }
     toHash();
   }
 
+  // ---- The line modal: one line's inner life (CC-20261029-01) ---------------------------------
+  const lb = { line: null, reacts: [], hot: null };
+  const TRIM = /^[…."'“”‘’\s]+|[…."'“”‘’\s]+$/g;
+  const missingHas = (re) => G.missing.some((m) => re.test(m));
+
+  /** Where words sit in a text, as [start, end), or null. */
+  function spanOf(text, words) {
+    const w = String(words ?? "").replace(TRIM, "").toLowerCase();
+    if (!w) return null;
+    const i = String(text).toLowerCase().indexOf(w);
+    return i < 0 ? null : [i, i + w.length];
+  }
+  /** The text with each span marked by its class; overlapping spans carry both. */
+  function markText(text, spans) {
+    const cuts = new Set([0, text.length]);
+    for (const s of spans) if (s.range) { cuts.add(s.range[0]); cuts.add(s.range[1]); }
+    const pts = [...cuts].sort((a, b) => a - b);
+    let out = "";
+    for (let k = 0; k < pts.length - 1; k++) {
+      const a = pts[k], b = pts[k + 1];
+      const cls = [...new Set(spans.filter((s) => s.range && s.range[0] <= a && s.range[1] >= b).map((s) => s.cls))];
+      const seg = esc(text.slice(a, b));
+      out += cls.length ? `<mark class="${cls.join(" ")}">${seg}</mark>` : seg;
+    }
+    return out;
+  }
+  const speakerOf = (l) => (l.kind === "notaio" ? "Il Notaio" : l.speaker ?? "someone");
+  /** Lines of one conversation shown so far, in order. */
+  function convLines(conv) {
+    return [...G.lineStep.entries()].filter(([id, s]) => s <= ui.step && G.lines.get(id).conversation === conv).sort((a, b) => a[1] - b[1]).map(([id]) => id);
+  }
+  /** Thoughts that followed the line, and later ones whose label is about it. */
+  function reactionsTo(l) {
+    const seen = new Set();
+    return [...(G.thoughtsByLine.get(l.id) || []), ...(G.thoughtsByTarget.get(l.id) || [])].filter((t) => !seen.has(t) && seen.add(t)).sort((a, b) => a.event - b.event);
+  }
+  /** A reaction's label, words, and where the words were found. */
+  function readingOf(t, l) {
+    let took = t.took, words = t.words;
+    if (took === undefined) { const r = G.readings.get(`${t.character}|${l.id}`); if (r) { took = r.took; words = r.words ?? r.quote; } }
+    const on = t.target && t.target !== l.id && G.lines.get(t.target) ? G.lines.get(t.target) : null;
+    const base = on || l;
+    const range = words ? spanOf(base.text, words) : null;
+    let elsewhere = null;
+    if (words && !range) {
+      const wrong = t.wordsLog && (t.wordsLog.wrong_line || t.wordsLog.same_speaker);
+      elsewhere = wrong && G.lines.get(wrong) ? G.lines.get(wrong) : [...G.lines.values()].find((x) => x.conversation === base.conversation && x.id !== base.id && spanOf(x.text, words)) || null;
+    }
+    return { took, words, on, range: on ? null : range, foundInOn: Boolean(on && range), elsewhere };
+  }
+  function reactionHtml(t, l, k) {
+    const r = readingOf(t, l);
+    const own = l.speaker === t.character && !r.on;
+    let label = "";
+    if (r.took !== undefined && r.took !== null) {
+      if (r.took === "none") label = r.on ? `took ${nameTag(speakerOf(r.on))}'s earlier line (${esc(r.on.id)}) as nothing` : "took it as nothing";
+      else if (r.on) label = `took ${r.on.speaker === t.character ? "their own" : `${nameTag(speakerOf(r.on))}'s`} earlier line (${esc(r.on.id)}) as <b>${esc(r.took)}</b>`;
+      else label = `took ${own ? "their own line" : "it"} as <b>${esc(r.took)}</b>`;
+    }
+    const tag = [
+      nameTag(t.character),
+      t.closing ? "closing think" : "",
+      t.after && t.after !== l.id ? `after ${esc(t.after)}` : "",
+      label,
+      t.importance !== undefined && !t.closing ? `importance<span class="imp">${esc(t.importance)}</span>` : "",
+    ].filter(Boolean).join(", ");
+    let words = "";
+    if (r.words) {
+      const note = r.range ? "" : r.foundInOn ? ` (in ${esc(r.on.id)})` : r.elsewhere ? ` (these words are from ${esc(r.elsewhere.id)}, ${nameTag(speakerOf(r.elsewhere))}'s line, not this one)` : " (not found in the line)";
+      words = `<div class="words">words: “${esc(r.words)}”${note}</div>`;
+    }
+    return `<div class="react${own ? " own" : ""}" data-k="${k}">${tag ? `<div class="tag">${tag}</div>` : ""}${t.repeat ? `<div class="words">(same thought again)</div>` : `<div class="th">${esc(t.text)}</div>`}${words}</div>`;
+  }
+  function lineSpans(l, onlyK) {
+    const spans = [];
+    if (l.kind === "speech" && l.words && onlyK === null) spans.push({ range: spanOf(l.text, l.words), cls: "meant" });
+    lb.reacts.forEach((t, k) => { if (onlyK === null || onlyK === k) { const r = readingOf(t, l); if (r.range && r.took !== "none") spans.push({ range: r.range, cls: "took" }); } });
+    return spans;
+  }
+  function paintLine() {
+    const l = G.lines.get(lb.line);
+    const el = document.getElementById("lb-text");
+    if (el) el.innerHTML = ui.inner ? markText(l.text, lineSpans(l, lb.hot)) : esc(l.text);
+    for (const c of document.querySelectorAll("#lb-body .react")) c.classList.toggle("hot", Number(c.dataset.k) === lb.hot);
+  }
+
+  function renderLinebox() {
+    const l = G.lines.get(lb.line);
+    const conv = l.conversation;
+    const kind = l.where && l.where.kind === "colloquio" ? "Colloquio" : l.where && l.where.kind === "capannello" ? "Capannello" : "Conversation";
+    const heard = arr(l.heardBy);
+    $("lb-title").innerHTML = l.kind === "speech" ? nameTag(l.speaker) : l.kind === "notaio" ? "Il Notaio" : l.kind === "private" ? `Private to ${nameTag(l.speaker)}` : l.speaker ? `Action: ${nameTag(l.speaker)}` : "Action";
+    $("lb-sub").innerHTML = [`${l.turn === 0 ? "Arrival" : `Turn ${esc(l.turn)}`}`, conv ? `${kind} ${esc(conv)}` : "", esc(l.id), l.addressee ? `to ${nameTag(l.addressee)}` : ""].filter(Boolean).join(", ")
+      + (l.kind === "speech" && heard.length ? `<br>Present: ${heard.map(nameTag).join(", ")}` : "");
+    lb.reacts = ui.inner ? reactionsTo(l) : [];
+    lb.hot = null;
+    const secs = [];
+    const lineCls = l.kind === "notaio" ? "notaio" : l.kind === "speech" ? "" : l.kind === "private" ? "private" : "event";
+    secs.push(`<p class="lb-line ${lineCls}" id="lb-text"></p>`);
+    const anyTook = lb.reacts.some((t) => readingOf(t, l).range);
+    if (ui.inner && ((l.kind === "speech" && l.words) || anyTook)) secs.push(`<p class="lb-legend">${l.kind === "speech" && l.words ? `<mark class="meant">Dotted</mark>: the words ${nameTag(l.speaker)} meant. ` : ""}${anyTook ? `<mark class="took">Underlined</mark>: words a listener took; point at a reaction to see only its words.` : ""}</p>`);
+    if (l.kind !== "speech") secs.push(`<section class="lb-sec"><h3>Received by</h3><div>${heard.length ? heard.map(nameTag).join(", ") : "No one is recorded as receiving it."}</div></section>`);
+    if (!ui.inner) {
+      secs.push(`<p class="note">Inner life is hidden. Turn on Inner life to see thoughts, labels, and readings.</p>`);
+    } else {
+      // The speaker's own side.
+      if (l.kind === "speech") {
+        const parts = [];
+        if ("meant" in l || l.words) parts.push(`<div class="react own"><div class="tag">Meant it as <b>${esc(l.meant ?? "?")}</b></div>${l.words ? `<div class="words">words: “${esc(l.words)}”${spanOf(l.text, l.words) ? "" : " (not found in the line)"}</div>` : ""}</div>`);
+        const at = G.lineEvent.has(l.id) ? G.lineEvent.get(l.id) : null;
+        const before = at === null ? null : G.thoughts.filter((t) => t.character === l.speaker && t.call === "think" && t.event < at).at(-1);
+        if (before) parts.push(`<div class="react own"><div class="tag">Last thought before speaking, turn ${esc(before.turn)}${before.closing ? ", closing think" : ""}${before.importance !== undefined && !before.closing ? `, importance<span class="imp">${esc(before.importance)}</span>` : ""}</div><div class="th">${esc(before.text)}</div></div>`);
+        else if (at !== null && G.thoughts.length) parts.push(`<p class="note">No think() of theirs before this line.</p>`);
+        if (parts.length) secs.push(`<section class="lb-sec"><h3>${nameTag(l.speaker)}'s side</h3>${parts.join("")}</section>`);
+      }
+      // Each listener's reaction.
+      const others = lb.reacts;
+      if (others.length) secs.push(`<section class="lb-sec"><h3>How it was taken</h3>${others.map((t, k) => reactionHtml(t, l, k)).join("")}</section>`);
+      else if (!missingHas(/after_line/)) secs.push(`<section class="lb-sec"><h3>How it was taken</h3><p class="note">No thought follows this line.</p></section>`);
+      // Readings stored from it, and labels the attachment rule ignored.
+      if (!missingHas(/^readings/)) {
+        const rs = G.readingsByLine.get(l.id) || [];
+        secs.push(`<section class="lb-sec"><h3>Readings stored from it</h3>${rs.length ? `<ul class="lb-list">${rs.map((r) => `<li><span class="rid">${esc(r.id ?? "")}</span>${nameTag(r.character)}: ${r.own ? "meant" : "took"} <b>${esc(r.took)}</b>${r.thought ? ` (from ${esc(r.thought)})` : r.source ? ` (from ${esc(r.source)})` : ""}${r.words ?? r.quote ? `, “${esc(r.words ?? r.quote)}”` : ""}</li>`).join("")}</ul>` : `<p class="note">None.</p>`}</section>`);
+      }
+      if (!missingHas(/label_log/)) {
+        const xs = G.ignoredByLine.get(l.id) || [];
+        secs.push(`<section class="lb-sec"><h3>Ignored by the attachment rule</h3>${xs.length ? `<ul class="lb-list">${xs.map((x) => `<li><span class="rid">${esc(x.thought ?? "")}</span>${nameTag(x.character)} took it as <b>${esc(x.took)}</b>: ${esc(x.reason)}${x.standing ? ` (reading ${esc(x.standing)} stands)` : ""}</li>`).join("")}</ul>` : `<p class="note">Nothing.</p>`}</section>`);
+      }
+    }
+    $("lb-body").innerHTML = secs.join("");
+    $("lb-body").scrollTop = 0;
+    paintLine();
+    const ids = convLines(conv);
+    const i = ids.indexOf(l.id);
+    $("lb-prev").disabled = i <= 0;
+    $("lb-next").disabled = i < 0 || i >= ids.length - 1;
+    $("lb-pos").textContent = i < 0 ? "" : `Line ${i + 1} of ${ids.length} shown in ${conv}`;
+  }
+  function openLine(id) {
+    if (!G || !G.lines.has(id)) return;
+    stop();
+    hideTip();
+    lb.line = id;
+    renderLinebox();
+    if (!$("linebox").open) { $("linebox").showModal(); $("lb-close").focus(); hideTip(); }
+  }
+  function stepLine(d) {
+    const ids = convLines(G.lines.get(lb.line).conversation);
+    const i = ids.indexOf(lb.line) + d;
+    if (i >= 0 && i < ids.length) { hideTip(); lb.line = ids[i]; renderLinebox(); }
+  }
+
+  // ---- Name tooltip ------------------------------------------------------------------------------
+  const tip = $("tip");
+  let tipTimer = null, tipEl = null;
+  function firstSentence(name) {
+    const h = G.header;
+    const b = (h.briefings || (h.config && h.config.briefings) || {})[name];
+    if (typeof b !== "string") return { faction: null, sentence: null };
+    const paras = b.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+    const lead = paras[0] && /^\*[^*]/.test(paras[0]) ? paras[0].replace(/\*/g, "") : null;
+    const prose = paras.find((p) => !/^[*_#]/.test(p));
+    const m = prose ? prose.replace(/[*_]/g, "").match(/^[\s\S]*?[.!?](?=\s|$)/) : null;
+    return { faction: lead ? lead.split(" · ")[0].trim() : null, sentence: m ? m[0] : prose || null };
+  }
+  function tipHtml(name) {
+    const state = G.states[ui.step] || G.states[0];
+    const r = arr(G.header.roster).find((x) => x.name === name);
+    const f = firstSentence(name);
+    const faction = (r && r.faction) || f.faction;
+    const loc = state && state.loc[name];
+    const c = loc && state.convs[loc];
+    const where = c && c.open ? `${c.kind === "colloquio" ? "Colloquio" : "Capannello"} ${loc}` : "not in a group";
+    const fl = state && state.florins[name];
+    const pen = state && state.pensions[name];
+    const w = (state && state.withdrawals[name]) ?? 0;
+    const purse = fl === null || fl === undefined ? "" : `${fl} Florin${fl === 1 ? "" : "s"}${pen ? `, ${pen} French pension${pen > 1 ? "s" : ""}` : ""}`;
+    return `<span class="nm">${esc(name)}</span>${faction ? `<span class="fac">${esc(faction)}</span>` : ""}${f.sentence ? `<div class="bf">${esc(f.sentence)}</div>` : ""}`
+      + `<div class="st">Now: ${esc(where)}${purse ? `<br>Purse: ${esc(purse)}` : ""}<br>Withdrawn in private: ${esc(w)} time${w === 1 ? "" : "s"}</div>`;
+  }
+  function placeTip(el) {
+    const r = el.getBoundingClientRect();
+    const t = tip.getBoundingClientRect();
+    const pad = 8;
+    let top = r.bottom + 6;
+    if (top + t.height > innerHeight - pad) top = Math.max(pad, r.top - t.height - 6);
+    const left = Math.max(pad, Math.min(r.left, innerWidth - t.width - pad));
+    tip.style.top = `${top}px`;
+    tip.style.left = `${left}px`;
+  }
+  function showTip(el) {
+    if (!G || !el.isConnected) return;
+    const box = $("linebox");
+    const host = box.open ? box : document.body;
+    if (tip.parentNode !== host) host.appendChild(tip);
+    tip.innerHTML = tipHtml(el.dataset.name);
+    tip.hidden = false;
+    placeTip(el);
+    el.setAttribute("aria-describedby", "tip");
+    tipEl = el;
+  }
+  function hideTip() {
+    clearTimeout(tipTimer);
+    tipTimer = null;
+    if (tipEl) tipEl.removeAttribute("aria-describedby");
+    tipEl = null;
+    tip.hidden = true;
+  }
+  function queueTip(el) {
+    if (el === tipEl) return;
+    hideTip();
+    tipTimer = setTimeout(() => showTip(el), 350);
+  }
+
   // ---- Wiring ----------------------------------------------------------------------------------
   const pick = () => $("file").click();
   $("open").onclick = pick;
@@ -873,10 +1167,38 @@ td .th { font: italic 13.5px/1.45 var(--serif); }
     const c = e.target.closest("[data-char]");
     if (c && G) { const n = c.dataset.char; ui.hideChars.has(n) ? ui.hideChars.delete(n) : ui.hideChars.add(n); render(); return; }
     const v = e.target.closest("[data-conv]");
-    if (v && G && v.classList.contains("chip")) { const n = v.dataset.conv; ui.hideConvs.has(n) ? ui.hideConvs.delete(n) : ui.hideConvs.add(n); render(); }
+    if (v && G && v.classList.contains("chip")) { const n = v.dataset.conv; ui.hideConvs.has(n) ? ui.hideConvs.delete(n) : ui.hideConvs.add(n); render(); return; }
+    const ln = e.target.closest(".ln[data-line]");
+    if (ln && G) openLine(ln.dataset.line);
   });
+  $("lb-close").onclick = () => $("linebox").close();
+  $("lb-prev").onclick = () => stepLine(-1);
+  $("lb-next").onclick = () => stepLine(1);
+  // A click on the backdrop lands on the dialog itself; its content fills the box.
+  $("linebox").addEventListener("click", (e) => { if (e.target === $("linebox")) $("linebox").close(); });
+  $("linebox").addEventListener("close", () => {
+    hideTip();
+    const back = document.querySelector(`.ln[data-line="${CSS.escape(lb.line || "")}"]`);
+    if (back) back.focus();
+  });
+  $("lb-body").addEventListener("mouseover", (e) => { const c = e.target.closest(".react[data-k]"); const k = c ? Number(c.dataset.k) : null; if (k !== lb.hot) { lb.hot = k; paintLine(); } });
+  $("lb-body").addEventListener("mouseleave", () => { if (lb.hot !== null) { lb.hot = null; paintLine(); } });
+  document.addEventListener("mouseover", (e) => { const n = e.target.closest("[data-name]"); if (n) queueTip(n); });
+  document.addEventListener("mouseout", (e) => { const n = e.target.closest("[data-name]"); if (n && !(e.relatedTarget && n.contains(e.relatedTarget))) hideTip(); });
+  document.addEventListener("focusin", (e) => { const n = e.target.closest("[data-name]"); if (n) queueTip(n); else hideTip(); });
+  document.addEventListener("focusout", (e) => { if (e.target.closest("[data-name]")) hideTip(); });
+  // A scroll moves what a shown tooltip points at; one still waiting is placed when it shows.
+  addEventListener("scroll", () => { if (!tip.hidden) hideTip(); }, true);
   document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") hideTip();
     if (!G || e.target.closest("input, select, textarea")) return;
+    if ($("linebox").open) {
+      if (e.key === "ArrowLeft") { e.preventDefault(); stepLine(-1); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); stepLine(1); }
+      return;
+    }
+    const ln = (e.key === "Enter" || e.key === " ") && e.target.closest && e.target.closest(".ln[data-line]");
+    if (ln && !e.target.closest("[data-name]")) { e.preventDefault(); openLine(ln.dataset.line); return; }
     if (e.key === " ") { e.preventDefault(); ui.playing ? stop() : play(); }
     else if (e.key === "ArrowRight") { stop(); go(ui.step + 1); }
     else if (e.key === "ArrowLeft") { stop(); go(ui.step - 1); }

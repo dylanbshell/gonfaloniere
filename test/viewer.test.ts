@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { gzipSync } from "node:zlib";
+import { ROSTER } from "../src/game/roster.ts";
 import type { MiniGame } from "../src/minigame/engine.ts";
 import { exportView, keyFindings, readRecord, viewerLoader, viewHtml } from "../src/minigame/view.ts";
 import { playFake } from "./fixtures/fake-game.ts";
@@ -26,6 +27,8 @@ type Loaded = ReturnType<typeof loader.load> & {
 
 /** A full record shaped as the runner writes it, from the fake game (seat calls included on TD v0.25). */
 function fakeRecord(game: MiniGame) {
+  const cast = [...new Set(game.lines.flatMap((l) => l.heardBy))];
+  const faction = (c: string) => ROSTER.find((r) => r.name === c)?.faction ?? "";
   return {
     schema_version: 1,
     variant: "full",
@@ -34,7 +37,9 @@ function fakeRecord(game: MiniGame) {
     header: {
       game_id: "fake-g1",
       seed: 2000,
-      cast: [...new Set(game.lines.flatMap((l) => l.heardBy))],
+      cast,
+      roster: ROSTER,
+      briefings: Object.fromEntries(cast.map((c) => [c, `*${faction(c)} · a guest*\n\n**Who you are**\n\nYou are ${c}, a guest tonight. More follows.`])),
       docs: { technicalDesign: "0.25" },
       config: { model: "fake/model", provider: "FakeProvider", quantization: "fp8", served_model: "fake/model-1", seed: 2000, turns: 6, recorder: { model: "fake/model", endpoint: "OpenRouter", provider: "FakeProvider", quantization: "fp8", served_model: "fake/model-1" } },
     },
@@ -43,7 +48,7 @@ function fakeRecord(game: MiniGame) {
     lines: game.lines,
     thoughts: game.thoughts,
     calls: game.calls,
-    memory: { entries: game.memory.entries, beliefs: game.memory.beliefs, readings: game.memory.readings },
+    memory: { entries: game.memory.entries, beliefs: game.memory.beliefs, readings: game.memory.readings, label_log: game.memory.labelLog },
     snapshots: game.snapshots,
     murder_round: { resolved: false, acts: game.murderActs },
     knowledge_checks: game.knowledgeChecks,
@@ -136,6 +141,24 @@ test("the replay variant has no model calls, prefixes, seeds, or provider detail
   assert.equal(r.events.length, fakeFull.events.length);
   assert.ok(r.notebook_views.length > 0);
   assert.ok(!JSON.stringify(r).includes("TASK: THINK"), "no prompt text beyond block 6");
+  assert.equal(r.memory.label_log.length, fakeFull.memory.label_log.length, "the attachment rule's log stays, for the line modal");
+});
+
+test("the line modal's indexes: readings and ignored labels by line, each spoken line's event, and every thought", () => {
+  const m = loader.load(fakeFull) as Loaded & {
+    thoughts: { id: string | null; event: number; character: string; call: string }[];
+    lineEvent: Map<string, number>;
+    readingsByLine: Map<string, { id: string }[]>;
+    ignoredByLine: Map<string, { thought: string; reason: string }[]>;
+  };
+  const g = fake.game;
+  assert.equal([...m.readingsByLine.values()].flat().length, g.memory.readings.length);
+  for (const r of g.memory.readings) assert.ok(m.readingsByLine.get(r.line)!.some((x) => x.id === r.id), r.id);
+  assert.ok(g.memory.labelLog.length > 0, "the fake game ignores some labels");
+  for (const x of g.memory.labelLog) assert.ok(m.ignoredByLine.get(x.line)!.some((y) => y.thought === x.thought && y.reason === x.reason), x.thought);
+  for (const l of g.lines.filter((l) => l.kind === "speech")) assert.equal((g.events[m.lineEvent.get(l.id)!] as { line?: string }).line, l.id, l.id);
+  assert.equal(m.thoughts.length, g.events.filter((e) => e.type === "thought").length);
+  assert.ok(m.thoughts.every((t, i) => t.id && (i === 0 || t.event > m.thoughts[i - 1]!.event)), "thought ids, in event order");
 });
 
 test("an export embeds one replay record, contains no key-shaped strings, and refuses one that would", () => {
