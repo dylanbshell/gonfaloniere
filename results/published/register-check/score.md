@@ -34,5 +34,5 @@ These are carried over from CC-20261028-09; the full tables are in that report.
 |---|---|---|---|
 | took: insult share | 11.6% (60 of 516) | 4.8% (28 of 580) | **flag**: it halves and moves 6.8 points |
 | took: admission share | 0.8% (4) | 4.8% (28) | no: 6× the share, but it moves only 4.1 points |
-| Knowledge checks: knows / suspicion / told_by named | 0 / 9 / 0 | 0 / 7 / 0 | no |
+| Knowledge checks: told / conclusion / suspicion / told_by named | 0 / 0 / 9 / 0 | 0 / 0 / 7 / 0 | no |
 | Repairs and retries on think() and speak() | 0 | 0 | no |

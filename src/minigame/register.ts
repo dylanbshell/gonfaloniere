@@ -94,14 +94,18 @@ export function labelFlag(base: number, now: number): boolean {
   return (ratio >= 2 || ratio <= 0.5) && Math.abs(now - base) >= 5;
 }
 
-/** Who learned a secret they didn't start with, from the runner's knowledge checks (F2–F5 × cast). */
+/**
+ * Who learned a secret they didn't start with, from the runner's knowledge checks (F2–F5 × cast). The
+ * checker's verdicts are told, conclusion, suspicion, and none (src/minigame/extract.ts).
+ */
 export function spread(recs: Rec[]) {
-  const out = { checks: 0, knows: 0, suspicion: 0, toldBy: 0 };
+  const out = { checks: 0, told: 0, conclusion: 0, suspicion: 0, toldBy: 0 };
   for (const r of recs)
     for (const k of r.knowledge_checks) {
       if ((KNOWS_AT_START[k.fact] ?? []).includes(k.character as never)) continue;
       out.checks++;
-      if (k.verdict?.verdict === "knows") out.knows++;
+      if (k.verdict?.verdict === "told") out.told++;
+      if (k.verdict?.verdict === "conclusion") out.conclusion++;
       if (k.verdict?.verdict === "suspicion") out.suspicion++;
       if (k.verdict?.told_by?.length) out.toldBy++;
     }
@@ -269,7 +273,8 @@ function measuresMd(r: ReturnType<typeof registerCheck>): string {
     "| | Baseline | New |",
     "|---|---|---|",
     `| Checks | ${b.spread.checks} | ${n.spread.checks} |`,
-    `| knows | ${b.spread.knows} | ${n.spread.knows} |`,
+    `| told | ${b.spread.told} | ${n.spread.told} |`,
+    `| conclusion | ${b.spread.conclusion} | ${n.spread.conclusion} |`,
     `| suspicion | ${b.spread.suspicion} | ${n.spread.suspicion} |`,
     `| told_by named | ${b.spread.toldBy} | ${n.spread.toldBy} |`,
     "",
