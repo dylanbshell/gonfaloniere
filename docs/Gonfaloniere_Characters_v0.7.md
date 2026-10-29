@@ -1,15 +1,22 @@
 # Gonfaloniere
 ## Characters & Briefings — Working Document
-### Version 0.6
+### Version 0.7
 
 ---
+
+## Changes in v0.7
+
+*Dylan, Oct 29.*
+
+- **Voice examples approved** as drafted for Lupo, Isabella, and LeNoir (v0.6). They're now the model for the other nine
+- **In-world names chosen for character-facing text** (handoff to Technical Design, which owns the prompts): **midnight** for the Murder Round, **council** for a faction meeting, **errand** for the plot point with the reward described plainly ("one extra act at midnight"), and **kill, guard, or watch** for the acts. Docs and code keep the game names. The briefings switch in the same version Technical Design adopts them, so a prompt never mixes the two (Open Questions)
 
 ## Changes in v0.6
 
 *Dylan, Oct 29.*
 
 - **The Pazzi coup was fourteen years ago, in 1478,** matching real history (Shared Canon: Setting). v0.5's "twenty years" rested on a wrong claim in this chat that twenty matched 1478. No longer a divergence
-- **Voice examples live here, in each briefing.** v0.5 misread the handoff as Dylan drafting them elsewhere. First drafts added to Lupo, Isabella, and LeNoir: a **How you speak** passage replacing the one-line voice description, with four example lines each (a deflection, a jab, a joke, a refusal or bargain), checked against Technical Design's rules (Block 3, Voice examples). **Drafts for Dylan's edit:** no secrets or plot facts, nothing about boldness or caution, each line under 20 words
+- **Voice examples live here, in each briefing.** v0.5 misread the handoff as Dylan drafting them elsewhere. First drafts added to Lupo, Isabella, and LeNoir: a **How you speak** passage replacing the one-line voice description, with four example lines each (a deflection, a jab, a joke, a refusal or bargain), checked against Technical Design's rules (Block 3, Voice examples). No secrets or plot facts, nothing about boldness or caution, each line under 20 words. *(Approved by Dylan in v0.7)*
 
 ## Changes in v0.5
 
@@ -422,8 +429,8 @@ Your sword, and a reputation as a dangerous man to cross.
   - **Clarice is the hard case:** ties to three factions (Medici family, a Pazzi lover, a French marriage). Her errand should be one thing she can finish tonight; the rest stays motivation
   - **Since Mechanics v0.19 the errand earns an extra Murder Round act,** so it gates power on the night more than survival. Watch whether characters chase errands hard enough once they know that
 - [ ] **Does errand-first change play?** v0.5 reorders the three tested briefings without changing their words. Compare a full game's opening rounds against earlier mini-games: do characters pursue their errand sooner, and circle less? (Models & Research to schedule if wanted)
-- [ ] **Voice examples** (v0.6): first drafts are in Lupo, Isabella, and LeNoir, for Dylan's edit. The other 9 get theirs with their briefings; voice passages for the stand-ins would let a play-only mini-game test the effect sooner (Technical Design, Block 3, "Checking them")
-- [ ] **Game terms in the briefings** (v0.6, Dylan noticed "the Murder Round" in characters' thoughts): the term reaches characters from Technical Design's rules primer, State labels, and Murder Round task, and from these briefings (each errand's deadline, "before the faction meeting that comes just before the Murder Round", and Lupo's power line). If Technical Design adopts an in-world name for character-facing text, change the briefings to match in the same version
+- [ ] **Voice examples** (v0.6; approved v0.7): in Lupo, Isabella, and LeNoir. The other 9 get theirs with their briefings; voice passages for the stand-ins would let a play-only mini-game test the effect sooner (Technical Design, Block 3, "Checking them")
+- [ ] **Game terms in the briefings** (v0.6, Dylan noticed "the Murder Round" in characters' thoughts). **Names chosen (v0.7):** midnight, council, errand, and kill / guard / watch. Waiting on Technical Design to adopt them in the prompts. Then, in one version: each errand's deadline becomes "before the last council before midnight", Lupo's power line says "at midnight" and "guard or watch", and any other game term in a briefing goes
 - [ ] **Which three next?** Francesco, Raffaello, and Giorgia are in the mini-game cast as stand-ins, so they're the natural next three now that the template is settled
 - [x] ~~"Who killed his brother" wording~~: merged into Mechanics v0.19
 - [x] ~~Deduced knowledge~~: decided in Technical Design (firm, correct conclusion counts; v0.3 plot points say so)
