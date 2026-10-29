@@ -1,16 +1,24 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.31
+### Version 0.32
 
 ---
 
+## Changes in v0.32
+
+*A correction to v0.31. Dylan meant "talking in circles" and "flowery metaphors that aren't engaging", not "cloying".*
+
+- **v0.31's reason, corrected:** the v0.29 games brought the flowery metaphors back, and characters talked in circles. The revert to v0.28's wording stands, and the flattery theory is withdrawn
+- **New open question, "Talking in circles"**: it isn't a wording problem the register line can fix. The likely levers are listed there, and liveliness, personality, and humour go to the briefings (tracker handoff to Characters)
+- Every prompt block is as in v0.31
+
 ## Changes in v0.31
 
-*Dylan, Oct 29, after reading the v0.29 games in the viewer: the language, and how cloying everyone is, bothered him. Back to v0.28's wording.*
+*Dylan, Oct 29, after reading the v0.29 games in the viewer: the flowery metaphors came back, and characters talked in circles. Back to v0.28's wording. (Reason corrected in v0.32.)*
 
 - **Blocks 1 and 9b return to v0.28's wording, word for word:** block 1 again bars "proverbs or flowery metaphors", and 9b again reads "No 'thee' or 'thou', no proverbs, riddles, or flowery metaphors, and no speeches. Being vague or evasive is fine; being ornate is not." Every prompt is now identical to v0.27/v0.28's
 - **The research baseline returns to the v0.27 games** (CC-20261028-09, seeds 2000–2001), the last games on this wording. The v0.29 games stay in the record as a tested variant
-- **Cloying is a separate problem, possibly not the wording's** (Open Questions): characters flattering each other may come from 9b's own list ("tell the truth, lie, bluff, flatter, threaten, or stay vague"), which both versions share
+- **Withdrawn in v0.32:** a guess that characters were too sweet, from 9b's permission to flatter. Dylan's complaint was circling and flowery language, not sweetness
 - Everything else in v0.30 stands: the leak guardrail closed by reading the readings, Raffaello's plot point, the counting fix, the viewer
 
 ## Changes in v0.30
@@ -2104,9 +2112,13 @@ It reads all 86 saved mini-game records, degrading gracefully where older ones l
   - **Rule, set in advance:** adopt v0.29 if it gets at least 3 more "real character" marks than v0.28, at most 2 more "hard to follow" marks, and no guardrail flags. Otherwise v0.28 stays
   - **Guardrails, against the v0.27 games:** words per line (flag a mean above 36), the label-mix rule of the register check, and the runner's knowledge checks
   - **If the voices still sound alike,** the next lever is sample voice lines in the briefings (Characters), not more prompt wording
-  - **Reverted in v0.31** after Dylan read the v0.29 games in the viewer and found the language cloying. **Earlier result (v0.30): adopted on Dylan's judgment,** without the marked read; code measures and guardrails clean (Changes in v0.30). Further register tuning comes with the briefings' voice lines
+  - **Reverted in v0.31** after Dylan read the v0.29 games in the viewer and found the metaphors back and the talk going in circles. **Earlier result (v0.30): adopted on Dylan's judgment,** without the marked read; code measures and guardrails clean (Changes in v0.30). Further register tuning comes with the briefings' voice lines
 - ~~**Leaks under the plain register**~~ Closed in v0.30 by reading the readings: the admission rise is mostly private-talk invitations and deliberate cover stories, with no secret learned. Original item (v0.28): `took: admission` rose from 0.8% to 4.8%. Read the admission readings in `labels.md`; if they're secrets slipping rather than ordinary admissions ("fine, I paid him"), run the secrets judge on the four register-check games (~$1.59) before the first full games. If leaks rose by more than 2, the fix is in the secret-keeping lines, not a return to ornate speech
-- **Cloying characters** (v0.31): in the v0.29 games, Dylan found everyone too sweet with each other. If the v0.27 wording shows it too, the cause is likely not the ornament line but 9b's permission list ("tell the truth, lie, bluff, flatter, threaten, or stay vague"), the only place a prompt names flattery, or the model's own politeness. Check first by reading the v0.27 games in the viewer; any rewording of that list touches a tested secret-keeping bullet, so it would get its own check
+- **Talking in circles** (v0.32): in the mini-games, characters probe, deflect, and restate without moving anything forward, and Dylan finds it unengaging. The register line can't fix this; it's about what characters do, not how they phrase it. Likely causes, each worth a look once full games run:
+  - **The secret-keeping lines reward deflection** ("refuse, deflect, or demand proof"; "Being vague or evasive is fine"), and every stand-in briefing has a secret to guard. They passed gate tests, so they stay; but a character with only secrets and no errand will circle
+  - **Characters lack concrete errands.** Raffaello's plot point gave him something to do, and his lines were the ones that moved the story. Briefings with specific wants (a price, a name, a vote) should give conversations somewhere to go
+  - **The mini-game has no clock.** Full games have faction meetings, the Murder Round, and a ballot coming, which should push characters to act
+  - **Liveliness, personality, and humour** are the briefings' job (Characters): voice lines, a comic streak in some characters, and wants that collide. Prompt changes come only if full games still circle with finished briefings
 - **The claim-line echo** (v0.28): thoughts often restate "my story stays straight" or "I have told no untruth tonight". Rewording 9a's claim line could cut the filler, but it's a tested gate result (S5d), so Models & Research decides whether to test a variant
 - Does the real-history line in block 1 dull useful period knowledge? (Watch voice and play in the mini-game; Models & Research may probe leakage)
 - Does the tightened addressee instruction bring false positives down on non-DeepSeek bases? (Models & Research to re-measure)
