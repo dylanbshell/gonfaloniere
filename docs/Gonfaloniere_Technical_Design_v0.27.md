@@ -1,8 +1,22 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.26
+### Version 0.27
 
 ---
+
+## Changes in v0.27
+
+*Models & Research v0.45, for Dylan: plainer speech and thoughts before the first full games. In the seating game (CC-20261028-08), lines were ornate one-liners built on metaphor, every character sounded alike, and spoken lines averaged 45 words (longest 90, over 9b's ~60). 9b already asked for "clear modern English"; the model kept the 1492 and dropped the plain. Dylan's target is a modern TV period drama's register rather than Shakespeare's, and everyday English if it comes to a choice.*
+
+- **Block 1 gains one shared register line,** so every thought and plan is covered (movement, seat, strategy, Murder Round, ballot), not only `think()`: plain, everyday English; no "thee" or "thou", proverbs, or flowery metaphors; no modern slang
+- **Block 9a:** the thought is "in plain words, the way you'd talk to yourself" instead of "in your own voice". Its length is unchanged, since thoughts carry the reasoning, and a character's ornate thoughts in block 7 would pull its speech back
+- **Block 9b:** "one to three short sentences, about 40 words at most" (was ~60), and the register line is rewritten: plain and direct, short sentences, sometimes blunt; names, titles, and Florins belong, modern slang doesn't; no proverbs, riddles, flowery metaphors, or speeches; vague or evasive is fine, ornate isn't
+- **Changed from the proposal, on purpose:**
+  - **No TV drama in the prompt.** The qualities are described instead. Naming any drama, even generically, frames the characters as people in a story, which Models & Research's own note warns against, and invites stage speeches
+  - **"No modern slang" is added.** "Everyday modern English" alone could slide into "okay" and "you guys"
+  - **No example nouns beyond Florins.** "The Signoria" as an example could prime characters to bring it up
+- **Under test, not yet adopted** (Open Questions, "The register check"): Models & Research's check, with its rule set in advance. If it isn't adopted, v0.26's wording returns. **If it is, the new games' label mix becomes the research baseline** in place of v0.19's, since plainer lines may shift labels within the guardrails
+- Blocks 9c–9h and 10a–10d are unchanged
 
 ## Changes in v0.26
 
@@ -561,7 +575,7 @@ Every character call is built from the same blocks in the same order, **most sta
 
 | # | Block | Changes | Approx. tokens |
 |---|---|---|---|
-| 1 | **Frame:** who you are playing, stay in character, tonight's Florence is its own | Never | ~150 |
+| 1 | **Frame:** who you are playing, stay in character, tonight's Florence is its own, plain English (v0.27) | Never | ~170 |
 | 2 | **Rules primer:** the evening as the characters know it | Never (per run config) | ~650 |
 | 3 | **Briefing** (from Characters) | Never | ≤ ~1,000 |
 | 4 | **Strategy section** | At checkpoints | ~150 |
@@ -610,6 +624,8 @@ You are {character_name}, a character in a game of political intrigue set at a g
 You know only two things: what is in your briefing, and what you have personally seen and heard tonight. Other guests know only what they have seen and heard. Never assume anyone knows your secrets, or that you know theirs, unless it has been said in your presence.
 
 This is not the Florence of the history books. Who these people are, how they are related, and what has happened are exactly as your briefing and this evening show you, even where that differs from history as you know it. No one knows what the years ahead will bring.
+
+Speak and think in plain, everyday English: no "thee" or "thou", no proverbs or flowery metaphors, and no modern slang.
 ```
 
 ### Block 2 — Rules primer (shared)
@@ -701,7 +717,7 @@ For calls outside a conversation, block 8's heading reads `WHAT YOU LAST HEARD` 
 TASK: THINK
 Someone has just spoken (the last line above). Before anyone speaks again, think privately as {character_name}. No one else will ever see this.
 
-1. thought — 2 to 4 sentences, first person, in your own voice. What does the last moment mean for you? What do you want now? If you have told anyone something untrue, note what you told them so your story stays straight. Consider how your recent behavior looks to the others in the room.
+1. thought — 2 to 4 sentences, first person, in plain words, the way you'd talk to yourself. What does the last moment mean for you? What do you want now? If you have told anyone something untrue, note what you told them so your story stays straight. Consider how your recent behavior looks to the others in the room.
    Separate what this person has shown you from what they only claim. A claim is not proof.
 
 2. took — {took_target}, in one word: promise, deal, threat, admission, claim, denial, insult, pressure, or none. It's your own reading, not a rule. Most lines are none.
@@ -754,8 +770,8 @@ TASK: SPEAK
 It is your turn to speak. {closing_line_note}
 
 Say one thing, as {character_name} would say it.
-- One to three sentences, about 60 words at most. Spoken words only: no narration, no stage directions, no thoughts.
-- Speak as a person of 1492 Florence would, in clear modern English.
+- One to three short sentences, about 40 words at most. Spoken words only: no narration, no stage directions, no thoughts.
+- Speak plainly and directly, the way people really talk: short sentences, sometimes blunt. Names, titles, and Florins belong; modern slang does not. No "thee" or "thou", no proverbs, riddles, or flowery metaphors, and no speeches. Being vague or evasive is fine; being ornate is not.
 - If someone has just addressed you directly, answer them.
 - You may tell the truth, lie, bluff, flatter, threaten, or stay vague — whatever serves your goals. Your secrets are yours: reveal one only as a deliberate move, never by accident. Do not recite your private thoughts.
 - Someone claiming to know your secret, or threatening you, is not a reason to confirm it. Never confirm a secret you have not chosen to reveal: refuse, deflect, or demand proof instead.
@@ -788,6 +804,8 @@ In a **Colloquio** (there is only one other person, so nobody needs designating)
 - **Why here:** in the v0.12 re-check, `think()` after a character's own line reacted to the line they'd been answering, not to their own (52 fallbacks). The speaker knows what they mean while saying it
 - **Risk:** `speak()` carries the secret-keeping lines measured in S5d, so this is a change to the call most tied to past gate results. The re-check should watch `speak()` repairs and, if it's affordable, leak lines (Models & Research's call)
 - **`words` here are copied from text the speaker has just written,** so they should almost always be found
+
+**Register** *(v0.27; under test)*: the first two bullets replace "One to three sentences, about 60 words at most" and "Speak as a person of 1492 Florence would, in clear modern English." With the old line, DeepSeek kept the period and dropped the plain: ornate metaphor, every character alike, 45 words a line on average. The new line describes the target's qualities (short, direct, sometimes blunt, modern grammar, the world's own names) without naming any drama, and it bars both ornament and slang. "Sometimes blunt" could push labels toward pressure or insult, which is one of the check's guardrails. Distinct voices per character are the briefings' job, not this line's (Characters).
 
 **The three secret-keeping lines** (v0.5, from Models & Research's Oct 23 findings): the **claim line** (9a), the **reply line**, and the **audience line** (9b). They go in every `think()` and `speak()` call, Colloquio included. The audience line was tested in all conversation types, and keeping one wording everywhere avoids an untested variant. On DeepSeek V4.1 they took S5d from 2/10 to 9/10 held and the held-out script from 1/10 to 5/10, with no rise in lying and clean S1, S4, and S6. They did little on Qwen3.8, so re-test them if the play model changes.
 
@@ -2022,5 +2040,10 @@ It reads all 86 saved mini-game records, degrading gracefully where older ones l
 - **Seating in the full games** (v0.26): the first live check (CC-20261028-08) exercised only the invitee's wait form, since six guests filled one group of 4. Watch the join choice, the lone-guest form, and chain lengths with 12 guests, where groups with room should be common. No more mini-game spend on this
 - Is 0.7 the right play temperature on the chosen model? (Revisit after probes)
 - ~~**Run-off announcement**~~ Settled: no vote count is ever announced, the final result included (Mechanics v0.24)
+- **The register check** (v0.27; rule set in advance by Models & Research v0.45, Open Questions): 2 DeepSeek mini-games, seeds 2000–2001, against the v0.19 baseline on the same seeds (CC-20261026-05).
+  - **Deciding measure:** Dylan's blind read of 15 spoken lines from each side, shuffled and unlabelled. Adopt if he marks at least 5 fewer new lines as hard to follow, and no guardrail flags
+  - **Guardrails:** a `took` or `meant` label whose share doubles or halves and moves 5 points or more; secret leaks or deliberate reveals more than 2 above baseline. If one flags, Technical Design decides with the numbers
+  - **If the lines aren't clearly easier,** the next step is sample voice lines in the briefings (Characters), not another round of prompt wording
+  - **If adopted,** the new games' label mix replaces v0.19's as the research baseline
 - Does the real-history line in block 1 dull useful period knowledge? (Watch voice and play in the mini-game; Models & Research may probe leakage)
 - Does the tightened addressee instruction bring false positives down on non-DeepSeek bases? (Models & Research to re-measure)
