@@ -1,8 +1,25 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.24
+### Version 0.25
 
 ---
+
+## Changes in v0.25
+
+*From Claude Code's build of v0.24's seating, storage, and lore store (CC-20261028-07, PR #12 at a60d3b3: 125 tests pass; old TD versions replay byte-identical; lore-off prompts byte-identical; 0 isolation violations over 12 saved games).*
+
+- **Seating is built but hasn't run live.** The 3-turn dry run ended before any Colloquio closed, so no model has answered block 9h yet; the prompts were checked with fake replies. A live check is next (Open Questions)
+- **The lore budget is fixed.** v0.22 allowed up to 3 entries of ~80 words in ~150 tokens, but one entry is ~110 tokens, so usually only one fit. Now it's **up to 2 entries in ~250 tokens**
+- **Written up as built** (Seating, As built; Storage and retrieval; The lore store):
+  - the invitee's default placement uses the fewest-guests rule, since an invitee has no snapshot
+  - who hears a free or waiting Colloquio's withdrawal note
+  - waiting moves whose mover is no longer free
+  - a seatless guest left at the end of a turn starts a group of one
+  - rows are embedded once, before the first query that could find them, since code entries arise mid-turn
+  - what is embedded for reference and code entries
+  - how lore lines are rendered, and that search is exact
+- **New run setting `retrieval`** (`overlap` or `embeddings`). Both are built. The mini-game default stays word overlap, so it stays comparable with the measured baselines. The embedding model, and when to switch, is a handoff to Models & Research
+- Every prompt block is unchanged
 
 ## Changes in v0.24
 
@@ -512,7 +529,7 @@ Nothing about the model is hard-coded. Each run reads a config file, and the ful
 | Prompt caching | On where the provider supports it | Same |
 | Log probabilities *(v0.21)* | `logprobs: labels` (default): request them where the provider supports it, and store the top 5 at the `took` / `meant` label token. `off` requests none; `all` stores them for every output token (large, for debugging only). Never required: missing means null. Development games' provider returns none; Tinker, for research batches, does (Serving stacks below) | `off` |
 
-**Also run settings, not model settings:** `lore` (`off`, the default, or `on`; see The lore store; fixed for a research batch), the embedding model (`EMBEDDING_MODEL_*`; see Storage and retrieval; recorded and fixed for a batch), `plot_reward` on/off, `notebook` (`perceived`, the default, or `shared`; see The perceived notebook; fixed for a research batch, like the recorder), tunable values (from mechanics), personality assignment seed, random seed (which also drives any draw by lot and every random tie-break in seating).
+**Also run settings, not model settings:** `lore` (`off`, the default, or `on`; see The lore store; fixed for a research batch), the embedding model (`EMBEDDING_MODEL_*`; see Storage and retrieval; recorded and fixed for a batch), `plot_reward` on/off, `notebook` (`perceived`, the default, or `shared`; see The perceived notebook; fixed for a research batch, like the recorder), tunable values (from mechanics), personality assignment seed, random seed (which also drives any draw by lot and every random tie-break in seating), and `retrieval` (v0.25: `overlap`, the word-overlap stand-in the mini-game was measured on and still its default, or `embeddings`, the store in Storage and retrieval; recorded and fixed for a batch).
 
 **Serving stacks** *(v0.23; Models & Research v0.40, Hosting plan)*:
 - **Development games** run on the pinned OpenRouter provider (DeepInfra fp8), where every baseline so far was measured. It returns no log probabilities, so the label record is null there
@@ -569,7 +586,7 @@ Every line in block 8 is one of four kinds. All non-speech lines are written by 
 
 ## Prompt Drafts
 
-*Status: drafts. Blocks 1–3, 9a, 9b, and 9d–9g ran on TD v0.4 in Models & Research's probes (S1–S10); 9c has not run. 9h (v0.23) has not run. v0.5 adds the three secret-keeping lines (9a, 9b) and the S8–S10 wording fixes (Block 5 "Present," 9d, 9e, 9f). Blocks 10a–10d are system prompts for memory and plot checks, which run on the recorder model and don't use blocks 1–8. 10a–10c ran in their v0.5 form, and 10a–10d in their v0.6 form, on 13 mini-games; v0.7 revises 10a and 10d (untested in this form) and leaves 10b and 10c as in v0.6. Placeholders in `{braces}` are filled by code; values come from mechanics' Tunable Values.*
+*Status: drafts. Blocks 1–3, 9a, 9b, and 9d–9g ran on TD v0.4 in Models & Research's probes (S1–S10); 9c has not run. 9h (v0.23) has been rendered with fake replies only (CC-20261028-07) and has no live answers yet. v0.5 adds the three secret-keeping lines (9a, 9b) and the S8–S10 wording fixes (Block 5 "Present," 9d, 9e, 9f). Blocks 10a–10d are system prompts for memory and plot checks, which run on the recorder model and don't use blocks 1–8. 10a–10c ran in their v0.5 form, and 10a–10d in their v0.6 form, on 13 mini-games; v0.7 revises 10a and 10d (untested in this form) and leaves 10b and 10c as in v0.6. Placeholders in `{braces}` are filled by code; values come from mechanics' Tunable Values.*
 
 **For probes:** blocks 4, 6, and 7 may be stubbed ("No plan yet." / "Nothing yet." / empty) unless the scenario needs them. Blocks 2 and 9 should be used as written so results transfer to the real engine.
 
@@ -1304,6 +1321,19 @@ Returners enter at the end of the current cycle like any joiner, and Il Notaio n
 - **(b) A Colloquio call waiting on a guest** (block 9c notes) opens as soon as that guest's Colloquio ends, before step 2, so a guest can't be seated and pulled out again in the same moment. They are the invitee of the new Colloquio, so they choose first when it ends
 - **(c) A `join` toward a guest in a Colloquio** waits until that guest is seated, then goes to their group under the usual collision rules (a no-op if that's the mover's own group, logged). If the target isn't seated by the end of the next turn, the join lapses and the mover stays, logged. Before v0.23 it went to the Capannello the target would return to, which is no longer known in advance
 
+**As built** *(v0.25, CC-20261028-07; details the rules don't fix)*:
+- **The invitee's default** (a failed or invalid seat call) uses the fewest-guests rule and its tie-breaks, since an invitee has no snapshot
+- **Who hears a withdrawal note:**
+  - a free Colloquio: the target's group, since the caller has none
+  - a waiting call that opens: the caller's group
+  - a call-back of the initiator: no one, since neither has a group. It's logged as an event
+- **Waiting moves whose mover is no longer free:**
+  - a waiting Colloquio call lapses if its caller is no longer in a Capannello, logged
+  - a waiting join whose mover is in a Colloquio keeps waiting until its deadline
+- **The seatless safety net** runs at the end of the turn, before the movement window. If no group has room, the guest starts a group of one, which the lone-guest rule then handles
+- **"Dissolved"** ignores the initiator and counts the invitee if they were in the snapshot, as specified
+- **Il Notaio's placement lines** are stand-ins until his templates are drafted: "…returned to company and joined/rejoined…", and "X and Y returned to company and formed a new group"
+
 ---
 
 ## Memory Architecture
@@ -1527,10 +1557,14 @@ So Models & Research can compare each notebook with the transcript (Game Record 
 
 **How "similar in meaning" works.** Each row is stored with an **embedding**: a list of numbers, made by an embedding model, that places the text by meaning, so texts about the same thing sit close together. Recall turns the query (the last two History lines) into an embedding the same way, then takes the rows whose embeddings are closest (cosine similarity). In PostgreSQL this is the `pgvector` extension, so storage and similarity search live in the same database.
 - **What gets embedded:** for a reading, the full line text, not the trimmed quote. For a code entry, its rendered text. For a belief, its statement
-- **When:** once, when the row is written at the end of the turn, never per call. Query embeddings are made per call; they're short and cheap
+- **What else gets embedded** (v0.25, as built): for a reference entry, its summary and quote; for a code entry, each recipient's own rendered text (the "You…" form for the actor)
+- **When:** once per row, never per call. Rows are written at the end of the turn, but code entries (Il Notaio's notes, payments) arise mid-turn, so any row not yet embedded is embedded before the next query that could find it (v0.25, as built). Query embeddings are made per call; they're short and cheap
+- **Search is exact** (no approximate index), which is fine at a game's few thousand rows
 - **The embedding model is a run setting** (`EMBEDDING_MODEL_*`), model-neutral like the recorder, and recorded in the game record header. It's fixed for a research batch, since changing it changes what characters recall
 - **Isolation is enforced in the query.** Every search filters by the character who owns the row (or, for the reference record, by audience) inside the database query, before similarity is computed. A prompt can never be handed another character's row, however similar its text
-- **If the runner already computes similarity another way,** that stays until the store is built, and the method used is recorded in the game record header
+- **Both methods exist** (v0.25): the run setting `retrieval` picks `overlap` (word overlap, the stand-in every mini-game so far was measured on) or `embeddings`. The method is recorded in the game record header. The mini-game default stays `overlap`; switching, and choosing the embedding model, is Models & Research's call (tracker handoff), since it changes what characters recall
+- **The isolation filter, as built:** `WHERE game_id = $1 AND owner = $2 AND kind = ANY($3)` before `ORDER BY embedding <=> $4`. In `notebook: shared` the reference record is added by audience. As a second guard, code rejects any returned row that isn't the character's own
+- **In the mini-game,** the in-memory notebook still renders block 6 and fills the game record, and PostgreSQL holds every row with its embedding and runs the search. The full engine makes PostgreSQL the only store (Game Record & Export)
 
 ### The lore store *(new in v0.22; it replaces the deferred v0.5 plan)*
 
@@ -1565,7 +1599,8 @@ WHAT YOU KNOW OF FLORENCE
 {lore_bullets}
 ```
 
-- `{lore_bullets}`: up to 3 entries from the character's public and private lore, the most similar to the last two History lines, one line each. About 150 tokens at most
+- `{lore_bullets}`: **up to 2 entries** (v0.25; 3 before) from the character's public and private lore, the most similar to the last two History lines, each rendered `- {text}`, with no title. **About 250 tokens at most** (v0.25; 150 before, which fit only one ~110-token entry). An entry that would pass the cap is skipped. If none is retrieved, the section is left out
+- **Lore always uses embeddings,** whatever `retrieval` says for memory, since there's no lore baseline to stay comparable with
 - **With `lore: off`, nothing is inserted,** and the prompt is exactly as it was before v0.22
 - It sits apart from memory on purpose: lore is what the character knew before the evening, and the notebook is what happened tonight. Mixing them in one block would blur that line for the character and for the research
 
@@ -1574,7 +1609,7 @@ WHAT YOU KNOW OF FLORENCE
 **Checks once built:**
 - **Isolation:** no character's prompt ever contains another character's private lore, checked automatically over every game record
 - **Canon:** nothing in a lore entry contradicts the character's briefing (hand-read when entries are approved)
-- **Cost:** one query embedding per call, plus ~150 tokens of prompt
+- **Cost:** one query embedding per call, plus ~250 tokens of prompt
 
 ### Strategy Section
 
@@ -1964,6 +1999,7 @@ The first build artifact: an internal console for running and debugging the simu
 - **Should characters see where everyone is?** In a real palazzo you could see across the room. Currently they see only their own group; showing the room would make movement easier and make Il Notaio's notes less special. Since v0.23 the seat call (9h) shows the groups with room, the first glimpse past a character's own group
 - **Does a caller know they may lose their seat?** (v0.23) Block 9c doesn't say that the invitee chooses first, or that a full or dissolved Capannello sends the caller elsewhere. Left out so 9c stays as tested; add a line if the full games show callers surprised by where they land
 - ~~**Movement edge cases**~~ Settled: joining or calling someone in a Colloquio follows Seating, Edge cases (Mechanics v0.25)
+- **Seating live check** (v0.25): no model has answered block 9h yet. One full mini-game should show whether seat calls parse, whether invitees use free Colloquios, and how long chains get
 - Is 0.7 the right play temperature on the chosen model? (Revisit after probes)
 - ~~**Run-off announcement**~~ Settled: no vote count is ever announced, the final result included (Mechanics v0.24)
 - Does the real-history line in block 1 dull useful period knowledge? (Watch voice and play in the mini-game; Models & Research may probe leakage)
