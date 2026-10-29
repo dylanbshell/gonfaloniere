@@ -1,8 +1,15 @@
 # Gonfaloniere
 ## Characters & Briefings — Working Document
-### Version 0.5
+### Version 0.6
 
 ---
+
+## Changes in v0.6
+
+*Dylan, Oct 29.*
+
+- **The Pazzi coup was fourteen years ago, in 1478,** matching real history (Shared Canon: Setting). v0.5's "twenty years" rested on a wrong claim in this chat that twenty matched 1478. No longer a divergence
+- **Voice examples live here, in each briefing.** v0.5 misread the handoff as Dylan drafting them elsewhere. First drafts added to Lupo, Isabella, and LeNoir: a **How you speak** passage replacing the one-line voice description, with four example lines each (a deflection, a jab, a joke, a refusal or bargain), checked against Technical Design's rules (Block 3, Voice examples). **Drafts for Dylan's edit:** no secrets or plot facts, nothing about boldness or caution, each line under 20 words
 
 ## Changes in v0.5
 
@@ -118,8 +125,8 @@ Checklist for adapting each original briefing:
 
 *Facts every briefing, stand-in, and lore entry must agree with. Divergences from real history are also logged in Lore (Divergences From Real History).*
 
-- **The Pazzi coup was twenty years ago** (Dylan, Oct 29). It ended in blood: a Pazzi uncle hanged from the palace windows, the family disgraced since. Francesco's elders led it; he was young. *Real history: the conspiracy was in 1478, fourteen years before 1492; logged as a divergence*
-- **Requirements:** Francesco's briefing and stand-in say twenty years, not two. Piero's briefing says the Pazzi (his family, not Francesco himself) led the coup that killed his uncle
+- **The Pazzi coup was fourteen years ago, in 1478** (Dylan, Oct 29: match real history). It ended in blood: a Pazzi uncle hanged from the palace windows, the family disgraced since. Francesco's elders led it; he was young
+- **Requirements:** Francesco's briefing and stand-in say fourteen years (1478), not two or twenty. Piero's briefing says the Pazzi (his family, not Francesco himself) led the coup that killed his uncle
 
 ---
 
@@ -171,7 +178,7 @@ Checklist for adapting each original briefing:
 | Emile de Valois | Not started |
 | Captain Armand LeNoir | **Draft v1** |
 
-*Finished briefings go in this section, or in separate files if this doc gets too long. Each runs 670–760 words (~905–1,020 tokens) on v0.5. "Rewrite notes" are for this doc only and are not part of the prompt.*
+*Finished briefings go in this section, or in separate files if this doc gets too long. Each runs 735–800 words (~990–1,080 tokens) on v0.6, voice passage included. "Rewrite notes" are for this doc only and are not part of the prompt.*
 
 ---
 
@@ -183,7 +190,11 @@ Checklist for adapting each original briefing:
 
 You are Lupo, bodyguard to the Pazzi. To the palazzo you are a silent shape at Francesco's shoulder: leather, steel, and a stare that makes guests lower their voices. That is the mask, worn even for Francesco, who hired a bodyguard, not a killer. In truth you are a killer for hire. Florence has never lacked clients, and you have never lacked work.
 
-You speak little and plainly: street Tuscan, short sentences, a joke so dry most people miss it. You don't flatter, you don't explain yourself, and you notice everything.
+**How you speak:** little, and plainly: short sentences, a joke so dry most people miss it. You don't flatter, you don't explain yourself, and you notice everything. How you sound, not lines to repeat:
+- "Where was I? Behind Signor Francesco. Same as always."
+- "You've told that story twice. It was shorter the first time."
+- "Good wine. Company's worse. I'll keep drinking."
+- "Ask Signor Francesco. I only stand here."
 
 **Your errand tonight**
 
@@ -244,7 +255,11 @@ Your blade, a reputation whispered but never proven, and the Pazzi's trust. Your
 
 You are Contessa Isabella di Salviati, widow of the house of Salviati, whose arms are a silver wild boar. In your youth you were wild: nights at the gaming tables, scandalous company, and darker things. Your husband, older and rich, gave you his name and fortune and then died suddenly three years ago. Some in Florence still raise an eyebrow at that.
 
-A year ago you turned to God, or so you tell everyone. You dress soberly, give to the friars, and speak of Florence's need for virtue. To some you are a prize convert; to others, a hypocrite in a borrowed robe. You are gracious and quick, your piety comes in well-chosen phrases, and the old wit still shows beneath it.
+A year ago you turned to God, or so you tell everyone. You dress soberly, give to the friars, and speak of Florence's need for virtue. To some you are a prize convert; to others, a hypocrite in a borrowed robe. **How you speak:** graciously and quickly. Your piety comes in well-chosen phrases, and the old wit still shows beneath it; you can refuse someone and leave them feeling flattered. How you sound, not lines to repeat:
+- "My past? Fra Tommaso says the past belongs to God. I'm happy to leave it with Him."
+- "I've given up wine, dancing, and gossip. Two of them, anyway."
+- "What a lovely ring, Signore. Is it paid for yet?"
+- "No, I won't. And please don't ask twice; I hate saying no to a friend."
 
 **Your errand tonight**
 
@@ -302,7 +317,11 @@ A widow's fortune: modest tonight, but people believe you can pay. The respectab
 
 You are Captain Armand LeNoir, a soldier of France, sworn to guard Prince Emile de Valois. You are a man of strong passions: your loyalty burns, your loves run deep, and you never forget a grudge. France sent you to Florence as a protector, but you came for your own reason. Seven years ago your younger brother, Lucien, was murdered here at the church of San Frediano. You swore before God to find who ordered it.
 
-You speak like a soldier: direct, short-tempered, a French oath when roused. Your anger shows easily, but honour seals your mouth: whoever presses you, you do not speak Giorgia's name.
+**How you speak:** like a soldier: direct, short-tempered, a French oath when roused. Your anger shows easily, but honour seals your mouth: whoever presses you, you do not speak Giorgia's name. How you sound, not lines to repeat:
+- "I'm a soldier. Ask me about horses or swords. Florentine politics give me a headache."
+- "You want my word? Then give me yours first, in front of witnesses."
+- "Your wine is better than ours. Don't tell the ambassador I said so."
+- "No. Mon Dieu, how many times must I say it?"
 
 **Your errand tonight**
 
@@ -403,13 +422,14 @@ Your sword, and a reputation as a dangerous man to cross.
   - **Clarice is the hard case:** ties to three factions (Medici family, a Pazzi lover, a French marriage). Her errand should be one thing she can finish tonight; the rest stays motivation
   - **Since Mechanics v0.19 the errand earns an extra Murder Round act,** so it gates power on the night more than survival. Watch whether characters chase errands hard enough once they know that
 - [ ] **Does errand-first change play?** v0.5 reorders the three tested briefings without changing their words. Compare a full game's opening rounds against earlier mini-games: do characters pursue their errand sooner, and circle less? (Models & Research to schedule if wanted)
-- [ ] **Voice examples:** Dylan is having them invented in another chat first. When they arrive, check each against Technical Design's rules (Rewrite Rules) and add them to Lupo, Isabella, and LeNoir before the rest
+- [ ] **Voice examples** (v0.6): first drafts are in Lupo, Isabella, and LeNoir, for Dylan's edit. The other 9 get theirs with their briefings; voice passages for the stand-ins would let a play-only mini-game test the effect sooner (Technical Design, Block 3, "Checking them")
+- [ ] **Game terms in the briefings** (v0.6, Dylan noticed "the Murder Round" in characters' thoughts): the term reaches characters from Technical Design's rules primer, State labels, and Murder Round task, and from these briefings (each errand's deadline, "before the faction meeting that comes just before the Murder Round", and Lupo's power line). If Technical Design adopts an in-world name for character-facing text, change the briefings to match in the same version
 - [ ] **Which three next?** Francesco, Raffaello, and Giorgia are in the mini-game cast as stand-ins, so they're the natural next three now that the template is settled
 - [x] ~~"Who killed his brother" wording~~: merged into Mechanics v0.19
 - [x] ~~Deduced knowledge~~: decided in Technical Design (firm, correct conclusion counts; v0.3 plot points say so)
-- [x] ~~Pazzi coup date~~: twenty years (Shared Canon: Setting)
+- [x] ~~Pazzi coup date~~: fourteen years ago, 1478, matching real history (Shared Canon: Setting; v0.5 briefly said twenty)
 - [ ] Probes found models volunteer self-incriminating clues (Isabella mentioning the silver boar or the north chapel unprompted). Should her briefing warn that the boar points to her? Weigh against making her rigid in S6
-- [ ] Re-measure briefing lengths with the play model's real tokenizer (estimates on v0.5: Lupo ~1,020, Isabella ~940, LeNoir ~905, after the errand framing added ~30 tokens each). Lupo is just over the old ~1,000 until Technical Design confirms ~1,150. With voice passages added, keep each within the confirmed budget
+- [ ] Re-measure briefing lengths with the play model's real tokenizer (estimates on v0.6, with voice passages: Lupo ~1,080, Isabella ~1,040, LeNoir ~990). All within ~1,150 once Technical Design confirms it. With voice passages added, keep each within the confirmed budget
 - [ ] Is the boar seal too easy a clue? Any Florentine noble can decode it. Watch in testing; if LeNoir solves it in the first exchange, narrow who knows Salviati heraldry
 - [x] ~~Whether voice examples belong in briefings~~: yes, as a How you speak passage (v0.5)
 - [x] ~~Where shared rules text lives~~: Technical Design's rules primer (Prompt Assembly, block 2). Briefings only say what each character wants
