@@ -16,7 +16,9 @@ import { isolationCheck, type IsolationRecord } from "../src/minigame/isolation.
 import { LORE_BUDGET, loreHeader, loreLines, readLoreFile, type LoreEntry } from "../src/minigame/lore.ts";
 import { MemoryStore, overlapScore, renderReading, type Belief, type GameLine, type Thought } from "../src/minigame/memory.ts";
 import { VectorStore, notebookQuery, openStoreDb, storeRows } from "../src/minigame/store.ts";
-import { fakeDocs, playFake } from "./fixtures/fake-game.ts";
+import { config, technicalDesignPath } from "../probe.config.ts";
+import { loadDocs } from "../src/sources/docs.ts";
+import { fakeDocs, playFake, playFakeOn } from "./fixtures/fake-game.ts";
 
 const L = "Lupo" as CharacterName;
 const I = "Contessa Isabella" as CharacterName;
@@ -33,7 +35,8 @@ function promptHash(calls: CallRequest[]): string {
 /**
  * The fake game's prompts at commit f812ab4 (part A of CC-20261028-07, before the live store and the
  * lore store existed): 448 calls on TD v0.24, seat calls included. With `lore: off` and word-overlap
- * retrieval, every prompt must stay byte-identical. Update only for a deliberate prompt change.
+ * retrieval, every prompt must stay byte-identical. Update only for a deliberate prompt change; a new
+ * TD version's prompts are checked against these below, so this stays pinned to v0.24.
  */
 const PROMPTS_BEFORE_STORE = "517f372fd98c75344369f1e9e203384886bd3f3f632bebf1b6ff4841e3b4f494";
 
@@ -61,12 +64,50 @@ const loreSection = (user: string) => {
 
 // ---- No database ---------------------------------------------------------------------------------------
 
+const docs24 = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.24") });
+
 test("lore off, word-overlap retrieval: every prompt is byte-identical to before the store (golden from f812ab4)", async () => {
-  const { calls } = await playFake();
+  const { calls } = await playFakeOn(docs24);
   assert.equal(calls.length, 448);
   assert.ok(calls.some((c) => c.kind === "seat"));
   assert.equal(lorePrompts(calls).length, 0);
   assert.equal(promptHash(calls), PROMPTS_BEFORE_STORE);
+});
+
+test("TD v0.27's register wording: every prompt is v0.24's with only block 1's new line and the 9a and 9b swaps, anchors intact", async () => {
+  const before = (await playFakeOn(docs24)).calls;
+  const after = (await playFakeOn(loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.27") }))).calls;
+  assert.deepEqual(after.map((c) => `${c.kind}|${c.character}`), before.map((c) => `${c.kind}|${c.character}`));
+  const block1 = "No one knows what the years ahead will bring.";
+  const register = 'Speak and think in plain, everyday English: no "thee" or "thou", no proverbs or flowery metaphors, and no modern slang.';
+  const swaps: [string, string][] = [
+    ["first person, in your own voice.", "first person, in plain words, the way you'd talk to yourself."],
+    ["- One to three sentences, about 60 words at most.", "- One to three short sentences, about 40 words at most."],
+    [
+      "- Speak as a person of 1492 Florence would, in clear modern English.",
+      '- Speak plainly and directly, the way people really talk: short sentences, sometimes blunt. Names, titles, and Florins belong; modern slang does not. No "thee" or "thou", no proverbs, riddles, or flowery metaphors, and no speeches. Being vague or evasive is fine; being ornate is not.',
+    ],
+  ];
+  // Block 9 is the end of the user prompt; what comes before it (the notebook, the History) differs
+  // only by Il Notaio's v0.26 repeat note, which is checked in the seating tests.
+  const task = (user: string) => user.slice(user.lastIndexOf("TASK: "));
+  let thinks = 0;
+  let speaks = 0;
+  after.forEach((c, i) => {
+    const b = before[i]!;
+    if (b.system.includes(block1)) assert.equal(c.system, b.system.replace(block1, `${block1}\n\n${register}`), `${c.kind} ${i}: system`);
+    else assert.equal(c.system, b.system, `${c.kind} ${i}: system without block 1`);
+    if (!b.user.includes("TASK: ")) return;
+    assert.equal(task(c.user), swaps.reduce((t, [x, y]) => t.replace(x, y), task(b.user)), `${c.kind} ${i}: block 9`);
+    if (c.kind === "think") {
+      thinks++;
+      assert.match(c.user, /^1\. thought — 2 to 4 sentences, first person, in plain words, the way you'd talk to yourself\./m);
+      assert.match(c.user, /^2\. took — /m);
+    }
+    if (c.kind === "speak") speaks++;
+  });
+  assert.ok(after.every((c) => !/in your own voice|about 60 words|1492 Florence would/.test(c.user)));
+  assert.ok(thinks > 200 && speaks > 50, `${thinks} thinks, ${speaks} speaks`);
 });
 
 test("lore file: only approved, canon-checked entries load; scopes are public or a full name; the hash is of the file's bytes", () => {

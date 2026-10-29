@@ -5,7 +5,7 @@
 import { config } from "../../probe.config.ts";
 import { CAST, STANDINS, STANDIN_FILE } from "../../src/minigame/cast.ts";
 import { MiniGame, type CallRequest, type Caller, type GameSettings } from "../../src/minigame/engine.ts";
-import { loadDocs, loadStandinBriefings } from "../../src/sources/docs.ts";
+import { loadDocs, loadStandinBriefings, type DocSources } from "../../src/sources/docs.ts";
 
 export const fakeDocs = loadDocs(config.docs);
 const briefings = { ...fakeDocs.briefings, ...loadStandinBriefings(STANDIN_FILE, STANDINS, fakeDocs.socialAwareness) };
@@ -63,10 +63,15 @@ export function fakeSettings(over: Partial<GameSettings> = {}): GameSettings {
 }
 
 /** Plays the fake game and returns it with every request sent. */
-export async function playFake(over: Partial<GameSettings> = {}, ...rest: unknown[]): Promise<{ game: MiniGame; calls: CallRequest[] }> {
+export function playFake(over: Partial<GameSettings> = {}, ...rest: unknown[]): Promise<{ game: MiniGame; calls: CallRequest[] }> {
+  return playFakeOn(fakeDocs, over, ...rest);
+}
+
+/** The same, on given docs (another TD version). */
+export async function playFakeOn(docs: DocSources, over: Partial<GameSettings> = {}, ...rest: unknown[]): Promise<{ game: MiniGame; calls: CallRequest[] }> {
   const calls: CallRequest[] = [];
   // `rest`: the engine's further constructor arguments (hooks, the live store), passed through.
-  const game = new (MiniGame as unknown as new (...a: unknown[]) => MiniGame)(fakeDocs, fakeSettings(over), fakeCaller(calls), ...rest);
+  const game = new (MiniGame as unknown as new (...a: unknown[]) => MiniGame)(docs, fakeSettings(over), fakeCaller(calls), ...rest);
   await game.play();
   return { game, calls };
 }
