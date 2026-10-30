@@ -23,8 +23,16 @@
 // times). More than 10% of calls needing a retry in a 10-minute window (once
 // it holds 30 calls) drops the run to one game at a time.
 
+import { LOGPROBS_SETTINGS, callWithLogprobs, type LogprobsSetting, type LogprobsState } from "./logprobs.ts";
+import { embedderFromEnv, type Embedder } from "./embed.ts";
+import { LORE_SETTINGS, loreHeader, readLoreFile, type LoreEntry, type LoreFile, type LoreSetting } from "./lore.ts";
+import { tdMinor } from "../prompt/assemble.ts";
+import { RETRIEVAL_METHODS, VectorStore, openStoreDb, type RetrievalMethod } from "./store.ts";
+import { isolationCheck, type IsolationRecord } from "./isolation.ts";
+import type pg from "pg";
+import { audited } from "../harness/keyaudit.ts";
 import { execSync } from "node:child_process";
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
@@ -59,6 +67,16 @@ const { values: opts } = parseArgs({
     "speak-append": { type: "string" },
     // TD v0.6 drop_repeated_thoughts is on by default for every model; this turns it off.
     "keep-repeated-thoughts": { type: "boolean", default: false },
+    // TD v0.8–v0.10 notebook: perceived (default) or shared.
+    notebook: { type: "string", default: "perceived" },
+    // TD v0.21 Run Configuration: labels (default), off, or all.
+    logprobs: { type: "string", default: "labels" },
+    // TD v0.22 Storage and retrieval: overlap (default, as the baselines were measured) or embeddings
+    // (DATABASE_URL and EMBEDDING_MODEL_*). Lore: off (default) or on (needs the same).
+    retrieval: { type: "string", default: "overlap" },
+    lore: { type: "string", default: "off" },
+    // Projected cost from saved games of the same play model; no calls.
+    estimate: { type: "boolean", default: false },
   },
 });
 
@@ -96,6 +114,7 @@ interface Served {
 async function main(): Promise<void> {
   // The run's spend goes to the mini-game ledger.
   process.env.PROBE_RESULTS_DIR = OUT;
+  if (opts.estimate) return estimate();
   const docs = loadDocs(config.docs);
   if (!docs.systemPrompts) throw new Error("This Technical Design has no extraction or knowledge-check prompts (TD v0.5+)");
   const briefings = { ...docs.briefings, ...loadStandinBriefings(STANDIN_FILE, STANDINS, docs.socialAwareness) };
@@ -120,14 +139,43 @@ async function main(): Promise<void> {
     thoughtWindow: 4,
     maxCapannello: 4,
     // TD v0.6 Run Configuration: ★ pass ~1,500 including the sweep, claims pass ~1,000, thought pass ~600, knowledge check ~300.
-    maxTokens: { plan: 400, think: 250, speak: 200, move: 500, murder: 300, "star-pass": 1800, "claims-pass": 1000, "sweep-reask": 1800, "thought-pass": 600, "perception-pass": 800, "knowledge-check": 300 },
+    maxTokens: { plan: 400, think: 250, speak: 200, move: 500, seat: 250, murder: 300, "star-pass": 1800, "claims-pass": 1000, "sweep-reask": 1800, "thought-pass": 600, "perception-pass": 800, "knowledge-check": 300 },
     playTemperature: 0.7,
     // The engine's nominal value; what is actually sent comes from the recorder route, recorded as config.recorder.temperature_sent.
     systemTemperature: recorder.temperature ?? 0,
     checks: checks(),
     ...(opts["speak-append"] && { speakAppend: opts["speak-append"] }),
     dropRepeatedThoughts: !opts["keep-repeated-thoughts"],
+    notebook: opts.notebook as "perceived" | "shared",
+    logprobs: opts.logprobs as LogprobsSetting,
+    retrieval: opts.retrieval as RetrievalMethod,
+    lore: opts.lore as LoreSetting,
   };
+  if (!["perceived", "shared"].includes(settingsBase.notebook)) throw new Error(`--notebook must be perceived or shared`);
+  if (!LOGPROBS_SETTINGS.includes(settingsBase.logprobs)) throw new Error(`--logprobs must be ${LOGPROBS_SETTINGS.join(", ")}`);
+  if (!RETRIEVAL_METHODS.includes(settingsBase.retrieval)) throw new Error(`--retrieval must be ${RETRIEVAL_METHODS.join(" or ")}`);
+  if (!LORE_SETTINGS.includes(settingsBase.lore)) throw new Error(`--lore must be ${LORE_SETTINGS.join(" or ")}`);
+  // TD v0.22: the lore file's hash is recorded with every game; only `lore: on` loads its approved, canon-checked entries.
+  const loreFile = readLoreFile();
+  // The live store, only when a setting needs it. DATABASE_URL and the embedding endpoint are never logged or recorded.
+  let storeDb: pg.Pool | null = null;
+  let embedder: Embedder | null = null;
+  if (settingsBase.retrieval === "embeddings" || settingsBase.lore === "on") {
+    if (!process.env.DATABASE_URL) throw new Error("--retrieval embeddings and --lore on need DATABASE_URL (PostgreSQL with pgvector)");
+    embedder = embedderFromEnv();
+    if (!embedder) throw new Error("--retrieval embeddings and --lore on need EMBEDDING_MODEL_BASE_URL, EMBEDDING_MODEL_API_KEY, and EMBEDDING_MODEL_ID");
+    storeDb = await openStoreDb(process.env.DATABASE_URL);
+  }
+  // TD v0.21: never required. Ask only where the pinned endpoint lists the parameter; say so once if it doesn't.
+  const logprobsState: LogprobsState = { supported: served.character.endpoint.supportedParameters.includes("logprobs"), noted: false };
+  const noteLogprobs = (message: string) => {
+    console.log(`  logprobs: ${message}`);
+    runLog.write({ type: "minigame-note", runId, note: "logprobs", message, at: new Date().toISOString() } as unknown as LogRecord);
+  };
+  if (settingsBase.logprobs !== "off" && !logprobsState.supported) {
+    logprobsState.noted = true;
+    noteLogprobs(`${served.character.endpoint.providerName} doesn't list logprobs for ${charModel.id}; think() and speak() records store null.`);
+  }
   const parallel = Number(opts.parallel);
   const replacements = Number(opts.replacements);
   const wanted = Number(opts.games);
@@ -216,18 +264,23 @@ async function main(): Promise<void> {
       if (!budget.tryReserve(worst)) return null;
       let retried = false;
       // The route decides what is sent: play temperature or the recorder's (0, or none if rejected), thinking off, message layout.
-      const res = await callModel(
-        sv.route.client,
-        { model: sv.model, ...messages(sv.route, req.system, req.user), temperature: sv.route.temperature, maxTokens: req.maxTokens, extra: sv.route.thinking },
-        {
-          ...RETRY,
-          onRetry: (r) => {
-            retried = true;
-            retries++;
-            log.write({ type: "minigame-retry", gameId, kind: req.kind, character: req.character, attempt: r.attempt, status: r.status, error: r.error.slice(0, 300), backoffMs: Math.round(r.backoffMs), at: new Date().toISOString() } as unknown as LogRecord);
+      const send = (extra: Record<string, unknown>) =>
+        callModel(
+          sv.route.client,
+          { model: sv.model, ...messages(sv.route, req.system, req.user), temperature: sv.route.temperature, maxTokens: req.maxTokens, extra: { ...sv.route.thinking, ...extra } },
+          {
+            ...RETRY,
+            onRetry: (r) => {
+              retried = true;
+              retries++;
+              log.write({ type: "minigame-retry", gameId, kind: req.kind, character: req.character, attempt: r.attempt, status: r.status, error: r.error.slice(0, 300), backoffMs: Math.round(r.backoffMs), at: new Date().toISOString() } as unknown as LogRecord);
+            },
           },
-        },
-      );
+        );
+      // TD v0.21: think() and speak() ask for log probabilities (per the setting); system calls never do.
+      const { res, logprobs } = SYSTEM_KINDS.includes(req.kind)
+        ? { res: await send({}), logprobs: undefined }
+        : await callWithLogprobs(send, settingsBase.logprobs, req.kind, logprobsState, noteLogprobs);
       const cost = res.ok ? (res.usage.costUsd ?? res.usage.inputTokens * sv.endpoint.price.input + res.usage.outputTokens * sv.endpoint.price.output) : 0;
       budget.settle(worst, cost);
       noteCall(retried);
@@ -235,23 +288,36 @@ async function main(): Promise<void> {
       if (!res.ok) throw new GameFailure(`${req.kind} call failed (${res.status ?? "no status"}): ${res.error.slice(0, 200)}`);
       if (res.provider !== sv.endpoint.providerName) throw new GameFailure(`${req.kind} call served by ${res.provider}, not the pinned ${sv.endpoint.providerName}`);
       if (sv.servedId !== null && res.model !== sv.servedId) throw new GameFailure(`${req.kind} call served by model ${res.model}, not ${sv.servedId}`);
-      return { ok: true, content: res.content, error: null, costUsd: cost, inputTokens: res.usage.inputTokens, outputTokens: res.usage.outputTokens, latencyMs: res.latencyMs, provider: res.provider, model: res.model };
+      return { ok: true, content: res.content, error: null, costUsd: cost, inputTokens: res.usage.inputTokens, outputTokens: res.usage.outputTokens, latencyMs: res.latencyMs, provider: res.provider, model: res.model, ...(logprobs !== undefined && { logprobs }) };
     };
 
     const started = Date.now();
-    const game = new MiniGame(docs, { ...settingsBase, briefings, seed }, caller, {
-      turnEnd: (e) => progress(`${gameId} seed ${seed} turn ${e.turn}/${settingsBase.turns} calls ${e.calls} spend $${e.costUsd.toFixed(4)} retries ${retries}`),
-    });
+    const store = storeDb && embedder ? new VectorStore(storeDb, gameId, embedder) : null;
+    const game = new MiniGame(
+      docs,
+      { ...settingsBase, briefings, seed },
+      caller,
+      {
+        turnEnd: (e) => progress(`${gameId} seed ${seed} turn ${e.turn}/${settingsBase.turns} calls ${e.calls} spend $${e.costUsd.toFixed(4)} retries ${retries}`),
+      },
+      store,
+    );
     progress(`${gameId} seed ${seed} started`);
     let failure: string | null = null;
     try {
+      if (settingsBase.lore === "on") await store!.loadLore(loreFile.loadable);
       await game.play();
     } catch (e) {
       failure = e instanceof GameFailure ? e.message : `crash: ${(e as Error).stack ?? String(e)}`;
     }
     release(gameId);
+    // Embedding spend goes to the mini-game ledger with the game's calls (settled after the game, not reserved ahead).
+    if (store) {
+      budget.settle(0, store.usage.costUsd);
+      log.write({ type: "minigame-embed", runId, gameId, model: store.embedder.model, ...store.usage, at: new Date().toISOString() } as unknown as LogRecord);
+    }
     const ms = Date.now() - started;
-    const record = buildRecord(game, { gameId, seed, docs, briefings, served, settings: settingsBase, ms, failure, tree, retries });
+    const record = buildRecord(game, { gameId, seed, docs, briefings, served, settings: settingsBase, ms, failure, tree, retries, lore: { file: loreFile, loaded: settingsBase.lore === "on" ? loreFile.loadable : [] }, embeddingModel: embedder?.model ?? null, store });
     const base = join(OUT, `game-${gameId}`);
     writeFileSync(`${base}.full.json.gz`, gzipSync(JSON.stringify(record)));
     writeFileSync(`${base}.transcript.md`, transcript(game, gameId));
@@ -290,10 +356,42 @@ async function main(): Promise<void> {
     if (!running.size) break;
     await Promise.race(running.values());
   }
+  await storeDb?.end();
   const summary = { runId, characterModel: charModel.id, systemModel: sysModel.id, wanted, counted: counted(), halt, serialSince, outcomes, spentUsd: budget.spentUsd, ledgerUsd: budget.priorSpendUsd + budget.spentUsd };
   writeFileSync(join(OUT, `run-${runId}.summary.json`), JSON.stringify(summary, null, 2));
   progress(`run ${runId} done: ${counted()}/${wanted} complete${halt ? `; HALTED: ${halt}` : ""}${serialSince ? `; one game at a time since ${serialSince}` : ""}; spent $${budget.spentUsd.toFixed(4)}`);
   console.log(`Done: ${counted()}/${wanted} complete${halt ? `; HALTED: ${halt}` : ""}${serialSince ? `; one game at a time since ${serialSince}` : ""}. Spent $${budget.spentUsd.toFixed(4)}.\n  ${join(OUT, `run-${runId}.summary.json`)}`);
+}
+
+/**
+ * --estimate: projected cost from saved games played by the same model (originals, not replays):
+ * mean cost per turn times the turns asked, plus the mean end-of-game cost (Murder Round and
+ * knowledge checks), times the games, plus a small margin for TD v0.13's speak() fields. No calls.
+ */
+function estimate(): void {
+  const slug = config.models.find((m) => m.id === opts.model)?.slug;
+  const files = readdirSync(OUT).filter((f) => /^game-.*-minigame-g\d+\.full\.json\.gz$/.test(f));
+  const perTurn: number[] = [];
+  const endCost: number[] = [];
+  for (const f of files) {
+    const rec = JSON.parse(gunzipSync(readFileSync(join(OUT, f))).toString());
+    if (rec.header?.config?.model !== slug || !rec.complete || !rec.summary?.turns?.length) continue;
+    const turns = rec.summary.turns as { costUsd: number }[];
+    const play = turns.reduce((a, t) => a + t.costUsd, 0);
+    perTurn.push(play / turns.length);
+    endCost.push(Math.max(0, rec.summary.cost_usd - play));
+  }
+  if (!perTurn.length) throw new Error(`No saved complete games on ${opts.model} to estimate from`);
+  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  const games = Number(opts.games);
+  const turns = Number(opts.turns);
+  const base = games * (mean(perTurn) * turns + mean(endCost));
+  // Recent saved games already include TD v0.9's `took` and closing thinks. TD v0.13 adds speak()'s `meant` and
+  // `words` (about +15 output tokens on ~96 speak() calls a game, ~2% of cost; v0.12's +10 per think() was +3.6%).
+  const margin = 0.05;
+  console.log(
+    `Estimate (no calls): ${games} game(s) × ${turns} turns on ${opts.model}, from ${perTurn.length} saved games: $${mean(perTurn).toFixed(4)} per turn, $${mean(endCost).toFixed(4)} end of game → $${base.toFixed(3)}; with a ${margin * 100}% margin for speak()'s meant and words, $${(base * (1 + margin)).toFixed(3)}. Ledger $${priorSpend(OUT).toFixed(2)} of $${MINIGAME_TOTAL_USD}.`,
+  );
 }
 
 /** Before a game counts: all turns, everyone spoke, each call on its model, the record parses, a normal call count. */
@@ -312,6 +410,8 @@ function postGameChecks(path: string, served: Record<"character" | "system", Ser
   const sysOff = offModel("system");
   const charOff = offModel("character");
   const off = refCalls ? Math.abs(rec.calls.length - refCalls) / refCalls : 0;
+  // TD v0.22: no character's prompt holds another character's notebook row or private lore.
+  const iso = isolationCheck(rec as unknown as IsolationRecord);
   return {
     recordParses: true,
     allTurns: missingTurns.length ? `missing ${missingTurns.join(",")}` : true,
@@ -319,13 +419,28 @@ function postGameChecks(path: string, served: Record<"character" | "system", Ser
     systemCallsOnSystemModel: sysOff.length ? `${sysOff.length} off (${[...new Set(sysOff.map((c) => `${c.model}@${c.provider}`))].join(", ")})` : true,
     characterCallsOnCharacterModel: charOff.length ? `${charOff.length} off (${[...new Set(charOff.map((c) => `${c.model}@${c.provider}`))].join(", ")})` : true,
     callCount: refCalls === null ? true : off > 0.3 ? `FLAG ${rec.calls.length} vs ${refCalls} (${(100 * off).toFixed(0)}% off)` : true,
+    isolation: iso.violations.length ? `${iso.violations.length} violations, e.g. call ${iso.violations[0]!.call} (${iso.violations[0]!.character}): "${iso.violations[0]!.text.slice(0, 80)}"` : true,
   };
 }
 
 /** TD v0.5 Game Record & Export, full variant. Secrets never included. */
 function buildRecord(
   game: MiniGame,
-  x: { gameId: string; seed: number; docs: ReturnType<typeof loadDocs>; briefings: Partial<Record<CharacterName, string>>; served: Record<"character" | "system", Served>; settings: object; ms: number; failure: string | null; tree: ReturnType<typeof workingTree>; retries: number },
+  x: {
+    gameId: string;
+    seed: number;
+    docs: ReturnType<typeof loadDocs>;
+    briefings: Partial<Record<CharacterName, string>>;
+    served: Record<"character" | "system", Served>;
+    settings: object;
+    ms: number;
+    failure: string | null;
+    tree: ReturnType<typeof workingTree>;
+    retries: number;
+    lore: { file: LoreFile; loaded: LoreEntry[] };
+    embeddingModel: string | null;
+    store: VectorStore | null;
+  },
 ) {
   const byKind = new Map<string, { calls: number; valid: number; retried: number; defaulted: number; repaired: number }>();
   for (const c of game.calls) {
@@ -347,6 +462,14 @@ function buildRecord(
       date: new Date().toISOString(),
       engine: { name: "gonfaloniere-minigame", commit: gitCommit() },
       working_tree: x.tree,
+      // TD v0.8–v0.10: the notebook mode, fixed for a batch.
+      notebook: (x.settings as { notebook?: string }).notebook ?? "perceived",
+      // TD v0.21: whether label log probabilities were requested (labels, off, or all).
+      logprobs: (x.settings as { logprobs?: string }).logprobs ?? "off",
+      // TD v0.22: the similarity method that ran, the lore setting and file, and the embedding model (its ID only).
+      retrieval: (x.settings as { retrieval?: string }).retrieval ?? "overlap",
+      ...loreHeader(x.lore.file, (x.settings as { lore?: LoreSetting }).lore ?? "off"),
+      embedding_model: x.embeddingModel,
       docs: x.docs.versions,
       config: {
         model: x.served.character.model.slug,
@@ -361,8 +484,6 @@ function buildRecord(
         recorder: describeRoute(x.served.system.route, x.served.system.servedId),
         thinking: "off",
         fallbacks: false,
-        // TD v0.8 run setting. Live play runs "shared": perceived retrieval isn't built into the runner yet, so no readings are written.
-        notebook: "shared",
         retry: "429 or timeout: up to 5 tries, exponential backoff; any other failure ends the game",
         ...x.settings,
         plot_reward: false,
@@ -375,8 +496,8 @@ function buildRecord(
       // Test-setup choices for the mini-game, not the game's rules (Dylan, Oct 24).
       minigame_settings: [
         "Il Notaio's opening line: a smaller gathering of six; the other guests are alive but elsewhere and can't be reached",
-        "Interim lone-guest rule: a guest left alone in a Capannello joins the other Capannello at once (permanent rule with Mechanics)",
-        "Block 9c's {target} in the choice lines reads 'your target' (TD fix pending)",
+        ...(tdMinor(x.docs.versions.technicalDesign) < 23 ? ["Interim lone-guest rule: a guest left alone in a Capannello joins the other Capannello at once (permanent rule with Mechanics)"] : []),
+        ...(x.docs.templates.move?.includes("{target}") ? ["Block 9c's {target} in the choice lines reads 'your target' (fixed in TD v0.20)"] : []),
         ...((x.settings as { speakAppend?: string }).speakAppend ? [`Variant: every character's Block 9b ends with the added line "${(x.settings as { speakAppend?: string }).speakAppend}"`] : []),
       ],
       standins: { characters: STANDINS, source: `${STANDIN_FILE} (adapted from PitP_Original_Rules_Trimmed)` },
@@ -388,7 +509,18 @@ function buildRecord(
     lines: game.lines,
     thoughts: game.thoughts,
     calls: game.calls,
-    memory: { entries: game.memory.entries, beliefs: game.memory.beliefs, readings: game.memory.readings, dropped: game.memory.dropped, repairs: game.memory.repairs, notes: game.memory.notes },
+    memory: {
+      entries: game.memory.entries,
+      beliefs: game.memory.beliefs,
+      // TD v0.9: readings from think()'s `took`, and every label the attachment rule ignored or logged.
+      readings: game.memory.readings,
+      label_log: game.memory.labelLog,
+      // TD v0.22: the lore entries this game loaded (lore: on), for the isolation check; empty with lore off.
+      lore: x.lore.loaded,
+      dropped: game.memory.dropped,
+      repairs: game.memory.repairs,
+      notes: game.memory.notes,
+    },
     snapshots: game.snapshots,
     murder_round: { resolved: false, acts: game.murderActs },
     knowledge_checks: game.knowledgeChecks,
@@ -397,9 +529,11 @@ function buildRecord(
       calls: game.calls.length,
       cost_usd: game.calls.reduce((s, c) => s + c.costUsd, 0),
       rate_limit_retries: x.retries,
-      memory: memoryCounts(game.memory, game.thoughts),
+      memory: memoryCounts(game.memory, game.thoughts, game.lines),
       tokens: game.calls.reduce((s, c) => s + c.inputTokens + c.outputTokens, 0),
       by_call_kind: Object.fromEntries(byKind),
+      // TD v0.22: embeddings made for the live store (writes and queries), when it ran.
+      ...(x.store && { embeddings: x.store.usage }),
       turns: game.events.filter((e) => e.type === "turn-end"),
     },
   };
@@ -420,8 +554,11 @@ function transcript(game: MiniGame, gameId: string): string {
     if (e.type === "speech" || e.type === "notaio") {
       const l = lineById.get(e.line as string)!;
       out.push(`- \`${l.id}\` *${whereLabel(l.where)}* — ${formatLine(l)}`);
+      // TD v0.13: what the speaker meant by it.
+      if (l.meant && l.meant !== "none") out.push(`  - *${l.speaker} meant it as ${l.meant}${l.words ? `: "${l.words}"` : l.words_log?.fallback ? ` (words fallback: ${l.words_log.fallback})` : ""}*`);
     }
-    if (e.type === "thought" && e.call !== "plan") out.push(`  - *${e.character} thinks (${e.call}${e.importance !== undefined ? `, importance ${e.importance}` : ""}${e.done ? ", done" : ""}${e.repeat ? ", exact repeat: not shown again" : ""}):* ${e.text}`);
+    if (e.type === "thought" && e.call !== "plan") out.push(`  - *${e.character} thinks (${e.closing ? "closing think" : e.call}${e.took !== undefined ? `, took ${e.took}${e.words ? `, words "${e.words}"${(e.words_log as { same_speaker?: string } | undefined)?.same_speaker ? ` (same speaker, earlier line ${(e.words_log as { same_speaker: string }).same_speaker})` : ""}` : (e.words_log as { wrong_line?: string } | undefined)?.wrong_line ? `, wrong-line words (in ${(e.words_log as { wrong_line: string }).wrong_line})` : (e.words_log as { fallback?: string } | undefined)?.fallback ? `, words fallback (${(e.words_log as { fallback: string }).fallback})` : ""}${e.took_target ? ` (asked about ${e.took_target === "own" ? "own line" : e.took_target === "other" ? `${e.target_line}` : "no line"})` : ""}` : ""}${e.importance !== undefined && !e.closing ? `, importance ${e.importance}` : ""}${e.done && !e.closing ? ", done" : ""}${e.repeat ? ", exact repeat: not shown again" : ""}):* ${e.text}`);
+    if (e.type === "readings" && ((e.stored as string[]).length || (e.logged as string[]).length)) out.push(`- *readings: ${(e.stored as string[]).join(", ") || "none"}${(e.logged as string[]).length ? `; labels not stored: ${(e.logged as string[]).join("; ")}` : ""}*`);
     if (e.type === "bribe") out.push(`  - **[${e.from} gave ${e.to} ${e.amount} Florins.]**`);
     if (e.type === "borrow" || e.type === "repay") out.push(`  - **[${e.character}: ${e.type}${e.holder ? ` for ${e.holder}` : ""}]** (private)`);
     if (e.type === "move") out.push(`- **Movement window: ${e.character}** → ${e.choice}${e.target ? ` ${e.target}` : ""}${e.note ? ` (${e.note})` : ""}`);
@@ -451,4 +588,4 @@ function memoryDump(game: MiniGame, gameId: string): string {
   return `${out.join("\n")}\n`;
 }
 
-main();
+audited(main, OUT, "minigame");

@@ -131,6 +131,13 @@ export interface Usage {
   cacheWriteTokens?: number;
 }
 
+/** One output token's log probability and its top alternatives, as the provider returned them. */
+export interface TokenLogprob {
+  token: string;
+  logprob: number;
+  top: { token: string; logprob: number }[];
+}
+
 export type CallResult =
   | {
       ok: true;
@@ -144,6 +151,8 @@ export type CallResult =
       generationId: string;
       finishReason: string | null;
       latencyMs: number;
+      /** Per-token log probabilities, when they were requested and the provider returned them (TD v0.21). */
+      logprobs?: TokenLogprob[] | null;
     }
   | { ok: false; error: string; status: number | null; latencyMs: number };
 
@@ -176,6 +185,17 @@ export async function callModel(client: OpenAI, req: CallRequest, policy: RetryP
     policy.onRetry?.({ attempt, status: result.status, error: result.error, backoffMs });
     await new Promise((r) => setTimeout(r, backoffMs));
   }
+}
+
+/** The choice's `logprobs.content` as TokenLogprob[], or null when the provider sent none. */
+function tokenLogprobs(raw: unknown): TokenLogprob[] | null {
+  const content = (raw as { content?: { token?: string; logprob?: number; top_logprobs?: { token?: string; logprob?: number }[] }[] } | null | undefined)?.content;
+  if (!Array.isArray(content) || content.length === 0) return null;
+  return content.map((t) => ({
+    token: t.token ?? "",
+    logprob: typeof t.logprob === "number" ? t.logprob : Number.NEGATIVE_INFINITY,
+    top: (t.top_logprobs ?? []).map((a) => ({ token: a.token ?? "", logprob: typeof a.logprob === "number" ? a.logprob : Number.NEGATIVE_INFINITY })),
+  }));
 }
 
 /**
@@ -291,6 +311,7 @@ async function callOnce(
       generationId: res.id,
       finishReason: choice?.finish_reason ?? null,
       latencyMs,
+      logprobs: tokenLogprobs(choice?.logprobs),
     };
   } catch (e) {
     const latencyMs = Math.round(performance.now() - started);

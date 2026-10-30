@@ -26,7 +26,128 @@ export const ThinkOutput = z.object({
   done: z.boolean().nullable().optional(),
 });
 
-export type ThinkOutput = z.infer<typeof ThinkOutput>;
+export type ThinkOutput = z.infer<typeof ThinkOutput> & {
+  /** TD v0.9: how the character takes the last thing said aloud; present only when the prompt asks for it. */
+  took?: Took;
+  /** TD v0.11: the words of the labelled line that carried it, as they appear in the line; null if the fallback is used. */
+  words?: string | null;
+  /** TD v0.11: what the words check did (cut at 12, fallback and why), when it did anything. */
+  wordsLog?: WordsLog;
+};
+
+/** TD v0.9's `took` values (block 9a): the six kinds, `insult` (v0.12), `pressure` (v0.16), or none. */
+export const TOOK_VALUES = ["promise", "deal", "threat", "admission", "claim", "denial", "insult", "pressure", "none"] as const;
+export type Took = (typeof TOOK_VALUES)[number];
+
+/**
+ * TD v0.9, Output Validation & Repair, `took`: matched case-insensitively, a leading article or a
+ * plural stripped ("a threat" → threat, "Threats" → threat). Missing or unknown → none, which the
+ * caller logs as a repair; it never triggers a retry.
+ */
+export function normalizeTook(raw: unknown, allowed: readonly string[] = TOOK_VALUES): { took: Took; unknown: boolean } {
+  if (typeof raw !== "string") return { took: "none", unknown: true };
+  let w = raw.trim().toLowerCase().replace(/[.!"'`]+$/g, "").replace(/^["'`]+/, "");
+  w = w.replace(/^(a|an|the)\s+/, "");
+  // `allowed`: the values this TD's prompt offers (an older TD's prompt has no insult or pressure).
+  const hit = (x: string) => allowed.includes(x);
+  if (hit(w)) return { took: w as Took, unknown: false };
+  // Plurals: "threats", "promises", "denials", "admissions", "claims", "deals".
+  const singular = w.endsWith("s") ? w.slice(0, -1) : w;
+  if (singular !== w && hit(singular)) return { took: singular as Took, unknown: false };
+  return { took: "none", unknown: true };
+}
+
+export interface WordsLog {
+  /** More than the cap (12, or 20 from TD v0.13) were given, and they were cut before the check. */
+  cut?: boolean;
+  /** "words fallback": the reading uses the first-15-words trim instead. */
+  fallback?: "missing" | "not in line" | "no line";
+  /** Words given with a `none` label, which are dropped. */
+  ignored?: boolean;
+  /** TD v0.13 "wrong-line words": not in the named line but in this line by a different speaker; the reading is dropped. */
+  wrong_line?: string;
+  /** TD v0.14 "same speaker, earlier line": not in the named line but in this earlier line by its speaker; the reading stays and quotes them. */
+  same_speaker?: string;
+  /** As the character wrote them, when they weren't used as given. */
+  raw?: unknown;
+}
+
+const isWord = (w: string) => /[\p{L}\p{N}]/u.test(w);
+const QUOTES = /[\u2018\u2019\u201A\u201B\u2032\u0060\u00B4]/g;
+const DQUOTES = /[\u201C\u201D\u201E\u201F\u2033\u00AB\u00BB]/g;
+
+/**
+ * Normalizes spaces (runs become one), quote marks (curly and angled become straight), and case,
+ * keeping each output character's index in the original text.
+ */
+function normalize(text: string): { text: string; at: number[] } {
+  let out = "";
+  const at: number[] = [];
+  for (let i = 0; i < text.length; i++) {
+    let ch = text[i]!;
+    if (/\s/.test(ch)) {
+      if (out.endsWith(" ") || out === "") continue;
+      ch = " ";
+    }
+    ch = ch.replace(QUOTES, "'").replace(DQUOTES, '"').toLowerCase();
+    for (const c of ch) {
+      out += c;
+      at.push(i);
+    }
+  }
+  return { text: out.trimEnd(), at };
+}
+
+/**
+ * TD v0.11, Output Validation & Repair, `words`: kept only when `took` isn't none; more than 12
+ * words are cut at 12 (logged); the rest must appear in the labelled line, word for word after
+ * normalizing spaces, quote marks, and case, at word boundaries. The words returned are the
+ * line's own text for that span. Missing, null, or not in the line → null, "words fallback".
+ */
+export function checkWords(
+  raw: unknown,
+  took: Took,
+  line: string | null,
+  opts: { cap?: number; others?: { id: string; text: string; speaker?: string | null }[]; speaker?: string | null } = {},
+): { words: string | null; log: WordsLog | null } {
+  const cap = opts.cap ?? 12;
+  const given = typeof raw === "string" && raw.trim() !== "" && raw.trim().toLowerCase() !== "null";
+  if (took === "none") return { words: null, log: given ? { ignored: true, raw } : null };
+  if (!given) return { words: null, log: { fallback: "missing", raw: raw ?? null } };
+  if (line === null) return { words: null, log: { fallback: "no line", raw } };
+  // Surrounding quote marks and spaces aren't part of the words.
+  let w = (raw as string).trim().replace(/^["'\u2018\u2019\u201C\u201D«»]+|["'\u2018\u2019\u201C\u201D«»]+$/g, "").trim();
+  const tokens = w.split(/\s+/);
+  let n = 0;
+  const end = tokens.findIndex((t) => isWord(t) && ++n === cap);
+  const cut = end !== -1 && tokens.slice(end + 1).some(isWord);
+  if (cut) w = tokens.slice(0, end + 1).join(" ");
+  const needle = normalize(w).text;
+  const words = findWords(needle, line);
+  if (words !== null) return { words, log: cut ? { cut: true, raw } : null };
+  // TD v0.14: an earlier line by the named speaker is the same remark, and wins over any other match: the
+  // words are quoted from the latest such line. Otherwise (v0.13) a line by a different speaker means the
+  // label was about that line (the latest match is logged).
+  const same = opts.speaker ? opts.others?.findLast((o) => o.speaker === opts.speaker && findWords(needle, o.text) !== null) : undefined;
+  if (same) return { words: findWords(needle, same.text), log: { ...(cut && { cut: true }), same_speaker: same.id, raw } };
+  const other = opts.others?.findLast((o) => findWords(needle, o.text) !== null);
+  if (other) return { words: null, log: { ...(cut && { cut: true }), wrong_line: other.id, raw } };
+  return { words: null, log: { ...(cut && { cut: true }), fallback: "not in line", raw } };
+}
+
+/** The span of `text` that matches the normalized `needle` at word boundaries, as written in `text`; null if none. */
+function findWords(needle: string, text: string): string | null {
+  const hay = normalize(text);
+  let from = 0;
+  while (needle && (from = hay.text.indexOf(needle, from)) !== -1) {
+    const before = hay.text[from - 1];
+    const after = hay.text[from + needle.length];
+    const bounded = (c: string | undefined, edge: string) => c === undefined || !/[\p{L}\p{N}]/u.test(c) || !/[\p{L}\p{N}]/u.test(edge);
+    if (bounded(before, needle[0]!) && bounded(after, needle.at(-1)!)) return text.slice(hay.at[from], hay.at[from + needle.length - 1]! + 1);
+    from++;
+  }
+  return null;
+}
 
 /** Strict JSON Schema for constrained decoding; `done` is fixed by conversation type. */
 export function thinkJsonSchema(conversation: ConversationKind): Record<string, unknown> {
@@ -53,6 +174,17 @@ export interface ThinkExpectation {
    * removed it and asks for `done` only in a Colloquio. Default v0.2.
    */
   format?: "td0.2" | "td0.3";
+  /** TD v0.9: the prompt asks for `took`, so it's read (and a missing one repaired). */
+  took?: boolean;
+  /** The `took` values this TD's prompt offers (default: all of TOOK_VALUES). */
+  tookValues?: readonly string[];
+  /**
+   * TD v0.11: the prompt asks for `words`; they're checked against this line (null: no spoken line).
+   * `cap`: the most words kept (12 in v0.11–v0.12, 20 from v0.13). `others`: the other lines the
+   * character heard, for TD v0.13's wrong-line rule; `speaker`: the named line's speaker, for TD
+   * v0.14's same-speaker rule (without it, any other line is a wrong line, as in v0.13).
+   */
+  words?: { line: string | null; cap?: number; others?: { id: string; text: string; speaker?: string | null }[]; speaker?: string | null };
 }
 
 export type ThinkVerdict =
@@ -103,6 +235,8 @@ export interface Repairs {
   doneFilled: boolean;
   /** Importance wasn't a whole number from 0 to 100, and was rounded and clamped (TD v0.3). */
   scoreClamped?: boolean;
+  /** TD v0.9: `took` was missing or not one of the seven values, and was set to none. */
+  tookFilled?: boolean;
 }
 
 export interface ThinkParseResult {
@@ -345,6 +479,8 @@ const ThinkOutputV3 = z.object({
   thought: z.string().min(1),
   importance: z.number(),
   done: z.boolean().nullable().optional(),
+  took: z.unknown().optional(),
+  words: z.unknown().optional(),
 });
 
 /**
@@ -376,7 +512,18 @@ function parseThinkV3(raw: string, expect: ThinkExpectation): ThinkParseResult {
       ? { verdict: "syntax", errors: syntaxErrors, warnings: [], value: null }
       : { verdict: errors.length ? "meaning" : "valid", errors, warnings: [], value };
 
-  const asIs: ThinkOutput = { thought: v.thought, importance: v.importance, contacts: [], done: v.done ?? null };
+  // TD v0.9: `took` never fails a call; missing or unknown becomes none, counted as a repair.
+  const took = expect.took ? normalizeTook(v.took, expect.tookValues) : null;
+  // TD v0.11: `words` never fails a call either; it's kept only when it's found in the line.
+  const words = took && expect.words ? checkWords(v.words, took.took, expect.words.line, expect.words) : null;
+  const asIs: ThinkOutput = {
+    thought: v.thought,
+    importance: v.importance,
+    contacts: [],
+    done: v.done ?? null,
+    ...(took && { took: took.took }),
+    ...(words && { words: words.words, ...(words.log && { wordsLog: words.log }) }),
+  };
   const fixed: ThinkOutput = {
     ...asIs,
     importance: Math.min(100, Math.max(0, Math.round(v.importance))),
@@ -392,6 +539,7 @@ function parseThinkV3(raw: string, expect: ThinkExpectation): ThinkParseResult {
     doneIgnored: !colloquio && v.done !== undefined && v.done !== null,
     doneFilled: false,
     scoreClamped: !scoreOk,
+    ...(took && { tookFilled: took.unknown }),
   };
   return {
     fenced,

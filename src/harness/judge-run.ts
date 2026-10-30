@@ -20,6 +20,7 @@
 // verdicts in the logs. --passes N judges each dialogue run until it has N
 // verdicts under the current rubric (for majority-of-three judging).
 
+import { audited } from "./keyaudit.ts";
 import { basename } from "node:path";
 import { parseArgs } from "node:util";
 import { config } from "../../probe.config.ts";
@@ -543,7 +544,7 @@ function safeJson(raw: string): unknown {
   }
 }
 
-main().catch((e: Error) => {
+audited(main, JUDGE_DIR, "judge").catch((e: Error) => {
   console.error(e.message);
   process.exitCode = 1;
 });

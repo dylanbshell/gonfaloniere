@@ -8,6 +8,7 @@ import { z } from "zod";
 import type { ActionType } from "../game/actions.ts";
 import { resolveAlias } from "../game/roster.ts";
 import { parseJson } from "./json.ts";
+import { checkWords, normalizeTook, type Took, type WordsLog } from "./think.ts";
 
 const action = z.discriminatedUnion("type", [
   // Any whole amount parses; a non-positive one is rejected like any other illegal action.
@@ -24,6 +25,8 @@ export const SpeakOutput = z.object({
   addressee: z.string().nullable().optional(),
   utterance: z.string().min(1),
   action: action.nullable().optional(),
+  meant: z.unknown().optional(),
+  words: z.unknown().optional(),
 });
 
 export type SpeakOutput = z.infer<typeof SpeakOutput>;
@@ -37,6 +40,11 @@ export interface SpeakExpectation {
   florins: number;
   /** False when the prompt has no addressee field (TD v0.4's Colloquio); default true. */
   addressee?: boolean;
+  /**
+   * TD v0.13: the prompt asks for `meant` and `words`; words are cut at `cap` and checked against the
+   * utterance. `values`: the `meant` values this TD's prompt offers (default: all of TOOK_VALUES).
+   */
+  meant?: { cap: number; values?: readonly string[] };
 }
 
 export interface SpeakParseResult {
@@ -53,6 +61,14 @@ export interface SpeakParseResult {
   actionRejected: string | null;
   /** Spoken words; TD asks for about 60 at most. */
   words: number;
+  /** TD v0.13: what the speaker meant by the line (null when the prompt doesn't ask). */
+  meant: Took | null;
+  /** `meant` was missing or not one of the eight values, and was set to none (a repair, never a retry). */
+  meantFilled: boolean;
+  /** TD v0.13: the words of the utterance that carry `meant`, as written; null when none or the fallback is used. */
+  meantWords: string | null;
+  /** What the words check did, when it did anything (cut at 20, fallback, ignored with none). */
+  meantLog: WordsLog | null;
 }
 
 export function parseSpeak(raw: string, expect: SpeakExpectation): SpeakParseResult {
@@ -68,6 +84,10 @@ export function parseSpeak(raw: string, expect: SpeakExpectation): SpeakParseRes
     action: null,
     actionRejected: null,
     words: 0,
+    meant: null,
+    meantFilled: false,
+    meantWords: null,
+    meantLog: null,
   });
   if (error) return failed([error]);
   const shape = SpeakOutput.safeParse(json);
@@ -103,6 +123,10 @@ export function parseSpeak(raw: string, expect: SpeakExpectation): SpeakParseRes
   const words = value.utterance.trim().split(/\s+/).length;
   if (words > 60) warnings.push(`utterance is ${words} words (asked for about 60 at most)`);
 
+  // TD v0.13: `meant` is matched like `took`; `words` are kept only when it isn't none, and checked against the utterance.
+  const meant = expect.meant ? normalizeTook(value.meant, expect.meant.values) : null;
+  const carried = meant && expect.meant ? checkWords(value.words, meant.took, value.utterance, { cap: expect.meant.cap }) : null;
+
   return {
     verdict: "valid",
     fenced,
@@ -114,6 +138,10 @@ export function parseSpeak(raw: string, expect: SpeakExpectation): SpeakParseRes
     action: value.action && !actionRejected ? value.action : null,
     actionRejected,
     words,
+    meant: meant?.took ?? null,
+    meantFilled: meant?.unknown ?? false,
+    meantWords: carried?.words ?? null,
+    meantLog: carried?.log ?? null,
   };
 }
 

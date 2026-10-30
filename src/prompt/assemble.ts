@@ -23,6 +23,15 @@ export interface PromptTemplates {
   murder?: string;
   ballot?: string;
   runoff?: string;
+  /** TD v0.22's lore section ("WHAT YOU KNOW OF FLORENCE" and {lore_bullets}), inserted only with `lore: on`. Absent in earlier versions. */
+  lore?: string;
+  /** TD v0.23 block 9h, the seat task, and its two forms' placeholder values. Absent in earlier versions. */
+  seat?: string;
+  seatForms?: {
+    lone: { situation: string; steps: string; schema: string };
+    /** `waitLine` replaces the `"join"` line when no group has room, and step 3 then ends with `waitTargetEnd`. */
+    invitee: { situation: string; steps: string; schema: string; waitLine: string; waitTargetEnd: string };
+  };
 }
 
 export interface RulesValues {
@@ -78,6 +87,8 @@ export interface CharacterContext {
   longTermMemory: string[];
   shortTermThoughts: string[];
   history: HistoryLine[];
+  /** TD v0.22, `lore: on` only: the lore lines for this call. Absent (or empty) inserts nothing, so the prompt is as before v0.22. */
+  lore?: string[];
 }
 
 export interface AssembledPrompt {
@@ -98,20 +109,88 @@ export interface AssembledPrompt {
 export function assembleThinkPrompt(
   t: PromptTemplates,
   ctx: CharacterContext,
-  opts: { extraInstruction?: string } = {},
+  opts: { extraInstruction?: string; tookTarget?: TookTarget; td?: string } = {},
 ): AssembledPrompt {
   const colloquio = ctx.state.conversation.kind === "colloquio";
   if (opts.extraInstruction && t.think.includes(opts.extraInstruction)) {
     throw new Error("This Technical Design's think() task already has that line (TD v0.5 builds in the secret-keeping lines)");
   }
+  // TD v0.9 adds step 2, `took`, so `done` becomes step 4 and the schema carries "took";
+  // TD v0.11 adds step 3, `words`, so `done` becomes step 5.
+  const took = thinkAsksTook(t);
+  const words = thinkAsksWords(t);
+  const fields = `"thought": "...", ${took ? '"took": "none", ' : ""}${words ? '"words": null, ' : ""}"importance": 0`;
   const task = fill(t.think, {
     character_name: ctx.characterName,
+    took_target: tookTargetText(opts.tookTarget ?? tookTargetFromHistory(ctx.history, ctx.characterName), opts.td),
     done_instruction: colloquio
-      ? "\n3. done — true if you have what you came for, or nothing more is to be gained here; otherwise false.\n"
+      ? `\n${3 + Number(took) + Number(words)}. done — true if you have what you came for, or nothing more is to be gained here; otherwise false.\n`
       : "",
-    think_schema: colloquio ? '{"thought": "...", "importance": 0, "done": false}' : '{"thought": "...", "importance": 0}',
+    think_schema: colloquio ? `{${fields}, "done": false}` : `{${fields}}`,
   });
   return assemble(t, ctx, opts.extraInstruction ? afterThoughtInstruction(task, opts.extraInstruction) : task);
+}
+
+/** Whether this TD's Block 9a asks for `took` (TD v0.9's step 2). */
+export function thinkAsksTook(t: PromptTemplates): boolean {
+  return /\n2\. took — /.test(t.think);
+}
+
+/** Whether this TD's Block 9a asks for `words` (TD v0.11's step 3). */
+export function thinkAsksWords(t: PromptTemplates): boolean {
+  return /\n3\. words — /.test(t.think);
+}
+
+/** Whether this TD's Block 9b asks for `meant` and `words` (TD v0.13). */
+export function speakAsksMeant(t: PromptTemplates): boolean {
+  return /\nmeant — /.test(t.speak);
+}
+
+/**
+ * The label values a TD's prompt offers ("in one word: promise, …, or none."), from block 9a's `took`
+ * line or block 9b's `meant` line; undefined if the line isn't there.
+ */
+export function labelValues(t: PromptTemplates, call: "think" | "speak"): string[] | undefined {
+  const m = (call === "think" ? /\n2\. took — [^\n]*?in one word: ([a-z, ]+?), or none\./ : /\nmeant — [^\n]*?in one word: ([a-z, ]+?), or none\./).exec(call === "think" ? t.think : t.speak);
+  return m ? [...m[1]!.split(/,\s*/), "none"] : undefined;
+}
+
+/** The most words a `words` line keeps ("at most N" in the TD's own text): 12 in TD v0.11–v0.12, 20 from v0.13. */
+export function wordsCap(t: PromptTemplates, call: "think" | "speak"): number {
+  const m = (call === "think" ? /\n3\. words — [^\n]*?at most (\d+)/ : /\nwords — [^\n]*?at most (\d+)/).exec(call === "think" ? t.think : t.speak);
+  return m ? Number(m[1]) : 12;
+}
+
+/** Whether this TD's `took` line names its target line through {took_target} (TD v0.10). */
+export function thinkNamesTarget(t: PromptTemplates): boolean {
+  return t.think.includes("{took_target}");
+}
+
+/**
+ * The line {took_target} names (TD v0.10): someone else's (with the speaker's name as History
+ * shows it), the character's own, or none when nothing has been said aloud.
+ */
+/** `answering` (TD v0.15): after the character's own line, the line of the speaker's they were answering. */
+export type TookTarget = { type: "other"; speaker: string; answering?: boolean } | { type: "own" } | { type: "none" };
+
+/** `td`: the Technical Design version, for the none text (TD v0.14 changed it). */
+export function tookTargetText(target: TookTarget, td?: string): string {
+  if (target.type === "other") return target.answering && td && tdMinor(td) >= 15 ? `how you take the line of ${target.speaker}'s you were answering` : `how you take ${target.speaker}'s last line`;
+  if (target.type === "own") return "what you meant by your own last line";
+  return td && tdMinor(td) >= 14 ? "nothing yet, since no one else has spoken here since you arrived" : "how you take the last thing said aloud";
+}
+
+/** The minor version of a Technical Design version string ("0.14" → 14). */
+export const tdMinor = (td: string) => Number(td.split(".")[1]);
+
+/**
+ * For callers without the game's line record: the last spoken line in History. The mini-game
+ * passes its own target, from the rule that attaches the reading.
+ */
+export function tookTargetFromHistory(history: HistoryLine[], characterName: string): TookTarget {
+  const last = history.findLast((l) => l.kind === "speech");
+  if (!last || last.kind !== "speech") return { type: "none" };
+  return last.speaker === characterName ? { type: "own" } : { type: "other", speaker: last.speaker };
 }
 
 /**
@@ -159,6 +238,8 @@ export function assembleSpeakPrompt(t: PromptTemplates, ctx: CharacterContext, o
         ? "This private conversation must end now. This is your last line here."
         : "";
   const addressee = speakHasAddressee(t, ctx.state.conversation.kind);
+  // TD v0.13: "meant" and "words" follow "utterance" in both forms.
+  const meant = speakAsksMeant(t) ? ', "meant": "none", "words": null' : "";
   // An empty {addressee_instruction} (TD v0.4's Colloquio) takes its line with it.
   const template = addressee ? t.speak : t.speak.replace("{addressee_instruction}\n", "");
   const task = fill(template, {
@@ -168,8 +249,8 @@ export function assembleSpeakPrompt(t: PromptTemplates, ctx: CharacterContext, o
     // TD v0.4 only; earlier templates have neither placeholder.
     addressee_instruction: t.addresseeInstruction ?? "",
     speak_schema: addressee
-      ? '{"addressee": "..." or null, "utterance": "...", "action": null or {...}}'
-      : '{"utterance": "...", "action": null or {...}}',
+      ? `{"addressee": "..." or null, "utterance": "..."${meant}, "action": null or {...}}`
+      : `{"utterance": "..."${meant}, "action": null or {...}}`,
   })
     .replace("It is your turn to speak. \n", "It is your turn to speak.\n");
   let out = opts.extraInstruction ? addBullet(task, opts.extraInstruction) : task;
@@ -207,6 +288,52 @@ function template(t: PromptTemplates, key: "move" | "plan" | "murder" | "ballot"
  */
 export function assembleMovePrompt(t: PromptTemplates, ctx: CharacterContext): AssembledPrompt {
   return assemble(t, ctx, dropEmptyPlaceholderLines(fill(template(t, "move"), { target: "your target", colloquio_note: "" })));
+}
+
+/** An open Capannello as block 9h offers it: its guests, its free seats, and (invitee form) whether the initiator came from it. */
+export interface SeatGroup {
+  members: string[];
+  room: number;
+  initiatorsOwn?: boolean;
+}
+
+export type SeatForm = { form: "lone" } | { form: "invitee"; initiator: string };
+
+/**
+ * Block 9h (TD v0.23): the seat task, in the lone-guest or invitee form. Block 5 reads as for a call
+ * outside a conversation and block 8 as WHAT YOU LAST HEARD, so `ctx` comes in as "the gathering".
+ * The invitee form with no group open swaps the `"join"` line for the wait line.
+ */
+export function assembleSeatPrompt(t: PromptTemplates, ctx: CharacterContext, form: SeatForm, groups: SeatGroup[]): AssembledPrompt {
+  if (!t.seat || !t.seatForms) throw new Error("This Technical Design has no seat task (block 9h arrived in TD v0.23)");
+  const initiator = form.form === "invitee" ? form.initiator : "";
+  const open = groups.length
+    ? groups.map((g) => `- ${g.members.join(", ")} (room for ${g.room})${g.initiatorsOwn ? ` — ${initiator} came from here` : ""}`).join("\n")
+    : "None: every group is full.";
+  let values: { situation: string; steps: string; schema: string };
+  if (form.form === "lone") values = t.seatForms.lone;
+  else {
+    const f = t.seatForms.invitee;
+    let steps = f.steps;
+    if (!groups.length) {
+      const lines = steps.split("\n");
+      const join = lines.findIndex((l) => l.trimStart().startsWith('"join"'));
+      if (join < 0) throw new Error('Block 9h: no "join" line in the invitee steps');
+      lines[join] = `${lines[join]!.slice(0, lines[join]!.length - lines[join]!.trimStart().length)}${f.waitLine}`;
+      const target = lines.findIndex((l) => /^\s*3\. target/.test(l));
+      if (target < 0) throw new Error("Block 9h: no step 3 in the invitee steps");
+      lines[target] = `${lines[target]} ${f.waitTargetEnd}`;
+      steps = lines.join("\n");
+    }
+    values = { situation: f.situation, steps, schema: f.schema };
+  }
+  const task = fill(t.seat, {
+    seat_situation: fill(values.situation, { initiator }),
+    open_groups: open,
+    seat_steps: fill(values.steps, { initiator }),
+    seat_schema: values.schema,
+  });
+  return assemble(t, ctx, task);
 }
 
 /** Block 9d: the strategy task. `trigger` is {strategy_trigger}, e.g. "The Medici faction meeting has just ended." */
@@ -361,9 +488,17 @@ function memoryBlock(t: PromptTemplates, ctx: CharacterContext): string {
     history: ctx.history.map(formatHistoryLine).join("\n"),
   });
   // TD: outside a conversation, block 8 holds the end of the last conversation and any broadcasts since.
-  return ctx.state.conversation.kind === "gathering"
-    ? block.replace("THE CONVERSATION SO FAR (most recent last)", "WHAT YOU LAST HEARD")
-    : block;
+  const memory =
+    ctx.state.conversation.kind === "gathering"
+      ? block.replace("THE CONVERSATION SO FAR (most recent last)", "WHAT YOU LAST HEARD")
+      : block;
+  return ctx.lore?.length ? `${loreSection(t, ctx.lore)}\n\n${memory}` : memory;
+}
+
+/** TD v0.22's lore section, placed just before block 6's heading. */
+function loreSection(t: PromptTemplates, lore: string[]): string {
+  if (!t.lore) throw new Error("This Technical Design has no lore section (it arrived in TD v0.22)");
+  return fill(t.lore, { lore_bullets: lore.map((l) => `- ${l}`).join("\n") });
 }
 
 export function formatHistoryLine(line: HistoryLine): string {

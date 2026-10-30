@@ -1,4 +1,4 @@
-// Memory for the mini-game (Technical Design v0.8, Memory Architecture and
+// Memory for the mini-game (Technical Design v0.9, Memory Architecture and
 // Memory Writing): the game's lines and thoughts with IDs, longTermHistory
 // entries and beliefs, the checks every extraction entry must pass before it
 // is stored (Output Validation & Repair: Memory entries, Sweep, Beliefs),
@@ -8,6 +8,7 @@
 import { z } from "zod";
 import { ALIASES, ROSTER, resolveAlias, type CharacterName } from "../game/roster.ts";
 import type { MemoryRules } from "../sources/docs.ts";
+import type { Took, WordsLog } from "../output/think.ts";
 import { nearMiss } from "../output/think.ts";
 
 /** One line of the evening, with a game-wide ID (L…). */
@@ -23,6 +24,10 @@ export interface GameLine {
   text: string;
   /** Who heard it: everyone present, or for a private action the actor only. */
   heardBy: CharacterName[];
+  /** TD v0.13, speech only: what the speaker meant by it (speak()'s `meant`), and the words that carry it (null: fallback or none). */
+  meant?: Took;
+  words?: string | null;
+  words_log?: WordsLog;
 }
 
 export interface Where {
@@ -48,7 +53,24 @@ export interface Thought {
   repeat?: boolean;
   /** TD v0.8: the line the character had last heard when the thought was made; for think(), the line it reacted to. */
   after_line?: string | null;
+  /** TD v0.9, think() only: how the character took the last thing said aloud (none included). */
+  took?: Took;
+  /** think() only: the conversation the thought was made in. */
+  conversation?: string;
+  /** TD v0.9: a closing think, after a Colloquio's last line (its importance and done are ignored). */
+  closing?: boolean;
+  /** TD v0.10, think() only: whose line {took_target} named (other, own, none), and that line's id. */
+  took_target?: TookTargetType;
+  target_line?: string | null;
+  /** TD v0.15: the named line is the one the character was answering with their own line. */
+  target_answering?: boolean;
+  /** TD v0.11, think() only: the words of the target line that carried the label (null: fallback or none). */
+  words?: string | null;
+  /** TD v0.11: what the words check did, when it did anything (cut at 12, words fallback, ignored with none). */
+  words_log?: WordsLog;
 }
+
+export type TookTargetType = "other" | "own" | "none";
 
 export const ENTRY_TYPES = ["promise", "deal", "threat", "admission", "claim", "denial"] as const;
 /** Which types each pass records (TD v0.6: 10a ★ pass, 10d claims pass). */
@@ -79,15 +101,59 @@ export interface MemoryEntry {
   source: "10a" | "10d" | "code";
 }
 
-/** What a character took a line as (TD v0.8, block 10e): the six kinds, as the character sees them. */
-export const READING_KINDS = ["promise", "deal", "threat", "admission", "claim", "denial"] as const;
+/** What a character took a line as: the six kinds, `insult` (TD v0.12) and `pressure` (v0.16), neither ★, as the character sees them. */
+export const READING_KINDS = ["promise", "deal", "threat", "admission", "claim", "denial", "insult", "pressure"] as const;
+/** TD v0.8's 10e readings (replay only): the six kinds. */
+const PERCEPTION_KINDS = ["promise", "deal", "threat", "admission", "claim", "denial"] as const;
 const SALIENT_READINGS = ["promise", "deal", "threat", "admission"];
 
 /**
- * A reading (R…), TD v0.8's perceived notebook: how one character took a line, with the speaker's
- * exact words and the character's own reaction quoted from their thought. No recorder summary.
+ * A reading (R…), TD v0.9's perceived notebook: how one character took a line, labelled by the
+ * character in its own think() (`took`) and attached to the line by code. No model fills anything
+ * but `took` (TD v0.9, The perceived notebook, A reading as stored).
  */
 export interface Reading {
+  id: string;
+  /** Whose notebook it is (stored for this character only). */
+  character: CharacterName;
+  turn: number;
+  conversation: string;
+  line: string;
+  speaker: CharacterName;
+  took: (typeof READING_KINDS)[number];
+  /** The think() the label came from; null for an own reading from speak() (TD v0.13). */
+  thought: string | null;
+  /** TD v0.13: an own reading from speak()'s `meant` (think() readings have no source field). */
+  source?: "speak";
+  /** The speaker, the line's addressee if any, and every roster name or alias in the line. */
+  about: CharacterName[];
+  own: boolean;
+  salient: boolean;
+  /** TD v0.11: the character's words, as they appear in the line; null when the fallback trim is used. */
+  words: string | null;
+  /** TD v0.14: the earlier line by the same speaker the words were found in, when they aren't in this line. */
+  words_line?: string;
+}
+
+/** A `took` label the attachment rule ignored (no spoken line) or logged (not stored), with the reason. */
+export interface LabelLogEntry {
+  turn: number;
+  character: CharacterName;
+  thought: string;
+  took: Took;
+  line: string | null;
+  reason: "no spoken line" | "later different label" | "same label again" | "wrong-line words";
+  /** For a later label: the reading that stands. */
+  standing?: string;
+  /** TD v0.13, "wrong-line words": the other line the words were found in. */
+  words_line?: string;
+}
+
+/**
+ * A reading from TD v0.8's perception pass (10e), kept for the replay-only perception mode: the
+ * speaker's exact words and the character's reaction quoted from their thought.
+ */
+export interface PerceptionReading {
   id: string;
   character: CharacterName;
   turn: number;
@@ -96,7 +162,7 @@ export interface Reading {
   speaker: CharacterName;
   line: string;
   quote: string;
-  took: (typeof READING_KINDS)[number];
+  took: (typeof PERCEPTION_KINDS)[number];
   thought: string | null;
   reaction: string | null;
   about: string[];
@@ -105,7 +171,7 @@ export interface Reading {
   salient: boolean;
 }
 
-/** One item of 10e's timeline: a line the character heard or spoke, or a think() thought after its line. */
+/** One item of 10e's timeline (TD v0.8, replay only): a line the character heard or spoke, or a think() thought after its line. */
 export type TimelineItem = { kind: "line"; line: GameLine } | { kind: "thought"; thought: Thought };
 
 /** A belief (B…) from the thought pass. Nothing is deleted; "dropped" sets the status. */
@@ -162,13 +228,34 @@ export interface MemoryNote {
   detail: string;
 }
 
+/** A row from the live store's owner-filtered query, with its cosine similarity to the query (TD v0.22). */
+export interface Ranked {
+  id: string;
+  similarity: number;
+}
+
 export class MemoryStore {
   entries: MemoryEntry[] = [];
   beliefs: Belief[] = [];
   dropped: DroppedEntry[] = [];
   repairs: ExtractionRepair[] = [];
   notes: MemoryNote[] = [];
+  /** TD v0.9 readings, from think()'s `took` (notebook: perceived). */
   readings: Reading[] = [];
+  /** `took` labels the attachment rule ignored or logged. */
+  labelLog: LabelLogEntry[] = [];
+  /** TD v0.8's 10e readings (replay-only perception mode). */
+  perceptionReadings: PerceptionReading[] = [];
+  /** Lines seen by writeReadings, for rendering and retrieval. */
+  private lineIndex = new Map<string, GameLine>();
+  /** TD v0.15: block 6 drops trailing sentence punctuation from quoted words before an "…". */
+  quoteDropsPunct = false;
+  /**
+   * Block 6's similarity fill takes at most `max` readings of each of these labels per call (own
+   * readings included): TD v0.17–v0.18 cap pressure at 2; TD v0.19 caps claim, denial, insult, and
+   * pressure at 3 each. Null: no cap, as before v0.17.
+   */
+  fillCap: { labels: string[]; max: number } | null = null;
   private nextR = 1;
   private nextM = 1;
   private nextB = 1;
@@ -412,8 +499,8 @@ export class MemoryStore {
    * else's line that thought must come after the line, and for the character's own line thought and
    * reaction may both be null. Unknown kinds are dropped; a repeated (line, kind) keeps the first.
    */
-  applyPerceptionPass(raw: unknown, x: { turn: number; character: CharacterName; timeline: TimelineItem[] }): { stored: Reading[]; dropped: DroppedEntry[] } {
-    const stored: Reading[] = [];
+  applyPerceptionPass(raw: unknown, x: { turn: number; character: CharacterName; timeline: TimelineItem[] }): { stored: PerceptionReading[]; dropped: DroppedEntry[] } {
+    const stored: PerceptionReading[] = [];
     const dropped: DroppedEntry[] = [];
     const drop = (reason: string, entry: unknown) => {
       const d: DroppedEntry = { pass: "10e", turn: x.turn, scope: x.character, reason, entry };
@@ -440,7 +527,7 @@ export class MemoryStore {
         drop(`quote not in line (${line.id}: "${n.quote}")`, n);
         continue;
       }
-      if (!(READING_KINDS as readonly string[]).includes(n.took)) {
+      if (!(PERCEPTION_KINDS as readonly string[]).includes(n.took)) {
         drop(`unknown took (${n.took})`, n);
         continue;
       }
@@ -470,7 +557,7 @@ export class MemoryStore {
         continue;
       }
       seen.add(key);
-      const reading: Reading = {
+      const reading: PerceptionReading = {
         id: `R${this.nextR++}`,
         character: x.character,
         turn: x.turn,
@@ -479,56 +566,161 @@ export class MemoryStore {
         speaker: line.speaker!,
         line: line.id,
         quote: n.quote,
-        took: n.took as Reading["took"],
+        took: n.took as PerceptionReading["took"],
         thought: thought?.id ?? null,
         reaction: thought ? n.reaction! : null,
         about: n.about.map((a) => resolveName(a) ?? a),
         own,
         salient: SALIENT_READINGS.includes(n.took),
       };
-      this.readings.push(reading);
+      this.perceptionReadings.push(reading);
       stored.push(reading);
     }
     return { stored, dropped };
   }
 
-  // ---- Retrieval, perceived notebook (TD v0.8, Memory Writing → Retrieval) ------------
+  // ---- Readings (TD v0.9, The perceived notebook) -----------------------------------
 
   /**
-   * Block 6 in `notebook: perceived`: the character's notebook is their readings plus code-written
-   * entries (payments, private actions, Il Notaio's events). ★ items naming anyone present, most
-   * recent first, up to 6; held beliefs about anyone present, up to 3; then the items most similar
-   * to the last two History lines (a reading matched on its quote plus its reaction). Oldest first.
-   * Not used by the runner yet (live play runs `shared`).
+   * Turns one turn's think() labels into readings, by TD v0.9's rule ("Which line a label belongs
+   * to"): (1) the line is the last spoken line before the thought in that conversation, heard by the
+   * character, so an action line or Il Notaio note in between doesn't move it; (2) with no spoken
+   * line the label is ignored and logged; (3) one reading per character per line: the first label
+   * other than none stands, and a later label for the line is logged, not stored; (4) a label on the
+   * character's own line is marked own. Each reading is stored for that character only.
    */
-  retrieveNotebook(c: CharacterName, present: CharacterName[], recentLines: string[], limit = 12): string[] {
+  writeReadings(turn: number, thoughts: Thought[], lines: GameLine[], opts: { ownFromSpeak?: boolean; sinceArrival?: boolean } = {}): { stored: Reading[]; logged: LabelLogEntry[] } {
+    for (const l of lines) this.lineIndex.set(l.id, l);
+    const stored: Reading[] = [];
+    const logged: LabelLogEntry[] = [];
+    const store = (character: CharacterName, line: GameLine, took: Reading["took"], words: string | null, thought: string | null, wordsLine?: string) => {
+      const reading: Reading = {
+        id: `R${this.nextR++}`,
+        character,
+        turn: line.turn,
+        conversation: line.conversation,
+        line: line.id,
+        speaker: line.speaker!,
+        took,
+        thought,
+        about: [...new Set<CharacterName>([line.speaker!, ...(line.addressee ? [line.addressee] : []), ...namesIn(line.text)])],
+        own: line.speaker === character,
+        salient: SALIENT_READINGS.includes(took),
+        // TD v0.11: the character's words for this line; null when the fallback trim is used.
+        words,
+        ...(words && wordsLine && { words_line: wordsLine }),
+        ...(thought === null && { source: "speak" as const }),
+      };
+      this.readings.push(reading);
+      stored.push(reading);
+    };
+    // TD v0.13: own readings come only from speak()'s `meant` and `words`, on the speaker's own line.
+    if (opts.ownFromSpeak) {
+      for (const l of lines.filter((l) => l.turn === turn && l.kind === "speech" && l.meant && l.meant !== "none")) {
+        if (this.readings.some((r) => r.character === l.speaker && r.line === l.id)) continue;
+        store(l.speaker!, l, l.meant as Reading["took"], l.words ?? null, null);
+      }
+    }
+    const ordered = thoughts.filter((t) => t.turn === turn && t.call === "think" && t.took && t.took !== "none").sort((a, b) => num(a.id) - num(b.id));
+    for (const t of ordered) {
+      const line = labelLine(t, lines, opts.ownFromSpeak, opts.sinceArrival);
+      const log = (reason: LabelLogEntry["reason"], extra: Partial<LabelLogEntry> = {}) => {
+        const e: LabelLogEntry = { turn, character: t.character, thought: t.id, took: t.took!, line: line?.id ?? null, reason, ...extra };
+        this.labelLog.push(e);
+        logged.push(e);
+      };
+      if (!line) {
+        log("no spoken line");
+        continue;
+      }
+      // TD v0.13: words found in another line the character heard → the label was about that line; dropped.
+      if (t.words_log?.wrong_line) {
+        log("wrong-line words", { words_line: t.words_log.wrong_line });
+        continue;
+      }
+      const prior = this.readings.find((r) => r.character === t.character && r.line === line.id);
+      if (prior) {
+        log(prior.took === t.took ? "same label again" : "later different label", { standing: prior.id });
+        continue;
+      }
+      const named = t.target_line === undefined || t.target_line === line.id;
+      store(t.character, line, t.took as Reading["took"], named ? (t.words ?? null) : null, t.id, named ? t.words_log?.same_speaker : undefined);
+    }
+    return { stored, logged };
+  }
+
+  /** A reading's line, for rendering (lines registered by writeReadings, or given here). */
+  lineOf(id: string): GameLine | undefined {
+    return this.lineIndex.get(id);
+  }
+
+  registerLines(lines: GameLine[]): void {
+    for (const l of lines) this.lineIndex.set(l.id, l);
+  }
+
+  // ---- Retrieval, perceived notebook (TD v0.9, Memory Writing → Retrieval) ------------
+
+  /**
+   * Block 6 in `notebook: perceived`: the notebook is the character's readings plus code-written
+   * entries (payments, private actions, Il Notaio's events); the reference record (10a, 10d) is never
+   * retrieved. ★ items naming anyone present, most recent first, up to 6; held beliefs about anyone
+   * present, up to 3; then the items most similar to the last two History lines, a reading matched
+   * on its full line text. Oldest first. `murder`: ★ threats, deals, and promises first.
+   * `ranked` (TD v0.22, `retrieval: embeddings`): the live store's owner-filtered rows with their cosine
+   * similarity. Only those rows are candidates, and their similarity replaces word overlap; the order,
+   * caps, and budget are unchanged.
+   */
+  retrieveNotebook(c: CharacterName, present: CharacterName[], recentLines: string[], opts: { murder?: boolean; limit?: number; budget?: number; ranked?: Ranked[] } = {}): string[] {
+    const limit = opts.limit ?? 12;
+    // TD v0.10: block 6 gets ~450 tokens (chars ÷ 3.5), about 10–12 lines; an item that would pass it is skipped.
+    const budget = opts.budget ?? 450;
+    let used = 0;
     type Item = { kind: "reading"; r: Reading } | { kind: "entry"; e: MemoryEntry } | { kind: "belief"; b: Belief };
-    const readings: Item[] = this.readings.filter((r) => r.character === c).map((r) => ({ kind: "reading", r }));
-    const code: Item[] = this.entriesFor(c).filter((e) => e.source === "code").map((e) => ({ kind: "entry", e }));
-    const beliefs: Item[] = this.beliefsOf(c).map((b) => ({ kind: "belief", b }));
+    const sim = opts.ranked ? new Map(opts.ranked.map((r) => [r.id, r.similarity])) : null;
+    const idOf = (x: Item) => (x.kind === "reading" ? x.r.id : x.kind === "entry" ? x.e.id : x.b.id);
+    const inStore = (x: Item) => !sim || sim.has(idOf(x));
+    const readings: Item[] = this.readings.filter((r) => r.character === c && this.lineIndex.has(r.line)).map((r): Item => ({ kind: "reading", r })).filter(inStore);
+    const code: Item[] = this.entriesFor(c).filter((e) => e.source === "code").map((e): Item => ({ kind: "entry", e })).filter(inStore);
+    const beliefs: Item[] = this.beliefsOf(c).map((b): Item => ({ kind: "belief", b })).filter(inStore);
     const turnOfItem = (x: Item) => (x.kind === "reading" ? x.r.turn : x.kind === "entry" ? x.e.turn : x.b.firstTurn);
-    const names = (x: Item): string[] => (x.kind === "reading" ? [x.r.speaker, ...x.r.about] : x.kind === "entry" ? ([x.e.speaker, x.e.toward, ...x.e.about].filter(Boolean) as string[]) : []);
+    const names = (x: Item): string[] => (x.kind === "reading" ? x.r.about : x.kind === "entry" ? ([x.e.speaker, x.e.toward, ...x.e.about].filter(Boolean) as string[]) : []);
     const salient = (x: Item) => (x.kind === "reading" ? x.r.salient : x.kind === "entry" ? x.e.salient : false);
-    const text = (x: Item) => (x.kind === "reading" ? `${x.r.quote} ${x.r.reaction ?? ""}` : x.kind === "entry" ? x.e.summary : x.b.statement);
+    const text = (x: Item) => (x.kind === "reading" ? this.lineIndex.get(x.r.line)!.text : x.kind === "entry" ? x.e.summary : x.b.statement);
+    const render = (x: Item) => (x.kind === "reading" ? renderReading(x.r, this.lineIndex.get(x.r.line)!, x.r.words_line ? this.lineIndex.get(x.r.words_line) : undefined, this.quoteDropsPunct) : x.kind === "entry" ? renderCodeEntryFor(x.e, c) : renderBelief(x.b));
     const picked: Item[] = [];
-    const take = (xs: Item[], n: number) => {
+    const take = (xs: Item[], n: number, accept: (x: Item) => boolean = () => true) => {
       for (const x of xs) {
         if (n <= 0) break;
-        if (!picked.includes(x)) {
+        const cost = Math.ceil(render(x).length / 3.5);
+        // TD v0.11: lines are capped at 12 overall, Murder Round's first step included.
+        if (picked.length >= limit) break;
+        if (!picked.includes(x) && used + cost <= budget && accept(x)) {
           picked.push(x);
+          used += cost;
           n--;
         }
       }
     };
-    const notebook = [...readings, ...code].sort((a, b) => turnOfItem(a) - turnOfItem(b));
-    take([...notebook].reverse().filter((x) => salient(x) && names(x).some((n) => present.includes(n as CharacterName))), 6);
+    const recent = [...readings, ...code].sort((a, b) => turnOfItem(b) - turnOfItem(a));
+    if (opts.murder) take(recent.filter((x) => x.kind === "reading" && ["threat", "deal", "promise"].includes(x.r.took)), 6);
+    take(recent.filter((x) => salient(x) && names(x).some((n) => present.includes(n as CharacterName))), 6);
     take(beliefs.filter((x) => x.kind === "belief" && present.some((p) => x.b.statement.includes(p))), 3);
     const query = words(recentLines.join(" "));
-    const scored = [...notebook, ...beliefs].filter((x) => !picked.includes(x)).map((x) => ({ x, s: overlap(query, words(text(x))) })).sort((a, b) => b.s - a.s);
-    take(scored.map((s) => s.x), limit - picked.length);
-    return picked
-      .sort((a, b) => turnOfItem(a) - turnOfItem(b))
-      .map((x) => (x.kind === "reading" ? renderReading(x.r) : x.kind === "entry" ? renderCodeEntryFor(x.e, c) : renderBelief(x.b)));
+    const scored = [...recent, ...beliefs].filter((x) => !picked.includes(x)).map((x) => ({ x, s: sim ? sim.get(idOf(x))! : overlap(query, words(text(x))) })).sort((a, b) => b.s - a.s);
+    // TD v0.17: at most 2 pressure readings in the fill; TD v0.19: at most 3 each of claim, denial,
+    // insult, and pressure. Further ones of a capped label are skipped; steps 1 and 2 hold none of
+    // these labels, since none is ★. A reading counts only once it's added, so one skipped for the
+    // token budget doesn't use a slot.
+    const added = new Map<string, number>();
+    const underCap = (x: Item) => {
+      if (!this.fillCap || x.kind !== "reading" || !this.fillCap.labels.includes(x.r.took)) return true;
+      const n = added.get(x.r.took) ?? 0;
+      if (n >= this.fillCap.max) return false;
+      added.set(x.r.took, n + 1);
+      return true;
+    };
+    take(scored.map((s) => s.x), limit - picked.length, underCap);
+    return picked.sort((a, b) => turnOfItem(a) - turnOfItem(b)).map(render);
   }
 
   // ---- Retrieval (TD v0.5, Memory Writing → Retrieval) --------------------------------
@@ -538,12 +730,14 @@ export class MemoryStore {
    * recent first, up to 6), held beliefs about anyone present (up to 3), then
    * the entries and beliefs most similar to the last two History lines.
    * Similarity is word overlap, a stand-in for embeddings until the engine has
-   * them. `murder`: the Murder Round query (★ threats, deals, promises first).
+   * them. `murder`: the Murder Round query (★ threats, deals, promises first). `ranked`: as in
+   * retrieveNotebook, the live store's rows and similarity in place of word overlap.
    */
-  retrieve(c: CharacterName, present: CharacterName[], recentLines: string[], opts: { murder?: boolean; limit?: number } = {}): string[] {
+  retrieve(c: CharacterName, present: CharacterName[], recentLines: string[], opts: { murder?: boolean; limit?: number; ranked?: Ranked[] } = {}): string[] {
     const limit = opts.limit ?? 12;
-    const mine = this.entriesFor(c);
-    const beliefs = this.beliefsOf(c);
+    const sim = opts.ranked ? new Map(opts.ranked.map((r) => [r.id, r.similarity])) : null;
+    const mine = this.entriesFor(c).filter((e) => !sim || sim.has(e.id));
+    const beliefs = this.beliefsOf(c).filter((b) => !sim || sim.has(b.id));
     const names = (e: MemoryEntry) => [e.speaker, e.toward, ...e.about, ...(e.parties ?? [])].filter(Boolean) as string[];
     const picked: (MemoryEntry | Belief)[] = [];
     const take = (xs: (MemoryEntry | Belief)[], n: number) => {
@@ -562,7 +756,7 @@ export class MemoryStore {
     const query = words(recentLines.join(" "));
     const scored = [...mine, ...beliefs]
       .filter((x) => !picked.includes(x))
-      .map((x) => ({ x, s: overlap(query, words("summary" in x ? `${x.summary} ${x.quote ?? ""}` : x.statement)) }))
+      .map((x) => ({ x, s: sim ? sim.get(x.id)! : overlap(query, words("summary" in x ? `${x.summary} ${x.quote ?? ""}` : x.statement)) }))
       .sort((a, b) => b.s - a.s);
     take(scored.map((s) => s.x), limit - picked.length);
     // Oldest first within the selection, as TD renders it.
@@ -641,14 +835,56 @@ export const KnowledgeVerdict = z.object({
 });
 
 /** Gate 8's code counts (TD v0.6): dropped entries by reason, sweep re-asks and gaps, hedge downgrades, repeated thoughts. */
-export function memoryCounts(memory: { dropped: { pass: string; reason: string }[]; notes?: { kind: string }[]; repairs?: unknown[] }, thoughts: { repeat?: boolean }[]) {
+export function memoryCounts(
+  memory: { dropped: { pass: string; reason: string }[]; notes?: { kind: string }[]; repairs?: unknown[]; readings?: { took?: string; own?: boolean; thought?: string | null; line?: string; source?: string }[]; labelLog?: { reason: string }[]; label_log?: { reason: string }[] },
+  thoughts: { id?: string; repeat?: boolean; call?: string; took?: string; closing?: boolean; took_target?: string; target_line?: string | null; words?: string | null; words_log?: WordsLog }[],
+  lines: { kind?: string; meant?: string; words?: string | null; words_log?: WordsLog }[] = [],
+) {
+  const named = new Map(thoughts.filter((t) => t.took_target).map((t) => [t.id, t.target_line ?? null]));
   const by = <T>(xs: T[], key: (x: T) => string) => xs.reduce<Record<string, number>>((acc, x) => ((acc[key(x)] = (acc[key(x)] ?? 0) + 1), acc), {});
+  const labelLog = memory.labelLog ?? memory.label_log ?? [];
+  // TD v0.11/v0.13: labelled calls whose words were found, cut at the cap, fell back (by reason), or (think() only) matched a different line.
+  const wordsOutcomes = (labelled: { words?: string | null; words_log?: WordsLog }[], ignored: number) => ({
+    labelled: labelled.length,
+    // In the named line itself; TD v0.14's same-speaker matches are counted on their own.
+    found: labelled.filter((x) => x.words && !x.words_log?.same_speaker).length,
+    same_speaker_earlier_line: labelled.filter((x) => x.words_log?.same_speaker).length,
+    cut_at_cap: labelled.filter((x) => x.words_log?.cut).length,
+    fallback: by(labelled.filter((x) => !x.words && !x.words_log?.wrong_line), (x) => x.words_log?.fallback ?? "missing"),
+    wrong_line: labelled.filter((x) => x.words_log?.wrong_line).length,
+    ignored_with_none: ignored,
+  });
+  const speeches = lines.filter((l) => l.kind === "speech" && "meant" in l);
   return {
     dropped: memory.dropped.length,
     dropped_by_reason: by(memory.dropped, (d) => `${d.pass}: ${d.reason.replace(/\s*\(.*$|:\s.*$/s, "").trim()}`),
     notes: by(memory.notes ?? [], (n) => n.kind),
     repairs: memory.repairs?.length ?? 0,
     repeated_thoughts: thoughts.filter((t) => t.repeat).length,
+    // TD v0.9: think()'s labels, the readings built from them, and labels the attachment rule didn't store.
+    took: by(thoughts.filter((t) => t.call === "think" && t.took), (t) => t.took!),
+    closing_thinks: thoughts.filter((t) => t.closing).length,
+    readings: (memory.readings ?? []).length,
+    own_readings: (memory.readings ?? []).filter((r) => r.own).length,
+    // TD v0.13: own readings come from speak(); any from think() would be a bug.
+    own_readings_from_speak: (memory.readings ?? []).filter((r) => r.own && r.source === "speak").length,
+    labels_not_stored: by(labelLog, (e) => e.reason),
+    // TD v0.13: think() readings dropped because their words were in a different line.
+    wrong_line_drops: labelLog.filter((e) => e.reason === "wrong-line words").length,
+    // TD v0.10: which line {took_target} named, and readings stored on a different line than it named.
+    took_target: by(thoughts.filter((t) => t.call === "think" && t.took_target), (t) => t.took_target!),
+    target_mismatch: (memory.readings ?? []).filter((r) => r.thought && named.has(r.thought) && named.get(r.thought) !== r.line).length,
+    // Words outcomes, think() and speak() separately.
+    words: wordsOutcomes(
+      thoughts.filter((t) => t.call === "think" && t.took && t.took !== "none" && "words" in t),
+      thoughts.filter((t) => t.words_log?.ignored).length,
+    ),
+    // TD v0.13: speak()'s `meant` (none included) and its words.
+    meant: by(speeches, (l) => l.meant!),
+    speak_words: wordsOutcomes(
+      speeches.filter((l) => l.meant !== "none"),
+      speeches.filter((l) => l.words_log?.ignored).length,
+    ),
   };
 }
 
@@ -660,11 +896,52 @@ export function renderEntry(e: MemoryEntry, forChar?: CharacterName): string {
 }
 
 /**
- * TD v0.8's block 6 line for a reading: the speaker's exact words, then the character's reaction.
- * `T4 · Colloquio with Lupo · ★ you took it as a deal · Lupo: "…" · you thought: "…"`, or for the
- * character's own line `… · ★ your own promise · you said: "…" · you thought: "…"`.
+ * TD v0.9's block 6 line for a reading: turn, conversation type, speaker, a trimmed quote, and how
+ * the character took it: `T4 · Colloquio · ★ Lupo: "…" (you took it as a deal)`, or for the
+ * character's own line `T6 · Colloquio with Francesco Pazzi · ★ you: "…" (you meant it as a promise)`.
+ * A Colloquio line of the character's own names the other guest; otherwise only the type is shown.
  */
-export function renderReading(r: Reading): string {
+/** `wordsLine`: the earlier line by the same speaker the words came from (TD v0.14), for placing "…". */
+/**
+ * `wordsLine`: the earlier line by the same speaker the words came from (TD v0.14), for placing "…".
+ * `dropPunct` (TD v0.15): trailing sentence punctuation is dropped from the words before an "…".
+ */
+export function renderReading(r: Reading, line: GameLine, wordsLine?: GameLine, dropPunct = false): string {
+  const other = line.where.members.filter((m) => m !== r.character);
+  const label = r.own && line.where.kind === "colloquio" && other.length ? `Colloquio with ${other.join(", ")}` : conversationType(line.where);
+  const who = r.own ? "you" : r.speaker;
+  const how = r.own ? `you meant it as ${kindPhrase(r.took)}` : `you took it as ${kindPhrase(r.took)}`;
+  return `T${r.turn} · ${label} · ${r.salient ? "★ " : ""}${who}: "${r.words ? wordsQuote(r.words, (wordsLine ?? line).text, dropPunct) : trimQuote(line.text)}" (${how})`;
+}
+
+/** "a deal", "an insult"; `pressure` (TD v0.16) takes no article. */
+const kindPhrase = (kind: string) => (kind === "pressure" ? kind : `${article(kind)} ${kind}`);
+
+/** TD v0.11: the character's words, with "…" before them if they don't start the line and after them if they don't end it. */
+export function wordsQuote(words: string, text: string, dropPunct = false): string {
+  const at = text.indexOf(words);
+  if (at === -1) return trimQuote(text);
+  const hasWord = (s: string) => /[\p{L}\p{N}]/u.test(s);
+  const after = hasWord(text.slice(at + words.length));
+  // TD v0.15: no "both.…" — trailing sentence punctuation goes before an "…".
+  const shown = after && dropPunct ? words.replace(/[.,;:!?]+$/, "") : words;
+  return `${hasWord(text.slice(0, at)) ? "…" : ""}${shown}${after ? "…" : ""}`;
+}
+
+/** TD v0.9: the whole line if it's 15 words or fewer; otherwise its first 15 words and "…". */
+export function trimQuote(text: string, max = 15): string {
+  // A word has a letter or digit, so a standalone dash isn't counted (TD v0.10's Il Notaio example).
+  const tokens = text.trim().split(/\s+/);
+  const isWord = (w: string) => /[\p{L}\p{N}]/u.test(w);
+  let words = 0;
+  const end = tokens.findIndex((w) => isWord(w) && ++words === max);
+  return end === -1 || !tokens.slice(end + 1).some(isWord) ? tokens.join(" ") : `${tokens.slice(0, end + 1).join(" ").replace(/[,;:]+$/, "")}…`;
+}
+
+const conversationType = (w: Where) => (w.kind === "colloquio" ? "Colloquio" : w.kind === "capannello" ? "Capannello" : "The gathering");
+
+/** TD v0.8's block 6 line for a 10e reading (replay-only perception mode). */
+export function renderPerceptionReading(r: PerceptionReading): string {
   const head = `T${r.turn} · ${whereLabel(r.where, r.character)} · ${r.salient ? "★ " : ""}`;
   const said = r.own ? `your own ${r.took} · you said: "${r.quote}"` : `you took it as ${article(r.took)} ${r.took} · ${r.speaker}: "${r.quote}"`;
   return `${head}${said}${r.reaction ? ` · you thought: "${r.reaction}"` : ""}`;
@@ -672,10 +949,16 @@ export function renderReading(r: Reading): string {
 
 const article = (kind: string) => (/^[aeiou]/.test(kind) ? "an" : "a");
 
-/** A code-written entry from the character's own side, in the second person ("You gave Lupo 3 Florins."). */
+/**
+ * A code-written entry in the perceived notebook, from the character's own side (TD v0.9:
+ * `T4 · Colloquio · ★ You gave Lupo 3 Florins.`): conversation type only, second person for the actor.
+ */
 export function renderCodeEntryFor(e: MemoryEntry, c: CharacterName): string {
-  const summary = e.summary.startsWith(`${c} `) ? `You ${e.summary.slice(c.length + 1)}` : e.summary;
-  return `T${e.turn} · ${whereLabel(e.where, c)} · ${e.salient ? "★ " : ""}${summary}`;
+  // Il Notaio's v0.26 repeat note is the one "X was …" entry; the pre-v0.26 note keeps its "You was" so old replays stay byte-identical.
+  const summary = e.summary.startsWith(`${c} `) ? `You ${e.summary.slice(c.length + 1)}`.replace(/^You was (?=once again seen withdrawing)/, "You were ") : e.summary;
+  // TD v0.10: Il Notaio's entries are trimmed to 15 words like quotes, shown as `Il Notaio: "…"`.
+  if (e.type === "event") return `T${e.turn} · Il Notaio: "${trimQuote(summary)}"`;
+  return `T${e.turn} · ${conversationType(e.where)} · ${e.salient ? "★ " : ""}${summary}`;
 }
 
 export function renderBelief(b: Belief): string {
@@ -706,6 +989,48 @@ export function quoteIn(quote: string, text: string): boolean {
       .trim();
   const q = norm(quote);
   return q.length > 0 && norm(text).includes(q);
+}
+
+const num = (id: string) => Number(id.slice(1));
+
+/**
+ * TD v0.9's line for a label: the last spoken line, heard by the character, in the thought's
+ * conversation, at or before the line the thought followed (`after_line`). Null if there is none.
+ */
+export function labelLine(t: Thought, lines: GameLine[], skipOwn = false, sinceArrival = false): GameLine | null {
+  if (!t.after_line || !t.conversation) return null;
+  const upTo = num(t.after_line);
+  // TD v0.15 (sinceArrival): "this conversation" starts at the character's latest arrival, so a character
+  // back from a Colloquio isn't asked about lines from before they left: only lines after the last line
+  // they heard elsewhere count.
+  const from = sinceArrival
+    ? Math.max(0, ...lines.filter((l) => num(l.id) <= upTo && l.heardBy.includes(t.character) && l.conversation !== t.conversation).map((l) => num(l.id)))
+    : 0;
+  let best: GameLine | null = null;
+  for (const l of lines) {
+    // TD v0.13 (skipOwn): the character's own lines are labelled in speak(), so think() names the last line by someone else.
+    if (skipOwn && l.speaker === t.character) continue;
+    if (l.kind === "speech" && l.conversation === t.conversation && num(l.id) > from && num(l.id) <= upTo && l.heardBy.includes(t.character) && (!best || num(l.id) > num(best.id))) best = l;
+  }
+  return best;
+}
+
+/**
+ * TD v0.10: the line {took_target} names before a think(), by the rule that attaches the reading
+ * (labelLine), and whose it is: someone else's, the character's own, or none.
+ */
+export function tookTargetLine(
+  c: CharacterName,
+  conversation: string,
+  afterLine: string | null,
+  lines: GameLine[],
+  skipOwn = false,
+  sinceArrival = false,
+): { line: GameLine | null; type: TookTargetType; answering: boolean } {
+  const line = labelLine({ character: c, conversation, after_line: afterLine } as Thought, lines, skipOwn, sinceArrival);
+  // After the character's own line (TD v0.13+): the named line is the one they were answering.
+  const answering = !!line && line.speaker !== c && lines.some((l) => l.kind === "speech" && l.speaker === c && l.conversation === conversation && num(l.id) > num(line.id) && num(l.id) <= num(afterLine ?? "L0"));
+  return { line, type: !line ? "none" : line.speaker === c ? "own" : "other", answering };
 }
 
 /** Roster names (full or alias) written in a line, e.g. both parties of "Contessa Isabella gave Lupo 3 Florins." */
@@ -745,6 +1070,11 @@ export function isHedged(quote: string, thought: string, hedges: string[]): bool
 
 const STOP = new Set("the a an and or of to in on at for is was be he she it his her they them i you that this with as by not no from but have has had are were will would".split(" "));
 const words = (s: string) => new Set(s.toLowerCase().replace(/[^a-z' ]/g, " ").split(/\s+/).filter((w) => w.length > 2 && !STOP.has(w)));
+/** Word overlap between the last History lines and a row's text: the similarity measure before the live store, and still the default (TD v0.22). */
+export function overlapScore(recentLines: string[], text: string): number {
+  return overlap(words(recentLines.join(" ")), words(text));
+}
+
 const overlap = (a: Set<string>, b: Set<string>) => {
   let n = 0;
   for (const w of b) if (a.has(w)) n++;

@@ -13,6 +13,7 @@
 //
 //   npm run minigame:measures -- results/minigame/game-…full.json.gz [more…] --cap 3
 
+import { audited } from "../harness/keyaudit.ts";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
@@ -27,12 +28,25 @@ import { RUBRIC_AMENDMENTS_ID, RUBRIC_REVISION, applyListenerOverride, buildJudg
 import { loadDocs, memoryDefinitions } from "../sources/docs.ts";
 import { MINIGAME_TOTAL_USD } from "./ledger.ts";
 import { CAST, KNOWS_AT_START } from "./cast.ts";
+import { alreadyKnownPass } from "./leakpass.ts";
+import { seatingHealth, seatingHealthLine } from "./seating-health.ts";
 import { formatLine, type CallRecord } from "./engine.ts";
 import { memoryCounts, whereLabel, type Belief, type GameLine, type MemoryEntry, type Thought } from "./memory.ts";
 
 const { values: opts, positionals } = parseArgs({
   allowPositionals: true,
-  options: { cap: { type: "string", default: "3" }, concurrency: { type: "string", default: "3" }, report: { type: "string" }, notes: { type: "string", default: "v2" }, only: { type: "string" }, "dry-run": { type: "boolean", default: false } },
+  options: {
+    cap: { type: "string", default: "3" },
+    concurrency: { type: "string", default: "3" },
+    report: { type: "string" },
+    notes: { type: "string", default: "v2" },
+    // memory: gate 8 alone; secrets: the cal5 secrets judge alone.
+    only: { type: "string" },
+    "dry-run": { type: "boolean", default: false },
+    // Secrets judging cost, from the prompts and the judge's endpoint price; no model calls.
+    estimate: { type: "boolean", default: false },
+    "out-per-line": { type: "string" },
+  },
 });
 const OUT = "results/minigame";
 
@@ -106,7 +120,9 @@ async function main(): Promise<void> {
   const definitions = memoryDefinitions(docs);
   const gate8 = gate8Rubric(definitions);
   if (opts["dry-run"]) return gate8DryRun(docs, definitions, positionals[0]!);
+  if (opts.only && !["memory", "secrets"].includes(opts.only)) throw new Error("--only must be memory or secrets");
   const judge = config.judge as ModelConfig & { maxTokens: number };
+  if (opts.estimate) return estimateSecrets(docs, judge);
   const client = makeClient(apiKey());
   const endpoint = await fetchEndpoint(judge);
   const budget = new Budget(Number(opts.cap), MINIGAME_TOTAL_USD, priorSpend(OUT));
@@ -138,7 +154,10 @@ async function main(): Promise<void> {
     const coherence: Record<string, unknown> = {};
     const memory: Record<number, unknown> = {};
     // --only memory: gate 8 alone (TD v0.6 re-test on replayed extraction; Models & Research: judging only).
+    // --only secrets: the cal5 secrets judge alone (TD v0.14 re-check's leak check).
     const judgeAll = opts.only !== "memory";
+    const judgeCoherence = !opts.only;
+    const judgeMemory = opts.only !== "secrets";
 
     for (const c of judgeAll ? CAST : []) {
       jobs.push(async () => {
@@ -158,7 +177,7 @@ async function main(): Promise<void> {
         }
         secrets[c] = { error: "judge reply unusable twice" };
       });
-      jobs.push(async () => {
+      if (judgeCoherence) jobs.push(async () => {
         const prompt = coherencePrompt(rec, c);
         const raw = await ask("coherence", prompt, schemaOf(Coherence), prompt.indexOf("\nPLAN\n"));
         const parsed = raw ? Coherence.safeParse(JSON.parse(raw)) : null;
@@ -166,7 +185,7 @@ async function main(): Promise<void> {
       });
     }
     const turnsPlayed = [...new Set(rec.lines.map((l) => l.turn))].filter((t) => t > 0);
-    for (const t of turnsPlayed) {
+    for (const t of judgeMemory ? turnsPlayed : []) {
       jobs.push(async () => {
         const prompt = memoryPrompt(rec, t, definitions);
         const raw = await ask("memory", prompt, schemaOf(MemoryAudit), prompt.indexOf("\nTURN "));
@@ -180,6 +199,8 @@ async function main(): Promise<void> {
       }),
     );
     const result = { game: rec.header.game_id, path, complete: rec.complete, judgeNotes: opts.notes, gate8: { ...gate8, technicalDesign: docs.versions.technicalDesign }, secrets, coherence, memory, code: codeMeasures(rec) };
+    // The "already known" pass, beside the raw verdicts (which it never changes).
+    Object.assign(result, { alreadyKnown: knownLeaks(result as unknown as Result).marks });
     writeFileSync(path.replace(".full.json.gz", ".measures.json"), JSON.stringify(result, null, 2));
     results.push(result);
     console.log(`  measured ${rec.header.game_id}`);
@@ -193,6 +214,42 @@ async function main(): Promise<void> {
 }
 
 // ---- Secrets (cal5) ---------------------------------------------------------------------------
+
+/**
+ * Judge output tokens per judged line, calibrated on the Oct 24 DeepSeek run (5 games, 30 secrets
+ * calls, $2.0245): input priced at the cache-write rate (each prompt's prefix is cached once), the
+ * rest put down to output.
+ */
+const OUT_PER_LINE = 246;
+
+/** --estimate: what the secrets judge would cost on these records (prompt size and endpoint price). */
+async function estimateSecrets(docs: ReturnType<typeof loadDocs>, judge: ModelConfig & { maxTokens: number }): Promise<void> {
+  const endpoint = await fetchEndpoint(judge);
+  const outPerLine = opts["out-per-line"] ? Number(opts["out-per-line"]) : OUT_PER_LINE;
+  let total = 0;
+  let totalIn = 0;
+  let totalLines = 0;
+  for (const path of positionals) {
+    const rec = JSON.parse(gunzipSync(readFileSync(path)).toString()) as GameRecord;
+    let chars = 0;
+    let lines = 0;
+    let calls = 0;
+    for (const c of CAST) {
+      const { prompt, turns } = secretsPrompt(rec, c, docs);
+      if (!turns.length) continue;
+      chars += prompt.length;
+      lines += turns.length;
+      calls++;
+    }
+    const input = (chars / 3.5) * endpoint.price.input * 1.25;
+    const cost = input + lines * outPerLine * endpoint.price.output;
+    total += cost;
+    totalIn += input;
+    totalLines += lines;
+    console.log(`${rec.header.game_id}: ${calls} calls, ${lines} judged lines, ${chars} prompt chars → $${cost.toFixed(4)} (input $${input.toFixed(4)})`);
+  }
+  console.log(`Secrets judge estimate (no calls): ${positionals.length} game(s), $${total.toFixed(3)}; input $${totalIn.toFixed(3)}, ${totalLines} lines at ${outPerLine} output tokens each, judge ${judge.slug} at $${(endpoint.price.input * 1e6).toFixed(2)}/$${(endpoint.price.output * 1e6).toFixed(2)} per M. Ledger $${priorSpend(OUT).toFixed(2)} of $${MINIGAME_TOTAL_USD}.`);
+}
 
 /** The character's lines as judge turns: what they heard since their last line, their last thought, their line. */
 function secretsPrompt(rec: GameRecord, c: CharacterName, docs: ReturnType<typeof loadDocs>) {
@@ -366,11 +423,12 @@ function codeMeasures(rec: GameRecord) {
       pingPongFires: rec.events.filter((e) => e.type === "ping-pong-guard").length,
       colloquios,
       moves: rec.events.filter((e) => e.type === "move").map((e) => `${e.character}: ${e.choice}${e.target ? ` ${e.target}` : ""}`),
-      loneGuestJoins: rec.events.filter((e) => e.type === "lone-guest-join").length,
+      // TD v0.23: the Seating health metric (it replaces the interim rule's lone-guest join count).
+      seating: seatingHealth(rec.events),
       stalls: rec.events.filter((e) => e.type === "stall").length,
     },
     format,
-    memory: { entries: rec.memory.entries.filter((e) => e.type !== "event").length, beliefs: rec.memory.beliefs.length, dropped: rec.memory.dropped.length, droppedByReason, repairs: rec.memory.repairs?.length ?? 0, counts: memoryCounts(rec.memory, rec.thoughts) },
+    memory: { entries: rec.memory.entries.filter((e) => e.type !== "event").length, beliefs: rec.memory.beliefs.length, dropped: rec.memory.dropped.length, droppedByReason, repairs: rec.memory.repairs?.length ?? 0, counts: memoryCounts(rec.memory, rec.thoughts, rec.lines) },
     knowledge: rec.knowledge_checks.map((k) => ({ character: k.character, fact: k.fact, verdict: k.verdict?.verdict ?? "none", toldBy: k.verdict?.told_by ?? [], flags: k.flags, knewAtStart: (KNOWS_AT_START[k.fact] ?? []).includes(k.character as CharacterName) })),
     cost: { usd: rec.summary.cost_usd, tokens: rec.summary.tokens, wallMinutes: rec.summary.wall_ms / 60000, perTurn: rec.summary.turns.map((t) => ({ turn: t.turn, usd: t.costUsd, seconds: t.ms / 1000, calls: t.calls })) },
   };
@@ -382,6 +440,7 @@ function codeMeasures(rec: GameRecord) {
 type Result = {
   game: string;
   complete: boolean;
+  judgeNotes?: string;
   gate8?: { name: string; fingerprint: string; technicalDesign: string };
   secrets: Record<string, { lines?: number; leaks?: { line: string; gameTurn: number; where: string; heardBy: string[]; secret: string | null; quote: string | null; reveal: string }[]; contradictions?: unknown[]; lies?: number; deliberate?: unknown[]; error?: string }>;
   coherence: Record<string, { plan?: string; reason?: string; history_leaks?: { quote: string; why: string }[]; error?: string }>;
@@ -392,11 +451,36 @@ type Result = {
 /** Short names that stay distinct: Isabella, LeNoir, Francesco, Raffaello, Giorgia, Lupo. */
 const short = (c: string) => ({ "Contessa Isabella": "Isabella", "Captain Armand LeNoir": "LeNoir" })[c] ?? c.split(" ")[0]!;
 
+/**
+ * The "already known" pass on a result's flagged lines (Models & Research v0.36): every cal5 leak line,
+ * with who heard it, in line order. Leaks heard only by people who knew from the start are left out
+ * of the raw count as before; the pass then marks the rest whose listeners all learned it earlier
+ * in the game. Raw and adjusted counts come back side by side, per game and per secret.
+ */
+function knownLeaks(r: Result) {
+  const flagged = CAST.flatMap((c) => (r.secrets[c]?.leaks ?? []).map((l) => ({ ...l, speaker: c })));
+  const at = new Map(flagged.map((l) => [l.line, l]));
+  const notes = r.judgeNotes === "v2" ? "v2" : "v1";
+  const { marks, lineKnown } = alreadyKnownPass(flagged.map((l) => ({ line: l.line, speaker: l.speaker, secret: l.secret })), (line) => at.get(line)!.heardBy as CharacterName[], (line) => Number(line.slice(1)), notes);
+  const raw = flagged.filter((l) => !knownToListeners(l.speaker, l));
+  const known = raw.filter((l) => lineKnown.get(l.line));
+  const bySecret = new Map<string, { raw: number; known: number }>();
+  const rawLines = new Set(raw.map((l) => l.line));
+  for (const m of marks.filter((m) => rawLines.has(m.line))) {
+    const e = bySecret.get(m.secret) ?? { raw: 0, known: 0 };
+    e.raw++;
+    if (m.alreadyKnown) e.known++;
+    bySecret.set(m.secret, e);
+  }
+  return { marks, lineKnown, raw: raw.length, known: known.length, adjusted: raw.length - known.length, bySecret };
+}
+
 function report(results: Result[]): void {
   const out: string[] = [`# Mini-game measures (${results.length} game${results.length === 1 ? "" : "s"}; rubric ${RUBRIC_AMENDMENTS_ID} ${RUBRIC_REVISION})`, ""];
   for (const r of results) {
     out.push(`## ${r.game}${r.complete ? "" : " (incomplete)"}`, "");
     // Secrets (absent when only gate 8 was judged)
+    const pass = knownLeaks(r);
     if (Object.keys(r.secrets).length) out.push("**Secrets kept (cal5):**");
     for (const c of CAST) {
       const s = r.secrets[c];
@@ -408,7 +492,11 @@ function report(results: Result[]): void {
       const spread = s.leaks!.filter((l) => !knownToListeners(c, l));
       const known = s.leaks!.length - spread.length;
       out.push(`- ${c}: ${s.lines} lines, ${spread.length} leak line(s)${spread.length ? `, first at game turn ${Math.min(...spread.map((l) => l.gameTurn))}` : ""}${known ? ` (+${known} heard only by people who already knew)` : ""}; lies ${s.lies}; factual contradictions ${s.contradictions!.length}`);
-      for (const l of s.leaks!) out.push(`  - ${knownToListeners(c, l) ? "(already known) " : ""}${l.line} T${l.gameTurn} (${l.where}; heard by ${l.heardBy.join(", ")}) ${l.reveal}: ${l.secret} — "${l.quote}"`);
+      for (const l of s.leaks!) out.push(`  - ${knownToListeners(c, l) ? "(already known) " : pass.lineKnown.get(l.line) ? "(already known in game) " : ""}${l.line} T${l.gameTurn} (${l.where}; heard by ${l.heardBy.join(", ")}) ${l.reveal}: ${l.secret} — "${l.quote}"`);
+    }
+    if (Object.keys(r.secrets).length) {
+      out.push(`**Leak lines, raw and adjusted** (the "already known" pass, Models & Research v0.36): raw ${pass.raw}, already known ${pass.known}, adjusted ${pass.adjusted}`);
+      for (const [secret, n] of pass.bySecret) out.push(`  - ${secret}: raw ${n.raw}, already known ${n.known}, adjusted ${n.raw - n.known}`);
     }
     // Memory
     const audits = Object.values(r.memory).filter((m) => !m.error);
@@ -435,7 +523,8 @@ function report(results: Result[]): void {
     const f = r.code.flow;
     out.push(
       "",
-      `**Flow:** ${f.speechLines} lines (${Object.entries(f.linesBy).map(([c, n]) => `${short(c)} ${n}`).join(", ")}); everyone spoke: ${f.everyoneSpoke}; designations per line ${f.designationsPerLine.toFixed(2)}; ping-pong guard ${f.pingPongFires}; Colloquii ${f.colloquios.map((c) => `${c.utterances} lines (${c.why})`).join(", ") || "none"}; lone-guest joins ${f.loneGuestJoins}; stalls ${f.stalls}`,
+      `**Flow:** ${f.speechLines} lines (${Object.entries(f.linesBy).map(([c, n]) => `${short(c)} ${n}`).join(", ")}); everyone spoke: ${f.everyoneSpoke}; designations per line ${f.designationsPerLine.toFixed(2)}; ping-pong guard ${f.pingPongFires}; Colloquii ${f.colloquios.map((c) => `${c.utterances} lines (${c.why})`).join(", ") || "none"}; stalls ${f.stalls}`,
+      `**Seating:** ${seatingHealthLine(f.seating)}`,
       `**Moves:** ${f.moves.join("; ")}`,
       `**Format (pass: ≥95% valid after repair per call type):** ${Object.entries(r.code.format).map(([k, v]) => `${k} ${v.validAfterRepair}/${v.calls} (retried ${v.retried}, repaired ${v.repaired}, defaulted ${v.defaulted})`).join("; ")}`,
       `**Knowledge checks (10c):** ${r.code.knowledge.filter((k) => k.verdict !== "none" || k.flags.length).map((k) => `(${short(k.character)}, ${k.fact}) ${k.verdict}${k.knewAtStart ? " [knew at start]" : ""}${k.toldBy.length ? ` by ${k.toldBy.join(", ")}` : ""}${k.flags.length ? ` ⚑ ${k.flags.join("; ")}` : ""}`).join("; ") || "all none"}`,
@@ -446,4 +535,4 @@ function report(results: Result[]): void {
   console.log(out.join("\n"));
 }
 
-main();
+audited(main, OUT, "measures");

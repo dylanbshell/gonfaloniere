@@ -11,6 +11,8 @@
 // (print one prompt per situation), --concurrency <n>.
 // plot_reward stays off (config), so Block 9e has no extra act.
 
+import { RESULTS_DIR } from "../harness/log.ts";
+import { audited } from "../harness/keyaudit.ts";
 import { parseArgs } from "node:util";
 import { config, technicalDesignPath, type ModelConfig } from "../../probe.config.ts";
 import { AUDIENCE_LINE, CLAIM_LINE, REPLY_LINE } from "../../scenarios/s5-claim-line.ts";
@@ -74,7 +76,7 @@ export interface StrategyRecord {
 async function main(): Promise<void> {
   const model = config.models.find((m) => m.id === opts.model);
   if (!model) throw new Error(`Unknown --model ${opts.model}`);
-  const td = process.env.PROBE_TD ?? "0.8";
+  const td = process.env.PROBE_TD ?? "0.9";
   const docs = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath(td) });
   const wanted = opts.items.split(",");
   const items = STRATEGY_ITEMS.filter((i) => wanted.some((w) => i.probe === w || i.id === w));
@@ -225,4 +227,4 @@ async function main(): Promise<void> {
   console.log(`Spent $${budget.spentUsd.toFixed(4)}. Log: ${log.path}`);
 }
 
-main();
+audited(main, RESULTS_DIR, "strategy");

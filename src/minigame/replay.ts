@@ -23,6 +23,7 @@
 //     replay, keeping its reference record, beliefs, and knowledge checks; thoughts get `after_line`
 //     rebuilt from event order where the record has none
 
+import { audited } from "../harness/keyaudit.ts";
 import { readFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
@@ -219,7 +220,8 @@ async function main(): Promise<void> {
       prefixes: perceptionOnly ? { ...rec.prefixes, ...recorder.prefixes } : { ...Object.fromEntries(Object.entries(rec.prefixes).filter(([k]) => !k.startsWith("system:"))), ...recorder.prefixes },
       events: perceptionOnly ? [...rec.events, ...events] : [...rec.events.filter((e) => !EXTRACTION_EVENTS.has(e.type)), ...events],
       calls: perceptionOnly ? [...rec.calls, ...calls] : [...rec.calls.filter((c) => CHARACTER_KINDS.has(c.kind)), ...calls],
-      memory: { entries: memory.entries, beliefs: memory.beliefs, readings: memory.readings, dropped: memory.dropped, repairs: memory.repairs, notes: memory.notes } as unknown as SavedGame["memory"],
+      // Perception-only replays keep TD v0.8's record format: 10e readings under "readings".
+      memory: { entries: memory.entries, beliefs: memory.beliefs, readings: perceptionOnly ? memory.perceptionReadings : memory.readings, dropped: memory.dropped, repairs: memory.repairs, notes: memory.notes } as unknown as SavedGame["memory"],
       knowledge_checks: knowledgeChecks,
       summary: {
         ...rec.summary,
@@ -231,7 +233,7 @@ async function main(): Promise<void> {
     writeFileSync(dest, gzipSync(JSON.stringify(out)));
     const c = memoryCounts(memory, thoughts);
     console.log(
-      `${rec.header.game_id}: ${calls.length} calls, $${calls.reduce((s, x) => s + x.costUsd, 0).toFixed(4)}, ${((Date.now() - started) / 60000).toFixed(1)} min; entries ${memory.entries.filter((e) => e.source !== "code").length}, beliefs ${memory.beliefs.length}, readings ${memory.readings.length}; dropped ${c.dropped} ${JSON.stringify(c.dropped_by_reason)}; notes ${JSON.stringify(c.notes)}; repeated thoughts ${c.repeated_thoughts}\n  ${dest}`,
+      `${rec.header.game_id}: ${calls.length} calls, $${calls.reduce((s, x) => s + x.costUsd, 0).toFixed(4)}, ${((Date.now() - started) / 60000).toFixed(1)} min; entries ${memory.entries.filter((e) => e.source !== "code").length}, beliefs ${memory.beliefs.length}, readings ${perceptionOnly ? memory.perceptionReadings.length : memory.readings.length}; dropped ${c.dropped} ${JSON.stringify(c.dropped_by_reason)}; notes ${JSON.stringify(c.notes)}; repeated thoughts ${c.repeated_thoughts}\n  ${dest}`,
     );
   };
 
@@ -327,4 +329,4 @@ async function estimate(docs: ReturnType<typeof loadDocs>, paths: string[], perc
   );
 }
 
-main();
+audited(main, OUT, "replay");
