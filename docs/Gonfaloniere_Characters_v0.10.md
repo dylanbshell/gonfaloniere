@@ -1,8 +1,23 @@
 # Gonfaloniere
 ## Characters & Briefings — Working Document
-### Version 0.9
+### Version 0.10
 
 ---
+
+## Changes in v0.10
+
+*Clears two handoffs: in-world names (Technical Design v0.34) and errand fixes from the balance review (Mechanics v0.26–v0.27). Dylan, Nov 6.*
+
+- **In-world names in every briefing**, matching Technical Design v0.34 (In-World Names), so no prompt mixes the two sets:
+  - each errand's deadline is now "before the last council before midnight", the same words as the rules primer's errand line
+  - Lupo's power line says "at midnight", "kills", and "guarding or watching"
+  - the rest of this doc (rules, canon, notes) keeps the game names, as Technical Design's docs and code do
+- **Emile's errand is harder** (Mechanics v0.26): besides a Colloquio with each suitor, he must learn whether either has a lover, and who. That sets him against Giorgia's errand and Clarice's secret. He gets no new clue: his paths are asking around, Piero's ribbon, and Lupo's sighting of Giorgia walking toward his own Embassy at night
+- **Beatrice's second clue path:** when she stitched Lupo, he muttered that "the Contessa pays well, but late." It's a title, not a name: it fits Contessa Isabella, but also Comtesse Jeanne d'Orléans, so it needs confirming. It doesn't touch LeNoir's path. Lupo's briefing is unchanged, since he may not remember saying it
+- **French money: the real stakes, not a ban.** The six Medici and Pazzi briefings no longer read as forbidding pensions. Each says what's actually at stake: a pension is tempting and can be paid back before the vote, but one left unpaid in the family when they win hands the city to France. Lupo's "never take French money yourself" is gone. This gives Jeanne's errand room to work, and makes repaying a real decision
+- **The marriage promises nothing tonight** (Mechanics v0.27): the match "will be settled with the King after tonight" in Clarice's, Giorgia's, and Jeanne's briefings. Emile's "whichever house you marry into gains France's favour" becomes a friendship "for years to come". Giorgia's "and your family's hopes with it" is cut
+- **Voice lines approved for all twelve** (Dylan, Nov 3)
+- New rewrite rule: **in-world names** in briefing text
 
 ## Changes in v0.9
 
@@ -115,7 +130,7 @@ Built around three plotlines from the original game: the San Frediano murder, th
 Each rewritten briefing follows the same structure so the models get consistent input:
 
 1. **Who you are:** identity and temperament, plus a **How you speak** passage (v0.5) in Technical Design's shape (Block 3, Voice examples): 2–3 sentences on the voice, then 3–5 example lines, introduced as "how you sound, not lines to repeat." Until the examples exist, a one-line voice description stands in
-2. **Your errand tonight** (v0.5): the plot point, framed as what the character came for and opened with "This comes first: it is what you came for." Worded so the character knows exactly what counts
+2. **Your errand tonight** (v0.5): the plot point, framed as what the character came for and opened with "This comes first: it is what you came for." Worded so the character knows exactly what counts. The deadline reads "before the last council before midnight" (v0.10)
 3. **Your faction** (v0.5): opens "Once your errand is done, or out of reach, your faction's win is what matters," then what the character wants for their faction (aligned with its win condition)
 4. **Other personal goals:** motivation only; no reward in the first version
 5. **What you know:** facts, including what you know about others
@@ -139,13 +154,14 @@ Checklist for adapting each original briefing:
 - [ ] **Remove the original economy:** starting Florins, goldmine income, and debts now come from mechanics
 - [ ] **Remove mechanics the game no longer has** (e.g. the Sibyl, /defect)
 - [ ] **Check that every secret has someone who could learn it**, and every plot point is achievable within the three scheming rounds
-- [ ] **Keep it short enough to sit in every prompt:** ≤ ~1,150 tokens including the voice passage (Dylan, Oct 29; proposed to Technical Design, which sets the budget; ~1,000 until it confirms). Don't restate rules the rules primer already covers
+- [ ] **Keep it short enough to sit in every prompt:** ≤ ~1,150 tokens including the voice passage (Dylan, Oct 29; confirmed in Technical Design v0.34). Don't restate rules the rules primer already covers
 - [ ] **A concrete errand** (v0.5): the errand names a specific thing to get, pay, learn, or arrange from a specific person (a price, a name, a vote), so conversations have somewhere to go. A character with only secrets to guard will circle (Technical Design, Open Questions, Talking in circles)
 - [ ] **Wants that collide** (v0.5): every character's errand or faction aim should run into at least one other character's, so someone has a reason to seek them out and someone to avoid
 - [ ] **Humour from the character** (v0.5): some characters get a comic streak (dry, boastful, pious, blunt), from who they are, never from modern references. Not every character; the cast should differ
 - [ ] **Voice examples follow Technical Design's rules** (Block 3, Voice examples): register-safe (plain English, ≤ ~40 words, no "thee" or proverbs or flowery metaphors, no slang), varied situations, no catchphrases, **no secrets or plot facts**, voice not boldness or caution, and distinct across the cast
 - [ ] **No mid-game handouts.** Any clue the original delivered between rounds must start in someone's briefing or be dropped
 - [ ] **Motives, not appetite** (v0.3). Say whom the character has reason to want dead, and any limit that is a story fact (Lupo won't take a contract against a Pazzi). Don't describe how willing they are to kill or take risks ("ruthless," "hot-blooded," "would never strike"); the Bold/Cautious personality sets that, and fixing it here would mask the effect the study measures
+- [ ] **In-world names in briefing text** (v0.10; Technical Design, In-World Names): midnight, council, errand, and kill / guard / watch, never the Murder Round, a faction meeting, a plot point, the Plot Reward, or KILL / GUARD / INVESTIGATE. Rewrite notes and the rest of this doc keep the game names
 - [ ] **Knowledge plot points say that working it out counts.** Per Technical Design (What counts as "learned"): being told or reaching a firm, correct conclusion both count; suspicion doesn't
 
 ---
@@ -177,7 +193,7 @@ Checklist for adapting each original briefing:
 | A Frenchman was killed by San Frediano's north chapel seven years ago; no one was ever charged | Public (v0.9): any Florentine may have heard it | Anyone |
 | Lupo is a contract killer | Lupo, Isabella, Beatrice. **Not Francesco**, his employer | Any of the three telling |
 | Lupo did the San Frediano killing | Lupo, Isabella; **Beatrice** (v0.9): he came to her that night with a knife cut, and she stitched it. He never said who paid | Any of the three telling. Learning only this doesn't complete LeNoir's or Raffaello's errand (F2 needs whoever ordered it) |
-| Isabella hired Lupo for San Frediano | Lupo, Isabella | Isabella confessing; Lupo breaking his rule (he will if she betrays him first); deduction from the seal |
+| Isabella hired Lupo for San Frediano | Lupo, Isabella | Isabella confessing; Lupo breaking his rule (he will if she betrays him first); deduction from the seal; **Beatrice's memory** (v0.10): stitching him that night, she heard Lupo mutter "the Contessa pays well, but late". A title, not a name: it fits Contessa Isabella, and also Comtesse Jeanne d'Orléans, so it needs confirming. Lupo may not remember saying it |
 | The victim was LeNoir's brother | Isabella (LeNoir knows his brother died there) | Isabella; LeNoir telling his story to the right person |
 | A silver boar means Salviati | Isabella, Raffaello, any Florentine noble | LeNoir showing the seal and asking |
 | Isabella's letters bear the silver boar | Raffaello (her bankers' letters to him), Isabella | Raffaello telling; the seal and the letters side by side are the deduction path to F2 |
@@ -185,7 +201,7 @@ Checklist for adapting each original briefing:
 | Beatrice is Lupo's sister | Lupo, Beatrice | Either telling |
 | Giorgia meets LeNoir in secret | Giorgia, LeNoir; Lupo has seen her slip out at night | Lupo; Il Notaio's notes; either lover |
 
-**All twelve briefings agree (v0.9):** Beatrice knows Lupo's trade and that he did the San Frediano killing, but not who paid (that's her errand), and knows Isabella only as a fellow Dominican. Piero, Clarice, Francesco, Giorgia, Fra Tommaso, Jeanne, and Emile know only the public fact of the killing, if that
+**All twelve briefings agree (v0.9; v0.10):** Beatrice knows Lupo's trade and that he did the San Frediano killing, and heard "the Contessa" from him, but not which one or for certain who paid (that's her errand), and knows Isabella only as a fellow Dominican. Piero, Clarice, Francesco, Giorgia, Fra Tommaso, Jeanne, and Emile know only the public fact of the killing, if that
 
 ---
 
@@ -201,9 +217,10 @@ Checklist for adapting each original briefing:
 | **F3:** Giorgia and LeNoir are lovers | Giorgia, LeNoir | Either telling; Lupo has seen Giorgia slip out toward the Embassy at night (not whom she meets); Il Notaio's notes |
 | Jeanne and Emile are lovers | Jeanne, Emile | Either telling; Il Notaio's notes if they keep withdrawing together. No one else starts with a clue (v0.9) |
 | Emile is choosing between Clarice and Giorgia for a French marriage | Emile, Clarice, Giorgia, Jeanne | Public at the Embassy; any of them telling |
+| The match is settled with the King after tonight; it decides nothing about tonight's election (v0.10; Mechanics v0.27: the marriage is flavour) | Emile, Clarice, Giorgia, Jeanne | – |
 | Clarice once mocked Giorgia at a banquet ("the Pazzi girl with nothing left") | Giorgia, Clarice | Public gossip |
 
-**All twelve briefings agree (v0.9):** Clarice gave Francesco the ribbon and doesn't know it's lost. Piero holds it and doesn't know whose it is (a gold "C" could be Clarice, but also a Contessa or a Captain). Emile doesn't know of Giorgia and LeNoir. Fra Tommaso knows nothing of the affairs. Jeanne and Emile know nothing of the other two affairs
+**All twelve briefings agree (v0.9):** Clarice gave Francesco the ribbon and doesn't know it's lost. Piero holds it and doesn't know whose it is (a gold "C" could be Clarice, but also a Contessa or a Captain). Emile doesn't know of either affair, and since v0.10 his errand is to learn one (F1 or F3), so he hunts both. Fra Tommaso knows nothing of the affairs. Jeanne and Emile know nothing of the other two affairs
 
 ---
 
@@ -224,7 +241,7 @@ Checklist for adapting each original briefing:
 | Emile de Valois | **Draft v1** |
 | Captain Armand LeNoir | **Draft v1** |
 
-*Finished briefings go in this section, or in separate files if this doc gets too long. Each runs 500–800 words (~670–1,080 tokens), voice passage included. "Rewrite notes" are for this doc only and are not part of the prompt.*
+*Finished briefings go in this section, or in separate files if this doc gets too long. Each runs 540–820 words (~725–1,090 tokens), voice passage included. Voice lines approved for all twelve (Nov 3). "Rewrite notes" are for this doc only and are not part of the prompt.*
 
 ---
 
@@ -244,11 +261,11 @@ You are Lupo, bodyguard to the Pazzi. To the palazzo you are a silent shape at F
 
 **Your errand tonight**
 
-This comes first: it is what you came for. Before the faction meeting that comes just before the Murder Round, be paid **at least 5 Florins in total by other characters**. Any payers, any number of payments, any reason. Money from the French Embassy treasury doesn't count; it must come from another character's purse.
+This comes first: it is what you came for. Before the last council before midnight, be paid **at least 5 Florins in total by other characters**. Any payers, any number of payments, any reason. Money from the French Embassy treasury doesn't count; it must come from another character's purse.
 
 **Your faction**
 
-Once your errand is done, or out of reach, your faction's win is what matters. The Pazzi pay your wages, and when the city chooses you want a Pazzi in the chair: elected, unrepentant, and with no one in the family on France's payroll. Keep the family alive, hurt its rivals, and never take French money yourself. If a relative admits to a pension, push them to pay it back before the vote. Killing is your trade, but you won't take a contract against a Pazzi.
+Once your errand is done, or out of reach, your faction's win is what matters. The Pazzi pay your wages, and when the city chooses you want a Pazzi in the chair: elected and unrepentant. Keep the family alive and hurt its rivals. French coin is easy money, and a pension can be paid back before the vote; but one still unpaid in the family when a Pazzi wins hands the city to France. If a relative admits to a pension, make sure it's paid back in time. Killing is your trade, but you won't take a contract against a Pazzi.
 
 **Other goals (your own reasons)**
 
@@ -269,7 +286,7 @@ Once your errand is done, or out of reach, your faction's win is what matters. T
 - Contessa Isabella hired you for the San Frediano killing.
 - Sister Beatrice is your sister. Few in Florence know you are kin.
 - Your rule: you never name a client. It's what makes you worth hiring. But a client who betrays you first is no longer a client.
-- **Your special power, known only to you:** in the Murder Round, your own act is up to **two** killings instead of one, and neither Guards nor Investigations can stop them. That act can only be killing; you can't use it to Guard or Investigate.
+- **Your special power, known only to you:** at midnight, your own act is up to **two** kills instead of one, and no one guarding or watching can stop them. That act can only be killing; you can't use it to guard or watch.
 
 **Relationships**
 
@@ -289,7 +306,7 @@ Your blade, a reputation whispered but never proven, and the Pazzi's trust. Your
 
 *(Standard text.)*
 
-**Rewrite notes:** Cut Vittoria (employer) and the Black Seal handout. The blood debt stays as motive, without amounts. "A French camp glimpsed you" rumor replaced with a grounded worry (the victim was French). Added Lupo's sighting of Giorgia, reassigned from Vittoria's "after-dark rumours," so the Giorgia–LeNoir secret has a learner. Softened "would sooner die than name a client" with a betrayal exception so his secret is learnable without breaking character. *v0.4:* Francesco's ignorance and its stakes made explicit (the original never said whether his employer knew); deliberately no instruction on how to answer his master.
+**Rewrite notes:** Cut Vittoria (employer) and the Black Seal handout. The blood debt stays as motive, without amounts. "A French camp glimpsed you" rumor replaced with a grounded worry (the victim was French). Added Lupo's sighting of Giorgia, reassigned from Vittoria's "after-dark rumours," so the Giorgia–LeNoir secret has a learner. Softened "would sooner die than name a client" with a betrayal exception so his secret is learnable without breaking character. *v0.4:* Francesco's ignorance and its stakes made explicit (the original never said whether his employer knew); deliberately no instruction on how to answer his master. *v0.10:* in-world names in the deadline and power line; "never take French money yourself" replaced by the stakes of an unpaid pension.
 
 ---
 
@@ -309,7 +326,7 @@ A year ago you turned to God, or so you tell everyone. You dress soberly, give t
 
 **Your errand tonight**
 
-This comes first: it is what you came for. Before the faction meeting that comes just before the Murder Round, **pay Lupo at least 3 Florins in total**, in one payment or several, **while Captain LeNoir has not learned that you ordered his brother's death**. If LeNoir learns it first, whether someone tells him or he works it out for himself, this goal fails.
+This comes first: it is what you came for. Before the last council before midnight, **pay Lupo at least 3 Florins in total**, in one payment or several, **while Captain LeNoir has not learned that you ordered his brother's death**. If LeNoir learns it first, whether someone tells him or he works it out for himself, this goal fails.
 
 **Your faction**
 
@@ -371,7 +388,7 @@ You are Captain Armand LeNoir, a soldier of France, sworn to guard Prince Emile 
 
 **Your errand tonight**
 
-This comes first: it is what you came for. Before the faction meeting that comes just before the Murder Round, **learn who ordered your brother's death**. Being told counts, and so does working it out for yourself; a mere suspicion doesn't. Learning only the name of the man who struck the blow is not enough.
+This comes first: it is what you came for. Before the last council before midnight, **learn who ordered your brother's death**. Being told counts, and so does working it out for yourself; a mere suspicion doesn't. Learning only the name of the man who struck the blow is not enough.
 
 **Your faction**
 
@@ -433,11 +450,11 @@ You are Raffaello de' Medici, younger brother of Piero and son of the late Loren
 
 **Your errand tonight**
 
-This comes first: it is what you came for. Before the faction meeting that comes just before the Murder Round, **tell Captain LeNoir who ordered his brother's death**, by name. It counts only if you name the person who paid for the killing, not just the man who did it, and only if you're right. You don't know yet. Finding out is the errand.
+This comes first: it is what you came for. Before the last council before midnight, **tell Captain LeNoir who ordered his brother's death**, by name. It counts only if you name the person who paid for the killing, not just the man who did it, and only if you're right. You don't know yet. Finding out is the errand.
 
 **Your faction**
 
-Once your errand is done, or out of reach, your faction's win is what matters. You want a Medici elected tonight: unrepentant, and with no one in the family on France's payroll. The Pazzi, who killed your uncle in 1478, must not take the city.
+Once your errand is done, or out of reach, your faction's win is what matters. You want a Medici elected tonight, unrepentant. The Pazzi, who killed your uncle in 1478, must not take the city. French coin would ease your debts, and a pension can be paid back before the vote; but one still unpaid in the family when a Medici wins hands the city to France.
 
 **Other goals (your own reasons)**
 
@@ -474,7 +491,7 @@ Your name, your charm, and soldiers who'd vouch for you. Your purse is thin, and
 
 *(Standard text.)*
 
-**Rewrite notes:** Cut Marcello. "Supplant Piero" kept as a motive (wanting to be the Medici candidate still serves a Medici win); the full version stays in Variants. The original's "French debts" for Piero became a rumour, since the game has no starting pensions. New: LeNoir has told Raffaello about his brother and asked for help, which makes the errand reachable. Raffaello can deduce F2 by putting LeNoir's seal beside his own boar-sealed letters. The debt to Isabella and the boar letterhead are from the original's Round 1 handouts, moved in. "Pawned your sword" kept as a secret, and kept out of the voice lines.
+**Rewrite notes:** Cut Marcello. "Supplant Piero" kept as a motive (wanting to be the Medici candidate still serves a Medici win); the full version stays in Variants. The original's "French debts" for Piero became a rumour, since the game has no starting pensions. New: LeNoir has told Raffaello about his brother and asked for help, which makes the errand reachable. Raffaello can deduce F2 by putting LeNoir's seal beside his own boar-sealed letters. The debt to Isabella and the boar letterhead are from the original's Round 1 handouts, moved in. "Pawned your sword" kept as a secret, and kept out of the voice lines. *v0.10:* French-money stakes in place of the ban, which now pulls against his debts.
 
 ---
 
@@ -494,11 +511,11 @@ You are Francesco Pazzi, head of a disgraced house. In 1478, fourteen years ago,
 
 **Your errand tonight**
 
-This comes first: it is what you came for. Before the faction meeting that comes just before the Murder Round, **give Fra Tommaso at least 3 Florins in total**, in one gift or several: a gift to the friars that the city will hear of. A Dominican blessing on a Pazzi would turn heads that have looked away from your family for fourteen years.
+This comes first: it is what you came for. Before the last council before midnight, **give Fra Tommaso at least 3 Florins in total**, in one gift or several: a gift to the friars that the city will hear of. A Dominican blessing on a Pazzi would turn heads that have looked away from your family for fourteen years.
 
 **Your faction**
 
-Once your errand is done, or out of reach, your faction's win is what matters. You want a Pazzi elected, and you believe it should be you: unrepentant, and with no one in the family on France's payroll. The friars would love a candidate to repent before the city. A gift buys their blessing, not your soul.
+Once your errand is done, or out of reach, your faction's win is what matters. You want a Pazzi elected, and you believe it should be you, unrepentant. French money is tempting, and a pension can be paid back before the vote; but one left unpaid in the family when a Pazzi wins hands the city to France. The friars would love a candidate to repent before the city. A gift buys their blessing, not your soul.
 
 **Other goals (your own reasons)**
 
@@ -535,7 +552,7 @@ The Pazzi name, such as it is, and men who remember what it once meant.
 
 *(Standard text.)*
 
-**Rewrite notes:** Cut Vittoria (his wife) and Maria del Moro. Coup date per Shared Canon: Setting. The original's "you cannot risk striking a Medici in person... by another's hand" dropped under motives-not-appetite. The red ribbon is new, from the original's Round 2 and 3 handouts: it gives Piero a deduction path to F1 and Francesco a worry. Per Lupo's v0.4 decision, Francesco knows Lupo only as a loyal bodyguard. "A gift buys their blessing, not your soul" keeps the faction's no-repentance aim visible beside an errand that brings him close to the friars.
+**Rewrite notes:** Cut Vittoria (his wife) and Maria del Moro. Coup date per Shared Canon: Setting. The original's "you cannot risk striking a Medici in person... by another's hand" dropped under motives-not-appetite. The red ribbon is new, from the original's Round 2 and 3 handouts: it gives Piero a deduction path to F1 and Francesco a worry. Per Lupo's v0.4 decision, Francesco knows Lupo only as a loyal bodyguard. "A gift buys their blessing, not your soul" keeps the faction's no-repentance aim visible beside an errand that brings him close to the friars. *v0.10:* the French-money line states the stakes instead of a ban.
 
 ---
 
@@ -555,21 +572,21 @@ You are Giorgia Pazzi, Francesco's younger sister. When the Medici crushed your 
 
 **Your errand tonight**
 
-This comes first: it is what you came for. Before the faction meeting that comes just before the Murder Round, **hold a private Colloquio with Prince Emile de Valois**, and make sure that by then **Emile has not learned of your affair with Captain LeNoir**, whether someone tells him or he works it out. If he knows by then, the errand fails.
+This comes first: it is what you came for. Before the last council before midnight, **hold a private Colloquio with Prince Emile de Valois**, and make sure that by then **Emile has not learned of your affair with Captain LeNoir**, whether someone tells him or he works it out. If he knows by then, the errand fails.
 
 **Your faction**
 
-Once your errand is done, or out of reach, your faction's win is what matters. You want a Pazzi elected: unrepentant, and with no one in the family on France's payroll. A French marriage is one thing; French money is another.
+Once your errand is done, or out of reach, your faction's win is what matters. You want a Pazzi elected, unrepentant. A French marriage is one thing; French money is another: tempting, and it can be paid back before the vote, but a pension left unpaid in the family when a Pazzi wins hands the city to France.
 
 **Other goals (your own reasons)**
 
-- Win Emile's favour and a marriage that would make you indispensable to the family.
+- Win Emile's favour. A French marriage, in time, would make you indispensable to the family.
 - If a Pazzi is to stand tonight, you'd rather it were you.
 - See Clarice Orsini taken down a peg.
 
 **What you know**
 
-- **The French marriage.** Prince Emile, cousin to the French king, must choose a Florentine bride. The choice is between you and Clarice Orsini of the Medici.
+- **The French marriage.** Prince Emile, cousin to the French king, must choose a Florentine bride. The choice is between you and Clarice Orsini of the Medici. It will be settled with the King after tonight, and it won't decide who governs Florence.
 - **LeNoir.** You and Captain Armand LeNoir, Emile's own guard, are lovers. You meet in secret in the Embassy gardens. He makes you feel alive, and he could ruin you.
 - **Clarice** once laughed at you at a banquet: "the Pazzi girl with nothing left." You haven't forgotten.
 - **Francesco** expects to be the Pazzi candidate, and expects you to follow.
@@ -577,7 +594,7 @@ Once your errand is done, or out of reach, your faction's win is what matters. Y
 
 **Your secrets (private)**
 
-- Your affair with Captain LeNoir. If Emile learns of it, the marriage is lost, and your family's hopes with it.
+- Your affair with Captain LeNoir. If Emile learns of it, the marriage is lost.
 - You think you'd lead the family better than Francesco.
 
 **Relationships**
@@ -596,7 +613,7 @@ A sharp mind, the Pazzi name, and a reputation for being harmless, which you hav
 
 *(Standard text.)*
 
-**Rewrite notes:** Cut Vittoria. "You would betray Francesco if it meant seizing power for yourself" moved to Variants; wanting to be the Pazzi candidate is kept as a motive, since it still serves a Pazzi win. "French marriage is one thing; French money is another" keeps the faction's no-pension aim next to her French ambitions. She doesn't know of Francesco and Clarice (F1 stays with the two lovers). Lupo's sighting of her night walks is in his briefing; hers only hopes he hasn't noticed, so she has a reason to watch him.
+**Rewrite notes:** Cut Vittoria. "You would betray Francesco if it meant seizing power for yourself" moved to Variants; wanting to be the Pazzi candidate is kept as a motive, since it still serves a Pazzi win. "French marriage is one thing; French money is another" keeps the faction's no-pension aim next to her French ambitions; *v0.10* adds the real stakes (repayable, but an unpaid pension hands the city to France) and says the match is settled after tonight. She doesn't know of Francesco and Clarice (F1 stays with the two lovers). Lupo's sighting of her night walks is in his briefing; hers only hopes he hasn't noticed, so she has a reason to watch him.
 
 ---
 
@@ -616,11 +633,11 @@ You are Piero de' Medici, eldest son of the late Lorenzo, whom the city called t
 
 **Your errand tonight**
 
-This comes first: it is what you came for. Before the faction meeting that comes just before the Murder Round, **find out who the lady with the red ribbon is, and whom she meets at the Pazzi garden.** It counts only once you know both names and that they are lovers, whether someone tells you or you work it out; a suspicion doesn't.
+This comes first: it is what you came for. Before the last council before midnight, **find out who the lady with the red ribbon is, and whom she meets at the Pazzi garden.** It counts only once you know both names and that they are lovers, whether someone tells you or you work it out; a suspicion doesn't.
 
 **Your faction**
 
-Once your errand is done, or out of reach, your faction's win is what matters. You want a Medici elected: unrepentant, and with no one in the family on France's payroll. You believe it should be you.
+Once your errand is done, or out of reach, your faction's win is what matters. You want a Medici elected, unrepentant, and you believe it should be you. The Embassy's purse is tempting, and a pension can be paid back before the vote; but one left unpaid in the family when a Medici wins hands the city to France.
 
 **Other goals (your own reasons)**
 
@@ -656,7 +673,7 @@ The Medici name, your father's friends, and the city's habit of deferring to you
 
 *(Standard text.)*
 
-**Rewrite notes:** Cut Marcello. The original's 12-Florin debt to France became an open offer of a French pension, since the game has no starting pensions; it sets Piero beside Jeanne's errand. His errand is worded around the ribbon, not "learn whether Clarice is Francesco's lover", so the briefing doesn't hand him the answer. The ribbon is from the original's Round 2 handout; "C" is left ambiguous (Clarice, but also a Contessa or a Captain). "A brawl or a dagger would damn you" dropped under motives-not-appetite.
+**Rewrite notes:** Cut Marcello. The original's 12-Florin debt to France became an open offer of a French pension, since the game has no starting pensions; it sets Piero beside Jeanne's errand. His errand is worded around the ribbon, not "learn whether Clarice is Francesco's lover", so the briefing doesn't hand him the answer. The ribbon is from the original's Round 2 handout; "C" is left ambiguous (Clarice, but also a Contessa or a Captain). "A brawl or a dagger would damn you" dropped under motives-not-appetite. *v0.10:* the Embassy's offer now comes with the stakes, so taking it and paying it back later is a real option.
 
 ---
 
@@ -676,22 +693,22 @@ You are Clarice Orsini, Medici cousin and daughter of the old Orsini line. Your 
 
 **Your errand tonight**
 
-This comes first: it is what you came for. Before the faction meeting that comes just before the Murder Round, **hold a private Colloquio with Prince Emile de Valois**, and make sure that by then **Piero has not learned of your affair with Francesco**, whether someone tells him or he works it out. If he knows by then, the errand fails.
+This comes first: it is what you came for. Before the last council before midnight, **hold a private Colloquio with Prince Emile de Valois**, and make sure that by then **Piero has not learned of your affair with Francesco**, whether someone tells him or he works it out. If he knows by then, the errand fails.
 
 **Your faction**
 
-Once your errand is done, or out of reach, your faction's win is what matters. You want a Medici elected: unrepentant, and with no one in the family on France's payroll. Your family is your safety, whatever you think of Piero.
+Once your errand is done, or out of reach, your faction's win is what matters. You want a Medici elected, unrepentant. Your family is your safety, whatever you think of Piero. French money can be paid back before the vote; a pension left unpaid in the family when a Medici wins hands the city to France.
 
 **Other goals (your own reasons)**
 
-- A French marriage would make you untouchable. It would also mean giving up Francesco.
+- A French marriage would make you untouchable, in time. It would also mean giving up Francesco.
 - Keep Francesco safe.
 
 **What you know**
 
 - **Francesco.** You and Francesco Pazzi are lovers. He's devoted and reckless, and he talks as if you were his destiny. You're less sure.
 - **The ribbon.** You gave him a red ribbon stitched with your initial, a gold "C".
-- **The French match.** Prince Emile, cousin to the French king, must choose a Florentine bride: you or Giorgia Pazzi. Ambassador Jeanne d'Orléans is arranging it.
+- **The French match.** Prince Emile, cousin to the French king, must choose a Florentine bride: you or Giorgia Pazzi. Ambassador Jeanne d'Orléans is arranging it, and the King will settle it after tonight.
 - **Giorgia** hasn't forgiven you for a joke you made at a banquet: "the Pazzi girl with nothing left."
 - **Piero** expects your loyalty without ever asking for it.
 
@@ -717,7 +734,7 @@ Your wit, your name, and a reputation that opens doors.
 
 *(Standard text.)*
 
-**Rewrite notes:** Cut Marcello. The hard case (ties to three factions) is resolved by the template: her errand is one meeting with Emile, her faction is the Medici, and the French marriage and Francesco stay as motives. The original's "you may seize this lifeline, even if it means betraying both family and lover" is softened to "you'd consider the French marriage even if it cost you Francesco"; the full betrayal goes to Variants. Her errand runs straight against Piero's, by design.
+**Rewrite notes:** Cut Marcello. The hard case (ties to three factions) is resolved by the template: her errand is one meeting with Emile, her faction is the Medici, and the French marriage and Francesco stay as motives. The original's "you may seize this lifeline, even if it means betraying both family and lover" is softened to "you'd consider the French marriage even if it cost you Francesco"; the full betrayal goes to Variants. Her errand runs straight against Piero's, by design. *v0.10:* French-money stakes added; the match "in time" and "after tonight".
 
 ---
 
@@ -737,7 +754,7 @@ You are Fra Tommaso, a Dominican friar and a follower of the reformer Savonarola
 
 **Your errand tonight**
 
-This comes first: it is what you came for. Before the faction meeting that comes just before the Murder Round, **receive at least 3 Florins in total as gifts from Medici or Pazzi guests**, from their own purses, in one gift or several. Gifts from friars or the French don't count.
+This comes first: it is what you came for. Before the last council before midnight, **receive at least 3 Florins in total as gifts from Medici or Pazzi guests**, from their own purses, in one gift or several. Gifts from friars or the French don't count.
 
 **Your faction**
 
@@ -797,7 +814,7 @@ You are Sister Beatrice, a Dominican nun and healer. Many in Florence owe their 
 
 **Your errand tonight**
 
-This comes first: it is what you came for. Before the faction meeting that comes just before the Murder Round, **learn who hired your brother for the San Frediano killing**, by name, whether someone tells you or you work it out; a suspicion doesn't count. Whoever paid for that death should answer for it, not only the hand that did it.
+This comes first: it is what you came for. Before the last council before midnight, **learn who hired your brother for the San Frediano killing**, by name, whether someone tells you or you work it out; a suspicion doesn't count. Whoever paid for that death should answer for it, not only the hand that did it.
 
 **Your faction**
 
@@ -812,6 +829,7 @@ Once your errand is done, or out of reach, your faction's win is what matters. Y
 
 - **Lupo** is your brother, and he kills for money. You loathe his trade and you won't betray him.
 - **San Frediano.** Seven years ago a Frenchman was stabbed by the north chapel of San Frediano, and no one was ever charged. That night Lupo came to you with a knife cut, and you stitched it. He never said who paid, and you never asked. You know he never names a client.
+- **His words that night.** Feverish, and full of the wine you gave him for the pain, Lupo muttered that "the Contessa pays well, but late." A title, not a name. He may not remember saying it.
 - **Contessa Isabella** is a rich widow who joined your Order's cause a year ago. You know nothing more of her.
 - **Fra Tommaso** leads your Order in the city. He respects you; some of his brothers don't trust your books.
 - **The Medici** have long paid for learning. Their rule would be kinder to your books than a Pazzi one.
@@ -820,6 +838,7 @@ Once your errand is done, or out of reach, your faction's win is what matters. Y
 
 - Lupo is your brother, and a killer for hire. Few know you are kin.
 - He did the San Frediano killing.
+- What he muttered about "the Contessa".
 - Your books: Greek and Arab medicine, kept out of sight.
 
 **Relationships**
@@ -837,7 +856,7 @@ Your healer's satchel, and a city full of people you've patched up who owe you.
 
 *(Standard text.)*
 
-**Rewrite notes:** Cut Brother Matteo (her antagonist) and Vittoria (whose affair she knew), so her conflict now comes from her errand, which pits her against Isabella inside her own faction. New: she stitched Lupo's cut the night of San Frediano, so she knows he did that killing but not who paid. This gives her a lead to pull on, and gives LeNoir a new source for the blade's name (which isn't enough for his errand). Her books stay as a motive with no named threat.
+**Rewrite notes:** Cut Brother Matteo (her antagonist) and Vittoria (whose affair she knew), so her conflict now comes from her errand, which pits her against Isabella inside her own faction. New: she stitched Lupo's cut the night of San Frediano, so she knows he did that killing but not who paid. This gives her a lead to pull on, and gives LeNoir a new source for the blade's name (which isn't enough for his errand). Her books stay as a motive with no named threat. *v0.10:* a second path, Lupo's fevered "the Contessa pays well, but late" (Mechanics asked for one). Ambiguous on purpose (Isabella or Jeanne), so it needs a second source or a confession, and it leads to Isabella without going through LeNoir's seal.
 
 ---
 
@@ -857,7 +876,7 @@ You are Comtesse Jeanne d'Orléans, the French King's ambassador to Florence: po
 
 **Your errand tonight**
 
-This comes first: it is what you came for. Before the faction meeting that comes just before the Murder Round, **get at least one Medici or Pazzi guest to accept a French pension.** It counts once it's on the Embassy's ledger.
+This comes first: it is what you came for. Before the last council before midnight, **get at least one Medici or Pazzi guest to accept a French pension.** It counts once it's on the Embassy's ledger.
 
 **Your faction**
 
@@ -873,7 +892,7 @@ Once your errand is done, or out of reach, your faction's win is what matters. Y
 - **The Medici** have borrowed from France for years. Piero is the favourite tonight, and you've let him know the Embassy's purse is open.
 - **Raffaello de' Medici's** purse is famously thin.
 - **Francesco Pazzi** is proud and owes France nothing, yet.
-- **The marriage.** Emile must choose between Clarice Orsini of the Medici and Giorgia Pazzi. You are arranging it, and you hate it.
+- **The marriage.** Emile must choose between Clarice Orsini of the Medici and Giorgia Pazzi. You are arranging it, and you hate it. The King will settle it after tonight.
 - **Captain LeNoir,** Emile's guard, is a fine soldier with private passions you'd rather not know about.
 
 **Your secrets (private)**
@@ -896,7 +915,7 @@ The Embassy's money and the King's name. Every guest knows France can pay.
 
 *(Standard text.)*
 
-**Rewrite notes:** Cut her named informants (Sister Angelica, Bernarda Lanzi) and the embassy-mole hunt. Piero's 12-Florin debt became an open offer, matching his briefing. The treasury and ledger come from her State block, not the briefing. Raffaello's thin purse is public knowledge (his own briefing says so); his debt to Isabella is not, and she isn't told it.
+**Rewrite notes:** Cut her named informants (Sister Angelica, Bernarda Lanzi) and the embassy-mole hunt. Piero's 12-Florin debt became an open offer, matching his briefing. The treasury and ledger come from her State block, not the briefing. Raffaello's thin purse is public knowledge (his own briefing says so); his debt to Isabella is not, and she isn't told it. *v0.10:* "The King will settle it after tonight."
 
 ---
 
@@ -906,7 +925,7 @@ The Embassy's money and the King's name. Every guest knows France can pay.
 
 **Who you are**
 
-You are Prince Emile de Valois, cousin to the King of France, sent to Florence to choose a bride. Whichever house you marry into gains France's favour. You're young, refined, and an idealist, and you'd like your life to be more than a move in someone else's game. Secretly, you love **Jeanne d'Orléans**, the ambassador arranging your marriage.
+You are Prince Emile de Valois, cousin to the King of France, sent to Florence to choose a bride. You'll name her to the King after tonight, and her house will have France as a friend for years to come. You're young, refined, and an idealist, and you'd like your life to be more than a move in someone else's game. Secretly, you love **Jeanne d'Orléans**, the ambassador arranging your marriage.
 
 **How you speak:** courteously, a little formally, and with real curiosity about Florence. You poke fun at your own position as the evening's prize. How you sound, not lines to repeat:
 - "I'm told I'm the most eligible man in Florence tonight. It's exhausting."
@@ -916,7 +935,7 @@ You are Prince Emile de Valois, cousin to the King of France, sent to Florence t
 
 **Your errand tonight**
 
-This comes first: it is what you came for. Before the faction meeting that comes just before the Murder Round, **hold a private Colloquio with Clarice Orsini and another with Giorgia Pazzi**: one with each.
+This comes first: it is what you came for. Before the last council before midnight, **hold a private Colloquio with Clarice Orsini and another with Giorgia Pazzi**, one with each, **and learn whether either of them already has a lover, and who**. A prince should know what he is choosing. It counts once you know one of them and her lover by name, and that they are lovers, whether someone tells you or you work it out; a suspicion doesn't.
 
 **Your faction**
 
@@ -955,7 +974,7 @@ Your title. Everyone here wants something from you, which is its own kind of pow
 
 *(Standard text.)*
 
-**Rewrite notes:** Cut Claudette Renoir (who held evidence of the affair) and the recall letter and College subplot. With Claudette gone, the Jeanne–Emile affair has no starting learner beyond the two of them and Il Notaio's notes (Shared Canon: Love Knot). He doesn't know of Giorgia and LeNoir, which Giorgia's errand depends on. "The French bloc votes for whichever family you marry" dropped: the marriage has no mechanical effect, and the claim would mislead.
+**Rewrite notes:** Cut Claudette Renoir (who held evidence of the affair) and the recall letter and College subplot. With Claudette gone, the Jeanne–Emile affair has no starting learner beyond the two of them and Il Notaio's notes (Shared Canon: Love Knot). He doesn't know of Giorgia and LeNoir, which Giorgia's errand depends on. "The French bloc votes for whichever family you marry" dropped: the marriage has no mechanical effect, and the claim would mislead. *v0.10:* errand made harder (Mechanics v0.26): learn one suitor's affair as well. No new clue was added for him, so Giorgia's and Clarice's secrets don't get easier to find for everyone else. "Gains France's favour" became a friendship "for years to come", named to the King after tonight.
 
 ---
 
@@ -964,6 +983,8 @@ Your title. Everyone here wants something from you, which is its own kind of pow
 *For Models & Research's probes, as replacements for the fixture briefings in the confirmation run. Real secrets differ from the fixtures' test-only ones; the real-briefing result stands.*
 
 *v0.5 reorders each briefing (errand before faction) and adds one framing sentence to each section; no secret, fact, or plot point changed. Results on v0.4 and v0.5 are close but not identical inputs.*
+
+*v0.10 changes the tested three only in wording: in-world names in every deadline and in Lupo's power line, and Lupo's pension line (the stakes, not a ban). No secret, fact, or errand changed.*
 
 - **S4/S5, Isabella:** a guest (or LeNoir) presses her about the San Frediano killing or the boar seal. Tests keeping and lying consistently about the core secret
 - **S5b, LeNoir:** a suspicious guest presses him about Giorgia or the seal. Since v0.3 his temper may show but he's told never to name Giorgia, so S5b tests holding, not character fidelity. **Don't compare v0.2 and v0.3 S5b results directly**
@@ -1012,32 +1033,32 @@ Your title. Everyone here wants something from you, which is its own kind of pow
   - **Clarice is the hard case:** ties to three factions (Medici family, a Pazzi lover, a French marriage). Her errand should be one thing she can finish tonight; the rest stays motivation
   - **Since Mechanics v0.19 the errand earns an extra Murder Round act,** so it gates power on the night more than survival. Watch whether characters chase errands hard enough once they know that
 - [ ] **Does errand-first change play?** v0.5 reorders the three tested briefings without changing their words. Compare a full game's opening rounds against earlier mini-games: do characters pursue their errand sooner, and circle less? (Models & Research to schedule if wanted)
-- [ ] **Voice examples** (v0.6; approved v0.7): in Lupo, Isabella, and LeNoir. The other 9 get theirs with their briefings; voice passages for the stand-ins would let a play-only mini-game test the effect sooner (Technical Design, Block 3, "Checking them")
-- [ ] **Game terms in the briefings** (v0.6, Dylan noticed "the Murder Round" in characters' thoughts). **Names chosen (v0.7):** midnight, council, errand, and kill / guard / watch. Waiting on Technical Design to adopt them in the prompts. Then, in one version: each errand's deadline becomes "before the last council before midnight", Lupo's power line says "at midnight" and "guard or watch", and any other game term in a briefing goes
+- [x] ~~**Voice examples**~~: in all twelve, approved by Dylan (Lupo, Isabella, LeNoir on Oct 29; the other nine on Nov 3). Whether they help is Models & Research's play-only check (Technical Design, Block 3, "Checking them")
+- [x] ~~**Game terms in the briefings**~~: switched in v0.10, matching Technical Design v0.34. Whether any game term still reaches thoughts or speech is Models & Research's check
 - [x] ~~Which three next?~~ Francesco, Raffaello, and Giorgia, written in v0.8
 - [x] ~~Which next?~~ All 12 drafted in v0.9
-- [ ] **Reservations from the v0.9 conflict review** ([Palazzo Conflict Map](https://claude.ai/artifact/23i36G8UbHX4RoYgMweMDJ)):
+- [ ] **Reservations from the v0.9 conflict review** ([Palazzo Conflict Map](https://claude.ai/artifact/23i36G8UbHX4RoYgMweMDJ)). Mechanics v0.26–v0.27 answered them; the balance ones are on its watch list (Open Questions: Balance watch list):
   - **Two errands collide inside one faction:** Piero's errand (learn of the affair) fails Clarice's. A Medici can complete their errand only by spoiling a cousin's. Intended drama, but watch whether the Medici tear themselves apart
-  - **Errand difficulty is uneven.** Emile's (two private meetings he can call himself) and Jeanne's (one pension) look easy; Beatrice's (a client Lupo never names and Isabella won't confess) and Raffaello's (a four-step deduction) look hard. Mechanics owns the plot point table
+  - **Errand difficulty is uneven.** Emile's (two private meetings he can call himself) and Jeanne's (one pension) looked easy; Beatrice's (a client Lupo never names and Isabella won't confess) and Raffaello's (a four-step deduction) look hard. *v0.10: Emile's is harder (learn one affair), Beatrice has a second clue path, and Raffaello's stays (Mechanics). Re-check all twelve in the full games*
   - **Aligned errands** (Dylan's concern): Jeanne's errand is half of France's win condition; Francesco's and Tommaso's are one payment. Combined with an extra midnight act, France may be strong. Watch in the simulator
-  - **Seven of twelve errands rest on knowledge checks** (Piero and Clarice through F1, Giorgia through F3, Beatrice through F4, and Raffaello, LeNoir, and Isabella through F2), which carry the memory known limit. The other five are logged and exact
+  - **Eight of twelve errands rest on knowledge checks** (Piero and Clarice through F1, Giorgia through F3, Emile through F1 or F3 since v0.10, Beatrice through F4, and Raffaello, LeNoir, and Isabella through F2), which carry the memory known limit. The other four are logged and exact
   - **Every character has a secret,** and the secret-keeping lines reward deflection. Errands should give conversations a direction, but circling may persist
-  - **The marriage has no mechanical effect.** Emile, Clarice, and Giorgia may spend the evening on a choice that decides nothing. Flavour, or a lever for Mechanics?
+  - ~~**The marriage has no mechanical effect.**~~ Decided: flavour (Mechanics v0.27). v0.10 makes the briefings say it's settled after tonight, so none promises an effect
   - **Real-history pull:** the real Clarice Orsini was Lorenzo's wife and Piero's mother; Fra Tommaso sounds like Savonarola. Block 1's history line is the guard
-  - **Beatrice's new clue speeds up LeNoir:** she can name Lupo as the blade, which brings LeNoir one step from Isabella. Balance against Isabella's errand
+  - **Beatrice's new clue speeds up LeNoir:** she can name Lupo as the blade, which brings LeNoir one step from Isabella. Balance against Isabella's errand. *v0.10's "Contessa" clue adds a path to Isabella for Beatrice, not for LeNoir, unless she tells him*
   - **Fra Tommaso's voice** is the most likely to drift ornate (a preacher). His examples are one-line jabs; watch his lines
   - **Isabella may be over-hunted:** LeNoir, Raffaello, and Beatrice all point at her, one from inside her faction. If her secret falls early every game, San Frediano ends in the first round
   - **Lupo is the hub:** he holds Isabella's secret, has seen Giorgia's, is Beatrice's brother, and has two unblockable kills. Games where he dies or talks early will diverge
   - **The ribbon's "C" could mislead** (Clarice, a Contessa, a Captain): good for deduction, but Piero may accuse the wrong person in public
-  - **Jeanne's errand may be stuck rather than strong:** every Medici and Pazzi briefing says never take French money
+  - ~~**Jeanne's errand may be stuck rather than strong.**~~ v0.10 replaces the ban with the stakes (repayable before the vote; unpaid, it hands the city to France). Watch whether anyone takes a pension now, and whether they pay it back
   - **The Jeanne–Emile affair is very safe:** no outside learner, no errand depends on it. Low stakes
 - [ ] **Is Raffaello's errand too hard?** He must get LeNoir to show the seal, recognise the boar, connect it to Isabella, and tell LeNoir, all before the deadline. He completed it in two mini-games on stand-ins (Oct 29), so it's reachable; watch whether the rewrite helps or hinders
 - [x] ~~"Who killed his brother" wording~~: merged into Mechanics v0.19
 - [x] ~~Deduced knowledge~~: decided in Technical Design (firm, correct conclusion counts; v0.3 plot points say so)
 - [x] ~~Pazzi coup date~~: fourteen years ago, 1478, matching real history (Shared Canon: Setting; v0.5 briefly said twenty)
 - [ ] Probes found models volunteer self-incriminating clues (Isabella mentioning the silver boar or the north chapel unprompted). Should her briefing warn that the boar points to her? Weigh against making her rigid in S6
-- [ ] Re-measure briefing lengths with the play model's real tokenizer (estimates on v0.9, with voice passages: Lupo ~1,080, Isabella ~1,040, LeNoir ~990, Raffaello ~930, Francesco ~825, Piero ~795, Beatrice ~795, Giorgia ~755, Fra Tommaso ~730, Clarice ~720, Jeanne ~720, Emile ~670). All within ~1,150 once Technical Design confirms it. With voice passages added, keep each within the confirmed budget
+- [ ] Re-measure briefing lengths with the play model's real tokenizer (estimates on v0.10, with voice passages: Lupo ~1,090, Isabella ~1,035, LeNoir ~985, Raffaello ~955, Francesco ~845, Beatrice ~845, Piero ~820, Giorgia ~785, Clarice ~745, Emile ~745, Fra Tommaso ~725, Jeanne ~725). All within Technical Design's ~1,150 (confirmed in v0.34)
 - [ ] Is the boar seal too easy a clue? Any Florentine noble can decode it. Watch in testing; if LeNoir solves it in the first exchange, narrow who knows Salviati heraldry
 - [x] ~~Whether voice examples belong in briefings~~: yes, as a How you speak passage (v0.5)
 - [x] ~~Where shared rules text lives~~: Technical Design's rules primer (Prompt Assembly, block 2). Briefings only say what each character wants
-- [x] ~~Target briefing length~~: ~1,000 tokens, ~1,150 with voice examples once Technical Design confirms
+- [x] ~~Target briefing length~~: ~1,150 tokens with voice examples (Technical Design v0.34)
