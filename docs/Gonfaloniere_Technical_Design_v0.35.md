@@ -1,8 +1,16 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.34
+### Version 0.35
 
 ---
+
+## Changes in v0.35
+
+*Clears the Characters handoff on Emile's errand (Nov 6).*
+
+- **Emile's errand is now a knowledge check** (Plot-point facts). Mechanics v0.26 made him also learn one suitor's affair, and Characters v0.10 writes it into his briefing. His errand passes when both Colloquios are logged and (Emile, F1) or (Emile, F3) comes back *told* or *conclusion*
+- **One more check per game:** five in all, adding (Emile, F1). (Emile, F3) already ran for Giorgia's errand, so it now settles two errands that pull against each other
+- The facts table now cites Mechanics v0.30. F1–F4 are unchanged, F4 included, though Beatrice has a second clue path to it (Characters v0.10)
 
 ## Changes in v0.34
 
@@ -1878,7 +1886,7 @@ A character has learned a fact when either:
 
 ### Plot-point facts *(new in v0.5)*
 
-The true facts the knowledge checks test, worded once so every check of the same fact asks the same thing. Plot points are from Mechanics v0.20 (Plot Reward table); the facts follow Characters' Shared Canon.
+The true facts the knowledge checks test, worded once so every check of the same fact asks the same thing. Plot points are from Mechanics v0.30 (Plot Reward table; Emile's errand changed in v0.26); the facts follow Characters' Shared Canon.
 
 | Fact | True statement | Must include | Does not count |
 |---|---|---|---|
@@ -1895,12 +1903,13 @@ The true facts the knowledge checks test, worded once so every check of the same
 | Clarice: Colloquio with Emile, while Piero hasn't learned of the affair | Logged meeting + (Piero, F1) | Meeting held, and the check is *suspicion* or *none* |
 | Raffaello: tell LeNoir that Isabella ordered the killing | (LeNoir, F2) | *told*, with Raffaello de' Medici in `told_by`. Code confirms that a cited entry was spoken by Raffaello |
 | Giorgia: Colloquio with Emile, while Emile hasn't learned of her affair with LeNoir | Logged meeting + (Emile, F3) | Meeting held, and the check is *suspicion* or *none* |
+| Emile: Colloquios with both Clarice and Giorgia, and learn at least one of their affairs *(v0.35)* | Logged meetings + (Emile, F1) and (Emile, F3) | Both meetings held, and either check is *told* or *conclusion* |
 | Sister Beatrice: learn who hired Lupo | (Beatrice, F4) | *told* or *conclusion* |
 | Contessa Isabella: pay Lupo ≥3 Florins, while LeNoir hasn't learned | Logged payments + (LeNoir, F2) | Payments reach 3, and the check is *suspicion* or *none* |
 | Captain LeNoir: learn who ordered his brother's death | (LeNoir, F2) | *told* or *conclusion* |
-| Francesco, Lupo, Fra Tommaso, Jeanne, Emile | Logged only | From the transaction log, pension ledger, or meeting log |
+| Francesco, Lupo, Fra Tommaso, Jeanne | Logged only | From the transaction log, pension ledger, or meeting log |
 
-So a full game needs **four knowledge checks**: (Piero, F1), (LeNoir, F2), (Emile, F3), and (Beatrice, F4). One of them, (LeNoir, F2), settles three plot points.
+So a full game needs **five knowledge checks** *(v0.35; four before)*: (Piero, F1), (LeNoir, F2), (Emile, F1), (Emile, F3), and (Beatrice, F4). (LeNoir, F2) settles three plot points, and (Emile, F3) settles two that pull against each other: Giorgia's errand fails if Emile learns of her affair, which completes his.
 
 **Timing:** *told* never wears off; once heard, the fact has been learned. A *conclusion* counts only if it's still held at the deadline, so a conclusion the character later dropped doesn't count.
 
