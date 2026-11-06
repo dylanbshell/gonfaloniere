@@ -1,8 +1,25 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.33
+### Version 0.34
 
 ---
+
+## Changes in v0.34
+
+*Clears three handoffs from Characters (v0.9; Dylan's choices, Oct 29): the briefing budget, retiring the stand-ins, and in-world names for character-facing text.*
+
+- **In-world names in every character-facing prompt** (new section, In-World Names). Dylan noticed characters' thoughts saying "the Murder Round". Now:
+  - **midnight** replaces the Murder Round ("at midnight, choose in secret"; block 9e's heading is `TASK: MIDNIGHT`)
+  - **council** replaces faction meeting ("the Medici council")
+  - **errand** replaces plot point, and the Plot Reward is described plainly ("one extra act at midnight")
+  - **kill, guard, or watch**, in lowercase, replace KILL, GUARD, or INVESTIGATE. Block 9e's JSON takes `"watch"`, which code maps to Investigate
+  - **Time labels** replace turn numbers: "the second round of mingling, early" in block 5, and "2nd round, early" in place of "T4" at the start of each block 6 line, since thoughts had started citing "my T3 sighting"
+  - Docs, code, and the game record keep the game names. Blocks 10a–10d never reach a character and are unchanged
+- **The briefings switch in the same version** (Characters handoff): a prompt must never mix the two sets of names, so the engine loads TD v0.34 only with a Characters version that uses them
+- **Untested wording:** Models & Research gets a small check (tracker handoff)
+- **Briefing budget ~1,150 tokens** (Prompt Assembly), voice examples included, as Characters asked. Briefings run ~670–1,080 tokens. Calls grow to ~3,450 input tokens
+- **Stand-ins retired** (Block 3): all 12 briefings are rewritten (Characters v0.9), so no game needs Clifford's originals. The record header names the Characters version
+- Blocks 1, 9a–9c, and 9f–9h are unchanged
 
 ## Changes in v0.33
 
@@ -512,7 +529,7 @@ Every character call returns raw JSON. Code checks and repairs it before use, so
 | **Addressee** | Used only in a Capannello. Must match a character present other than the speaker; otherwise treated as null. Ignored in a Colloquio |
 | **Contacts** | Self, dead, and unmatched names dropped; duplicates keep the higher urgency; **missing living guests filled with urgency 0**; **purposes kept only for the three highest-urgency contacts** (others set to null, logged as a warning) |
 | **Targets and actions** | Must be legal under mechanics at that moment (target alive, not self where barred, enough Florins, right conversation type, right faction). Illegal → rejected; the character hears why on their next call through `{action_feedback}` |
-| **Murder Round acts** | Everyone except Lupo: one `act` object. Lupo: a `kills` list of one or two names. **All of a character's acts name different living guests** (Mechanics v0.24, Lupo's kills included). No self-guard, in any act. `extra` used only if the Plot Reward was earned, otherwise ignored. If a non-Lupo answer returns a list instead of one `act` (or Lupo returns more than two kills), keep the first and log it as a repair. A remaining illegal act triggers the retry; if still illegal, that act is dropped |
+| **Murder Round acts** | Act types are matched in-world or by game name since v0.34: `watch` and `investigate` both mean Investigate. Everyone except Lupo: one `act` object. Lupo: a `kills` list of one or two names. **All of a character's acts name different living guests** (Mechanics v0.24, Lupo's kills included). No self-guard, in any act. `extra` used only if the Plot Reward was earned, otherwise ignored. If a non-Lupo answer returns a list instead of one `act` (or Lupo returns more than two kills), keep the first and log it as a repair. A remaining illegal act triggers the retry; if still illegal, that act is dropped |
 | **Plan length** | A 9d `plan` over 150 words is cut at the last sentence end before word 150 (or at word 150 if there's none), and logged as a repair |
 | **Seat** (9h, v0.23) | Lone form: `target` must be in an open Capannello other than the guest's own. Invitee form: `join` needs a guest in an open Capannello; `colloquio` needs a living guest who isn't in a Colloquio; `wait` is valid only when no Capannello has room. Parse failures and missing fields retry as usual. **An invalid choice or target uses the default at once,** logged as a repair, with no retry |
 | **Votes** | Ballot target must be a living guest; `buy` clamped to 0–`{max_buy}`. Run-off target must be one of the tied guests |
@@ -643,7 +660,7 @@ Every character call is built from the same blocks in the same order, **most sta
 |---|---|---|---|
 | 1 | **Frame:** who you are playing, stay in character, tonight's Florence is its own, plain English (v0.27) | Never | ~170 |
 | 2 | **Rules primer:** the evening as the characters know it | Never (per run config) | ~650 |
-| 3 | **Briefing** (from Characters) | Never | ≤ ~1,000 |
+| 3 | **Briefing** (from Characters), voice examples included | Never | ≤ ~1,150 (v0.34; ~1,000 before) |
 | 4 | **Strategy section** | At checkpoints | ~150 |
 | 5 | **State:** phase, where you are, who's present, purse, pensions, allowed actions | Every call | ~150 |
 | 6 | **Long-term memory:** retrieved bullets, high-salience marked | Every utterance | ~450 (v0.10; ~300 before) |
@@ -654,7 +671,7 @@ Every character call is built from the same blocks in the same order, **most sta
 - **Message layout:** blocks 1–3 form the **system message**; blocks 4–9 form **one user message**. Where a model's chat template handles a system message badly, set `system_role: false` and send all nine blocks as one user message. The prefix is identical either way, so caching works either way
 - **Blocks 1–3 are identical for every call type**, so all of a character's calls share one cached prefix. Task instructions go last, where models attend to them most
 - **Long-term memory is retrieved once per character per utterance** and reused for that character's `think()` and `speak()`. Movement, strategy, Murder Round, and vote calls retrieve their own, with queries suited to the decision (e.g. Murder Round retrieves threats and deals)
-- **Sizes:** ~3,300 input tokens per call. Measured `think()` output on TD v0.3 is ~103 tokens (DeepSeek). `speak()` ~100. Models & Research replaces these with measurements
+- **Sizes:** ~3,450 input tokens per call (v0.34, with the larger briefing budget). Measured `think()` output on TD v0.3 is ~103 tokens (DeepSeek). `speak()` ~100. Models & Research replaces these with measurements
 - **No constrained decoding.** Raw JSON plus code validation (see Output Validation & Repair)
 - **The JSON schema line comes last** *(rule since v0.6)*. Every task block ends with "Reply with only this JSON:" and its schema, and anything added to a task block (a new instruction, a personality line, a probe variant) goes **before** that line, never after. In the Oct 25 boldness test, one line placed after the schema in 9b made Qwen3.8 misspell the `utterance` key in 7.6% of `speak()` calls (1.0% without it). Placeholders that may hold extra instructions, such as `{done_instruction}` and `{addressee_instruction}`, already sit above the schema
 
@@ -675,6 +692,24 @@ Every line in block 8 is one of four kinds. All non-speech lines are written by 
 - The probe harness already writes bribes in this format, so probe and engine transcripts match
 
 ---
+
+## In-World Names *(new in v0.34)*
+
+*Dylan's choices (Characters v0.7, Oct 29). Characters should never think in game terms: thoughts saying "the Murder Round" or "my T3 sighting" break the fiction. Every character-facing prompt (blocks 1–9 and the briefings) uses the in-world name. Docs, code, the game record, the dashboard, and the system prompts (10a–10d) keep the game names, so analysis and rules stay unambiguous.*
+
+| Game name (docs, code, record) | In-world name (character-facing) |
+|---|---|
+| Murder Round | **midnight** ("before midnight", "at midnight, choose in secret") |
+| Faction Meeting N | **council** ("the Medici council"; in block 5, "the third Medici council") |
+| Plot point | **errand** |
+| Plot Reward | described plainly: "one extra act at midnight", with no name |
+| KILL / GUARD / INVESTIGATE | **kill / guard / watch**, lowercase. Block 9e's JSON takes `"watch"`; code maps it to Investigate, and accepts `"investigate"` as an alias without a repair |
+| Capannello round N, turn T | "the {first/second/third} round of mingling, {early/midway/late}", the part by thirds of the round's turns. In block 6 the short form "2nd round, early"; during a council, "the Medici council"; at midnight, "midnight"; during the speeches, "the speeches" |
+
+- **Kept as they are,** since they're already in-world: Capannello, Colloquio, Il Notaio, Florins, French pension, the ballot, the run-off, the speeches, repentance
+- **Setting pack:** these names are content, not code. They belong in the setting pack with the roster and vocabulary (Open Questions, setting in content), so a reskin renames them in one file
+- **Switch together:** the briefings use the same names (Characters handoff). The engine loads TD v0.34 or later only with a Characters version that does, and version-gates the old names so earlier games replay byte-identical
+- **Untested:** the wording of blocks 2, 5, 6, and 9e changes, so Models & Research runs a small check (Open Questions)
 
 ## Prompt Drafts
 
@@ -706,7 +741,7 @@ How the evening ends (checked in this order the moment the vote is announced):
 3. Otherwise, the elected candidate's family (Medici or Pazzi) wins.
 A faction must have at least one living member to win.
 
-The order of the evening: three rounds of mingling, each opened by a meeting of your own faction. Then the Murder Round. Then the Medici and Pazzi each choose a candidate, the candidates give speeches, every faction meets one last time, and a secret ballot is held.
+The order of the evening: three rounds of mingling, each opened by a council of your own faction. Then midnight. Then the Medici and Pazzi each choose a candidate, the candidates give speeches, every faction holds one last council, and a secret ballot is held.
 
 Conversations: guests talk in small groups (a Capannello, 2–4 people) or slip away for a private word (a Colloquio, two people only, no one may join). Il Notaio, the evening's notary, records who joins, who leaves, and who withdraws privately, and everyone present hears his notes. Slipping away often invites suspicion.
 
@@ -714,7 +749,7 @@ Money: everyone begins with {starting_florins} Florins and receives {income} mor
 
 French pensions: any Medici or Pazzi may accept a pension of {pension_size} Florins from the French Embassy at any time. A pension puts its holder on France's payroll. It can be renounced before the ballot by paying {pension_size} Florins back — by the holder, or by a relative who knows of it. Pensions are private; only the Embassy keeps the full ledger.
 
-The Murder Round: each living guest secretly chooses one act: KILL, GUARD, or INVESTIGATE someone. All acts take effect at once, so a guest who dies that night still carries out their own act. A guest guarded by two or more survives an attack. A guest investigated by two or more cannot carry out their kill. You cannot guard yourself. Killers are never named. The dead lose their Florins and pensions; nothing is inherited.
+Midnight: each living guest secretly chooses one act: to kill, guard, or watch someone. All acts take effect at once, so a guest who dies at midnight still carries out their own act. A guest guarded by two or more survives an attack. A guest watched by two or more cannot carry out their kill. You cannot guard yourself. Killers are never named. The dead lose their Florins and pensions; nothing is inherited.
 {plot_reward_rule}
 
 Repentance: during the speeches only, a candidate may publicly repent. It is permanent and turns them to the Dominicans' cause: if they are elected, the Dominicans win.
@@ -722,7 +757,7 @@ Repentance: during the speeches only, a candidate may publicly repent. It is per
 
 `{plot_reward_rule}` when `plot_reward` is on:
 ```
-Your plot point: if you complete the plot point in your briefing before the last faction meeting before the Murder Round, you secretly earn one extra act in the Murder Round: a second KILL, GUARD, or INVESTIGATE, on a different guest. No one else is told.
+Your errand: if you finish the errand in your briefing before the last council before midnight, you secretly earn one extra act at midnight: a second kill, guard, or watch, on a different guest. No one else is told.
 ```
 When off: empty.
 
@@ -730,16 +765,16 @@ When off: empty.
 
 The character's briefing from Characters, verbatim, under the heading `YOUR BRIEFING`.
 
-**Stand-ins for the first full games** *(v0.33, Dylan)*: until all 12 briefings are rewritten, a character without one uses Clifford's original briefing, trimmed as the mini-game's stand-ins are (`scenarios/minigame-standin-briefings.md`), with the economy, cut characters, and dropped mechanics removed. Fine for engine testing and for judging the game's feel. **Research batches wait for the rewritten set,** since a stand-in changes what the character wants and knows. The game record header lists which briefings were stand-ins.
+**Stand-ins retired** *(v0.34)*: all 12 briefings are rewritten (Characters v0.9), so no game uses Clifford's original briefings any more. v0.33 allowed them for the first full games while briefings were missing. The game record header names the Characters version each game ran on; mini-games before Characters v0.9 used stand-ins for Francesco, Raffaello, and Giorgia.
 
 **Voice examples** *(v0.33; the content is the Characters chat's)*: a short "How you speak" passage inside "Who you are" (Characters, Briefing Template, item 1). What the engine needs from it:
-- **Size:** 2–3 plain sentences describing the voice (sentence length, temperament, what they joke about or avoid), then 3–5 example lines. About 100–150 tokens in all, inside the briefing's ~1,000
+- **Size:** 2–3 plain sentences describing the voice (sentence length, temperament, what they joke about or avoid), then 3–5 example lines. About 100–150 tokens in all, inside the briefing's ~1,150 (v0.34)
 - **The examples must obey the register** (block 9b): plain English, about 40 words at most, no "thee" or "thou", no proverbs or flowery metaphors, no modern slang. Models copy examples more readily than they follow instructions, so one ornate example would undo the register line
 - **Varied situations, no catchphrases:** a deflection, a bargain, a jab, a joke, a refusal, each tied to a moment rather than a reusable phrase. Introduce them as "how you sound, not lines to repeat", since a memorable line would otherwise be said every game
 - **No secrets or plot facts in the examples.** They sit in every prompt, so a line hinting at a secret would prime leaks. Keep them on public matters or invented small talk
 - **Voice, not strategy.** Examples should change how a character sounds, not how bold or cautious they are, since boldness and caution are the personality variants the research measures (Models & Research, Research Design). A voice line like "I never back down" would confound that
 - **Distinct across the cast:** vary sentence length, formality, and humour, so any line could be told apart without the name. Humour should come from the character (dry, boastful, pious, blunt), not from modern references
-- **Checking them:** once written, a play-only mini-game with voice examples in the stand-in briefings, read in the viewer, shows whether they help. That's Models & Research's to schedule
+- **Checking them:** once written, a play-only mini-game with the voice examples, read in the viewer, shows whether they help. That's Models & Research's to schedule
 
 ### Block 4 — Strategy
 
@@ -765,11 +800,11 @@ You have withdrawn into a private Colloquio {withdrawal_count} time(s) tonight.
 ```
 
 - `{living_others}`: **every living character except this one, including those present**
-- `{phase_label}` e.g. "Capannello round 2, turn 4", "Faction meeting 3 (Medici)", "The Murder Round", "The ballot", "The run-off"
-- `{conversation_label}` e.g. "a Capannello with Piero de' Medici and Lupo" or "a private Colloquio with Jeanne d'Orléans (utterance 3 of 6)". For calls outside a conversation (Murder Round, ballot, run-off): "the gathering"
-- `{present_characters}`: the other characters in this conversation. **For calls outside a conversation** (Murder Round, ballot, run-off): `no one; you decide alone` (v0.5; the S8–S10 probes listed everyone living, which suggested an audience that doesn't exist). Targets for those calls come from "All living guests besides you"
+- `{phase_label}` *(in-world since v0.34; see In-World Names)* e.g. "The second round of mingling, early", "The third Medici council", "Midnight", "The speeches", "The ballot", "The run-off". Before v0.34: "Capannello round 2, turn 4", "Faction meeting 3 (Medici)", "The Murder Round"
+- `{conversation_label}` e.g. "a Capannello with Piero de' Medici and Lupo" or "a private Colloquio with Jeanne d'Orléans (utterance 3 of 6)". For calls outside a conversation (midnight, ballot, run-off): "the gathering"
+- `{present_characters}`: the other characters in this conversation. **For calls outside a conversation** (midnight, ballot, run-off): `no one; you decide alone` (v0.5; the S8–S10 probes listed everyone living, which suggested an audience that doesn't exist). Targets for those calls come from "All living guests besides you"
 - `{embassy_ledger}`: French Embassy characters only — "Embassy treasury: {n} Florins. Pensions held: {ledger}. Latest: {most_recent_change}." Empty for everyone else
-- `{plot_status}`: empty if `plot_reward` is off or before the plot check runs; then "You have secretly earned the Plot Reward: one extra act in the Murder Round." or "You did not complete your plot point in time; you have no extra act in the Murder Round."
+- `{plot_status}`: empty if `plot_reward` is off or before the plot check runs; then "You finished your errand in time: you have one extra act at midnight. No one else knows." or "You did not finish your errand in time; you have no extra act at midnight." (v0.34; before: "the Plot Reward", "plot point", "the Murder Round")
 - `{action_feedback}`: empty unless the character's last action was rejected, e.g. "Your attempt to give 6 Florins failed: you hold only 4."
 
 ### Blocks 6–8 — Memory
@@ -937,20 +972,20 @@ Reply with only this JSON:
 {"thought": "...", "plan": "Goals: ... Threats: ... Next moves: ..."}
 ```
 
-- `{strategy_trigger}` examples: "The Medici faction meeting has just ended." / "You have just survived an attempt on your life." / "Your French pension has been revealed to others." / "The candidates have been chosen: {candidates}."
+- `{strategy_trigger}` examples: "The Medici council has just ended." (v0.34; "faction meeting" before) / "You have just survived an attempt on your life." / "Your French pension has been revealed to others." / "The candidates have been chosen: {candidates}."
 - The returned `plan` becomes block 4 for every later call. The thought goes to shortTermHistory
 - **Length (v0.5):** S9a found the limit ignored by GPT-5.4 in 16 of 20 plans (DeepSeek once, Qwen3.8 twice). The prompt now says what happens past the limit, and code enforces it (see Output Validation & Repair, Plan length)
 
-### Block 9e — Murder Round task *(rebuilt in v0.4 for the Plot Reward; act fields changed in v0.5)*
+### Block 9e — Murder Round task *(rebuilt in v0.4 for the Plot Reward; act fields changed in v0.5; in-world names in v0.34)*
 
 ```
-TASK: THE MURDER ROUND
-The night has come. Choose in secret. No one will learn what you chose; killers are never named, and those who investigated learn nothing. All acts take effect at once: a guest who dies tonight still carries out their own act.
+TASK: MIDNIGHT
+Midnight has come. Choose in secret. No one will learn what you chose; killers are never named, and those who watched learn nothing. All acts take effect at once: a guest who dies tonight still carries out their own act.
 
 What each act does:
-- KILL: your target dies, unless two or more guests guard them, or unless two or more guests investigate you, which stops your kill.
-- GUARD: you help protect your target. One guard alone saves no one; it takes two or more.
-- INVESTIGATE: you help stop your target's kill. One investigator alone stops nothing; it takes two or more.
+- kill: your target dies, unless two or more guests guard them, or unless two or more guests watch you, which stops your kill.
+- guard: you help protect your target. One guard alone saves no one; it takes two or more.
+- watch: you help stop your target's kill. One watcher alone stops nothing; it takes two or more.
 Remember any arrangements you made tonight, and whether others are likely to keep theirs.
 
 You may choose:
@@ -971,16 +1006,16 @@ Generated by code:
 
 | Placeholder | Everyone except Lupo | Lupo |
 |---|---|---|
-| `{allowed_murder_acts}` | `KILL, GUARD, or INVESTIGATE any living guest. You cannot GUARD yourself.` | `KILL up to two living guests. Your kills cannot be stopped by guards or investigations. You may not GUARD or INVESTIGATE with them.` |
+| `{allowed_murder_acts}` | `kill, guard, or watch any living guest. You cannot guard yourself.` | `kill up to two living guests. Your kills cannot be stopped by guards or watchers. You may not guard or watch with them.` |
 | `{acts_instruction}` | `2. act — your one act: a single choice, not a list.` | `2. kills — the one or two guests you will kill.` |
-| Base schema | `{"thought": "...", "act": {"type": "kill" or "guard" or "investigate", "target": "..."}}` | `{"thought": "...", "kills": ["...", "..."]}` (one or two names) |
+| Base schema | `{"thought": "...", "act": {"type": "kill" or "guard" or "watch", "target": "..."}}` | `{"thought": "...", "kills": ["...", "..."]}` (one or two names) |
 
 **Why the change (v0.5):** with v0.4's plural `acts` list, DeepSeek took two acts in 4 of its S10 answers where one was allowed. A single `act` object leaves no room for a second, and Lupo's kills become a plain list, since they are all the same kind.
 
-With the **Plot Reward earned** (`plot_reward` on and the plot check passed):
-- `{reward_instruction}`: everyone except Lupo: `Because you completed your plot point, you have one extra act: KILL, GUARD, or INVESTIGATE. It follows the usual rules, and you cannot GUARD yourself.` Lupo: `Because you completed your plot point, you have one extra act: KILL, GUARD, or INVESTIGATE. Unlike your own kills, it follows the usual rules: a kill made with it can be stopped by guards and investigations. You cannot GUARD yourself.`
+With the **Plot Reward earned** (`plot_reward` on and the plot check passed; the errand, to the character):
+- `{reward_instruction}`: everyone except Lupo: `Because you finished your errand, you have one extra act: kill, guard, or watch. It follows the usual rules, and you cannot guard yourself.` Lupo: `Because you finished your errand, you have one extra act: kill, guard, or watch. Unlike your own kills, it follows the usual rules: a kill made with it can be stopped by guards and watchers. You cannot guard yourself.`
 - `{extra_instruction}`: `3. extra — your extra act, or null if you choose not to use it.`
-- The schema gains `"extra": {"type": "kill" or "guard" or "investigate", "target": "..."} or null`
+- The schema gains `"extra": {"type": "kill" or "guard" or "watch", "target": "..."} or null`
 
 Without it, `{reward_instruction}` and `{extra_instruction}` are empty and there's no `extra` field.
 
@@ -1509,18 +1544,18 @@ Returners enter at the end of the current cycle like any joiner, and Il Notaio n
 
 **Why these checks:** the gate 8 failures that matter most are a wrong speaker and an invented fact. The v0.5 design took the speaker from the first cited line, which went wrong when the model cited a request ("Swear it") as a promise: the asker became the promiser. v0.6 makes each entry rest on one line and has the model state who spoke it, so a mismatch shows up as a disagreement code can catch. The quote check still catches invented quotes. The verb check catches a label that disagrees with the model's own summary ("Lupo demanded…" under `promise`). Summaries that overreach their quote are still possible; Models & Research's judge measures them.
 
-**Rendering in block 6** (one line each, oldest first within the selection). In the default mode, a reading is short *(v0.9)*: the turn, the conversation type, the speaker, a trimmed quote, and how the character took it. Measured at ~40 tokens each (v0.9 test), so block 6 gets ~450 tokens, about 10–12 lines (v0.10):
+**Rendering in block 6** (one line each, oldest first within the selection). In the default mode, a reading is short *(v0.9)*: when it was said (an in-world time label since v0.34, "2nd round, early", in place of "T4"), the conversation type, the speaker, a trimmed quote, and how the character took it. Measured at ~40 tokens each (v0.9 test), so block 6 gets ~450 tokens, about 10–12 lines (v0.10):
 
 ```
-T4 · Colloquio · ★ Lupo: "Three florins, and you never knew my name." (you took it as a deal)
-T4 · Colloquio · ★ You gave Lupo 3 Florins.
-T5 · Colloquio · ★ Contessa Isabella: "…three Florins for your discretion…" (you took it as a deal)
-T5 · Il Notaio: "Signor Raffaello de' Medici was once again seen drawing another aside — this time Captain LeNoir…"
-T5 · Capannello · Francesco Pazzi: "The Captain walks the Embassy gardens most nights." (you took it as a claim)
-T5 · Capannello · Captain Armand LeNoir: "…a coward behind a French sword…" (you took it as an insult)
-T6 · Capannello · Captain Armand LeNoir: "…where were you when the boar seal went missing?" (you took it as pressure)
-T6 · Colloquio with Francesco Pazzi · ★ you: "My lips are sealed, as ever." (you meant it as a promise)
-T6 · your belief (conclusion): Contessa Isabella ordered the killing of Lucien.
+1st round, late · Colloquio · ★ Lupo: "Three florins, and you never knew my name." (you took it as a deal)
+1st round, late · Colloquio · ★ You gave Lupo 3 Florins.
+2nd round, early · Colloquio · ★ Contessa Isabella: "…three Florins for your discretion…" (you took it as a deal)
+2nd round, early · Il Notaio: "Signor Raffaello de' Medici was once again seen drawing another aside — this time Captain LeNoir…"
+2nd round, early · Capannello · Francesco Pazzi: "The Captain walks the Embassy gardens most nights." (you took it as a claim)
+2nd round, early · Capannello · Captain Armand LeNoir: "…a coward behind a French sword…" (you took it as an insult)
+2nd round, midway · Capannello · Captain Armand LeNoir: "…where were you when the boar seal went missing?" (you took it as pressure)
+2nd round, midway · Colloquio with Francesco Pazzi · ★ you: "My lips are sealed, as ever." (you meant it as a promise)
+2nd round, midway · your belief (conclusion): Contessa Isabella ordered the killing of Lucien.
 ```
 
 - **Quote** *(v0.11)*: the character's own `words` (block 9a step 3), with "…" before them if they don't start the line and after them if they don't end it. **Fallback:** the whole line if it's 15 words or fewer, otherwise its first 15 words and "…". Words are counted on spaces, and a standalone dash isn't one. The full line stays in the record. *Why:* in the v0.10 re-check, the first-15-words trim cut the part the label rests on in 11 of 20 own-line readings, and a 20- or 25-word cap recovered only 1 or 3 of 14 such cases Trailing sentence punctuation (. , ; : ! ?) is dropped from the words when an "…" follows (v0.15)
@@ -1528,7 +1563,7 @@ T6 · your belief (conclusion): Contessa Isabella ordered the killing of Lucien.
 - **Conversation label:** a Colloquio with someone else speaking needs no name, since the speaker is the other guest. A Colloquio line of the character's own names the other guest. A Capannello shows only the type, to save tokens; who else heard is in the record, not the line
 - **No reaction text:** v0.8's quoted reaction made readings ~79 tokens. The character's recent thoughts are already in block 7
 
-In `notebook: shared`, ★ and claims entries render as in v0.7: `T4 · Colloquio with Lupo · ★ deal: {summary} ("{quote}")`.
+In `notebook: shared`, ★ and claims entries render as in v0.7, with the v0.34 time label: `1st round, late · Colloquio with Lupo · ★ deal: {summary} ("{quote}")`.
 
 **Retrieval** (once per character per utterance, about 450 tokens since v0.10, roughly 10–12 lines). "Entries" here means the character's notebook: readings and code entries by default, or ★ and claims entries in `shared` mode:
 1. ★ entries naming anyone present (as speaker, `toward`, or `about`), most recent first, up to 6
@@ -2118,6 +2153,7 @@ It reads all 86 saved mini-game records, degrading gracefully where older ones l
 - **Does a caller know they may lose their seat?** (v0.23) Block 9c doesn't say that the invitee chooses first, or that a full or dissolved Capannello sends the caller elsewhere. Left out so 9c stays as tested; add a line if the full games show callers surprised by where they land
 - ~~**Movement edge cases**~~ Settled: joining or calling someone in a Colloquio follows Seating, Edge cases (Mechanics v0.25)
 - **Seating in the full games** (v0.26): the first live check (CC-20261028-08) exercised only the invitee's wait form, since six guests filled one group of 4. Watch the join choice, the lone-guest form, and chain lengths with 12 guests, where groups with room should be common. No more mini-game spend on this
+- **The in-world names check** (v0.34; Models & Research's to run): one mini-game on TD v0.34 with the matching briefings. Does any game term still appear in thoughts or speech ("Murder Round", "plot point", "faction meeting", "T3"), do midnight acts parse with `watch`, and does the label mix stay within the register check's guardrails?
 - Is 0.7 the right play temperature on the chosen model? (Revisit after probes)
 - ~~**Run-off announcement**~~ Settled: no vote count is ever announced, the final result included (Mechanics v0.24)
 - **The register check** (v0.27; rule set in advance by Models & Research v0.45, Open Questions): 2 DeepSeek mini-games, seeds 2000–2001, against the v0.19 baseline on the same seeds (CC-20261026-05).
