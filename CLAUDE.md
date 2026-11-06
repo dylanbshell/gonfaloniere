@@ -9,9 +9,16 @@ Work arrives as tasks from Dylan, often relayed from Technical Design (TD). The 
 - The report starts with the title line `CC-YYYYMMDD-NN: <descriptive title>`. Put the same ID in every commit message for the task and in the PR comment.
 - Each report states: commits, tests passing, spend and the ledger total (for any step that made model calls), and anything that differed from what was expected.
 
+## Branches and PRs
+
+- Start every task on a new short-lived branch off an up-to-date main. Never branch off another feature branch, and never stack PRs.
+- Open one PR per task, titled with its report ID, and merge it into main with a merge commit (never squash) once `npm test` and `npm run typecheck` pass. Delete the branch after merging.
+- If a task is too big for one PR, split it into tasks that each merge on their own.
+- If a PR's work is replaced before merging, close it with a comment saying what replaced it, rather than leaving it open.
+
 ## Docs and prompts
 
-- `docs/` is read-only for Claude Code. Doc changes arrive as PRs on `docs/*` branches. Leave those PRs alone; when a task says so, merge the branch into the working branch.
+- `docs/` is read-only for Claude Code. The project chats merge their own doc PRs into main (one doc per PR, from a `docs/<doc>-vX.Y` branch, merge commit). Don't merge, edit, or close a doc PR unless the task says to; start each task from an up-to-date main, which already has the latest docs.
 - Prompts are loaded from the TD doc by `src/sources/docs.ts`. Prompt text is never copied into code.
 - `docs/` holds only the current version of each doc. `technicalDesignPath(v)` and `loadDocs` read older versions from git history, so a run pinned to an old version still works.
 - The TD version comes from `PROBE_TD` (default in `probe.config.ts`, `config.docs.technicalDesign`). To change it, edit the default there, and add a test in `test/store.test.ts` that plays the fake game on the old and new versions and checks that every prompt differs only as the new version's changelog says.
