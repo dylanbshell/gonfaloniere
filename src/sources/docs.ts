@@ -87,10 +87,13 @@ const BRIEFING_HEADINGS: Partial<Record<CharacterName, string>> = {
  * The commit that removed or renamed a doc from docs/, or null. docs/ holds only current
  * versions (TD v0.4 and v0.5 left with TD v0.6, Characters v0.3 with v0.4); a run pinned to an
  * older version reads it from git history, as it was just before its removal.
+ * --full-history: without it, git log follows only a merge's first parent when the doc is absent
+ * on both sides, so versions that came and went on a merged branch were lost (CC-20261106-01).
+ * A removal made inside a merge commit isn't found; remove old versions in ordinary commits.
  */
 function removedIn(path: string): string | null {
   try {
-    const out = execFileSync("git", ["log", "-1", "--format=%H", "--diff-filter=DR", "--", path], { stdio: ["ignore", "pipe", "ignore"] });
+    const out = execFileSync("git", ["log", "-1", "--full-history", "--format=%H", "--diff-filter=DR", "--", path], { stdio: ["ignore", "pipe", "ignore"] });
     return out.toString().trim() || null;
   } catch {
     return null;
