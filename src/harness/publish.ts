@@ -1,7 +1,7 @@
 // Builds results/published/: the curated, committed slice of the probe logs
 // (everything else in results/ stays gitignored). Rerun after new probes:
 //
-//   PROBE_TD=0.4 PROBE_CHARACTERS=0.3 npm run publish:results
+//   npm run publish:results
 //
 // Writes: probe-runs.md/.csv (every judged dialogue run set: model, scenario,
 // held/leaked, rubric version, doc versions), judge-rubric.md (the current

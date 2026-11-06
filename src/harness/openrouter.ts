@@ -23,9 +23,10 @@ export function apiKey(): string {
   return key;
 }
 
-export function makeClient(key: string): OpenAI {
+/** OpenRouter by default; `baseURL` for another OpenAI-compatible endpoint (e.g. RECORDER_MODEL_BASE_URL). */
+export function makeClient(key: string, baseURL = BASE_URL): OpenAI {
   return new OpenAI({
-    baseURL: BASE_URL,
+    baseURL,
     apiKey: key,
     // Retries are handled in callModel, with longer backoff for provider rate limits.
     maxRetries: 0,
@@ -130,6 +131,13 @@ export interface Usage {
   cacheWriteTokens?: number;
 }
 
+/** One output token's log probability and its top alternatives, as the provider returned them. */
+export interface TokenLogprob {
+  token: string;
+  logprob: number;
+  top: { token: string; logprob: number }[];
+}
+
 export type CallResult =
   | {
       ok: true;
@@ -138,26 +146,56 @@ export type CallResult =
       reasoning: string | null;
       usage: Usage;
       provider: string | null;
+      /** The model OpenRouter reports serving the call. */
+      model: string | null;
       generationId: string;
       finishReason: string | null;
       latencyMs: number;
+      /** Per-token log probabilities, when they were requested and the provider returned them (TD v0.21). */
+      logprobs?: TokenLogprob[] | null;
     }
   | { ok: false; error: string; status: number | null; latencyMs: number };
 
 const MAX_ATTEMPTS = 6;
 
+export interface RetryPolicy {
+  /** Total tries, the first included. */
+  maxAttempts: number;
+  /** Which failures to retry, by HTTP status (null: timeout or dropped connection). */
+  retryable: (status: number | null) => boolean;
+  /** Called before each backoff, so the caller can log the retry. */
+  onRetry?: (info: { attempt: number; status: number | null; error: string; backoffMs: number }) => void;
+}
+
+const DEFAULT_RETRY: RetryPolicy = {
+  maxAttempts: MAX_ATTEMPTS,
+  retryable: (status) => status === null || status === 429 || status >= 500,
+};
+
 /**
  * Calls the model, retrying rate limits (429), server errors, and dropped
  * connections with exponential backoff. Failed attempts aren't billed.
  */
-export async function callModel(client: OpenAI, req: CallRequest): Promise<CallResult> {
+export async function callModel(client: OpenAI, req: CallRequest, policy: RetryPolicy = DEFAULT_RETRY): Promise<CallResult> {
   for (let attempt = 1; ; attempt++) {
     const result = await callOnce(client, req);
-    const retryable = !result.ok && (result.status === null || result.status === 429 || result.status >= 500);
-    if (!retryable || attempt === MAX_ATTEMPTS) return result;
-    const backoffMs = 2 ** attempt * 1000 + Math.random() * 1000;
-    await new Promise((r) => setTimeout(r, Math.max(backoffMs, result.retryAfterMs ?? 0)));
+    const retryable = !result.ok && policy.retryable(result.status);
+    if (!retryable || attempt === policy.maxAttempts) return result;
+    const backoffMs = Math.max(2 ** attempt * 1000 + Math.random() * 1000, result.retryAfterMs ?? 0);
+    policy.onRetry?.({ attempt, status: result.status, error: result.error, backoffMs });
+    await new Promise((r) => setTimeout(r, backoffMs));
   }
+}
+
+/** The choice's `logprobs.content` as TokenLogprob[], or null when the provider sent none. */
+function tokenLogprobs(raw: unknown): TokenLogprob[] | null {
+  const content = (raw as { content?: { token?: string; logprob?: number; top_logprobs?: { token?: string; logprob?: number }[] }[] } | null | undefined)?.content;
+  if (!Array.isArray(content) || content.length === 0) return null;
+  return content.map((t) => ({
+    token: t.token ?? "",
+    logprob: typeof t.logprob === "number" ? t.logprob : Number.NEGATIVE_INFINITY,
+    top: (t.top_logprobs ?? []).map((a) => ({ token: a.token ?? "", logprob: typeof a.logprob === "number" ? a.logprob : Number.NEGATIVE_INFINITY })),
+  }));
 }
 
 /**
@@ -194,6 +232,7 @@ async function callTinker(client: OpenAI, req: CallRequest): Promise<CallResult 
         costUsd: null,
       },
       provider: "Tinker",
+      model: req.model.slug,
       generationId: res.id,
       finishReason: choice?.finish_reason ?? null,
       latencyMs: Math.round(performance.now() - started),
@@ -268,9 +307,11 @@ async function callOnce(
         }),
       },
       provider: (res as { provider?: string }).provider ?? null,
+      model: res.model ?? null,
       generationId: res.id,
       finishReason: choice?.finish_reason ?? null,
       latencyMs,
+      logprobs: tokenLogprobs(choice?.logprobs),
     };
   } catch (e) {
     const latencyMs = Math.round(performance.now() - started);

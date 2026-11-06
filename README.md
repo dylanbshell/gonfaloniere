@@ -30,12 +30,11 @@ npm install
 cp .env.example .env          # fill in your keys; .env is gitignored
 set -a; . ./.env; set +a      # load the keys into the shell
 
-export PROBE_TD=0.4 PROBE_CHARACTERS=0.4
 npm run probe -- --dry-run s5d --model qwen3.8-27b        # print the prompts, no calls
-npm run probe -- s5d --model deepseek-v4.1-flash --td 0.4 # 10 scripted interrogations
+npm run probe -- s5d --model deepseek-v4.1-flash          # 10 scripted interrogations
 npm run judge -- s5d --model deepseek-v4.1-flash --passes adaptive
 npm run score                                             # gate report
-npm run strategy -- --model deepseek-v4.1-flash --lines   # S8–S10
+npm run strategy -- --model deepseek-v4.1-flash           # S8–S10
 npm run publish:results                                   # rebuild results/published/
 ```
 

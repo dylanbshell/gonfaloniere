@@ -14,6 +14,7 @@
 // --runs (only these runs; prints per-turn labels against Sonnet's passes),
 // --report (no calls: summarize what's logged).
 
+import { audited } from "./keyaudit.ts";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
@@ -227,4 +228,4 @@ async function main(): Promise<void> {
   report([...latest.values()]);
 }
 
-main();
+audited(main, RESULTS_DIR, "judge-compare");

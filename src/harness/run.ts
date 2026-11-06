@@ -9,11 +9,13 @@
 // s7-buried, s7-control (default: all, in that order); "s7" means all three.
 // Options: --model <id>, --samples <n> (single-moment scenarios, per mode),
 //          --runs <n> (dialogue scenarios), --modes raw,constrained,
-//          --td <version> (which Technical Design's prompts; default 0.8, or
+//          --td <version> (which Technical Design's prompts; default 0.9, or
 //          PROBE_TD; older versions are in git history), --extend (dialogue runs append to the model's
 //          latest run of each target, so they pool with it),
 //          --concurrency <n> (parallel calls; default from config, lower it for rate-limited endpoints)
 
+import { RESULTS_DIR } from "./log.ts";
+import { audited } from "./keyaudit.ts";
 import { parseArgs } from "node:util";
 import { config, technicalDesignPath, type ModelConfig } from "../../probe.config.ts";
 import { allowedActionTypes, allowedActionsText } from "../game/actions.ts";
@@ -73,7 +75,7 @@ const { values: opts, positionals } = parseArgs({
   allowPositionals: true,
   options: {
     "dry-run": { type: "boolean", default: false },
-    td: { type: "string", default: process.env.PROBE_TD ?? "0.8" },
+    td: { type: "string", default: process.env.PROBE_TD ?? "0.9" },
     extend: { type: "boolean", default: false },
     concurrency: { type: "string" },
     model: { type: "string" },
@@ -554,7 +556,7 @@ function versionsLine(docs: DocSources): string {
   return `TD v${v.technicalDesign}, Characters v${v.characters}, Mechanics v${v.mechanics}, Models & Research v${v.modelsResearch}`;
 }
 
-main().catch((e: Error) => {
+audited(main, RESULTS_DIR, "probe").catch((e: Error) => {
   console.error(e.message);
   process.exitCode = 1;
 });

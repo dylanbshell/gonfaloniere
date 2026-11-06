@@ -21,6 +21,8 @@
 // --target-pairs <n> (stop starting rollouts once the data holds this many
 // pairs, counting earlier runs since the scripts were revised).
 
+import { RESULTS_DIR } from "../harness/log.ts";
+import { audited } from "../harness/keyaudit.ts";
 import { parseArgs } from "node:util";
 import { config, technicalDesignPath, type ModelConfig } from "../../probe.config.ts";
 import { TRAINING_SCRIPTS } from "../../scenarios/pilot-interrogations.ts";
@@ -116,7 +118,7 @@ type Caller = (
 
 async function main(): Promise<void> {
   // The pilot's prompt format: TD v0.3 or later (PROBE_TD), with PROBE_CHARACTERS' briefings.
-  const td = process.env.PROBE_TD ?? "0.8";
+  const td = process.env.PROBE_TD ?? "0.9";
   const docs = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath(td) });
   const rubricVersion = currentRubricVersion(docs.versions.modelsResearch);
   const hash = rubricHash(docs.judgeRubric);
@@ -384,7 +386,7 @@ async function main(): Promise<void> {
   console.log(`Data generation spent $${budget.spentUsd.toFixed(4)}; pairs in the data: ${pairCount}. Log: ${log.path}`);
 }
 
-main().catch((e: Error) => {
+audited(main, RESULTS_DIR, "pilot-data").catch((e: Error) => {
   console.error(e.message);
   process.exitCode = 1;
 });
