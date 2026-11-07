@@ -16,6 +16,16 @@ Work arrives as tasks from Dylan, often relayed from Technical Design (TD). The 
 - If a task is too big for one PR, split it into tasks that each merge on their own.
 - If a PR's work is replaced before merging, close it with a comment saying what replaced it, rather than leaving it open.
 
+## Task queue
+
+- Work arrives as open GitHub issues labelled `cc-task`. When Dylan says "run the queue", list them oldest first with `gh issue list --label cc-task --state open`, and print one line per issue: number, summary, and **ready** or **blocked** (with the unmet need). Then wait for Dylan to say which to run.
+- An issue is ready when every issue under **Needs** is closed, and every doc version or PR it names is on an up-to-date main. Check again right before starting each task, since an earlier task can change things.
+- Run tasks one at a time, each on a fresh branch off an up-to-date main. The PR body says "Closes #N", so merging closes the issue. Use the usual report ID, and put the issue number in the report title.
+- If a task fails or its needs aren't met, stop. Comment on the issue with what happened, and don't run anything that needs it.
+- After merging, post a short comment on the issue: what changed, the PR, and tests passing. **The repo is public:** leave spend, ledger totals, and balances out of issue comments. Those go only in the report to Dylan.
+- Never write budgets, balances, credits, grant status, personal details, keys, or endpoints in an issue or comment.
+- When listing, mark a blocked issue as **stale** if 10 or more `cc-task` issues filed after it have since closed. That means the project kept moving while it sat blocked, so Dylan can unblock it or close it.
+
 ## Docs and prompts
 
 - `docs/` is read-only for Claude Code. The project chats merge their own doc PRs into main (one doc per PR, from a `docs/<doc>-vX.Y` branch, merge commit). Don't merge, edit, or close a doc PR unless the task says to; start each task from an up-to-date main, which already has the latest docs.
