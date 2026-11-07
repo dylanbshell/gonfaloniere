@@ -1,8 +1,16 @@
 # Gonfaloniere
 ## Models & Research — Working Document
-### Version 0.48
+### Version 0.49
 
 ---
+
+## Changes in v0.49
+
+- **Embedding replay check: embeddings stay the default** (CC-20261107-03; Findings Log, Nov 7). Embeddings won 22 of 41 agreeing verdicts (53.7%), above the 40% that would have sent memory back to word overlap, and the wrong-person flag didn't trigger. **The first full games use `retrieval: embeddings`** with Qwen3-Embedding-8B, pinned to Nebius at full precision. Result sent to Technical Design
+- **Honestly, it's close to a tie:** 39 of 80 pairs split by position, and 22 against 19 isn't a preference. What decided it was the rule set in advance (embeddings unless clearly worse), which is why it was set that way
+- **The wrong-person measure was flawed:** Il Notaio's memory entries carry no speaker or "about" names, so both methods were charged with every one of them. Reading the entries' text for names, the two are close (13.5% overlap, 14.8% embeddings). Since the planned name-ranking fix uses the same fields, Technical Design should have code fill them
+- **Two lessons for future checks:** the judge picked whichever selection came second in 111 of 160 calls, so asking in both orders was essential; and memory has about 9 fill slots per call, so the retrieval method shapes most of what a character recalls
+- **Claude-credit ledger started:** $0.72 of the $100 credit used
 
 ## Changes in v0.48
 
@@ -375,7 +383,7 @@ Until step 3, every game is stock play. The Neutral re-measure on Tinker, the Ti
 - **Fine-tuned play** runs either self-hosted (mid-size models) or through Tinker's per-token serving (large models). See **Fine-Tuning Paths**
 - **Balancing batches** (Nov 3–4): DeepSeek V4.1 Flash, stock, through OpenRouter pinned to DeepInfra fp8, fallbacks off, for every batch. A provider or quantization change can shift play, so it stays fixed for all of balancing
 - **Research batches run every variant on one serving stack** (Oct 27; dead last since Nov 3–4): on DeepSeek that's Tinker, Neutral included, so a provider difference can't pass for a personality difference. Tinker's sampler returns top-k log probabilities (`topk_sample_logprobs`), which TD v0.21's label-probability record uses. Development games stay on the pinned OpenRouter provider (DeepInfra fp8), which returns none; providers that do (DeepSeek's own endpoint, Novita, Parasail, Nebius; CC-20261027-06) aren't worth a switch, since it would change play mid-development
-- **Embedding model** (Oct 28): **Qwen3-Embedding-8B** through OpenRouter (`qwen/qwen3-embedding-8b`), one provider pinned and recorded, full 4,096 dimensions, no query instruction (an instruction prefix is model-specific, and the run setting is meant to be model-neutral). Same embedding stack for every game in a research batch, whichever stack serves the characters. Open weights, so it can be served locally if needed; Qwen3-Embedding-0.6B (1,024 dimensions, runs on a laptop CPU) is the fallback for self-hosting. `retrieval: embeddings` is the default for the first full games unless the replay check in Open Questions reverses it
+- **Embedding model** (Oct 28; confirmed Nov 7): **Qwen3-Embedding-8B** through OpenRouter (`qwen/qwen3-embedding-8b`), pinned to **Nebius** (full precision, no fallbacks; CC-20261107-03), full 4,096 dimensions, no query instruction (an instruction prefix is model-specific, and the run setting is meant to be model-neutral). Same embedding stack for every game in a research batch, whichever stack serves the characters. Open weights, so it can be served locally if needed; Qwen3-Embedding-0.6B (1,024 dimensions, runs on a laptop CPU) is the fallback for self-hosting. `retrieval: embeddings` is the default for the first full games and after: the replay check kept it (Findings Log, Nov 7)
 - **Turn thinking off** on hybrid models. Thinking multiplies output tokens and cost
 - **Idle pods are the biggest hidden cost.** Stop pods between sessions; keep weights on a network volume (~$0.05–0.07/GB/month)
 
@@ -993,12 +1001,13 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
   - **Fit bars:** at least 60 hand-read readings per kind (own, others'); pass ≥48 (80%), fail ≤42 (70%), read more in between. Own readings are judged against the line as said; departures from the speaker's earlier plan are counted separately
   - **Label mix:** reported against the v0.27 baseline (Findings Log, Oct 28–29), with no targets. The 12-character cast, Characters v0.9's briefings, and TD v0.34's in-world names will all shift it; the shift is a finding. Watch `took: threat` in particular (2.2% on v0.27)
   - **Own readings** (added Nov 7): `meant: none` was 32.8% of spoken lines in the names check against 16.7% on v0.27. Count own ★ readings per character and check whether characters forget their own promises (perceived notebook watch item)
+  - **Wrong-person recall under embeddings** (added Nov 7): once Il Notaio's entries carry names, re-count block 6 fill items about no one present or mentioned. The replay check could only measure it by reading entry text (13.5% overlap, 14.8% embeddings)
   - **Rate limits:** retries per game (29 across the names check's two games, 0 before), and whether full games' larger bursts slow turns
   - **Talking in circles** (parked here, Nov 6, from Characters v0.9's Open Questions): do errand-first briefings, voice lines, and the full cast cut it? Read alongside the fit bars, with no separate check. Dylan's read decides; if the games still circle, the levers are in Technical Design's Open Questions ("Talking in circles")
   - **The claim-line echo** (parked, Nov 6): count thoughts restating "my story stays straight" or "I have told no untruth". If they're still common with the new briefings, test a reworded 9a claim line in a 2-game check against S5d, since it's one of the three tested secret-keeping lines
   - Then (d)–(i) (Perceived Notebook Tests). No more spend on gate 8
 - [x] **Harness: the "already known" leak pass** (Mini-Game Spec, Secrets kept): built and run on the saved games (CC-20261026-03), cumulative as defined in v0.38
-- [ ] **Do the first full games switch to embeddings?** Yes by default (v0.43); a replay check before them can reverse it (Oct 28). Replay every block 6 fill from the saved **v0.27 games** (seeds 2000–2001; v0.19's until v0.47) under both methods, overlap as run and Qwen3-Embedding-8B, with the same order, caps, and budget. Measures:
+- [x] **Do the first full games switch to embeddings? Yes** (Nov 7, CC-20261107-03; Findings Log): the replay check kept embeddings under the preset rule. Original item: **Do the first full games switch to embeddings?** Yes by default (v0.43); a replay check before them can reverse it (Oct 28). Replay every block 6 fill from the saved **v0.27 games** (seeds 2000–2001; v0.19's until v0.47) under both methods, overlap as run and Qwen3-Embedding-8B, with the same order, caps, and budget. Measures:
   - **Identical-fill rate:** how often both methods pick the same items. This shows how much the choice matters at all
   - **Blind preference:** a sample of 80 fills that differ, judged by Sonnet 5.5 (on Dylan's Claude credit since v0.47) twice with the order swapped, shown the character, who is present, the last two History lines, and the two fills (A/B), never the character's actual next line (it was written under overlap). A verdict counts only if both orders agree; otherwise it's a tie
   - **Wrong-person items:** fill items about no one present and no one named in, or speaking, the query lines, as a share of fill items for each method
@@ -1033,6 +1042,43 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 ## Findings Log
 
 *Record each test result here: date, model, provider and quantization, prompt and briefing versions, gate tested, result, and what it changes. Tooling and price checks go in Tooling Status, not here.*
+
+### 2026-11-07 — Embedding replay check (CC-20261107-03)
+
+**Setup:** the v0.27 games (2026-10-29T03-25-05-553Z g1 and g2, seeds 2000–2001), every block 6 call (880, midnight included) rebuilt twice: word overlap as it ran, and Qwen3-Embedding-8B similarity with the same order, caps, limit, and budget. Embeddings through OpenRouter pinned to **Nebius** (the one provider stating full precision; every response came from it), 4,096 dimensions, no prefix. Judge: Claude Sonnet 5.5 on Dylan's Claude credit, thinking off (`between_tools`, since "disabled" is rejected), temperature omitted. Built as `npm run minigame:embed-replay` (PR #44, merged). **Spend:** embeddings $0.0003 (mini-game ledger $33.57 of $45); judge $0.72 (Claude-credit ledger, new).
+
+**Replay fidelity:** the first attempt mismatched 62% of calls because replies were replayed in send order, not arrival order. After the fix, all 1,105 recorded prompts reproduced byte for byte and 0 of 880 block 6 selections differed (gate 2%). Determinism: the same 20 lines embedded twice differed by at most 8.3 × 10⁻⁵ in cosine.
+
+**Measures:**
+
+| | Overlap | Embeddings |
+|---|---|---|
+| Wrong-person share of fill items (the rule's measure) | 45.4% | 35.9% |
+| Same, reading Il Notaio entries' text for names (context only) | 13.5% | 14.8% |
+
+- **Identical fill:** 26.5% of calls (my Oct 28 estimate was 10–30%)
+- **Fill slots:** 8.9 on average after the ★ and belief steps; 0.23% of calls have none. So the retrieval method decides most of block 6
+
+**Blind judge** (80 pairs, sample fixed before judging, each asked in both orders):
+
+| Order | Picked embeddings | Picked overlap | Tie |
+|---|---|---|---|
+| A = overlap, B = embeddings | 57 | 23 | 0 |
+| A = embeddings, B = overlap | 26 | 54 | 0 |
+
+- **Agreeing verdicts:** 41: embeddings 22, overlap 19 (53.7%). The other 39 changed with the order
+- **Position bias:** the judge picked the second selection in 111 of 160 calls. Asking in both orders cancels it, at the cost of turning half the pairs into ties
+
+**Result: embeddings stay the default** under the rule set in v0.43 (overlap only if embeddings win 40% or less; the wrong-person flag needed embeddings at least 10 points above overlap, and they were 9.5 below).
+
+**What it shows:**
+- **No clear preference either way.** The judge can't reliably tell the two memory selections apart, which fits a fill that's identical about a quarter of the time and overlapping the rest. Embeddings win on design grounds (paraphrase recall, and lore needs them), not on this evidence
+- **The wrong-person measure was flawed:** Il Notaio's entries are written by code with empty speaker and "about" fields, even when they name people, so the rule's measure charged both methods with all of them. On their text, the two are close. Technical Design's planned name-ranking fix uses those fields, so code should fill them
+- **For future pairwise judging:** expect strong position bias, and always ask in both orders
+
+**What it changes:** `retrieval: embeddings` for the first full games and after, with Qwen3-Embedding-8B pinned to Nebius (Hosting plan). Sent to Technical Design with the Il Notaio fields.
+
+---
 
 ### 2026-11-07 — In-world names check (CC-20261107-01)
 
