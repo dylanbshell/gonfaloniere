@@ -6,7 +6,7 @@
 
 import type { CharacterName } from "../game/roster.ts";
 import { tdMinor } from "../prompt/assemble.ts";
-import { minglingTime, usesInWorldNames } from "../prompt/names.ts";
+import { atLeast, inWorldNames, minglingTime, usesInWorldNames } from "../prompt/names.ts";
 import type { LoreEntry } from "./lore.ts";
 import { gameTime, renderBelief, renderCodeEntryFor, renderEntry, renderReading, type Belief, type GameLine, type MemoryEntry, type Reading, type TimeLabel } from "./memory.ts";
 
@@ -43,13 +43,19 @@ function bulletsUnder(prompt: string, heading: string): string[] | null {
   return out;
 }
 
+/** The time label a record's block 6 lines open with: from TD v0.34, the in-world one, which needs the Characters version and the turn count. */
+function timeLabelOf(header: IsolationRecord["header"]): TimeLabel {
+  const { docs, config } = header;
+  if (!atLeast(docs.technicalDesign, inWorldNames().since.technicalDesign)) return gameTime;
+  if (!docs.characters || !config?.turns) throw new Error(`A TD v${docs.technicalDesign} record needs docs.characters and config.turns to place block 6's time labels`);
+  return usesInWorldNames({ technicalDesign: docs.technicalDesign, characters: docs.characters }) ? (t) => minglingTime(t, config.turns!) : gameTime;
+}
+
 export function isolationCheck(rec: IsolationRecord): { calls: number; memoryLines: number; loreLines: number; violations: IsolationViolation[] } {
   const lines = new Map(rec.lines.map((l) => [l.id, l]));
   const dropPunct = tdMinor(rec.header.docs.technicalDesign) >= 15;
   const shared = (rec.header.notebook ?? "perceived") === "shared";
-  const { docs, config } = rec.header;
-  const when: TimeLabel =
-    docs.characters && usesInWorldNames({ technicalDesign: docs.technicalDesign, characters: docs.characters }) ? (t) => minglingTime(t, config?.turns ?? 1) : gameTime;
+  const when = timeLabelOf(rec.header);
   // Every render a row can have in a prompt, with whose row it is. A belief's kind can change after it
   // was shown ("firmer"), so both kinds' renders count as the owner's.
   const owners = new Map<string, Set<string>>();
