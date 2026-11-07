@@ -672,7 +672,7 @@ export class MemoryStore {
    * similarity. Only those rows are candidates, and their similarity replaces word overlap; the order,
    * caps, and budget are unchanged.
    */
-  retrieveNotebook(c: CharacterName, present: CharacterName[], recentLines: string[], opts: { murder?: boolean; limit?: number; budget?: number; ranked?: Ranked[] } = {}): string[] {
+  retrieveNotebook(c: CharacterName, present: CharacterName[], recentLines: string[], opts: { murder?: boolean; limit?: number; budget?: number; ranked?: Ranked[]; trace?: NotebookTrace } = {}): string[] {
     const limit = opts.limit ?? 12;
     // TD v0.10: block 6 gets ~450 tokens (chars ÷ 3.5), about 10–12 lines; an item that would pass it is skipped.
     const budget = opts.budget ?? 450;
@@ -690,7 +690,8 @@ export class MemoryStore {
     const text = (x: Item) => (x.kind === "reading" ? this.lineIndex.get(x.r.line)!.text : x.kind === "entry" ? x.e.summary : x.b.statement);
     const render = (x: Item) => (x.kind === "reading" ? renderReading(x.r, this.lineIndex.get(x.r.line)!, x.r.words_line ? this.lineIndex.get(x.r.words_line) : undefined, this.quoteDropsPunct, this.timeLabel) : x.kind === "entry" ? renderCodeEntryFor(x.e, c, this.timeLabel) : renderBelief(x.b, this.timeLabel));
     const picked: Item[] = [];
-    const take = (xs: Item[], n: number, accept: (x: Item) => boolean = () => true) => {
+    const step = new Map<Item, NotebookStep>();
+    const take = (xs: Item[], n: number, accept: (x: Item) => boolean = () => true, as: NotebookStep = "fill") => {
       for (const x of xs) {
         if (n <= 0) break;
         const cost = Math.ceil(render(x).length / 3.5);
@@ -698,15 +699,17 @@ export class MemoryStore {
         if (picked.length >= limit) break;
         if (!picked.includes(x) && used + cost <= budget && accept(x)) {
           picked.push(x);
+          step.set(x, as);
           used += cost;
           n--;
         }
       }
     };
     const recent = [...readings, ...code].sort((a, b) => turnOfItem(b) - turnOfItem(a));
-    if (opts.murder) take(recent.filter((x) => x.kind === "reading" && ["threat", "deal", "promise"].includes(x.r.took)), 6);
-    take(recent.filter((x) => salient(x) && names(x).some((n) => present.includes(n as CharacterName))), 6);
-    take(beliefs.filter((x) => x.kind === "belief" && present.some((p) => x.b.statement.includes(p))), 3);
+    if (opts.murder) take(recent.filter((x) => x.kind === "reading" && ["threat", "deal", "promise"].includes(x.r.took)), 6, undefined, "midnight");
+    take(recent.filter((x) => salient(x) && names(x).some((n) => present.includes(n as CharacterName))), 6, undefined, "star");
+    take(beliefs.filter((x) => x.kind === "belief" && present.some((p) => x.b.statement.includes(p))), 3, undefined, "belief");
+    if (opts.trace) opts.trace.fillSlots = limit - picked.length;
     const query = words(recentLines.join(" "));
     const scored = [...recent, ...beliefs].filter((x) => !picked.includes(x)).map((x) => ({ x, s: sim ? sim.get(idOf(x))! : overlap(query, words(text(x))) })).sort((a, b) => b.s - a.s);
     // TD v0.17: at most 2 pressure readings in the fill; TD v0.19: at most 3 each of claim, denial,
@@ -722,7 +725,9 @@ export class MemoryStore {
       return true;
     };
     take(scored.map((s) => s.x), limit - picked.length, underCap);
-    return picked.sort((a, b) => turnOfItem(a) - turnOfItem(b)).map(render);
+    const sorted = picked.sort((a, b) => turnOfItem(a) - turnOfItem(b));
+    if (opts.trace) opts.trace.items = sorted.map((x) => ({ id: idOf(x), step: step.get(x)!, line: render(x) }));
+    return sorted.map(render);
   }
 
   // ---- Retrieval (TD v0.5, Memory Writing → Retrieval) --------------------------------
@@ -892,6 +897,15 @@ export function memoryCounts(
 
 const turnOf = (x: MemoryEntry | Belief) => ("summary" in x ? x.turn : x.firstTurn);
 
+/** Which step of block 6's retrieval picked an item: the midnight deals and threats, ★ about those present, beliefs about them, or the similarity fill. */
+export type NotebookStep = "midnight" | "star" | "belief" | "fill";
+/** Filled in by retrieveNotebook when asked (for replay checks; it changes nothing): each line's row and step, and the fill's slots. */
+export interface NotebookTrace {
+  items?: { id: string; step: NotebookStep; line: string }[];
+  /** Slots left for the fill after the midnight, ★, and belief steps. */
+  fillSlots?: number;
+}
+
 /** What opens a block 6 line: the time it happened. */
 export type TimeLabel = (turn: number) => string;
 /** The game's own label, `T4`: every TD before v0.34, and the record's reports. */
@@ -1041,7 +1055,7 @@ export function tookTargetLine(
 }
 
 /** Roster names (full or alias) written in a line, e.g. both parties of "Contessa Isabella gave Lupo 3 Florins." */
-function namesIn(text: string): CharacterName[] {
+export function namesIn(text: string): CharacterName[] {
   return ROSTER.map((r) => r.name).filter((n) => [n, ...ALIASES[n]].some((a) => new RegExp(`\\b${escapeRe(a)}\\b`).test(text)));
 }
 
