@@ -1,9 +1,70 @@
 # Gonfaloniere
 ## Game Mechanics — Working Document
-### Version 0.20
+### Version 0.30
 *Formerly "Plots in the Palazzo"*
 
 ---
+
+## Changes in v0.30
+
+- **The player chooses Piero or Francesco in v1** (Dylan, Nov 6): the two rival heads of house, at the centre of the political rivalry. The other ten characters are AI-only for now
+
+## Changes in v0.29
+
+- **"v1" defined for the human-player rules** (Dylan, Nov 6): v1 is the first public release. Il Notaio's full player-facing role must be in before the game is put out in the world, but isn't required for the "technically complete" milestone
+
+## Changes in v0.28
+
+- **Human-player rules ready to build** (Dylan, Nov 6; the player front end is in the "technically complete" milestone). Post-Simulation renamed **Human Player**:
+  - **Death:** a human whose character dies still wins if their win condition is met, like any AI character. After death they become a spectator: they see Il Notaio's public announcements through to the result, then can open the full replay
+  - **Pacing:** the game waits for the human, with no timer. Each turn they send one message or pass; midnight, the ballot, and their movement window also wait for them
+  - **Il Notaio's full role is in v1:** orientation notes, rules and state questions, corrections for mistimed or invalid commands, and the jailbreak rule
+  - Defaults filled in for building: commands use the in-world names (/kill, /guard, /watch), vote buying is `/buy`, the human speaks in turn in a Colloquio, and a human invitee gets the same free choice as anyone
+- **Still open:** which character the player gets in v1 (coming as a separate handoff)
+
+## Changes in v0.27
+
+- **The marriage is flavour** (Dylan, Nov 3): an engagement between Emile and Clarice or Giorgia has no mechanical effect; it drives conversation and errands only
+- **No subplot-specific rewards:** every completed plot point earns the same Plot Reward. Added to Rejected
+
+## Changes in v0.26
+
+- **Errand first, faction as fallback** (from Characters v0.9): briefings now put each character's plot point first, as their errand, and the faction's win after it. Replaces the old "baseline alignment" rule (see Character Briefings)
+- **Emile's plot point made harder:** he must also learn at least one of his suitors' secret affairs, which sets him against Giorgia's plot point (Characters' review found his too easy)
+- **Balance watch list** added to Open Questions, from Characters' reservations on the full cast; Raffaello's plot point kept as is (completed in two mini-games)
+- **Off-register speech is play:** a player's slang or anachronisms are handled in-world; the jailbreak rule covers only speech aimed at the AI rather than the character (see Jailbreak Rule)
+- **Marriage and subplot rewards** opened as a design question (Open Questions)
+
+## Changes in v0.25
+
+- **Three seating edge cases confirmed** (from Technical Design v0.23, Dylan, Oct 28; see Ending a Colloquio and Movement):
+  - A free Colloquio's caller has no Capannello to go back to, so when it ends they're placed as if theirs had dissolved
+  - A Colloquio call waiting on a busy guest opens the moment that guest's Colloquio ends, before they're seated
+  - A move toward a guest in a Colloquio waits until that guest is seated, and is cancelled if they aren't seated by the end of the next turn
+
+## Changes in v0.24
+
+- **Invitee returns first** (Dylan, Oct 28), so they can take the initiator's old seat if they want it. If that fills the initiator's old Capannello, the initiator is placed as if it were full
+
+## Changes in v0.23
+
+- **Dissolved, widened** (Dylan, Oct 28): a Capannello also counts as dissolved for a returning initiator if none of the guests who were in it when they called the Colloquio are still there, even if newcomers have joined. They're then placed as if it were full
+
+## Changes in v0.22
+
+- **Colloquio return rule rewritten** (Dylan, Oct 28). The pair no longer returns together:
+  - **Initiator:** goes back to the Capannello they came from. If it's full or has dissolved, they're placed in the Capannello with the fewest guests, then the fewest of their own faction, then at random
+  - **Invitee:** since they couldn't refuse, they choose freely: any Capannello with room, or a **free Colloquio** of their own (no movement window used)
+- **No seat, no idling:** any guest left without a seat pairs with the next guest in the same position, forming a new two-person Capannello. This replaces "wait alone" in the lone-guest rule and the v0.21 "room for both" return rule
+- **Definitions added** for Capannello and Colloquio, and for a dissolved Capannello
+- **Watch in testing:** chains of free invitee Colloquios (added to Open Questions)
+
+## Changes in v0.21
+
+- **A Capannello left with one guest** (from Models & Research's mini-game dry run, via Technical Design): the lone guest gets an immediate free move toward anyone in a Capannello with room, defaulting to the smallest open one; if none has room, they wait alone until a seat opens or the Colloquio pair returns. Replaces the mini-game's interim "nearest" rule (see Movement)
+- **Colloquio return rule tightened:** if the pair's old Capannello has dissolved or lacks room for both, they join the smallest Capannello with room for both; only if none has room do they form a new two-person Capannello
+- **Vote counts are never announced.** Il Notaio names only the winner, or the tied guests before a run-off
+- **Different targets for every Murder Round act:** all of a character's acts must name different guests, including Lupo's two standard Kills (previously only the Plot Reward action)
 
 ## Changes in v0.20
 
@@ -171,15 +232,21 @@ After each faction meeting, every character privately works out their own plan: 
 
 *The briefings themselves (who each character is, what they know, their secrets, and how they're told to read Il Notaio) live in `Gonfaloniere_Characters`. This section holds only the rules every briefing must follow.*
 
-- **Baseline alignment:** for baseline runs, each character's stated aims point toward their faction's win condition
+- **Errand first, faction as fallback:** each briefing puts the character's plot point first, as the errand they came for, and their faction's win second, for when the errand is done or out of reach. Some errands serve the faction and some cut across it, so the Plot Reward is easier for some characters than others; watch this when balancing
 - **One plot point per character:** a checkable story goal that earns the Plot Reward (see Plot Reward, which holds the current list). Plot points must be completable during the three scheming rounds
 - **Other personal goals are motivation only** and earn no reward in the first version (see Personal goal rewards under Deferred)
+- **The marriage is flavour:** Clarice and Giorgia both court Emile, and any engagement drives conversation and errands but has no mechanical effect
 - **Repentance is the one deliberate split** between individual and faction goals: a converting candidate trades their family's win for the Dominicans'
 - **Starting resources come from the Florin Economy,** not from briefings
 
 ---
 
 ## Conversation Types
+
+- **Capannello:** an open meeting of 2–4 guests that anyone can join while it has room
+- **Colloquio:** a secret meeting between two guests, started by one of them (the **initiator**) with another (the **invitee**). No one else can join
+- **A Capannello dissolves** when it no longer has any guests, e.g. its last guest moved away under the lone-guest rule. A dissolved Capannello can't be returned to
+- **It also counts as dissolved for a returning guest** if none of the guests who were in it when they called the Colloquio are still there, even if newcomers have since joined. The group is the people, not the seats
 
 ### Capannello (Capan)
 
@@ -193,18 +260,23 @@ After each faction meeting, every character privately works out their own plan: 
 
 ### Colloquio (Collo)
 
-- A private two-person conversation
+- A private two-person conversation, called by the initiator
 - No one may join a Colloquio; they are strictly private
 - **Who speaks next:** the same urgency rule as a Capannello. The direct-question rule doesn't apply, since there's only one other person
 - All Colloquio requests are automatically accepted; there is no refusal
-- Calling a Colloquio uses up the character's movement window, so it's a deliberate, costly choice
+- Calling a Colloquio uses up the character's movement window, so it's a deliberate, costly choice. The one exception is an invitee's free Colloquio when a Colloquio ends (below)
 - It carries a social cost: characters seen withdrawing for a Colloquio are noted by Il Notaio, with escalating implication for repeat occurrences
 
 **Ending a Colloquio:**
 - Either character can end it when they're done; the other character then gets one closing line
 - Hard cap of about **6 utterances** (3 each), tunable
 - Ending is free and doesn't use a movement window
-- Both characters return to the Capannello they left, or to the smallest open one if that Capannello is full
+- The two guests return **separately**, invitee first:
+  1. **The invitee** chooses at once, from the Capannelli with room (the initiator's old one included), or calls a **free Colloquio** of their own, which doesn't use their movement window. They couldn't refuse the first Colloquio, so being summoned should never cost them. Going first lets them take the initiator's seat
+  2. **The initiator** goes back to the Capannello they came from. If it's full (including because the invitee just took the last seat) or has dissolved, they're placed in the Capannello with the **fewest guests**; ties go to the one with the **fewest members of their own faction**, then are broken at random
+- **Free Colloquio caller:** if the invitee called a free Colloquio, they have no Capannello to go back to when it ends, so they're placed as if theirs had dissolved
+- **A call waiting for them:** if someone called a Colloquio with either guest while they were busy, that call opens the moment this Colloquio ends, before they're seated. The summoned guest is its invitee, so they still choose first when it ends
+- **No seat:** if either has nowhere to go (every Capannello full), they pair with the next guest who has no seat, often the other member of the pair, forming a new two-person Capannello
 - Il Notaio notes the return, and returners rejoin at the end of the current cycle like any other joiner
 
 ---
@@ -216,7 +288,20 @@ After each faction meeting, every character privately works out their own plan: 
 - When their window arrives, a character chooses one: **stay**, **switch Capannelli**, or **call a Colloquio**
 - Switching and calling a Colloquio both use up the window
 - Characters move **toward a person**, not to a group, and moves are resolved one at a time, so two characters can't swap past each other
+- **Moving toward a guest in a Colloquio:** the mover stays put until that guest is seated, then joins their group. If the guest isn't seated by the end of the next turn, the move is cancelled and the window is spent
 - **Collisions:** if a move would overfill a group, an open seat is used first. If both groups are full, the character least involved in their current conversation is the one who moves *(how involvement is measured is in Technical Design)*
+
+### A Capannello Left With One Guest
+
+A Capannello needs at least two guests. Whenever one drops to a single guest during open play (two leave for a Colloquio, a partner switches away, or anything else):
+
+- **The lone guest gets an immediate free move** toward any guest in a Capannello with room. It doesn't use their movement window
+- **If they don't choose,** they join the smallest open Capannello
+- **If no Capannello has room** (rare), they pair with the next guest who has no seat (another lone guest, or a guest returning from a Colloquio), forming a new two-person Capannello. Until then they stay where they are
+- Once the lone guest moves away, their old Capannello has **dissolved**
+- Il Notaio notes the join as usual
+- Applies to open play only: faction meetings can't merge across factions
+- There's no geography in the palazzo, so "nearest" means nothing; the guest moves toward a person, like any other move
 
 ---
 
@@ -225,7 +310,8 @@ After each faction meeting, every character privately works out their own plan: 
 The in-fiction narrator who records everything that happens in the palazzo. He belongs to no faction.
 
 - Notes social events to the characters who witness them: joins, departures, Colloquio withdrawals, and returns, with escalating implication for repeat withdrawals
-- Broadcasts public events city-wide: /repent (with its tagline)
+- Broadcasts public events city-wide: /repent (with its tagline), and the Election result
+- **Never reveals vote counts:** he names only the winner, or the tied guests before a run-off, so the ballot and bought-vote totals stay secret
 - Tone: precise, formal, slightly detached — a notary who has seen a hundred such evenings
 
 > *Example observation (first Colloquio): "Signor Raffaello de' Medici and Contessa Isabella were observed withdrawing from company — a brief word exchanged where none could hear."*
@@ -234,7 +320,7 @@ The in-fiction narrator who records everything that happens in the palazzo. He b
 
 > *Example repentance broadcast: "Piero de' Medici, before the gathered city, confessed the sin of his family's usury, and swore to govern in humility before God."*
 
-*How his notes reach characters' memories is covered in Technical Design. Player-facing duties are under Post-Simulation.*
+*How his notes reach characters' memories is covered in Technical Design. Player-facing duties are under Human Player.*
 
 ---
 
@@ -336,7 +422,7 @@ Mutually exclusive, checked in precedence order the moment the Election result i
 
 ## Murder Round
 
-Each living character secretly submits exactly one action: KILL [Name], GUARD [Name], or INVESTIGATE [Name], plus one extra action if they earned the Plot Reward. A character can't Guard themselves.
+Each living character secretly submits exactly one action: KILL [Name], GUARD [Name], or INVESTIGATE [Name], plus one extra action if they earned the Plot Reward. A character can't Guard themselves, and **all of a character's acts must name different guests** (Lupo's two Kills included; two kills on one guest would still cause only one death).
 
 **Resolution order:**
 1. **Investigations:** A character Investigated by 2+ others cannot carry out their Kill (no information returned to investigators)
@@ -355,7 +441,7 @@ Ties each character's storyline to their power on the night of the Murder Round.
 
 - **Each character has one plot point:** a story goal from their briefing, written so it can be checked from the record of the game (a specific secret learned, a specific private meeting held, a specific payment made)
 - **The reward is one extra action of your choice:** a second KILL, GUARD, or INVESTIGATE, submitted secretly alongside your normal action. It follows all the usual rules, so an extra Guard or Investigate counts toward the 2+ threshold like anyone else's
-- **Two different targets:** a character's two actions must name different characters, so one character can never reach the 2+ threshold alone (e.g. guarding the same ally twice). Saving or restraining someone always takes at least two people
+- **Two different targets:** as with every act (see above), the two actions must name different characters, so one character can never reach the 2+ threshold alone (e.g. guarding the same ally twice). Saving or restraining someone always takes at least two people
 - **No self-guard:** the extra action can't Guard yourself either
 - **Lupo:** his extra action may be a Kill, Guard, or Investigate, but it follows normal rules: a third Kill *can* be blocked by Guards and Investigations, unlike his two standard Kills. He still can't Guard or Investigate with his standard actions
 - **Deadline:** the plot point must be completed before Faction Meeting 4, so the character knows about the reward while planning. Goals that can only resolve during the Murder Round itself (e.g. "see your brother's killer dead") can't be plot points
@@ -379,7 +465,7 @@ Ties each character's storyline to their power on the night of the Murder Round.
 | Sister Beatrice | Learn who hired Lupo for the San Frediano killing | Knowledge |
 | Contessa Isabella | Pay Lupo at least 3 Florins for his silence, while LeNoir has not learned that Isabella ordered his brother's killing | Payment + knowledge |
 | Jeanne | Get at least one Medici or Pazzi character to accept a French pension | Pension ledger |
-| Emile | Hold private Colloquios with both Clarice and Giorgia | Meetings |
+| Emile | Hold private Colloquios with both Clarice and Giorgia, and learn at least one of their secret affairs (Clarice with Francesco, or Giorgia with LeNoir) | Meetings + knowledge |
 | Captain LeNoir | Learn who ordered his brother's death | Knowledge |
 
 How they interlock:
@@ -396,8 +482,8 @@ How they interlock:
 - All factions hold a final coordination meeting (Faction Meeting 5, phase G) before the ballot
 - Secret ballot in phase H: every living character casts one vote for any living character, including write-ins, and decides how many extra votes to buy for that same guest
 - **Vote buying:** any character may buy additional votes at **5 Florins per vote**. Bought votes always go to the guest the buyer voted for; they're added on top of the ballot and don't change anyone else's vote. This is the only official way to gain extra votes. Command name TBD
-- Most votes wins
-- **Run-off:** if the top guests tie, every living character casts one fresh vote among only the tied guests. No vote buying in the run-off. If it ties again, the winner is **drawn by lot**, Florence's own way of filling offices
+- Most votes wins. Il Notaio announces the winner without vote counts
+- **Run-off:** if the top guests tie, Il Notaio names the tied guests (no counts) and every living character casts one fresh vote among only the tied guests. No vote buying in the run-off. If it ties again, the winner is **drawn by lot**, Florence's own way of filling offices
 - Win conditions checked the moment the result is announced, in precedence order
 
 ---
@@ -451,6 +537,7 @@ The current value of every number that balancing may adjust. Each is also stated
 - **Full Murder Round immunity as the plot reward** — all-or-nothing, hard to tune, and likely to make the Murder Round fizzle; replaced by one free guard (v0.14), itself replaced by the Plot Reward (v0.19)
 - **Giving a dead character's Florins to their killer** — a strong murder-for-profit motive that could also expose the killer, whose identity is meant to stay secret
 - **Votes as the personal goal reward, with different values per goal** — too many separate knobs to tune reliably; a uniform Florin reward is simpler
+- **Different rewards per subplot** (Nov 3) — e.g. an unrecorded Colloquio for the love knot, Florins for the political rivalry. Thematic, but it multiplies balancing levers, could confound the personality research with reward type, and doesn't fit characters who span two subplots. The marriage stays flavour instead
 - **Public /repay** — would expose pension holders, contradicting pension privacy
 - **French characters refilling the treasury** from personal purses
 
@@ -461,37 +548,59 @@ The current value of every number that balancing may adjust. Each is also stated
 ## Open Questions
 
 - Exact number of turns per round and per phase
-- Command name for vote buying
 - Refining the draft plot points during the briefing rewrites
-- If a human player's character dies but their faction wins, does the human win? (see Post-Simulation)
+- **Invitee's free Colloquio:** watch for endless chains (A calls B, B calls C for free, C calls D…). Left free on purpose for now; limit it only if testing shows a problem. *Data so far (6-guest mini-games, Oct 28–29): invitees mostly chose a free Colloquio, and one chain reached 6 links. The 12-guest full games, where invitees can usually join a group, are the real test*
+- **Balance watch list** (from Characters' review of the full cast, Characters v0.9, Open Questions: Reservations). Check each in the first full games before changing rules:
+  - **France may be strong:** Jeanne's plot point is half of France's win, and the Plot Reward adds an extra act on top
+  - **Jeanne may be stuck instead:** Medici and Pazzi briefings forbid French money; Characters is softening that to the real stakes
+  - **The Medici collide:** Piero's plot point spoils Clarice's. Kept as intended drama; watch whether the Medici tear themselves apart
+  - **Isabella may be over-hunted:** LeNoir, Raffaello, and Beatrice all point at her. If her secret falls in the first round every game, San Frediano ends early
+  - **Beatrice's clue speeds LeNoir:** she can name Lupo, one step from Isabella. Weigh against Isabella's plot point
+  - **Lupo is the hub:** games where he dies or talks early will diverge
+  - **Uneven difficulty:** Emile's is now harder, Beatrice's gets another clue path from Characters, and Raffaello's stays (reachable in mini-games). Re-check all twelve once full games run
+- **More playable characters after v1:** which of the other ten to open up, and whether any (e.g. Lupo, with his special kills) need extra interface work
 
 ---
 
-## Post-Simulation: Game Features
+## Human Player
 
-Rules that only matter once a human player is added. Preserved here so they aren't lost, but not part of the simulation. *The player interface itself is in Technical Design.*
+Rules for when one character is played by a human. The all-AI simulation ignores this section. **"v1" here means the first public release:** everything marked v1 must be in before players outside the project see the game, but not all of it is needed for the "technically complete" milestone. *The player interface itself is in Technical Design.*
 
 ### Human Player Basics
 
-- The human player controls one character; death is game over for the human player
-- Open question: if the human's character dies but their faction wins, does the human win?
+- The human player controls one character. **In v1 they choose between Piero de' Medici and Francesco Pazzi**, the two rival heads of house; the other is played by AI, as are the remaining ten. More playable characters can come later
+- Neither choice guarantees a nomination: the family still picks its candidate in phase E, so the human may need to win their own family over
+- **Winning:** the human wins if their character's win condition is met when the result is announced, alive or dead, exactly as for AI characters. A human candidate who repents wins with the Dominicans
+- **Death:** the human can no longer act. They become a **spectator**: they see Il Notaio's public announcements through to the result, then can open the full replay of the game
+
+### Pacing
+
+- **The game waits for the human,** with no timer
+- Each turn, the human sends **one message or passes** before play continues
+- Midnight, the ballot, candidate selection, and the human's movement window also wait for their choice
 
 ### Human Player Input
 
-- The human player may send one message per turn, slotted in at the next natural break in the conversation
+- **In a Capannello or council:** one message per turn, slotted in at the next natural break in the conversation, about what each AI guest gets in a group of three
+- **In a Colloquio:** the human speaks in turn like any guest, up to the usual cap
 - Maximum 500 characters per message
-- Commands (/repent, /repay, /borrow, /bribe, /kill, /guard, /investigate) don't count toward the limit — they are actions, not speech
-- The human player speaks less often than the AI characters — intentional, as the game is designed to be challenging
+- **Commands** don't count toward the limit; they are actions, not speech. They use the in-world names: /kill, /guard, /watch (Investigate), plus /repent, /repay, /borrow, /bribe, /vote, and **/buy** for vote buying
+- **Movement:** when their window comes, the human chooses stay, move toward a person, or call a Colloquio. As an invitee returning from a Colloquio, they get the same free choice as anyone (a Capannello with room, or a free Colloquio)
+- A command that's mistimed, illegal, or unaffordable is refused, and Il Notaio says why
 
 ### Il Notaio — Player-Facing Duties
 
-- Answers player questions about rules and the current state of the game
-- Orients new players at relevant moments rather than front-loading a tutorial
-- Steps in on game-breaking transgressions (initial scope: mistimed commands and explicit fourth-wall breaks only, expanding with testing)
+All of these are required for v1, the first public release, so players always get guidance and the rules. They aren't required for the "technically complete" milestone:
+
+- **Orientation:** short notes at relevant moments (first council, first movement window, the first Colloquio, midnight, the ballot) rather than a tutorial up front
+- **Questions:** answers the player's questions about the rules and the current state of the game, limited to what their character could know
+- **Corrections:** explains refused commands (mistimed, illegal, or unaffordable)
+- **The jailbreak rule** (below)
 
 ### Jailbreak Rule
 
 - If any character tries to break the fourth wall or manipulate the other characters out of game, everyone is notified at once
+- **Off-register speech is not a jailbreak.** Slang, very casual phrasing, or anachronisms are just play: characters react in-world, finding the guest strange or rude, which can cost them socially. The rule applies only when the player speaks to the AI rather than as their character: saying it's a game or an AI, or giving characters out-of-game instructions
 - All characters converge on that character's Capannello; the 4-character cap is suspended
 - The offending character is treated as an Ottoman spy — a grave social transgression in 1492 Florence
 - The result is effective removal from the game before the Election
@@ -500,5 +609,5 @@ Rules that only matter once a human player is added. Preserved here so they aren
 
 ### Deferred Game Ideas
 
-- **Ghost mechanic** for a killed human player — spectator view, Sibyl role, or a deathbed yes/no question before the final vote
+- **Ghost mechanic** for a killed human player — beyond v1's plain spectator view: a Sibyl role, or a deathbed yes/no question before the final vote
 - **Expanded Il Notaio intervention** scope
