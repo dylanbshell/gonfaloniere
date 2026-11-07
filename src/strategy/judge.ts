@@ -14,7 +14,7 @@ import { RESULTS_DIR } from "../harness/log.ts";
 import { audited } from "../harness/keyaudit.ts";
 import { parseArgs } from "node:util";
 import { z } from "zod";
-import { config, technicalDesignPath, type ModelConfig } from "../../probe.config.ts";
+import { config, docsFor, type ModelConfig } from "../../probe.config.ts";
 import { Budget, worstCaseCost } from "../harness/budget.ts";
 import { RunLog, gitCommit, priorSpend, readRecords, runLogFiles, type LogRecord } from "../harness/log.ts";
 import { apiKey, callModel, fetchEndpoint, makeClient } from "../harness/openrouter.ts";
@@ -85,7 +85,7 @@ function momentText(r: StrategyRecord): string {
 }
 
 async function main(): Promise<void> {
-  const docs = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath(process.env.PROBE_TD ?? "0.9") });
+  const docs = loadDocs(docsFor(process.env.PROBE_TD ?? "0.9"));
   const all = readRecords(runLogFiles());
   const strat = (all as unknown as StrategyRecord[]).filter((r) => r.type === "strategy");
   /** The model's latest strategy run that covers the item. */

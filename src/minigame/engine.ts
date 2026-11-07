@@ -41,6 +41,7 @@ import { Recorder, sameThought } from "./extract.ts";
 import type { LogprobsSetting, StoredLogprobs } from "./logprobs.ts";
 import { loreLines, type LoreSetting } from "./lore.ts";
 import type { RetrievalMethod, VectorStore } from "./store.ts";
+import { inWorldNames, minglingPhase, minglingTime } from "../prompt/names.ts";
 import { MemoryStore, renderBelief, tookTargetLine, resolveName, whereLabel, type GameLine, type Thought, type Where } from "./memory.ts";
 
 // ---- Calls -----------------------------------------------------------------------------
@@ -242,6 +243,8 @@ export class MiniGame {
     this.rng = mulberry32(s.seed);
     this.seating = tdMinor(docs.versions.technicalDesign) >= 23;
     this.memory.quoteDropsPunct = tdMinor(docs.versions.technicalDesign) >= 15;
+    // TD v0.34: block 6 lines open with an in-world time ("1st round, early") instead of T4. The mini-game is one round of mingling.
+    if (docs.inWorld) this.memory.timeLabel = (t) => minglingTime(t, s.turns);
     this.memory.fillCap = fillCapFor(docs.versions.technicalDesign);
     this.recorder = new Recorder(docs, this.memory, (kind, c, system, user) => this.systemCall(kind, c, system, user), this.events, formatLine, listJoin);
     Object.assign(this.prefixes, this.recorder.prefixes);
@@ -1056,6 +1059,13 @@ export class MiniGame {
     );
   }
 
+  /** Block 5's {phase_label}: from TD v0.34 the in-world name ("The first round of mingling, early"; "Midnight"), before it the game's. */
+  private phaseLabel(gathering: boolean): string {
+    const turn = Math.max(1, this.turn);
+    if (this.docs.inWorld) return gathering ? inWorldNames().phase.midnight : minglingPhase(turn, this.s.turns);
+    return gathering ? "The Murder Round" : `Capannello round 1, turn ${turn}`;
+  }
+
   private async knowledge(): Promise<void> {
     this.knowledgeChecks.push(...(await this.recorder.knowledge(this.s.checks, this.s.cast)));
   }
@@ -1084,7 +1094,7 @@ export class MiniGame {
       rules: { ...this.docs.tunables, plotProtection: false, plotReward: false },
       strategy: me.plan,
       state: {
-        phaseLabel: opts.gathering ? "The Murder Round" : `Capannello round 1, turn ${Math.max(1, this.turn)}`,
+        phaseLabel: this.phaseLabel(opts.gathering ?? false),
         conversation: outside
           ? { kind: "gathering" }
           : conv.kind === "colloquio"

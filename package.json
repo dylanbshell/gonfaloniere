@@ -23,6 +23,7 @@
     "minigame:measures": "tsx src/minigame/measures.ts",
     "minigame:replay": "tsx src/minigame/replay.ts",
     "minigame:view": "tsx src/minigame/view.ts",
+    "minigame:names": "tsx src/minigame/names-check.ts",
     "minigame:register": "tsx src/minigame/register.ts",
     "minigame:labels": "tsx src/minigame/labels.ts",
     "minigame:voice": "tsx src/minigame/voice.ts",

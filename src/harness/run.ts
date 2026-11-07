@@ -17,7 +17,7 @@
 import { RESULTS_DIR } from "./log.ts";
 import { audited } from "./keyaudit.ts";
 import { parseArgs } from "node:util";
-import { config, technicalDesignPath, type ModelConfig } from "../../probe.config.ts";
+import { config, docsFor, technicalDesignPath, type ModelConfig } from "../../probe.config.ts";
 import { allowedActionTypes, allowedActionsText } from "../game/actions.ts";
 import type { CharacterName } from "../game/roster.ts";
 import { parseSpeak, type SpeakExpectation } from "../output/speak.ts";
@@ -96,7 +96,7 @@ async function main(): Promise<void> {
   if (!model) throw new Error(`Unknown model "${opts.model}". Known: ${config.models.map((m) => m.id).join(", ")}`);
   const tdPath = technicalDesignPath(opts.td!);
   if (!docAvailable(tdPath)) throw new Error(`No Technical Design v${opts.td} (${tdPath}), in docs/ or in git history`);
-  const docs = loadDocs({ ...config.docs, technicalDesign: tdPath });
+  const docs = loadDocs(docsFor(opts.td!));
   // TD v0.3: blocks 1–3 as a system message unless the model opts out, and Block 9a without contacts.
   layout.systemRole = opts.td !== "0.2" && model.systemRole !== false;
   layout.thinkFormat = opts.td === "0.2" ? "td0.2" : "td0.3";

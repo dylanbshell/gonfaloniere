@@ -41,9 +41,9 @@ import { ALIASES, ROSTER, type CharacterName } from "../game/roster.ts";
 import { Budget, worstCaseCost } from "../harness/budget.ts";
 import { RunLog, gitCommit, priorSpend, type LogRecord } from "../harness/log.ts";
 import { callModel, type EndpointInfo, type RetryPolicy } from "../harness/openrouter.ts";
-import { loadDocs, loadStandinBriefings } from "../sources/docs.ts";
+import { loadDocs } from "../sources/docs.ts";
 import { MINIGAME_TOTAL_USD } from "./ledger.ts";
-import { CAST, STANDINS, STANDIN_FILE } from "./cast.ts";
+import { CAST, STANDIN_FILE, castBriefings, standinsFor } from "./cast.ts";
 import { MiniGame, formatLine, type CallKind, type Caller, type GameSettings } from "./engine.ts";
 import { memoryCounts, renderBelief, renderEntry, whereLabel } from "./memory.ts";
 import { describeRoute, messages, playRoute, recorderRoute, type ModelRoute } from "./recorder.ts";
@@ -117,7 +117,8 @@ async function main(): Promise<void> {
   if (opts.estimate) return estimate();
   const docs = loadDocs(config.docs);
   if (!docs.systemPrompts) throw new Error("This Technical Design has no extraction or knowledge-check prompts (TD v0.5+)");
-  const briefings = { ...docs.briefings, ...loadStandinBriefings(STANDIN_FILE, STANDINS, docs.socialAwareness) };
+  const briefings = castBriefings(docs);
+  const standins = standinsFor(docs.versions.characters);
   const play = await playRoute(opts.model!, 0.7);
   const recorder = await recorderRoute(opts.model!, opts["recorder-model"] ?? opts["system-model"]);
   const charModel = play.model;
@@ -181,7 +182,7 @@ async function main(): Promise<void> {
   const wanted = Number(opts.games);
   runLog.write({ type: "run", runId, startedAt: new Date().toISOString(), modelId: charModel.id, systemModelId: sysModel.id, endpoint: served.character.endpoint, systemEndpoint: served.system.endpoint, docVersions: docs.versions, gitCommit: gitCommit(), workingTree: tree, settings: { ...settingsBase, games: wanted, cap: opts.cap, parallel, replacements, seed: opts.seed } } as unknown as LogRecord);
   console.log(`Mini-game: ${wanted} game(s) × ${opts.turns} turns; characters on ${charModel.id} via ${served.character.endpoint.providerName}, system calls on ${sysModel.id} via ${served.system.endpoint.providerName}; up to ${parallel} at a time; cap $${opts.cap}; ledger $${budget.priorSpendUsd.toFixed(2)} spent before this (total cap $${MINIGAME_TOTAL_USD})`);
-  console.log(`Docs: TD v${docs.versions.technicalDesign}, Characters v${docs.versions.characters}, Mechanics v${docs.versions.mechanics}, Models & Research v${docs.versions.modelsResearch}. Stand-ins: ${STANDINS.join(", ")}. Commit ${gitCommit()}; untracked: ${tree.untracked.join(", ") || "none"}`);
+  console.log(`Docs: TD v${docs.versions.technicalDesign}, Characters v${docs.versions.characters}, Mechanics v${docs.versions.mechanics}, Models & Research v${docs.versions.modelsResearch}. Stand-ins: ${standins.join(", ") || "none"}. Commit ${gitCommit()}; untracked: ${tree.untracked.join(", ") || "none"}`);
 
   // ---- Pre-flight: thinking off and the pinned provider, on both models -------------------------
   const preflight = async (role: "character" | "system", n: number) => {
@@ -500,7 +501,8 @@ function buildRecord(
         ...(x.docs.templates.move?.includes("{target}") ? ["Block 9c's {target} in the choice lines reads 'your target' (fixed in TD v0.20)"] : []),
         ...((x.settings as { speakAppend?: string }).speakAppend ? [`Variant: every character's Block 9b ends with the added line "${(x.settings as { speakAppend?: string }).speakAppend}"`] : []),
       ],
-      standins: { characters: STANDINS, source: `${STANDIN_FILE} (adapted from PitP_Original_Rules_Trimmed)` },
+      // Characters v0.9 wrote all twelve briefings, so later games have no stand-ins (TD v0.34).
+      standins: standinsFor(x.docs.versions.characters).length ? { characters: standinsFor(x.docs.versions.characters), source: `${STANDIN_FILE} (adapted from PitP_Original_Rules_Trimmed)` } : null,
       tunables: x.docs.tunables,
       briefings: x.briefings,
     },

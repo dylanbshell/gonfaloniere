@@ -2,7 +2,7 @@
 // conversation" from the latest arrival, and trailing punctuation before "…". Older TDs keep theirs.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { config, technicalDesignPath } from "../probe.config.ts";
+import { config, docsFor } from "../probe.config.ts";
 import { normalizeTook, parseThink } from "../src/output/think.ts";
 import { parseSpeak } from "../src/output/speak.ts";
 import { MemoryStore, renderReading, tookTargetLine, wordsQuote, type GameLine, type Thought } from "../src/minigame/memory.ts";
@@ -11,7 +11,7 @@ import { loadDocs } from "../src/sources/docs.ts";
 import type { CharacterName } from "../src/game/roster.ts";
 
 const v16 = loadDocs(config.docs);
-const v14 = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.14") });
+const v14 = loadDocs(docsFor("0.14"));
 const A = "Lupo" as CharacterName;
 const B = "Contessa Isabella" as CharacterName;
 const C = "Captain Armand LeNoir" as CharacterName;
@@ -22,7 +22,7 @@ test("the label values come from each TD's own list: pressure from v0.16, insult
   assert.deepEqual(labelValues(v16.templates, "think"), ["promise", "deal", "threat", "admission", "claim", "denial", "insult", "pressure", "none"]);
   assert.deepEqual(labelValues(v16.templates, "speak"), ["promise", "deal", "threat", "admission", "claim", "denial", "insult", "pressure", "none"]);
   assert.deepEqual(labelValues(v14.templates, "think"), ["promise", "deal", "threat", "admission", "claim", "denial", "insult", "none"]);
-  const v10 = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.10") });
+  const v10 = loadDocs(docsFor("0.10"));
   assert.deepEqual(labelValues(v10.templates, "think"), ["promise", "deal", "threat", "admission", "claim", "denial", "none"]);
 });
 

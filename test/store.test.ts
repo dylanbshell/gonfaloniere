@@ -16,7 +16,7 @@ import { isolationCheck, type IsolationRecord } from "../src/minigame/isolation.
 import { LORE_BUDGET, loreHeader, loreLines, readLoreFile, type LoreEntry } from "../src/minigame/lore.ts";
 import { MemoryStore, overlapScore, renderReading, type Belief, type GameLine, type Thought } from "../src/minigame/memory.ts";
 import { VectorStore, notebookQuery, openStoreDb, storeRows } from "../src/minigame/store.ts";
-import { config, technicalDesignPath } from "../probe.config.ts";
+import { docsFor } from "../probe.config.ts";
 import { loadDocs } from "../src/sources/docs.ts";
 import { fakeDocs, playFake, playFakeOn } from "./fixtures/fake-game.ts";
 
@@ -64,7 +64,7 @@ const loreSection = (user: string) => {
 
 // ---- No database ---------------------------------------------------------------------------------------
 
-const docs24 = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.24") });
+const docs24 = loadDocs(docsFor("0.24"));
 
 test("lore off, word-overlap retrieval: every prompt is byte-identical to before the store (golden from f812ab4)", async () => {
   const { calls } = await playFakeOn(docs24);
@@ -76,7 +76,7 @@ test("lore off, word-overlap retrieval: every prompt is byte-identical to before
 
 test("TD v0.27's register wording: every prompt is v0.24's with only block 1's new line and the 9a and 9b swaps, anchors intact", async () => {
   const before = (await playFakeOn(docs24)).calls;
-  const after = (await playFakeOn(loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.27") }))).calls;
+  const after = (await playFakeOn(loadDocs(docsFor("0.27")))).calls;
   assert.deepEqual(after.map((c) => `${c.kind}|${c.character}`), before.map((c) => `${c.kind}|${c.character}`));
   const block1 = "No one knows what the years ahead will bring.";
   const register = 'Speak and think in plain, everyday English: no "thee" or "thou", no proverbs or flowery metaphors, and no modern slang.';
@@ -111,8 +111,8 @@ test("TD v0.27's register wording: every prompt is v0.24's with only block 1's n
 });
 
 test("TD v0.29's voice wording: every prompt is v0.27's with only block 1's line and 9b's ornament sentence changed, anchors intact", async () => {
-  const before = (await playFakeOn(loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.27") }))).calls;
-  const after = (await playFakeOn(loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.29") }))).calls;
+  const before = (await playFakeOn(loadDocs(docsFor("0.27")))).calls;
+  const after = (await playFakeOn(loadDocs(docsFor("0.29")))).calls;
   assert.deepEqual(after.map((c) => `${c.kind}|${c.character}`), before.map((c) => `${c.kind}|${c.character}`));
   const swaps: [string, string][] = [
     ['no "thee" or "thou", no proverbs or flowery metaphors, and no modern slang.', 'no "thee" or "thou", and no modern slang.'],
@@ -144,8 +144,8 @@ test("TD v0.29's voice wording: every prompt is v0.27's with only block 1's line
 });
 
 test("TD v0.32 reverts v0.29's voice wording: every prompt is byte-identical to v0.27's", async () => {
-  const before = (await playFakeOn(loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.27") }))).calls;
-  const after = (await playFakeOn(loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.32") }))).calls;
+  const before = (await playFakeOn(loadDocs(docsFor("0.27")))).calls;
+  const after = (await playFakeOn(loadDocs(docsFor("0.32")))).calls;
   assert.equal(after.length, before.length);
   after.forEach((c, i) => assert.deepEqual(c, before[i], `${c.kind} ${i}`));
   assert.equal(promptHash(after), promptHash(before));

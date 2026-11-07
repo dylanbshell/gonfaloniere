@@ -6,11 +6,13 @@
 
 import type { CharacterName } from "../game/roster.ts";
 import { tdMinor } from "../prompt/assemble.ts";
+import { minglingTime, usesInWorldNames } from "../prompt/names.ts";
 import type { LoreEntry } from "./lore.ts";
-import { renderBelief, renderCodeEntryFor, renderEntry, renderReading, type Belief, type GameLine, type MemoryEntry, type Reading } from "./memory.ts";
+import { gameTime, renderBelief, renderCodeEntryFor, renderEntry, renderReading, type Belief, type GameLine, type MemoryEntry, type Reading, type TimeLabel } from "./memory.ts";
 
 export interface IsolationRecord {
-  header: { docs: { technicalDesign: string }; notebook?: string };
+  /** `docs.characters` and `config.turns` place block 6's in-world time labels (TD v0.34); records before them have neither need. */
+  header: { docs: { technicalDesign: string; characters?: string }; notebook?: string; config?: { turns?: number } };
   calls: { n: number; kind: string; character: string | null; user: string }[];
   lines: GameLine[];
   memory: { entries: MemoryEntry[]; beliefs: Belief[]; readings: Reading[]; lore?: LoreEntry[] };
@@ -45,6 +47,9 @@ export function isolationCheck(rec: IsolationRecord): { calls: number; memoryLin
   const lines = new Map(rec.lines.map((l) => [l.id, l]));
   const dropPunct = tdMinor(rec.header.docs.technicalDesign) >= 15;
   const shared = (rec.header.notebook ?? "perceived") === "shared";
+  const { docs, config } = rec.header;
+  const when: TimeLabel =
+    docs.characters && usesInWorldNames({ technicalDesign: docs.technicalDesign, characters: docs.characters }) ? (t) => minglingTime(t, config?.turns ?? 1) : gameTime;
   // Every render a row can have in a prompt, with whose row it is. A belief's kind can change after it
   // was shown ("firmer"), so both kinds' renders count as the owner's.
   const owners = new Map<string, Set<string>>();
@@ -52,14 +57,14 @@ export function isolationCheck(rec: IsolationRecord): { calls: number; memoryLin
   if (!shared) {
     for (const r of rec.memory.readings) {
       const line = lines.get(r.line);
-      if (line) own(renderReading(r, line, r.words_line ? lines.get(r.words_line) : undefined, dropPunct), r.character);
+      if (line) own(renderReading(r, line, r.words_line ? lines.get(r.words_line) : undefined, dropPunct, when), r.character);
     }
   }
   for (const e of rec.memory.entries) {
-    if (e.source === "code") for (const c of e.audience) own(shared ? renderEntry(e, c) : renderCodeEntryFor(e, c), c);
-    else if (shared) for (const c of e.audience) own(renderEntry(e, c), c);
+    if (e.source === "code") for (const c of e.audience) own(shared ? renderEntry(e, c, when) : renderCodeEntryFor(e, c, when), c);
+    else if (shared) for (const c of e.audience) own(renderEntry(e, c, when), c);
   }
-  for (const b of rec.memory.beliefs) for (const kind of ["suspicion", "conclusion"] as const) own(renderBelief({ ...b, kind }), b.character);
+  for (const b of rec.memory.beliefs) for (const kind of ["suspicion", "conclusion"] as const) own(renderBelief({ ...b, kind }, when), b.character);
   const lore = rec.memory.lore ?? [];
   const loreScope = new Map(lore.map((e) => [e.text, e.scope]));
 
