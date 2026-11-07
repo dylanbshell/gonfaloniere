@@ -85,7 +85,8 @@ export interface MemoryEntry {
   conversation: string;
   where: Where;
   type: EntryType;
-  speaker: CharacterName | null;
+  /** Who spoke it: a character, or from TD v0.36 the narrator on its own event entries. */
+  speaker: string | null;
   parties?: CharacterName[];
   toward: string | null;
   about: string[];
@@ -258,6 +259,8 @@ export class MemoryStore {
    * pressure at 3 each. Null: no cap, as before v0.17.
    */
   fillCap: { labels: string[]; max: number } | null = null;
+  /** Block 6's token cap in `notebook: perceived`: ~450 from TD v0.10, ~490 from v0.36 (the engine sets it). */
+  notebookBudget = 450;
   private nextR = 1;
   private nextM = 1;
   private nextB = 1;
@@ -675,7 +678,8 @@ export class MemoryStore {
   retrieveNotebook(c: CharacterName, present: CharacterName[], recentLines: string[], opts: { murder?: boolean; limit?: number; budget?: number; ranked?: Ranked[]; trace?: NotebookTrace } = {}): string[] {
     const limit = opts.limit ?? 12;
     // TD v0.10: block 6 gets ~450 tokens (chars ÷ 3.5), about 10–12 lines; an item that would pass it is skipped.
-    const budget = opts.budget ?? 450;
+    // TD v0.36: ~490. Each item's cost is its whole rendered line, time label included.
+    const budget = opts.budget ?? this.notebookBudget;
     let used = 0;
     type Item = { kind: "reading"; r: Reading } | { kind: "entry"; e: MemoryEntry } | { kind: "belief"; b: Belief };
     const sim = opts.ranked ? new Map(opts.ranked.map((r) => [r.id, r.similarity])) : null;

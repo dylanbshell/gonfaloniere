@@ -6,7 +6,7 @@
 
 import type { CharacterName } from "../game/roster.ts";
 import { tdMinor } from "../prompt/assemble.ts";
-import { atLeast, inWorldNames, minglingTime, usesInWorldNames } from "../prompt/names.ts";
+import { atLeast, inWorldNames, inWorldTime, usesInWorldNames } from "../prompt/names.ts";
 import type { LoreEntry } from "./lore.ts";
 import { gameTime, renderBelief, renderCodeEntryFor, renderEntry, renderReading, type Belief, type GameLine, type MemoryEntry, type Reading, type TimeLabel } from "./memory.ts";
 
@@ -48,7 +48,7 @@ function timeLabelOf(header: IsolationRecord["header"]): TimeLabel {
   const { docs, config } = header;
   if (!atLeast(docs.technicalDesign, inWorldNames().since.technicalDesign)) return gameTime;
   if (!docs.characters || !config?.turns) throw new Error(`A TD v${docs.technicalDesign} record needs docs.characters and config.turns to place block 6's time labels`);
-  return usesInWorldNames({ technicalDesign: docs.technicalDesign, characters: docs.characters }) ? (t) => minglingTime(t, config.turns!) : gameTime;
+  return usesInWorldNames({ technicalDesign: docs.technicalDesign, characters: docs.characters }) ? inWorldTime(docs.technicalDesign, config.turns!) : gameTime;
 }
 
 export function isolationCheck(rec: IsolationRecord): { calls: number; memoryLines: number; loreLines: number; violations: IsolationViolation[] } {

@@ -4,7 +4,7 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { ROSTER, type CharacterName } from "../game/roster.ts";
+import { ROSTER, resolveAlias, type CharacterName } from "../game/roster.ts";
 import type { MurderTable, PromptTemplates } from "../prompt/assemble.ts";
 import { usesInWorldNames } from "../prompt/names.ts";
 
@@ -59,6 +59,8 @@ export interface PlotFact {
   fact: string;
   mustInclude: string;
   doesNotCount: string;
+  /** TD v0.36's "Known at start": who knows it from their own briefing, so gets no check. Absent before v0.36. */
+  knownAtStart?: CharacterName[];
 }
 
 export interface DocSources {
@@ -285,15 +287,36 @@ function plotFacts(td: string): PlotFact[] {
     return [];
   }
   const cells = (l: string) => l.split("|").slice(1, -1).map((c) => c.trim());
-  const facts = lines
+  // TD v0.36 adds a "Known at start" column; before it the table has four.
+  const header = lines.find((l) => /^\| Fact \|/.test(l));
+  const knownCol = header ? cells(header).findIndex((c) => c.startsWith("Known at start")) : -1;
+  const facts: PlotFact[] = lines
     .filter((l) => /^\| \*\*F\d\*\* \|/.test(l))
     .map((l) => {
-      const [id, fact, mustInclude, doesNotCount] = cells(l);
-      return { id: id!.replace(/\*/g, ""), fact: fact!, mustInclude: mustInclude!, doesNotCount: doesNotCount! };
+      const row = cells(l);
+      const [id, fact, mustInclude, doesNotCount] = row;
+      return { id: id!.replace(/\*/g, ""), fact: fact!, mustInclude: mustInclude!, doesNotCount: doesNotCount!, ...(knownCol >= 0 && { knownAtStart: knowerNames(row[knownCol]!) }) };
     });
-  const f5 = lines.join("\n").match(/\*\*F5\*\* "([^"]+)" \(must include: ([^;]+); doesn't count: ([^)]+)\)/);
-  if (f5) facts.push({ id: "F5", fact: `${f5[1]}.`, mustInclude: f5[2]!.trim(), doesNotCount: f5[3]!.trim() });
+  const text = lines.join("\n");
+  const f5 = text.match(/\*\*F5\*\* "([^"]+)" \(must include: ([^;]+); doesn't count: ([^)]+)\)/);
+  // TD v0.36: "F5 is known at start by Lupo, Isabella, and Beatrice (v0.36)."
+  const f5Known = text.match(/F5 is known at start by ([^.(]+)/);
+  if (f5) facts.push({ id: "F5", fact: `${f5[1]}.`, mustInclude: f5[2]!.trim(), doesNotCount: f5[3]!.trim(), ...(f5Known && { knownAtStart: knowerNames(f5Known[1]!) }) });
   return facts;
+}
+
+/** A "Known at start" cell as roster names: "Isabella, Lupo (she paid him; …)" → Contessa Isabella, Lupo. */
+function knowerNames(cell: string): CharacterName[] {
+  return cell
+    .replace(/\([^)]*\)/g, "")
+    .split(/,|\band\b/)
+    .map((n) => n.trim())
+    .filter(Boolean)
+    .map((n) => {
+      const name = ROSTER.find((r) => r.name === n)?.name ?? resolveAlias(n);
+      if (!name) throw new Error(`Known at start: "${n}" is not a roster name or alias`);
+      return name;
+    });
 }
 
 /**

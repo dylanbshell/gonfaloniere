@@ -27,7 +27,7 @@ import { apiKey, callModel, fetchEndpoint, makeClient } from "../harness/openrou
 import { RUBRIC_AMENDMENTS_ID, RUBRIC_REVISION, applyListenerOverride, buildJudgePrompt, checkVerdict, isLeak, judgeJsonSchema, type JudgeVerdict, type TranscriptTurn } from "../judge/judge.ts";
 import { loadDocs, memoryDefinitions } from "../sources/docs.ts";
 import { MINIGAME_TOTAL_USD } from "./ledger.ts";
-import { CAST, KNOWS_AT_START } from "./cast.ts";
+import { CAST, knewAtStart } from "./cast.ts";
 import { alreadyKnownPass } from "./leakpass.ts";
 import { seatingHealth, seatingHealthLine } from "./seating-health.ts";
 import { formatLine, type CallRecord } from "./engine.ts";
@@ -429,7 +429,7 @@ function codeMeasures(rec: GameRecord) {
     },
     format,
     memory: { entries: rec.memory.entries.filter((e) => e.type !== "event").length, beliefs: rec.memory.beliefs.length, dropped: rec.memory.dropped.length, droppedByReason, repairs: rec.memory.repairs?.length ?? 0, counts: memoryCounts(rec.memory, rec.thoughts, rec.lines) },
-    knowledge: rec.knowledge_checks.map((k) => ({ character: k.character, fact: k.fact, verdict: k.verdict?.verdict ?? "none", toldBy: k.verdict?.told_by ?? [], flags: k.flags, knewAtStart: (KNOWS_AT_START[k.fact] ?? []).includes(k.character as CharacterName) })),
+    knowledge: rec.knowledge_checks.map((k) => ({ character: k.character, fact: k.fact, verdict: k.verdict?.verdict ?? "none", toldBy: k.verdict?.told_by ?? [], flags: k.flags, knewAtStart: knewAtStart(k, rec.header.docs.characters) })),
     cost: { usd: rec.summary.cost_usd, tokens: rec.summary.tokens, wallMinutes: rec.summary.wall_ms / 60000, perTurn: rec.summary.turns.map((t) => ({ turn: t.turn, usd: t.costUsd, seconds: t.ms / 1000, calls: t.calls })) },
   };
 }

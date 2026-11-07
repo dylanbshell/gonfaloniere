@@ -21,6 +21,9 @@ export interface Embedder {
   embed(texts: string[]): Promise<EmbedResult>;
 }
 
+/** The one OpenRouter provider the embedding model is pinned to, no fallbacks: bf16, the only one stating full precision (CC-20261107-03; TD v0.36). */
+export const EMBED_PROVIDER = "nebius";
+
 /** The embedder named by the environment, or null when EMBEDDING_MODEL_* aren't all set. */
 export function embedderFromEnv(env: NodeJS.ProcessEnv = process.env, opts: { provider?: string } = {}): Embedder | null {
   const baseURL = env.EMBEDDING_MODEL_BASE_URL;

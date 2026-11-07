@@ -15,12 +15,24 @@
 
 import pg from "pg";
 import type { CharacterName } from "../game/roster.ts";
+import { atLeast } from "../prompt/names.ts";
 import type { Embedder } from "./embed.ts";
 import { renderCodeEntryFor, type MemoryStore, type Ranked } from "./memory.ts";
 import type { LoreEntry } from "./lore.ts";
 
 export type RetrievalMethod = "overlap" | "embeddings";
 export const RETRIEVAL_METHODS: readonly RetrievalMethod[] = ["overlap", "embeddings"];
+
+/**
+ * The `retrieval` default for a TD version: `embeddings` from TD v0.36 (Models & Research v0.49's replay
+ * check kept it), `overlap` before, as every earlier game ran. Saved games record the method they ran on.
+ */
+export function defaultRetrieval(td: string): RetrievalMethod {
+  return atLeast(td, "0.36") ? "embeddings" : "overlap";
+}
+
+/** From TD v0.36 the embedding model is pinned to one provider (Storage and retrieval). */
+export const pinsEmbeddingProvider = (td: string): boolean => defaultRetrieval(td) === "embeddings";
 
 export const SCHEMA = `
 CREATE EXTENSION IF NOT EXISTS vector;

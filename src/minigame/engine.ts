@@ -41,7 +41,7 @@ import { Recorder, sameThought } from "./extract.ts";
 import type { LogprobsSetting, StoredLogprobs } from "./logprobs.ts";
 import { loreLines, type LoreSetting } from "./lore.ts";
 import type { RetrievalMethod, VectorStore } from "./store.ts";
-import { inWorldNames, minglingPhase, minglingTime } from "../prompt/names.ts";
+import { hasArrival, inWorldNames, inWorldTime, minglingPhase } from "../prompt/names.ts";
 import { MemoryStore, renderBelief, tookTargetLine, resolveName, whereLabel, type GameLine, type Thought, type Where } from "./memory.ts";
 
 // ---- Calls -----------------------------------------------------------------------------
@@ -128,9 +128,10 @@ export interface GameSettings {
   /** TD v0.21 `logprobs`: labels (default), off, or all; the runner requests and stores them, and play never reads them. */
   logprobs?: LogprobsSetting;
   /**
-   * TD v0.22 Storage and retrieval: how block 6's fill measures similarity. `overlap` (the default,
-   * as every baseline was measured) or `embeddings` (TD v0.25's name; the live store: pgvector cosine similarity,
-   * owner-filtered in the query). Needs the store.
+   * TD v0.22 Storage and retrieval: how block 6's fill measures similarity. `overlap` (what an unset
+   * value means here, as every game before TD v0.36 ran) or `embeddings` (TD v0.25's name; the live store:
+   * pgvector cosine similarity, owner-filtered in the query; needs the store). The runner's default follows
+   * the TD (store.ts defaultRetrieval: embeddings from v0.36) and records the method in every game.
    */
   retrieval?: RetrievalMethod;
   /** TD v0.22 `lore`: off (default) inserts nothing; on inserts WHAT YOU KNOW OF FLORENCE from the store. */
@@ -221,6 +222,8 @@ export class MiniGame {
   private pendingColloquio: { mover: CharacterName; target: CharacterName } | null = null;
   /** TD v0.23 seating (TD ≥ 0.23); older TDs keep the interim lone-guest rule, so saved runs replay as they ran. */
   private seating: boolean;
+  /** TD v0.36: Il Notaio's entries carry the narrator as speaker and the event's people as `about`. */
+  private namesNotaio: boolean;
   /** Guests with no conversation, in the order they became seatless. */
   private seatless: CharacterName[] = [];
   /** Colloquio calls and joins waiting on a guest in a Colloquio (Seating, Edge cases (b) and (c)). */
@@ -244,8 +247,12 @@ export class MiniGame {
     this.seating = tdMinor(docs.versions.technicalDesign) >= 23;
     this.memory.quoteDropsPunct = tdMinor(docs.versions.technicalDesign) >= 15;
     // TD v0.34: block 6 lines open with an in-world time ("1st round, early") instead of T4. The mini-game is one round of mingling.
-    if (docs.inWorld) this.memory.timeLabel = (t) => minglingTime(t, s.turns);
+    // TD v0.36: turn 0, the guests' arrival, is "arrival".
+    if (docs.inWorld) this.memory.timeLabel = inWorldTime(docs.versions.technicalDesign, s.turns);
     this.memory.fillCap = fillCapFor(docs.versions.technicalDesign);
+    // TD v0.36: block 6's cap rises from ~450 to ~490 tokens, time labels included (they always were, as built).
+    this.memory.notebookBudget = tdMinor(docs.versions.technicalDesign) >= 36 ? 490 : 450;
+    this.namesNotaio = tdMinor(docs.versions.technicalDesign) >= 36;
     this.recorder = new Recorder(docs, this.memory, (kind, c, system, user) => this.systemCall(kind, c, system, user), this.events, formatLine, listJoin);
     Object.assign(this.prefixes, this.recorder.prefixes);
     this.treasury = docs.tunables.embassy_treasury;
@@ -303,8 +310,9 @@ export class MiniGame {
     const smaller = `Tonight is a smaller gathering than most: only ${listJoin(this.s.cast)} attend. ${listJoin(absent)} are alive, but elsewhere tonight, and can't be reached.`;
     for (let i = 0; i < order.length; i += 3) {
       const conv = this.newConversation("capannello", order.slice(i, i + 3));
-      this.notaio(conv, smaller);
-      this.notaio(conv, `The guests drifted into company: ${listJoin(conv.members)}.`);
+      // The attendance note announces the guests here tonight; the groups note names the group formed.
+      this.notaio(conv, smaller, this.s.cast);
+      this.notaio(conv, `The guests drifted into company: ${listJoin(conv.members)}.`, conv.members);
     }
     this.events.push({ turn: 0, type: "capannelli", groups: [...this.convs.values()].map((c) => [...c.members]), rotation: this.rotation });
   }
@@ -643,7 +651,7 @@ export class MiniGame {
   }
 
   private leave(conv: Conversation, c: CharacterName, note: string): void {
-    this.notaio(conv, note);
+    this.notaio(conv, note, [c]);
     this.remove(conv, c);
   }
 
@@ -669,7 +677,7 @@ export class MiniGame {
     conv.members.push(c);
     this.char(c).conversation = conv.id;
     // Joiners hear only what is said after they arrive: the join note is their first line here.
-    this.notaio(conv, others.length ? `${c} joined ${listJoin(others)}.` : `${c} took a place in company.`);
+    this.notaio(conv, others.length ? `${c} joined ${listJoin(others)}.` : `${c} took a place in company.`, [c]);
     conv.needsThink = true;
   }
 
@@ -679,7 +687,7 @@ export class MiniGame {
     for (const c of [mover, target]) this.char(c).withdrawals++;
     const note = withdrawalNote(mover, target, this.char(mover).withdrawals, this.docs.versions.technicalDesign);
     // Witnesses: everyone in the Capannelli the two leave.
-    for (const conv of a.id === b.id ? [a] : [a, b]) this.notaio(conv, note);
+    for (const conv of a.id === b.id ? [a] : [a, b]) this.notaio(conv, note, [mover, target]);
     const colloquio = this.newConversation("colloquio", [mover, target]);
     colloquio.returnTo.set(mover, a.id);
     colloquio.returnTo.set(target, b.id);
@@ -709,7 +717,7 @@ export class MiniGame {
       const others = [...dest.members];
       dest.members.push(c);
       this.char(c).conversation = dest.id;
-      this.notaio(dest, others.length ? `${c} returned to company and rejoined ${listJoin(others)}.` : `${c} returned to company.`);
+      this.notaio(dest, others.length ? `${c} returned to company and rejoined ${listJoin(others)}.` : `${c} returned to company.`, [c]);
       dest.needsThink = true;
     }
     this.fixLoneGuests();
@@ -764,7 +772,7 @@ export class MiniGame {
     for (const c of [mover, target]) this.char(c).withdrawals++;
     const note = withdrawalNote(mover, target, this.char(mover).withdrawals, this.docs.versions.technicalDesign);
     const left = [...new Set([a, b])].filter((x): x is Conversation => !!x && x.open && x.kind === "capannello");
-    for (const conv of left) this.notaio(conv, note);
+    for (const conv of left) this.notaio(conv, note, [mover, target]);
     const snapshot = !opts.after && a?.kind === "capannello" ? { capannello: a.id, guests: a.members.filter((m) => m !== mover) } : null;
     const seating: ColloquioSeating = {
       initiator: mover,
@@ -895,7 +903,7 @@ export class MiniGame {
     while (this.seatless.length >= 2) {
       const [a, b] = this.seatless.splice(0, 2) as [CharacterName, CharacterName];
       const conv = this.newConversation("capannello", [a, b]);
-      this.notaio(conv, `${a} and ${b} returned to company and formed a new group.`);
+      this.notaio(conv, `${a} and ${b} returned to company and formed a new group.`, [a, b]);
       this.events.push({ turn: this.turn, type: "seatless-pair", conversation: conv.id, members: [a, b] });
     }
     for (const w of [...this.waitingJoins]) {
@@ -981,7 +989,7 @@ export class MiniGame {
     conv.members.push(c);
     this.char(c).conversation = conv.id;
     this.seatless = this.seatless.filter((x) => x !== c);
-    this.notaio(conv, others.length ? `${c} returned to company and ${own ? "rejoined" : "joined"} ${listJoin(others)}.` : `${c} returned to company.`);
+    this.notaio(conv, others.length ? `${c} returned to company and ${own ? "rejoined" : "joined"} ${listJoin(others)}.` : `${c} returned to company.`, [c]);
     conv.needsThink = true;
   }
 
@@ -1062,6 +1070,8 @@ export class MiniGame {
   /** Block 5's {phase_label}: from TD v0.34 the in-world name ("The first round of mingling, early"; "Midnight"), before it the game's. */
   private phaseLabel(gathering: boolean): string {
     const turn = Math.max(1, this.turn);
+    // TD v0.36: before the first turn (the opening), "The guests' arrival"; before v0.36 it read as the first turn.
+    if (this.docs.inWorld && !gathering && this.turn === 0 && hasArrival(this.docs.versions.technicalDesign)) return inWorldNames().arrival.phase;
     if (this.docs.inWorld) return gathering ? inWorldNames().phase.midnight : minglingPhase(turn, this.s.turns);
     return gathering ? "The Murder Round" : `Capannello round 1, turn ${turn}`;
   }
@@ -1241,10 +1251,17 @@ export class MiniGame {
     return line;
   }
 
-  private notaio(conv: Conversation, text: string): void {
+  /**
+   * `about`: the characters the event concerns, from the event itself, never from the note's text (TD v0.36):
+   * the mover for a join or departure, both guests for a withdrawal or a pair's return, the guests a
+   * broadcast announces. From TD v0.36 the entry's `speaker` is the narrator and `about` is filled;
+   * before it both were empty, so older games replay byte-identical.
+   */
+  private notaio(conv: Conversation, text: string, about: CharacterName[]): void {
     const line = this.addLine(conv, "notaio", null, text);
     // Code writes Il Notaio's events to the memory of everyone who heard them.
-    this.memory.addEntry({ turn: this.turn, conversation: conv.id, where: line.where, type: "event", speaker: null, toward: null, about: [], summary: text, quote: null, lines: [line.id], audience: line.heardBy, source: "code" });
+    const named = this.namesNotaio ? { speaker: inWorldNames().narrator.name, about: [...new Set(about)] } : { speaker: null, about: [] };
+    this.memory.addEntry({ turn: this.turn, conversation: conv.id, where: line.where, type: "event", ...named, toward: null, summary: text, quote: null, lines: [line.id], audience: line.heardBy, source: "code" });
     this.events.push({ turn: this.turn, type: "notaio", line: line.id, conversation: conv.id, text });
   }
 
