@@ -24,10 +24,10 @@
 // it holds 30 calls) drops the run to one game at a time.
 
 import { LOGPROBS_SETTINGS, callWithLogprobs, type LogprobsSetting, type LogprobsState } from "./logprobs.ts";
-import { embedderFromEnv, type Embedder } from "./embed.ts";
+import { EMBED_PROVIDER, embedderFromEnv, type Embedder } from "./embed.ts";
 import { LORE_SETTINGS, loreHeader, readLoreFile, type LoreEntry, type LoreFile, type LoreSetting } from "./lore.ts";
 import { tdMinor } from "../prompt/assemble.ts";
-import { RETRIEVAL_METHODS, VectorStore, openStoreDb, type RetrievalMethod } from "./store.ts";
+import { RETRIEVAL_METHODS, VectorStore, defaultRetrieval, openStoreDb, pinsEmbeddingProvider, type RetrievalMethod } from "./store.ts";
 import { isolationCheck, type IsolationRecord } from "./isolation.ts";
 import type pg from "pg";
 import { audited } from "../harness/keyaudit.ts";
@@ -71,9 +71,9 @@ const { values: opts } = parseArgs({
     notebook: { type: "string", default: "perceived" },
     // TD v0.21 Run Configuration: labels (default), off, or all.
     logprobs: { type: "string", default: "labels" },
-    // TD v0.22 Storage and retrieval: overlap (default, as the baselines were measured) or embeddings
-    // (DATABASE_URL and EMBEDDING_MODEL_*). Lore: off (default) or on (needs the same).
-    retrieval: { type: "string", default: "overlap" },
+    // TD v0.22 Storage and retrieval: overlap or embeddings (DATABASE_URL and EMBEDDING_MODEL_*). The default
+    // follows the TD: embeddings from v0.36, overlap before (defaultRetrieval). Lore: off (default) or on (needs the same).
+    retrieval: { type: "string" },
     lore: { type: "string", default: "off" },
     // Projected cost from saved games of the same play model; no calls.
     estimate: { type: "boolean", default: false },
@@ -89,6 +89,7 @@ const WINDOW_MIN_CALLS = 30;
 /**
  * Knowledge checks at game end: the secret-spread grid, F2–F5 for every cast member (Dylan,
  * Oct 24). (LeNoir, F2) is the one that settles Isabella's, LeNoir's, and Raffaello's plot points.
+ * From TD v0.36 a pair whose character knows the fact at the start gets no call (known_at_start).
  */
 function checks(): GameSettings["checks"] {
   return ["F2", "F3", "F4", "F5"].flatMap((fact) => CAST.map((character) => ({ character, fact })));
@@ -149,7 +150,7 @@ async function main(): Promise<void> {
     dropRepeatedThoughts: !opts["keep-repeated-thoughts"],
     notebook: opts.notebook as "perceived" | "shared",
     logprobs: opts.logprobs as LogprobsSetting,
-    retrieval: opts.retrieval as RetrievalMethod,
+    retrieval: (opts.retrieval ?? defaultRetrieval(docs.versions.technicalDesign)) as RetrievalMethod,
     lore: opts.lore as LoreSetting,
   };
   if (!["perceived", "shared"].includes(settingsBase.notebook)) throw new Error(`--notebook must be perceived or shared`);
@@ -163,7 +164,8 @@ async function main(): Promise<void> {
   let embedder: Embedder | null = null;
   if (settingsBase.retrieval === "embeddings" || settingsBase.lore === "on") {
     if (!process.env.DATABASE_URL) throw new Error("--retrieval embeddings and --lore on need DATABASE_URL (PostgreSQL with pgvector)");
-    embedder = embedderFromEnv();
+    // TD v0.36: pinned to one provider, no fallbacks; before it, the endpoint routed as it liked.
+    embedder = embedderFromEnv(process.env, pinsEmbeddingProvider(docs.versions.technicalDesign) ? { provider: EMBED_PROVIDER } : {});
     if (!embedder) throw new Error("--retrieval embeddings and --lore on need EMBEDDING_MODEL_BASE_URL, EMBEDDING_MODEL_API_KEY, and EMBEDDING_MODEL_ID");
     storeDb = await openStoreDb(process.env.DATABASE_URL);
   }
@@ -471,6 +473,7 @@ function buildRecord(
       retrieval: (x.settings as { retrieval?: string }).retrieval ?? "overlap",
       ...loreHeader(x.lore.file, (x.settings as { lore?: LoreSetting }).lore ?? "off"),
       embedding_model: x.embeddingModel,
+      ...(x.embeddingModel && pinsEmbeddingProvider(x.docs.versions.technicalDesign) && { embedding_provider: EMBED_PROVIDER }),
       docs: x.docs.versions,
       config: {
         model: x.served.character.model.slug,

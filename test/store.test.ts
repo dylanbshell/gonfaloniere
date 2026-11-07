@@ -154,6 +154,65 @@ test("TD v0.32 reverts v0.29's voice wording: every prompt is byte-identical to 
   assert.ok(after.every((c) => !/sharp turn of phrase/.test(c.system + c.user)));
 });
 
+/** The fake game's prompts on TD v0.35, from main before TD v0.36 was built (b31cc0c). */
+const PROMPTS_V035 = "0864f910e9e5ccdd8ff9a2dd07d31b600f517e20e77f8183a3da39b67314c737";
+
+test("TD v0.36: every prompt is v0.35's with only the changelog's changes: arrival's labels, block 6's ~490 tokens, and no check for a fact known at start", async () => {
+  const v35 = await playFakeOn(loadDocs(docsFor("0.35")));
+  const v36 = await playFakeOn(loadDocs(docsFor("0.36")));
+  const [before, after] = [v35.calls, v36.calls];
+  assert.equal(promptHash(before), PROMPTS_V035, "v0.35 replays byte-identical");
+  // The fake game's one knowledge check is (Lupo, F2), and Lupo starts knowing F2 (Known at start): no call.
+  const kept = before.filter((c) => !(c.kind === "knowledge-check" && c.character === "Lupo"));
+  assert.equal(kept.length, before.length - 1);
+  assert.deepEqual(after.map((c) => `${c.kind}|${c.character}`), kept.map((c) => `${c.kind}|${c.character}`));
+  // Play and memory are unchanged; only Il Notaio's entries gain their speaker and people (checked in td036.test.ts).
+  const plain = (g: typeof v35.game) => ({ lines: g.lines, readings: g.memory.readings, beliefs: g.memory.beliefs, entries: g.memory.entries.map((e) => ({ ...e, speaker: e.type === "event" ? null : e.speaker, about: e.type === "event" ? [] : e.about })) });
+  assert.deepEqual(plain(v36.game), plain(v35.game));
+  // Every block 6 line is a rendering of the character's own notebook (a larger cap can admit a line v0.35 never fit).
+  assert.deepEqual(isolationCheck(recordOf(v36.game, 6)).violations, []);
+  const HEAD = "WHAT YOU REMEMBER FROM EARLIER TONIGHT\n";
+  const split = (u: string) => {
+    const a = u.indexOf(HEAD);
+    if (a < 0) return { rest: u, notebook: [] as string[] };
+    const b = u.indexOf("(★ marks", a);
+    return { rest: u.slice(0, a + HEAD.length) + u.slice(b), notebook: u.slice(a + HEAD.length, b).split("\n").filter(Boolean) };
+  };
+  const cost = (lines: string[]) => lines.reduce((n, l) => n + Math.ceil(l.slice(2).length / 3.5), 0);
+  let phases = 0;
+  let arrivals = 0;
+  let over450 = 0;
+  let notebooks = 0;
+  let linesBefore = 0;
+  let linesAfter = 0;
+  after.forEach((c, i) => {
+    const o = kept[i]!;
+    assert.equal(c.system, o.system, `${c.kind} ${i}: system`);
+    const n = split(c.user);
+    const e = split(o.user);
+    // Outside block 6, only the opening plan calls change, at turn 0: block 5's phase is the guests' arrival.
+    if (n.rest !== e.rest) {
+      assert.equal(c.kind, "plan", `${c.kind} ${i}: only the opening's block 5 changes`);
+      assert.equal(n.rest, e.rest.replace(/^The first round of mingling, early$/m, "The guests' arrival"), `${c.kind} ${i}: block 5's arrival`);
+      phases++;
+    }
+    // Turn 0's lines (the attendance and groups notes) read "arrival".
+    if (n.notebook.some((l) => l.startsWith("- arrival · "))) arrivals++;
+    assert.ok(cost(n.notebook) <= 490, `${c.kind} ${i}: block 6 within ~490 tokens, time labels included`);
+    if (cost(n.notebook) > 450) over450++;
+    if (n.notebook.length) {
+      notebooks++;
+      linesBefore += e.notebook.length;
+      linesAfter += n.notebook.length;
+    }
+  });
+  assert.equal(phases, 6, "one opening plan call per character");
+  assert.ok(arrivals > 0 && over450 > 0, `${arrivals} calls with an arrival line, ${over450} past the old cap`);
+  assert.ok(after.every((c) => !/^- 1st round, early · Il Notaio: "Tonight is a smaller gathering/m.test(c.user)), "the attendance note is arrival's");
+  // Reported, not gated: block 6's average line count, which the larger cap restores (TD's check is on M&R's synthetic game).
+  console.log(`block 6: ${(linesBefore / notebooks).toFixed(2)} lines a call on v0.35, ${(linesAfter / notebooks).toFixed(2)} on v0.36 (${notebooks} calls)`);
+});
+
 test("lore file: only approved, canon-checked entries load; scopes are public or a full name; the hash is of the file's bytes", () => {
   const dir = mkdtempSync(join(tmpdir(), "lore-"));
   const path = join(dir, "lore.json");

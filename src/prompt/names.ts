@@ -14,6 +14,10 @@ export interface InWorldNames {
   rounds: string[];
   roundsShort: string[];
   parts: string[];
+  /** TD v0.36: before the first council, the guests' arrival (block 5 `phase`, block 6 `time`). */
+  arrival: { since: string; phase: string; time: string };
+  /** TD v0.36: the speaker code writes on the narrator's memory entries. */
+  narrator: { since: string; name: string };
   /** In-world act word → game act. */
   acts: Record<string, string>;
 }
@@ -63,6 +67,21 @@ export function minglingPhase(turn: number, turns: number, round = 1, names = in
 /** The short time label that opens a block 6 line, in place of T4: "1st round, early". */
 export function minglingTime(turn: number, turns: number, round = 1, names = inWorldNames()): string {
   return fillIn(names.time.mingling, { round: names.roundsShort[round - 1]!, part: names.parts[partOf(turn, turns)]! });
+}
+
+/** TD v0.36: whether a game on this TD calls the time before the first council the guests' arrival. */
+export function hasArrival(td: string, names = inWorldNames()): boolean {
+  return atLeast(td, names.arrival.since);
+}
+
+/**
+ * Block 6's in-world time label for each turn (TD v0.34). From TD v0.36, turn 0, before the first
+ * turn (the mini-game has no council, so its arrival is turn 0), is "arrival"; before it, turn 0
+ * counted as "1st round, early".
+ */
+export function inWorldTime(td: string, turns: number, names = inWorldNames()): (turn: number) => string {
+  const arrival = hasArrival(td, names);
+  return (turn) => (arrival && turn === 0 ? names.arrival.time : minglingTime(turn, turns, 1, names));
 }
 
 /** The game act for a 9e act word: an in-world word ("watch") or the game's own ("investigate"); null if neither. */

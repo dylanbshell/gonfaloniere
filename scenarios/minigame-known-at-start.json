@@ -1,0 +1,12 @@
+{
+  "_comment": "Who knew each plot-point fact at the start of a mini-game recorded before TD v0.36, which checked every pair. From TD v0.36 the TD's Plot-point facts table says this (Known at start), and the record's verdict is known_at_start. Raffaello knew F2 only from his stand-in briefing (scenarios/minigame-standin-briefings.md, whose errand is to tell LeNoir); Characters' own briefing doesn't give it to him (Characters v0.8).",
+  "knowers": {
+    "F2": ["Contessa Isabella"],
+    "F3": ["Giorgia Pazzi", "Captain Armand LeNoir"],
+    "F4": ["Contessa Isabella", "Lupo"],
+    "F5": ["Lupo", "Contessa Isabella"]
+  },
+  "standinKnowers": {
+    "F2": ["Raffaello de' Medici"]
+  }
+}

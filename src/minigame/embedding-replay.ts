@@ -22,7 +22,7 @@ import { docsFor, mechanicsPath } from "../../probe.config.ts";
 import type { CharacterName } from "../game/roster.ts";
 import { gitCommit, priorSpend, RunLog, type LogRecord } from "../harness/log.ts";
 import { loadDocs } from "../sources/docs.ts";
-import { embedderFromEnv, type Embedder } from "./embed.ts";
+import { EMBED_PROVIDER, embedderFromEnv, type Embedder } from "./embed.ts";
 import { formatLine, MiniGame, type CallRequest, type CallResponse, type GameSettings } from "./engine.ts";
 import { MemoryStore, namesIn, type GameLine, type NotebookTrace, type Ranked } from "./memory.ts";
 import { readRecord } from "./view.ts";
@@ -31,8 +31,7 @@ import { storeRows } from "./store.ts";
 export const OUT = "results/embedding-replay";
 const MINIGAME_LEDGER = "results/minigame";
 export const CREDIT_LEDGER = "results/claude-credit";
-/** The one OpenRouter provider the embedding model is pinned to, no fallbacks: bf16, the only one stating full precision. */
-export const EMBED_PROVIDER = "nebius";
+export { EMBED_PROVIDER };
 const EMBED_CAP_USD = 0.1;
 /** Spend stop for the Claude credit in this task. */
 const CREDIT_CAP_USD = 2;

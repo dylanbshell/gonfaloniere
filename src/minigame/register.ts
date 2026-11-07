@@ -16,11 +16,11 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
-import { KNOWS_AT_START } from "./cast.ts";
+import { knewAtStart } from "./cast.ts";
 import { readRecord } from "./view.ts";
 
 export type Rec = {
-  header: { game_id: string; seed: number; docs: { technicalDesign: string } };
+  header: { game_id: string; seed: number; docs: { technicalDesign: string; characters?: string } };
   lines: { id: string; kind: string; speaker: string | null; text: string; meant?: string | null }[];
   thoughts: { id: string; character: string; call: string; text: string; took?: string | null; took_target?: string }[];
   calls: { kind: string; attempt: number; verdict: string; repairs: unknown[] }[];
@@ -102,7 +102,7 @@ export function spread(recs: Rec[]) {
   const out = { checks: 0, told: 0, conclusion: 0, suspicion: 0, toldBy: 0 };
   for (const r of recs)
     for (const k of r.knowledge_checks) {
-      if ((KNOWS_AT_START[k.fact] ?? []).includes(k.character as never)) continue;
+      if (knewAtStart(k, r.header.docs.characters)) continue;
       out.checks++;
       if (k.verdict?.verdict === "told") out.told++;
       if (k.verdict?.verdict === "conclusion") out.conclusion++;

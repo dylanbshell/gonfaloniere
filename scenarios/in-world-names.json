@@ -20,6 +20,17 @@
   "rounds": ["first", "second", "third"],
   "roundsShort": ["1st", "2nd", "3rd"],
   "parts": ["early", "midway", "late"],
+  "arrival": {
+    "_comment": "TD v0.36: the time before the first council (in the mini-game, turn 0: the attendance notes and the opening), in place of \"1st round, early\". Block 5's phase label and block 6's time label.",
+    "since": "0.36",
+    "phase": "The guests' arrival",
+    "time": "arrival"
+  },
+  "narrator": {
+    "_comment": "TD v0.36: the speaker code writes on the narrator's memory entries (joins, departures, withdrawals, returns, broadcasts). The same name in the game and in-world.",
+    "since": "0.36",
+    "name": "Il Notaio"
+  },
   "acts": {
     "_comment": "Block 9e's act words, in-world → game act. A game word (kill, guard, investigate) is accepted too, without a repair.",
     "kill": "kill",

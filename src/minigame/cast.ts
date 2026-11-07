@@ -1,6 +1,7 @@
 // The mini-game's cast and starting knowledge (Models & Research v0.22,
 // Mini-Game Spec; Characters v0.4, Shared Canon).
 
+import { readFileSync } from "node:fs";
 import type { CharacterName } from "../game/roster.ts";
 import { atLeast } from "../prompt/names.ts";
 import { loadStandinBriefings, type DocSources } from "../sources/docs.ts";
@@ -22,11 +23,24 @@ export function castBriefings(docs: DocSources): Partial<Record<CharacterName, s
   return { ...docs.briefings, ...(standins.length && loadStandinBriefings(STANDIN_FILE, standins, docs.socialAwareness)) };
 }
 
-/** Who knows each plot-point fact at the start: their checks are a sanity check, not spread. */
-export const KNOWS_AT_START: Record<string, CharacterName[]> = {
-  // Raffaello's plot point is to tell LeNoir this, so his briefing gives it to him.
-  F2: ["Contessa Isabella", "Raffaello de' Medici"],
-  F3: ["Giorgia Pazzi", "Captain Armand LeNoir"],
-  F4: ["Contessa Isabella", "Lupo"],
-  F5: ["Lupo", "Contessa Isabella"],
-};
+export const KNOWN_AT_START_FILE = "scenarios/minigame-known-at-start.json";
+
+/**
+ * Whether a saved game's character knew a fact at the start, so the check is a sanity check, not spread.
+ * From TD v0.36 the verdict says so (`known_at_start`, with no check run). Before it, the setting file's
+ * table, where a stand-in's starting knowledge counts only in games played from the stand-in briefings.
+ */
+export function knewAtStart(k: { character: string; fact: string; verdict: { verdict: string } | null }, charactersVersion: string | undefined): boolean {
+  if (k.verdict?.verdict === "known_at_start") return true;
+  const table = (knownAtStartTable ??= JSON.parse(readFileSync(KNOWN_AT_START_FILE, "utf8")) as KnownAtStartTable);
+  if ((table.knowers[k.fact] ?? []).includes(k.character)) return true;
+  // A record with no Characters version is from before Characters wrote the cast's briefings.
+  const standins = charactersVersion ? standinsFor(charactersVersion) : STANDINS;
+  return (table.standinKnowers[k.fact] ?? []).some((c) => c === k.character && standins.includes(c as CharacterName));
+}
+
+interface KnownAtStartTable {
+  knowers: Record<string, string[]>;
+  standinKnowers: Record<string, string[]>;
+}
+let knownAtStartTable: KnownAtStartTable | undefined;

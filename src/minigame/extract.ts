@@ -16,10 +16,18 @@ export type SystemCallKind = "star-pass" | "claims-pass" | "sweep-reask" | "thou
 export type SystemCaller = (kind: SystemCallKind, character: CharacterName | null, system: string, user: string) => Promise<unknown | null>;
 export type RecorderEvent = { turn: number; type: string; [k: string]: unknown };
 
+/** TD v0.36: the verdict code records, with no recorder call, for a character who knows the fact from the start. */
+export interface KnownAtStartVerdict {
+  verdict: "known_at_start";
+  reasoning: string;
+  evidence: string[];
+  told_by: string[];
+}
+
 export interface KnowledgeCheckResult {
   character: CharacterName;
   fact: string;
-  verdict: ReturnType<typeof KnowledgeVerdict.parse> | null;
+  verdict: ReturnType<typeof KnowledgeVerdict.parse> | KnownAtStartVerdict | null;
   flags: string[];
   evidenceShown: { entries: string[]; beliefs: string[] };
 }
@@ -225,8 +233,13 @@ export class Recorder {
   async knowledge(checks: { character: CharacterName; fact: string }[], cast: CharacterName[], deadline = "the end of the game"): Promise<KnowledgeCheckResult[]> {
     const sp = this.docs.systemPrompts!.knowledgeCheck;
     return Promise.all(
-      checks.map(async ({ character, fact }) => {
+      checks.map(async ({ character, fact }): Promise<KnowledgeCheckResult> => {
         const f = this.docs.plotFacts.find((x) => x.id === fact)!;
+        // TD v0.36: no check for a fact the character starts with (Plot-point facts, Known at start).
+        if (f.knownAtStart?.includes(character)) {
+          const verdict: KnownAtStartVerdict = { verdict: "known_at_start", reasoning: "Known at start (Plot-point facts): no check is run.", evidence: [], told_by: [] };
+          return { character, fact, verdict, flags: [], evidenceShown: { entries: [], beliefs: [] } };
+        }
         const { entries, beliefs } = this.evidence(character, f, cast);
         const user = fill(sp.user, {
           character_name: character,
