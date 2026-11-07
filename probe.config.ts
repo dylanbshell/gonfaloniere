@@ -66,6 +66,7 @@ function tinkerCheckpoint(name: string): string {
  * in git history, and every logged result records the versions it ran on.
  */
 export const technicalDesignPath = (version: string) => `docs/Gonfaloniere_Technical_Design_v${version}.md`;
+export const mechanicsPath = (version: string) => `docs/Gonfaloniere_Game_Mechanics_v${version}.md`;
 
 /**
  * The docs for one TD version. TD v0.34+ and Characters v0.10+ use in-world names and must be
@@ -78,7 +79,8 @@ export function docsFor(td: string) {
   return {
     technicalDesign: technicalDesignPath(td),
     characters: `docs/Gonfaloniere_Characters_v${characters}.md`,
-    mechanics: "docs/Gonfaloniere_Game_Mechanics_v0.20.md",
+    // Only the Tunable Values table is read; v0.30's values are v0.20's, so prompts are unchanged.
+    mechanics: mechanicsPath("0.30"),
     modelsResearch: "docs/Gonfaloniere_Models_Research_v0.38.md",
   };
 }
