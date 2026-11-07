@@ -14,6 +14,7 @@
 // The record keeps the model, provider, temperature actually sent, thinking, and message layout,
 // never a key or a private endpoint.
 
+import Anthropic from "@anthropic-ai/sdk";
 import type OpenAI from "openai";
 import { config, type ModelConfig } from "../../probe.config.ts";
 import { fetchEndpoint, makeClient, type EndpointInfo } from "../harness/openrouter.ts";
@@ -120,4 +121,110 @@ async function endpointFor(model: ModelConfig, baseURL: string, price: string | 
   const [input, output] = (price ?? "").split(",").map(Number);
   if (!Number.isFinite(input) || !Number.isFinite(output)) throw new Error("A non-OpenRouter endpoint needs its price for the spending cap: set RECORDER_MODEL_PRICE (or PLAY_MODEL_PRICE) to \"input,output\" in USD per million tokens");
   return { providerName: "custom", tag: model.provider, quantization: "unknown", price: { input: input! / 1e6, output: output! / 1e6 }, supportedParameters: [] };
+}
+
+// ---- The native Claude API recorder (CC-20261107-05) ----------------------------------------------
+//
+// Beside the OpenAI-compatible route above, which is unchanged: a recorder model given as
+// "claude:<model>" (e.g. --recorder-model claude:claude-haiku-5-5) runs on the Claude API with Dylan's
+// Claude credit, CLAUDE_CREDIT_API_KEY, passed to the client explicitly. ANTHROPIC_API_KEY is never read.
+// The 10a–10d system messages are cached (5-minute). Temperature isn't sent (Claude 5 models reject
+// values below 1): the record says "model default". Thinking is off where the model allows it.
+
+export const CLAUDE_PREFIX = "claude:";
+
+/** USD per token: input, output, 5-minute cache write (1.25× input), cache read (claude-api skill, cached 2026-10-06). */
+export const CLAUDE_PRICES: Record<string, { input: number; output: number; cacheWrite: number; cacheRead: number }> = {
+  "claude-haiku-5-5": { input: 0.1e-6, output: 0.5e-6, cacheWrite: 0.125e-6, cacheRead: 0.01e-6 },
+  "claude-sonnet-5-5": { input: 2e-6, output: 10e-6, cacheWrite: 2.5e-6, cacheRead: 0.2e-6 },
+  "claude-opus-5-5": { input: 4e-6, output: 20e-6, cacheWrite: 5e-6, cacheRead: 0.2e-6 },
+};
+
+/**
+ * How each recorder model turns thinking off. Claude Haiku 5.5 accepts "disabled" at its default
+ * effort; Claude Sonnet 5.5 rejects "disabled", and "between_tools" is its documented thinking-off mode.
+ */
+const CLAUDE_THINKING_OFF: Record<string, { type: string }> = {
+  "claude-haiku-5-5": { type: "disabled" },
+  "claude-sonnet-5-5": { type: "between_tools" },
+};
+
+export interface ClaudeRoute {
+  role: "recorder";
+  api: "claude";
+  model: string;
+  client: Pick<Anthropic, "messages">;
+  thinking: { type: string };
+  price: (typeof CLAUDE_PRICES)[string];
+}
+
+export interface ClaudeUsage {
+  input: number;
+  output: number;
+  cacheWrite: number;
+  cacheRead: number;
+}
+
+export type ClaudeReply =
+  | { ok: true; content: string; model: string; stopReason: string | null; usage: ClaudeUsage; costUsd: number; latencyMs: number }
+  | { ok: false; status: number | null; error: string; latencyMs: number };
+
+export const isClaudeModel = (id: string | undefined): id is string => Boolean(id?.startsWith(CLAUDE_PREFIX));
+
+/** The Claude API recorder for "claude:<model>". `client` replaces the SDK client (tests). */
+export function claudeRoute(id: string, opts: { offline?: boolean; client?: Pick<Anthropic, "messages"> } = {}): ClaudeRoute {
+  const model = id.slice(CLAUDE_PREFIX.length);
+  const price = CLAUDE_PRICES[model];
+  const thinking = CLAUDE_THINKING_OFF[model];
+  if (!price || !thinking) throw new Error(`No price or thinking-off setting for ${model}: add it to CLAUDE_PRICES and CLAUDE_THINKING_OFF`);
+  // Only the credit key: other Anthropic credentials are dropped unread, so the SDK can't fall back to them.
+  delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.ANTHROPIC_AUTH_TOKEN;
+  const apiKey = key("CLAUDE_CREDIT_API_KEY");
+  if (!apiKey && !opts.offline && !opts.client) throw new Error("No CLAUDE_CREDIT_API_KEY in .env for the Claude recorder");
+  return { role: "recorder", api: "claude", model, thinking, price, client: opts.client ?? new Anthropic({ apiKey: apiKey ?? "dry-run-no-key", maxRetries: 8 }) };
+}
+
+export function claudeCost(price: ClaudeRoute["price"], u: ClaudeUsage): number {
+  return u.input * price.input + u.output * price.output + u.cacheWrite * price.cacheWrite + u.cacheRead * price.cacheRead;
+}
+
+/** One recorder call: the instructions as a cached system message, the data as the user message. */
+export async function callClaude(r: ClaudeRoute, system: string, user: string, maxTokens: number): Promise<ClaudeReply> {
+  const started = Date.now();
+  try {
+    const res = await r.client.messages.create({
+      model: r.model,
+      max_tokens: maxTokens,
+      system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
+      messages: [{ role: "user", content: user }],
+      thinking: r.thinking as Anthropic.ThinkingConfigParam,
+    });
+    const usage: ClaudeUsage = {
+      input: res.usage.input_tokens,
+      output: res.usage.output_tokens,
+      cacheWrite: res.usage.cache_creation_input_tokens ?? 0,
+      cacheRead: res.usage.cache_read_input_tokens ?? 0,
+    };
+    const content = res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
+    return { ok: true, content, model: res.model, stopReason: res.stop_reason, usage, costUsd: claudeCost(r.price, usage), latencyMs: Date.now() - started };
+  } catch (e) {
+    if (e instanceof Anthropic.APIError) return { ok: false, status: e.status ?? null, error: e.message, latencyMs: Date.now() - started };
+    throw e;
+  }
+}
+
+/** How a Claude route is kept in the game record: no key. */
+export function describeClaudeRoute(r: ClaudeRoute, servedModel: string | null) {
+  return {
+    model: r.model,
+    model_id: `${CLAUDE_PREFIX}${r.model}`,
+    endpoint: "Claude API (CLAUDE_CREDIT_API_KEY)",
+    provider: "Anthropic",
+    served_model: servedModel,
+    temperature_sent: "model default (not sent)",
+    thinking: r.thinking,
+    system_role: true,
+    prompt_caching: "system message, 5-minute",
+  };
 }
