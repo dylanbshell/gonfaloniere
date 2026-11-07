@@ -18,7 +18,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
-import { docsFor } from "../../probe.config.ts";
+import { docsFor, mechanicsPath } from "../../probe.config.ts";
 import type { CharacterName } from "../game/roster.ts";
 import { gitCommit, priorSpend, RunLog, type LogRecord } from "../harness/log.ts";
 import { loadDocs } from "../sources/docs.ts";
@@ -108,7 +108,8 @@ export type Rank = (rows: { id: string; body: string }[], query: string) => Rank
 export async function replayGame(path: string, rank?: Rank): Promise<{ points: Point[]; calls: number; exact: number; inexact: { n: number; kind: string; character: string | null; firstDiff?: { line: number; recorded: string | null; replayed: string | null } }[]; memory: MemoryStore }> {
   const rec = readRecord(path) as unknown as Rec;
   const h = rec.header;
-  const docs = loadDocs(docsFor(h.docs.technicalDesign!));
+  // Mechanics as the record ran on it: the pin moves (v0.20 to v0.30) without the prompts changing.
+  const docs = loadDocs({ ...docsFor(h.docs.technicalDesign!), ...(h.docs.mechanics && { mechanics: mechanicsPath(h.docs.mechanics) }) });
   for (const k of ["technicalDesign", "characters", "mechanics"] as const) {
     if (docs.versions[k] !== h.docs[k]) throw new Error(`${h.game_id}: the record ran on ${k} v${h.docs[k]}, but docsFor loads v${docs.versions[k]}`);
   }
