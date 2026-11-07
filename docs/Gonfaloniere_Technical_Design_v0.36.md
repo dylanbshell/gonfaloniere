@@ -1,8 +1,20 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.35
+### Version 0.36
 
 ---
+
+## Changes in v0.36
+
+*Clears three Models & Research handoffs from Nov 7 (v0.48–v0.51; CC-20261107-01, -03, -05), in Dylan's order.*
+
+- **Time labels count toward block 6's cap, and the cap rises to ~490 tokens** (Retrieval). The cap is a prompt-size budget, so everything in the block counts. In-world labels ("2nd round, early · ") run about 4 tokens longer than "T4 · ", so block 6 fit slightly fewer lines: 9.94 on average against 10.22, with 147 of 360 calls in a synthetic game fitting one fewer. That's about a quarter of a line per call on average, not a whole one. The extra ~40 tokens restore v0.33's line count, at about 1% of a call's input. The 12-line cap is unchanged
+- **A label for arrival** (In-World Names): "arrival" in block 6, and "The guests' arrival" in block 5. It covers everything before the first council, chiefly Il Notaio's attendance note. Claude Code had improvised "1st round, early", which wrongly placed those entries inside the first round
+- **`retrieval: embeddings` is the default** (Storage and retrieval): Models & Research's replay check kept embeddings on (v0.49), using Qwen3-Embedding-8B pinned to Nebius at full precision. `overlap` stays as a setting, so earlier games replay as recorded
+- **Il Notaio's entries name the people in them** (Memory Writing). Code writes `speaker` as Il Notaio and fills `about` from the event's own participants (who joined, withdrew, or was announced), not by reading the text. Until now both were empty. That skewed the replay check's wrong-person measure, and it hid his notes from the knowledge checks, which pick memory entries by name. For F3, his notes about Giorgia and LeNoir are one of the canon ways to learn the affair. Version-gated, so older games replay byte-identical
+- **No knowledge check for a fact the character starts with** (Plot-point facts): a new "Known at start" column, taken from Characters' Shared Canon. Code skips those pairs and records `known_at_start` without a recorder call, so a secret-spread grid shows them apart from *none*. No errand check is affected today, since none of the five asks a starting knower. Raffaello no longer starts knowing F2 (Characters v0.8), so an older harness rule that counted him should go
+- **Known limit updated** with the blind re-measure: DeepSeek's record holds 42% of ★ moments, and no Claude recorder passed or was clearly better
+- Still open from the same handoff: Dylan's reveal action, with Mechanics, after a secret-keeping test (tracker)
 
 ## Changes in v0.35
 
@@ -646,7 +658,7 @@ Nothing about the model is hard-coded. Each run reads a config file, and the ful
 | Prompt caching | On where the provider supports it | Same |
 | Log probabilities *(v0.21)* | `logprobs: labels` (default): request them where the provider supports it, and store the top 5 at the `took` / `meant` label token. `off` requests none; `all` stores them for every output token (large, for debugging only). Never required: missing means null. Development games' provider returns none; Tinker, for research batches, does (Serving stacks below) | `off` |
 
-**Also run settings, not model settings:** `lore` (`off`, the default, or `on`; see The lore store; fixed for a research batch), the embedding model (`EMBEDDING_MODEL_*`; see Storage and retrieval; recorded and fixed for a batch), `plot_reward` on/off, `notebook` (`perceived`, the default, or `shared`; see The perceived notebook; fixed for a research batch, like the recorder), tunable values (from mechanics), personality assignment seed, random seed (which also drives any draw by lot and every random tie-break in seating), and `retrieval` (v0.25: `overlap`, the word-overlap stand-in the mini-game was measured on and still its default, or `embeddings`, the store in Storage and retrieval; recorded and fixed for a batch).
+**Also run settings, not model settings:** `lore` (`off`, the default, or `on`; see The lore store; fixed for a research batch), the embedding model (`EMBEDDING_MODEL_*`; see Storage and retrieval; recorded and fixed for a batch), `plot_reward` on/off, `notebook` (`perceived`, the default, or `shared`; see The perceived notebook; fixed for a research batch, like the recorder), tunable values (from mechanics), personality assignment seed, random seed (which also drives any draw by lot and every random tie-break in seating), and `retrieval` (`embeddings`, the default since v0.36, or `overlap`, the word-overlap stand-in every game before then ran on; see Storage and retrieval; recorded and fixed for a batch).
 
 **Serving stacks** *(v0.23; Models & Research v0.40, Hosting plan)*:
 - **Development games** run on the pinned OpenRouter provider (DeepInfra fp8), where every baseline so far was measured. It returns no log probabilities, so the label record is null there
@@ -671,7 +683,7 @@ Every character call is built from the same blocks in the same order, **most sta
 | 3 | **Briefing** (from Characters), voice examples included | Never | ≤ ~1,150 (v0.34; ~1,000 before) |
 | 4 | **Strategy section** | At checkpoints | ~150 |
 | 5 | **State:** phase, where you are, who's present, purse, pensions, allowed actions | Every call | ~150 |
-| 6 | **Long-term memory:** retrieved bullets, high-salience marked | Every utterance | ~450 (v0.10; ~300 before) |
+| 6 | **Long-term memory:** retrieved bullets, high-salience marked | Every utterance | ~490 (v0.36, time labels included; ~450 from v0.10; ~300 before) |
 | 7 | **Recent private thoughts** (shortTermHistory) | Every utterance | ~200 |
 | 8 | **The conversation so far** (History) | Every utterance | ~400 |
 | 9 | **Task:** call-specific instructions and output format | Per call type | ~200–450 |
@@ -679,7 +691,7 @@ Every character call is built from the same blocks in the same order, **most sta
 - **Message layout:** blocks 1–3 form the **system message**; blocks 4–9 form **one user message**. Where a model's chat template handles a system message badly, set `system_role: false` and send all nine blocks as one user message. The prefix is identical either way, so caching works either way
 - **Blocks 1–3 are identical for every call type**, so all of a character's calls share one cached prefix. Task instructions go last, where models attend to them most
 - **Long-term memory is retrieved once per character per utterance** and reused for that character's `think()` and `speak()`. Movement, strategy, Murder Round, and vote calls retrieve their own, with queries suited to the decision (e.g. Murder Round retrieves threats and deals)
-- **Sizes:** ~3,450 input tokens per call (v0.34, with the larger briefing budget). Measured `think()` output on TD v0.3 is ~103 tokens (DeepSeek). `speak()` ~100. Models & Research replaces these with measurements
+- **Sizes:** ~3,500 input tokens per call (v0.36; ~3,450 in v0.34 with the larger briefing budget, plus block 6's label allowance). Measured `think()` output on TD v0.3 is ~103 tokens (DeepSeek). `speak()` ~100. Models & Research replaces these with measurements
 - **No constrained decoding.** Raw JSON plus code validation (see Output Validation & Repair)
 - **The JSON schema line comes last** *(rule since v0.6)*. Every task block ends with "Reply with only this JSON:" and its schema, and anything added to a task block (a new instruction, a personality line, a probe variant) goes **before** that line, never after. In the Oct 25 boldness test, one line placed after the schema in 9b made Qwen3.8 misspell the `utterance` key in 7.6% of `speak()` calls (1.0% without it). Placeholders that may hold extra instructions, such as `{done_instruction}` and `{addressee_instruction}`, already sit above the schema
 
@@ -712,7 +724,7 @@ Every line in block 8 is one of four kinds. All non-speech lines are written by 
 | Plot point | **errand** |
 | Plot Reward | described plainly: "one extra act at midnight", with no name |
 | KILL / GUARD / INVESTIGATE | **kill / guard / watch**, lowercase. Block 9e's JSON takes `"watch"`; code maps it to Investigate, and accepts `"investigate"` as an alias without a repair |
-| Capannello round N, turn T | "the {first/second/third} round of mingling, {early/midway/late}", the part by thirds of the round's turns. In block 6 the short form "2nd round, early"; during a council, "the Medici council"; at midnight, "midnight"; during the speeches, "the speeches" |
+| Capannello round N, turn T | "the {first/second/third} round of mingling, {early/midway/late}", the part by thirds of the round's turns. In block 6 the short form "2nd round, early"; during a council, "the Medici council"; at midnight, "midnight"; during the speeches, "the speeches". **Before the first council** (v0.36): "arrival" in block 6, "The guests' arrival" in block 5 |
 
 - **Kept as they are,** since they're already in-world: Capannello, Colloquio, Il Notaio, Florins, French pension, the ballot, the run-off, the speeches, repentance
 - **Setting pack:** these names are content, not code. They belong in the setting pack with the roster and vocabulary (Open Questions, setting in content), so a reskin renames them in one file
@@ -808,7 +820,7 @@ You have withdrawn into a private Colloquio {withdrawal_count} time(s) tonight.
 ```
 
 - `{living_others}`: **every living character except this one, including those present**
-- `{phase_label}` *(in-world since v0.34; see In-World Names)* e.g. "The second round of mingling, early", "The third Medici council", "Midnight", "The speeches", "The ballot", "The run-off". Before v0.34: "Capannello round 2, turn 4", "Faction meeting 3 (Medici)", "The Murder Round"
+- `{phase_label}` *(in-world since v0.34; see In-World Names)* e.g. "The guests' arrival" (v0.36), "The second round of mingling, early", "The third Medici council", "Midnight", "The speeches", "The ballot", "The run-off". Before v0.34: "Capannello round 2, turn 4", "Faction meeting 3 (Medici)", "The Murder Round"
 - `{conversation_label}` e.g. "a Capannello with Piero de' Medici and Lupo" or "a private Colloquio with Jeanne d'Orléans (utterance 3 of 6)". For calls outside a conversation (midnight, ballot, run-off): "the gathering"
 - `{present_characters}`: the other characters in this conversation. **For calls outside a conversation** (midnight, ballot, run-off): `no one; you decide alone` (v0.5; the S8–S10 probes listed everyone living, which suggested an audience that doesn't exist). Targets for those calls come from "All living guests besides you"
 - `{embassy_ledger}`: French Embassy characters only — "Embassy treasury: {n} Florins. Pensions held: {ledger}. Latest: {most_recent_change}." Empty for everyone else
@@ -1303,7 +1315,7 @@ THOUGHTS THIS TURN
 
 ### Block 10c — Knowledge check
 
-One call per **(character, fact)** pair, at a plot-point deadline. The facts and their wording are in **Plot Point Checks, Plot-point facts**. *v0.6: beliefs now arrive with their quotes, and the check re-reads a "conclusion" quote for hedges.*
+One call per **(character, fact)** pair, at a plot-point deadline, except where the character knows the fact from the start (v0.36; Plot-point facts, Known at start). The facts and their wording are in **Plot Point Checks, Plot-point facts**. *v0.6: beliefs now arrive with their quotes, and the check re-reads a "conclusion" quote for hedges.*
 
 **System message:**
 
@@ -1525,11 +1537,13 @@ Returners enter at the end of the current cycle like any joiner, and Il Notaio n
 |---|---|---|---|
 | **Code: transaction log** | Every bribe: `Contessa Isabella gave Lupo 3 Florins.` | Everyone present at the action line | ★ |
 | **Code: private actions** | /borrow and /repay, in the second person | The actor only | ★ |
-| **Code: Il Notaio's events** | Joins, departures, withdrawals, returns, broadcasts | Everyone who received the line | – |
+| **Code: Il Notaio's events** | Joins, departures, withdrawals, returns, broadcasts. **`speaker` is Il Notaio, and `about` lists the characters the event concerns** (v0.36) | Everyone who received the line | – |
 | **★ pass** (10a) | Promises, deals, threats, admissions | Everyone present at `line` and every cited context line from this turn. *Reference record only in `notebook: perceived`* | ★ |
 | **Claims pass** (10d) | Claims and denials | As 10a. *Reference record only in `notebook: perceived`* | – |
 | **Thought pass** (10b) | Suspicions and conclusions | The thinker only, as beliefs | – |
 | **Code: readings** (v0.9) | Each `took` other than `none` from the character's own `think()`, attached to its line | The character only. *Not shown in `notebook: shared`* | ★ if taken as a promise, deal, threat, or admission |
+
+**Il Notaio's entries name their people** *(v0.36)*. Code fills `about` from the event itself, never by reading the note's text: the mover for a join or departure, both guests for a withdrawal or return, and the people a broadcast announces (the dead, the candidates). `toward` stays empty. Before v0.36 both `speaker` and `about` were empty, so anything that selects entries by name missed his notes: the knowledge checks' `{memory_entries}`, the Murder Round's "guests the plan names", and Models & Research's wrong-person measure, which wrongly charged every note to retrieval. His notes are part of how secrets travel (Characters' Shared Canon lists them as one way to learn F3), so the checks should see them. **Version-gated** to TD ≥ 0.36, so older games replay byte-identical.
 
 **Reference record** (v0.8): the 10a and 10d entries, stored with their audience exactly as before. In the default mode they're read by knowledge checks, research, and the dashboard, and never retrieved into a character's prompt.
 
@@ -1552,7 +1566,7 @@ Returners enter at the end of the current cycle like any joiner, and Il Notaio n
 
 **Why these checks:** the gate 8 failures that matter most are a wrong speaker and an invented fact. The v0.5 design took the speaker from the first cited line, which went wrong when the model cited a request ("Swear it") as a promise: the asker became the promiser. v0.6 makes each entry rest on one line and has the model state who spoke it, so a mismatch shows up as a disagreement code can catch. The quote check still catches invented quotes. The verb check catches a label that disagrees with the model's own summary ("Lupo demanded…" under `promise`). Summaries that overreach their quote are still possible; Models & Research's judge measures them.
 
-**Rendering in block 6** (one line each, oldest first within the selection). In the default mode, a reading is short *(v0.9)*: when it was said (an in-world time label since v0.34, "2nd round, early", in place of "T4"), the conversation type, the speaker, a trimmed quote, and how the character took it. Measured at ~40 tokens each (v0.9 test), so block 6 gets ~450 tokens, about 10–12 lines (v0.10):
+**Rendering in block 6** (one line each, oldest first within the selection). In the default mode, a reading is short *(v0.9)*: when it was said (an in-world time label since v0.34, "2nd round, early", in place of "T4"), the conversation type, the speaker, a trimmed quote, and how the character took it. Measured at ~40 tokens each (v0.9 test), so block 6 gets ~450 tokens, about 10–12 lines (v0.10), and ~490 since v0.36 to make room for the longer time labels:
 
 ```
 1st round, late · Colloquio · ★ Lupo: "Three florins, and you never knew my name." (you took it as a deal)
@@ -1573,14 +1587,14 @@ Returners enter at the end of the current cycle like any joiner, and Il Notaio n
 
 In `notebook: shared`, ★ and claims entries render as in v0.7, with the v0.34 time label: `1st round, late · Colloquio with Lupo · ★ deal: {summary} ("{quote}")`.
 
-**Retrieval** (once per character per utterance, about 450 tokens since v0.10, roughly 10–12 lines). "Entries" here means the character's notebook: readings and code entries by default, or ★ and claims entries in `shared` mode:
+**Retrieval** (once per character per utterance, about 490 tokens since v0.36, roughly 10–12 lines). "Entries" here means the character's notebook: readings and code entries by default, or ★ and claims entries in `shared` mode:
 1. ★ entries naming anyone present (as speaker, `toward`, or `about`), most recent first, up to 6
 2. Held beliefs about anyone present, up to 3
 3. Fill the rest with the entries and beliefs most similar in meaning to the last two History lines. A reading is matched on its full line text, not the trimmed quote
 
 **At most 3 readings of any one non-★ label per call in step 3** (v0.19; it replaces v0.17's pressure-only cap). Claim, denial, insult, and pressure are each capped at 3, own readings included. The fill skips any further ones of that label, so no single label can crowd out the others, beliefs, or code entries, whichever one characters use most. Steps 1 and 2 are unaffected. A reading skipped for the token budget doesn't count toward its label's 3.
 
-**The ~450-token budget is a hard cap** (v0.11, as built): items are added in the order above, and one that would pass the cap is skipped, so a shorter item further down can still fit. Lines are capped at 12. Steps 1 and 2 go first, so a fill item never displaces a ★ entry or a belief. Tokens are estimated as characters ÷ 3.5.
+**The ~490-token budget is a hard cap** (v0.11, as built; ~450 until v0.36). **Everything in the block counts toward it, time labels included** (v0.36): it's a prompt-size budget, and the ~40 extra tokens cover the labels' cost (Changes in v0.36). The check: on a replay of Models & Research's synthetic game, block 6 averages ~10.2 lines again. items are added in the order above, and one that would pass the cap is skipped, so a shorter item further down can still fit. Lines are capped at 12. Steps 1 and 2 go first, so a fill item never displaces a ★ entry or a belief. Tokens are estimated as characters ÷ 3.5.
 
 Movement, strategy, Murder Round, and vote calls retrieve with their own queries (Murder Round: ★ threats, deals, and promises first; strategy: the most recent turn's ★ entries plus held conclusions).
 
@@ -1591,6 +1605,11 @@ Movement, strategy, Murder Round, and vote calls retrieve with their own queries
 - **Invented entries:** 39–66 per group
 
 A stronger recorder (GPT-5.4) captured 79.9% but invented more (102), at ~54× the cost, so there's no split (Models & Research, Findings Log). The judge's own ★ list grew with the record it was shown, so these figures are rough rather than exact.
+
+**Re-measured blind** *(Nov 7, CC-20261107-05; Models & Research v0.51)*. This time the judge listed ★ moments from the transcript before seeing any record (rubric `gate8 v3`; 112 moments on the 4 plain-register mini-games):
+- **DeepSeek's record holds 42.0% of ★ moments,** lower than the older figures above, which were anchored on the record. The blind list itself missed about 23% of valid moments, so every absolute figure is low; the comparison between recorders holds
+- **No Claude recorder passed gate 8 or was clearly better.** Sonnet 5.5 captured 54.5% but invented slightly more (17.25 a game against 16.25), at ~$3.81 a full game against ~$0.08. Haiku 5.5 was worse than DeepSeek on both. **DeepSeek keeps recording, and there are no further recorder rounds**
+- **Knowledge checks:** the three recorders disagreed on 35 of 96, but only one disagreement decided an errand, and DeepSeek got that one right. Test games hold almost no errand events, so Models & Research is building a golden set of ~30 hand-written scenes with known verdicts before balancing
 
 **What it means:**
 - The ★ and claims record misses a third to nearly half of ★ moments and holds invented ones. In `shared` mode that is what characters remember. In the default mode it's what knowledge checks and research read
@@ -1710,9 +1729,9 @@ So Models & Research can compare each notebook with the transcript (Game Record 
 - **What else gets embedded** (v0.25, as built): for a reference entry, its summary and quote; for a code entry, each recipient's own rendered text (the "You…" form for the actor)
 - **When:** once per row, never per call. Rows are written at the end of the turn, but code entries (Il Notaio's notes, payments) arise mid-turn, so any row not yet embedded is embedded before the next query that could find it (v0.25, as built). Query embeddings are made per call; they're short and cheap
 - **Search is exact** (no approximate index), which is fine at a game's few thousand rows
-- **The embedding model is a run setting** (`EMBEDDING_MODEL_*`), model-neutral like the recorder, and recorded in the game record header. It's fixed for a research batch, since changing it changes what characters recall
+- **The embedding model is a run setting** (`EMBEDDING_MODEL_*`), model-neutral like the recorder, and recorded in the game record header. **Qwen3-Embedding-8B, pinned to Nebius at full precision** (Models & Research v0.49, Hosting plan), from v0.36. It's fixed for a research batch, since changing it changes what characters recall
 - **Isolation is enforced in the query.** Every search filters by the character who owns the row (or, for the reference record, by audience) inside the database query, before similarity is computed. A prompt can never be handed another character's row, however similar its text
-- **Both methods exist** (v0.25): the run setting `retrieval` picks `overlap` (word overlap, the stand-in every mini-game so far was measured on) or `embeddings`. The method is recorded in the game record header. The mini-game default stays `overlap`; switching, and choosing the embedding model, is Models & Research's call (tracker handoff), since it changes what characters recall
+- **Both methods exist** (v0.25): the run setting `retrieval` picks `overlap` (word overlap, the stand-in every mini-game so far was measured on) or `embeddings`. The method is recorded in the game record header. **The default is `embeddings` since v0.36,** for full games and mini-games alike: Models & Research's replay check on saved games kept it (v0.49), under a rule set in advance (overlap only if embeddings came out clearly worse). The two were close to a tie; embeddings win on design grounds (recall by paraphrase, and lore needs them anyway). `overlap` stays as a setting so earlier games replay as recorded, and as a comparison
 - **The isolation filter, as built:** `WHERE game_id = $1 AND owner = $2 AND kind = ANY($3)` before `ORDER BY embedding <=> $4`. In `notebook: shared` the reference record is added by audience. As a second guard, code rejects any returned row that isn't the character's own
 - **In the mini-game,** the in-memory notebook still renders block 6 and fills the game record, and PostgreSQL holds every row with its embedding and runs the search. The full engine makes PostgreSQL the only store (Game Record & Export)
 
@@ -1888,12 +1907,17 @@ A character has learned a fact when either:
 
 The true facts the knowledge checks test, worded once so every check of the same fact asks the same thing. Plot points are from Mechanics v0.30 (Plot Reward table; Emile's errand changed in v0.26); the facts follow Characters' Shared Canon.
 
-| Fact | True statement | Must include | Does not count |
-|---|---|---|---|
-| **F1** | Clarice Orsini and Francesco Pazzi are lovers. | Both by name, and that it is a love affair | That Clarice has a lover, unnamed; that the two were seen talking or alone |
-| **F2** | Contessa Isabella di Salviati ordered the killing of Lucien, Captain LeNoir's brother, at San Frediano. | Isabella by name or by an unmistakable description (the Salviati widow here tonight), and that she ordered or paid for the killing | Only that Lupo did the killing; only that the silver boar or the Salviati house is connected; only that Isabella was involved with San Frediano in some other way |
-| **F3** | Giorgia Pazzi and Captain LeNoir are lovers. | Both by name, and that it is a love affair | That Giorgia slips out at night; that LeNoir has a Florentine lady, unnamed |
-| **F4** | Contessa Isabella hired Lupo for the San Frediano killing. | Isabella, Lupo, and that she hired him for that killing | That Lupo kills for hire; that Isabella ordered a killing without Lupo named as the one hired |
+| Fact | True statement | Must include | Does not count | Known at start *(v0.36)* |
+|---|---|---|---|---|
+| **F1** | Clarice Orsini and Francesco Pazzi are lovers. | Both by name, and that it is a love affair | That Clarice has a lover, unnamed; that the two were seen talking or alone | Clarice, Francesco |
+| **F2** | Contessa Isabella di Salviati ordered the killing of Lucien, Captain LeNoir's brother, at San Frediano. | Isabella by name or by an unmistakable description (the Salviati widow here tonight), and that she ordered or paid for the killing | Only that Lupo did the killing; only that the silver boar or the Salviati house is connected; only that Isabella was involved with San Frediano in some other way | Isabella, Lupo (she paid him; he doesn't know the victim was LeNoir's brother, which the fact doesn't require) |
+| **F3** | Giorgia Pazzi and Captain LeNoir are lovers. | Both by name, and that it is a love affair | That Giorgia slips out at night; that LeNoir has a Florentine lady, unnamed | Giorgia, LeNoir |
+| **F4** | Contessa Isabella hired Lupo for the San Frediano killing. | Isabella, Lupo, and that she hired him for that killing | That Lupo kills for hire; that Isabella ordered a killing without Lupo named as the one hired | Isabella, Lupo |
+
+**No check for a fact the character starts with** *(v0.36)*. "Known at start" is taken from Characters' Shared Canon (San Frediano and Love Knot, Characters v0.10). Code never runs a knowledge check for a character in that column. It records the verdict `known_at_start`, with no recorder call, so a secret-spread grid shows starting knowers apart from *none*. The same list marks a leak heard only by people who already knew as "already known". A briefing's starting knowledge is never shown to the check, so before v0.36 such a check could only come back *none* or worse, at the cost of a call.
+- **Partial starting knowledge doesn't count:** Beatrice knows Lupo did the killing and heard "the Contessa", but not which one, so (Beatrice, F4) still runs. Raffaello doesn't start knowing F2 (Characters v0.8); the mini-game harness rule that counted him as knowing it (Models & Research, Oct 24) is out of date
+- **Kept in the setting pack** with the facts, beside the briefings. A Shared Canon change to who starts knowing a fact comes here as a handoff
+- **No errand check is affected today:** none of the five below asks a starting knower
 
 **Which checks settle which plot points:**
 
@@ -1915,7 +1939,7 @@ So a full game needs **five knowledge checks** *(v0.35; four before)*: (Piero, F
 
 **Mini-game use:** with the Mini-Game Spec's cast (Lupo, Isabella, LeNoir, Francesco, Raffaello, Giorgia), (LeNoir, F2) settles Isabella's, LeNoir's, and Raffaello's knowledge plot points. Giorgia's needs Emile, who isn't in the cast. Run the check at the end of each game, with `plot_reward` off, for agreement with hand-checks.
 
-**Optional secret-spread checks** (research use, not plot points): the same prompt can ask whether any character has learned a core secret, e.g. **F5** "Lupo kills for hire" (must include: that he kills for money; doesn't count: that he is a bodyguard or dangerous) or F3 for anyone in the cast. A (character × secret) grid at game end shows how far each secret travelled. Models & Research decides whether to run it.
+**Optional secret-spread checks** (research use, not plot points): the same prompt can ask whether any character has learned a core secret, e.g. **F5** "Lupo kills for hire" (must include: that he kills for money; doesn't count: that he is a bodyguard or dangerous) or F3 for anyone in the cast. F5 is known at start by Lupo, Isabella, and Beatrice (v0.36). A (character × secret) grid at game end shows how far each secret travelled. Models & Research decides whether to run it.
 
 ---
 
@@ -2162,7 +2186,7 @@ It reads all 86 saved mini-game records, degrading gracefully where older ones l
 - **Does a caller know they may lose their seat?** (v0.23) Block 9c doesn't say that the invitee chooses first, or that a full or dissolved Capannello sends the caller elsewhere. Left out so 9c stays as tested; add a line if the full games show callers surprised by where they land
 - ~~**Movement edge cases**~~ Settled: joining or calling someone in a Colloquio follows Seating, Edge cases (Mechanics v0.25)
 - **Seating in the full games** (v0.26): the first live check (CC-20261028-08) exercised only the invitee's wait form, since six guests filled one group of 4. Watch the join choice, the lone-guest form, and chain lengths with 12 guests, where groups with room should be common. No more mini-game spend on this
-- **The in-world names check** (v0.34; Models & Research's to run): one mini-game on TD v0.34 with the matching briefings. Does any game term still appear in thoughts or speech ("Murder Round", "plot point", "faction meeting", "T3"), do midnight acts parse with `watch`, and does the label mix stay within the register check's guardrails?
+- ~~**The in-world names check**~~ *(passed, CC-20261107-01: no game term in 888 prompts or 900 outputs, 0 of 12 midnight answers repaired; Models & Research v0.48)*. It asked (v0.34): one mini-game on TD v0.34 with the matching briefings. Does any game term still appear in thoughts or speech ("Murder Round", "plot point", "faction meeting", "T3"), do midnight acts parse with `watch`, and does the label mix stay within the register check's guardrails?
 - Is 0.7 the right play temperature on the chosen model? (Revisit after probes)
 - ~~**Run-off announcement**~~ Settled: no vote count is ever announced, the final result included (Mechanics v0.24)
 - **The register check** (v0.27; rule set in advance by Models & Research v0.45, Open Questions): 2 DeepSeek mini-games, seeds 2000–2001, against the v0.19 baseline on the same seeds (CC-20261026-05).
