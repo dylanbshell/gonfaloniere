@@ -1,8 +1,17 @@
 # Gonfaloniere
 ## Models & Research — Working Document
-### Version 0.49
+### Version 0.50
 
 ---
+
+## Changes in v0.50
+
+- **Claude as the recorder: neither model passes or is clearly better, so DeepSeek keeps recording** (CC-20261107-05; Findings Log, Nov 7). On a fixed list of 112 ★ moments, Sonnet 5.5 captured 54.5% against DeepSeek's 42.0%, but invented slightly more (17.25 a game against 16.25) at ~$3.81 per full game against ~$0.08. Haiku 5.5 was worse than DeepSeek on both. Under the preset rule, gate 8 stays a known limit and **there are no further recorder rounds**
+- **The fixed measure worked, and shows the reference record is weaker than we thought.** Listed blind, DeepSeek's record holds 42% of ★ moments on plain-register games (the old, record-anchored judge put it at 56–68% on older games). Even the judge's blind list missed 23% of valid moments, so every absolute figure is low; the comparison between recorders holds
+- **The real risk is the errand checks.** The three recorders disagreed on 35 of 96 knowledge checks, with no one recorder the odd one out. Eight of twelve errands, and so who earns an extra act at midnight, rest on these checks. Technical Design has an open question on having knowledge checks read a character's witnessed lines directly instead of the reference record; I've planned a test for it (Open Questions) and sent it to Technical Design, with Mechanics informed
+- **Most invented entries are claims and denials** the definitions exclude (statements about oneself, opinions, predictions, questions). Characters never see the reference record, so these touch only knowledge checks and research
+- **Claude as a balancing analyst: recommended as a small pilot once full games exist** (Open Questions). Naming a game's turning points isn't strict extraction, so this result doesn't rule it out
+- **Claude-credit ledger: $14.28 of $100** ($13.56 this run, including $2.70 lost to a concurrency limit)
 
 ## Changes in v0.49
 
@@ -1024,7 +1033,7 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
   - **Midnight acts:** every 9e answer parses with no repair; count acts by type, `watch` included
   - **Pass, set now:** 0 game terms in prompts, 0 confirmed in outputs, 0 midnight repairs. A hit in a prompt is a build bug for Claude Code; a hit in output with a clean prompt goes to Technical Design with the examples
   - **Reported, not gated:** the label mix against the v0.27 baseline (the briefings changed too, so a shift can't be pinned on the names); knowledge checks; and Dylan's read in the viewer, the first look at Characters v0.10 in play (errands, voice lines, circling)
-- [ ] **Claude as the recorder: a gate 8 retry** (v0.47; from the Hub for Dylan, Nov 4). Uses Dylan's Claude credit (check its expiry first). Replay only; no new games
+- [x] **Claude as the recorder: done; neither passes or is clearly better** (Nov 7, CC-20261107-05; Findings Log). DeepSeek keeps recording; no further recorder rounds. Original plan: **Claude as the recorder: a gate 8 retry** (v0.47; from the Hub for Dylan, Nov 4). Uses Dylan's Claude credit (check its expiry first). Replay only; no new games
   - **Games:** the 4 plain-register mini-games, TD v0.27 and v0.29, seeds 2000–2001. DeepSeek's records from play are the comparison
   - **Recorders:** Claude Haiku 5.5 and Claude Sonnet 5.5, on TD's 10a–10d exactly as written (unchanged since v0.7), and 10c's knowledge checks. Native Claude API with prompt caching (the OpenAI-compatible layer has no caching). Thinking off where the model allows it; temperature at the model default (Claude 5 models reject values below 1), recorded
   - **The measure, fixed first (rubric `gate8 v3`):** the judge lists every ★ moment from each conversation-turn's lines alone, using TD's DEFINITIONS lines word for word, before seeing any record. That list is fixed and shared by every recorder. Then each recorder's entries are matched to it: captured, missed, and unmatched. Each unmatched entry is judged against the DEFINITIONS and its line: **invented** (not a valid entry, or a summary that says more than its line) or **valid but unlisted** (a list miss, reported separately and never added to the list). Claims and denials (10d) count toward invented; beliefs are judged as before (unsupported or not)
@@ -1034,6 +1043,12 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
   - **Otherwise:** gate 8 stays a known limit and DeepSeek keeps recording. No further recorder rounds
   - **Reported:** cost per mini-game and per full game for each recorder (scaled by recorder call and token counts), knowledge-check verdicts where the recorders disagree, the judge's own list-miss rate, and the credit's spend
   - **Cap:** $20 of the credit; stop at the cap and report
+- [ ] **Knowledge checks from witnessed lines** (proposed Nov 7; needs Technical Design's go-ahead, since it's their open question "Should a knowledge check's 'told' read the character's witnessed lines directly"). The recorders disagreed on 35 of 96 checks, and eight errands rest on them. Test, replay only, on the 4 plain-register games:
+  - **Truth first:** for every (character, fact) check, label the right verdict (told, conclusion, suspicion, none) from the full transcript and the character's thoughts, before any variant runs. Opus 5.5 drafts, Claude Code hand-checks every *told* and *conclusion* and 10 others
+  - **Variants:** 10c as built on DeepSeek's reference record (today); 10c reading the character's witnessed lines and own beliefs directly, on DeepSeek; the same on Haiku 5.5
+  - **Rule, set now:** adopt the direct variant if it agrees with the truth on at least 15 more points of checks than today's, and costs $0.10 or less per full game. Otherwise keep today's checks, and Mechanics weighs limiting the Plot Reward to logged errands (Technical Design's open question)
+  - **Cost:** about $2–4 of the Claude credit, plus cents on OpenRouter
+- [ ] **Claude as a balancing analyst** (from the Hub for Dylan, Nov 4; recommended Nov 7): once the first AI-check batch of full games exists, one Sonnet 5.5 call per game reads the transcript and names its turning points (bribes, leaks, what decided the vote), in the Claude-credit ledger. Pilot on 3 games and compare with Dylan's own read; keep it if it names what Dylan would and costs $0.50 or less per game. Mechanics then uses it, and a few games are compared with the simulator's scripted players
 - [ ] **Post-simulation: off-register player input** (Dylan, Oct 28). Once a human player exists, script a player character whose lines use slang, very casual phrasing, and a few anachronisms into 2–3 mini-games, against the same seeds with period-style player lines. Measure: register drift in the other characters' speech (a judge rating of each line's period register, before and after the player's lines), in-world reactions to the player (suspicion, mockery, confusion in thoughts), false fourth-wall flags if a detector exists by then, and, once adapters exist, whether Bold and Cautious behaviour holds up on off-register input. Design (input nudges, an optional previewed "polish" rewrite, never a silent one) belongs to Mechanics and Technical Design
 - [ ] Should "Mine's for hire" count as revealing Lupo's trade (F5)? The knowledge check said *told*; the secrets judge said no leak. Align the two judges before the full game
 
@@ -1042,6 +1057,41 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 ## Findings Log
 
 *Record each test result here: date, model, provider and quantization, prompt and briefing versions, gate tested, result, and what it changes. Tooling and price checks go in Tooling Status, not here.*
+
+### 2026-11-07 — Claude as the recorder: gate 8 retry with a fixed measure (CC-20261107-05)
+
+**Setup:** the 4 plain-register mini-games (TD v0.27: 2026-10-29T03-25-05-553Z g1, g2; TD v0.29: 2026-10-29T06-21-21-248Z g1, g2), replay only. Passes 10a, 10b, 10d and the 10c knowledge checks, exactly as TD writes them (unchanged since v0.7), re-run with Claude Haiku 5.5 and Claude Sonnet 5.5 through a new native Claude API path with prompt caching (cache hits 40% and 34% of prompt tokens). Sonnet ran thinking-off in its documented mode (`between_tools`); temperature omitted. DeepSeek's records from play are the comparison. **Measure `gate8 v3`:** Claude Opus 5.5 listed every promise, deal, threat, and admission from each conversation-turn's lines alone, with TD's DEFINITIONS word for word, before seeing any record; all three recorders were matched against that one list. Claude Code hand-checked 20 invented flags and 20 misses per Claude recorder, plus 10 list items per game. PR #46, merged. **Spend $13.56 of the Claude credit** (Haiku $0.15, Sonnet $6.68 including $2.70 lost to a concurrency-limit abort, Opus judge $6.73); ledger $14.28 of $100.
+
+**Results, after the hand-check, on the fixed list of 112 ★ moments:**
+
+| | DeepSeek (in play) | Haiku 5.5 | Sonnet 5.5 |
+|---|---|---|---|
+| ★ moments captured | 42.0% | 36.6% | 54.5% |
+| Invented per game | 16.25 | 25.25 | 17.25 |
+| Unsupported beliefs | 5 | 54 | 15 |
+| Recording cost per mini-game | $0.017 | $0.038 | $0.99 |
+| Estimated per full 12-character game | ~$0.08 | ~$0.19 | ~$3.81 |
+
+- **Pass** (≥90% captured, ≤1 invented per game): no recorder is close
+- **Clearly better** (≥15 points above DeepSeek's capture, at most half its invented, 8.1 a game): Sonnet is 12.5 points ahead but invents slightly more; Haiku is worse on both
+- **Decision under the rule set in v0.47: gate 8 stays a known limit, DeepSeek keeps recording, no further recorder rounds**
+
+**The measure:**
+- **The judge's own list missed 23.3%:** the recorders logged 34 valid ★ moments it didn't list. Every recorder is scored on the same list, so the comparison holds, but all three absolute capture figures are understated
+- **Hand-check:** 4 judge errors: 2 list items were "admissions" read from paying for silence, which the definition excludes (list 114 → 112), and 1 of 20 invented flags was wrong for each Claude recorder; 0 of 20 misses were wrong. Under a point of change; no change to the decision
+- **Most invented entries, for all three, are claims and denials** the definitions exclude: statements about the speaker, opinions, predictions, questions
+
+**Knowledge checks:** the three recorders disagree on **35 of 96** checks, with no recorder consistently the odd one out.
+
+**What it shows:**
+- **Recording is hard for every model tried.** Six rounds across DeepSeek, Qwen-played games, GPT-5.4, Haiku, and Sonnet, and the best still captures about half of ★ moments while inventing over a dozen entries a game. A stronger model buys capture at a steep price, not accuracy
+- **The old measure flattered the record.** On a blind list, DeepSeek's capture on plain-register games is 42%, against 56–68% on the older games under the record-anchored judge. (Different games too, so not a clean comparison.) Technical Design's Known limit figures should be updated
+- **Characters are unaffected; errands are not.** Characters remember through their own readings, never the reference record. But knowledge checks read it, and with 35 of 96 checks flipping between recorders, an errand's outcome, and an extra act at midnight, partly depends on which recorder ran. That's worth fixing before balancing (Open Questions: knowledge checks from witnessed lines)
+- **For future runs on the Claude API:** start with a low concurrency limit; the organization's limit cost one aborted run
+
+**What it changes:** no recorder switch. The `gate8 v3` measure (blind list first) becomes the standard for any memory measurement, and the transcript-first ★ listing that research batches need now exists. A test of knowledge checks reading witnessed lines is proposed to Technical Design.
+
+---
 
 ### 2026-11-07 — Embedding replay check (CC-20261107-03)
 
