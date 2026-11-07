@@ -8,6 +8,7 @@ Work arrives as tasks from Dylan, often relayed from Technical Design (TD). The 
 - To find the last NN used: `git log --all --oneline | grep -o "CC-$(date +%Y%m%d)-[0-9]*" | sort -u | tail -1`. If nothing matches, use 01. If the task names its ID, use that one.
 - The report starts with the title line `CC-YYYYMMDD-NN: <descriptive title>`. Put the same ID in every commit message for the task and in the PR comment.
 - Each report states: commits, tests passing, spend and the ledger total (for any step that made model calls), and anything that differed from what was expected.
+- Put the full report in the PR description, minus spend, ledger totals, balances, and any quoted blind-read lines. Give Dylan those separately at the end of the session. The issue's closing comment links to the PR rather than repeating it.
 
 ## Branches and PRs
 
@@ -22,7 +23,7 @@ Work arrives as tasks from Dylan, often relayed from Technical Design (TD). The 
 - An issue is ready when every issue under **Needs** is closed, and every doc version or PR it names is on an up-to-date main. Check again right before starting each task, since an earlier task can change things.
 - Run tasks one at a time, each on a fresh branch off an up-to-date main. The PR body says "Closes #N", so merging closes the issue. Use the usual report ID, and put the issue number in the report title.
 - If a task fails or its needs aren't met, stop. Comment on the issue with what happened, and don't run anything that needs it.
-- After merging, post a short comment on the issue: what changed, the PR, and tests passing. **The repo is public:** leave spend, ledger totals, and balances out of issue comments. Those go only in the report to Dylan.
+- After merging, post a short comment on the issue that links to the PR, where the report is (see Reports and IDs). **The repo is public:** leave spend, ledger totals, and balances out of issue comments. Those go only in the report to Dylan.
 - Never write budgets, balances, credits, grant status, personal details, keys, or endpoints in an issue or comment.
 - When listing, mark a blocked issue as **stale** if 10 or more `cc-task` issues filed after it have since closed. That means the project kept moving while it sat blocked, so Dylan can unblock it or close it.
 
