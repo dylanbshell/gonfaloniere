@@ -17,6 +17,12 @@
 // failure, or a reply from another provider or model, stops the replay. Spend
 // goes to the mini-game ledger (PROBE_TOTAL_USD caps it).
 //
+// CC-20261107-05: --recorder-model claude:<model> runs the recorder on the native Claude API with
+// CLAUDE_CREDIT_API_KEY (recorder.ts), its spend logged to the Claude-credit ledger (results/claude-credit/)
+// and stopped at CLAUDE_CREDIT_STOP_USD, that ledger's total. Any API error that survives the SDK's
+// retries stops the run. --probe records one conversation-turn (10a, 10d) and one 10b call on the first
+// game, writes nothing, and projects the cost of the full replay of every game given.
+//
 //   npm run minigame:replay -- <one record> --dry-run   one turn's 10a, 10d, and 10e prompts and the recorder settings; no calls
 //   npm run minigame:replay -- <records> --only perception --estimate   projected calls and cost; no calls
 //   npm run minigame:replay -- <td0.7 records> --only perception   TD v0.8: add readings (10e) to an existing
@@ -38,13 +44,15 @@ import { MINIGAME_TOTAL_USD } from "./ledger.ts";
 import { formatLine, type CallRecord, type GameEvent } from "./engine.ts";
 import { Recorder, rebuildAfterLine, sameThought, type SystemCallKind } from "./extract.ts";
 import { MemoryStore, memoryCounts, type GameLine, type MemoryEntry, type Thought } from "./memory.ts";
-import { DEFAULT_PLAY_MODEL, describeRoute, messages, recorderRoute } from "./recorder.ts";
+import { CLAUDE_PREFIX, DEFAULT_PLAY_MODEL, callClaude, claudeRoute, describeClaudeRoute, describeRoute, isClaudeModel, messages, recorderRoute, type ClaudeUsage } from "./recorder.ts";
 
 const { values: opts, positionals } = parseArgs({
   allowPositionals: true,
-  options: { cap: { type: "string", default: "2" }, "recorder-model": { type: "string" }, concurrency: { type: "string", default: "3" }, "dry-run": { type: "boolean", default: false }, rpm: { type: "string" }, only: { type: "string" }, estimate: { type: "boolean", default: false } },
+  options: { cap: { type: "string", default: "2" }, "recorder-model": { type: "string" }, concurrency: { type: "string", default: "3" }, "dry-run": { type: "boolean", default: false }, rpm: { type: "string" }, only: { type: "string" }, estimate: { type: "boolean", default: false }, probe: { type: "boolean", default: false } },
 });
 const OUT = "results/minigame";
+/** The Claude-credit ledger (CLAUDE.md): Claude API spend, separate from the mini-game ledger. */
+const CREDIT_LEDGER = "results/claude-credit";
 /** TD v0.7 Run Configuration, recorder calls. */
 const MAX_TOKENS: Record<SystemCallKind, number> = { "star-pass": 1800, "claims-pass": 1000, "sweep-reask": 1800, "thought-pass": 600, "perception-pass": 800, "knowledge-check": 300 };
 const EXTRACTION_EVENTS = new Set(["conversation-pass", "star-pass", "claims-pass", "thought-pass", "extraction-failed"]);
@@ -76,15 +84,23 @@ async function main(): Promise<void> {
   const notebook = docs.systemPrompts?.perceptionPass ? "perceived" : "shared";
   if (perceptionOnly && notebook !== "perceived") throw new Error("--only perception needs TD v0.8's block 10e");
   if (opts.estimate) return estimate(docs, positionals, perceptionOnly);
-  const route = await recorderRoute(DEFAULT_PLAY_MODEL, opts["recorder-model"]);
-  const { model, client, endpoint } = route;
-  const budget = new Budget(Number(opts.cap), MINIGAME_TOTAL_USD, priorSpend(OUT));
-  const runId = `${new Date().toISOString().replace(/[:.]/g, "-")}-replay`;
-  const log = new RunLog(runId, "minigame-", OUT);
-  log.write({ type: "run", runId, startedAt: new Date().toISOString(), modelId: model.id, endpoint, docVersions: docs.versions, gitCommit: gitCommit(), games: positionals } as unknown as LogRecord);
-  console.log(`Replay: ${positionals.length} game(s); extraction and knowledge checks on TD v${docs.versions.technicalDesign}; recorder ${JSON.stringify(describeRoute(route, null))}; cap $${opts.cap}; ledger $${budget.priorSpendUsd.toFixed(2)} spent before this (total cap $${MINIGAME_TOTAL_USD})`);
-
   let servedId: string | null = null;
+  const recorderId = opts["recorder-model"] ?? process.env.RECORDER_MODEL_ID;
+  const claude = isClaudeModel(recorderId) ? claudeRoute(recorderId) : null;
+  const route = claude ? null : await recorderRoute(DEFAULT_PLAY_MODEL, opts["recorder-model"]);
+  // A Claude recorder's spend goes to the Claude-credit ledger, stopped at CLAUDE_CREDIT_STOP_USD.
+  const ledger = claude ? CREDIT_LEDGER : OUT;
+  const totalCap = claude ? Number(process.env.CLAUDE_CREDIT_STOP_USD) : MINIGAME_TOTAL_USD;
+  if (!Number.isFinite(totalCap)) throw new Error("Set CLAUDE_CREDIT_STOP_USD: the Claude-credit ledger total to stop at");
+  const budget = new Budget(Number(opts.cap), totalCap, priorSpend(ledger));
+  const runId = `${new Date().toISOString().replace(/[:.]/g, "-")}-replay${claude ? `-${claude.model}` : ""}`;
+  const log = new RunLog(runId, claude ? "claude-recorder-" : "minigame-", ledger);
+  const recorderInfo = () => (claude ? describeClaudeRoute(claude, servedId) : describeRoute(route!, servedId));
+  log.write({ type: "run", runId, startedAt: new Date().toISOString(), modelId: claude ? recorderId : route!.model.id, endpoint: claude ? "Claude API" : route!.endpoint, docVersions: docs.versions, gitCommit: gitCommit(), games: positionals } as unknown as LogRecord);
+  console.log(`Replay: ${positionals.length} game(s); extraction and knowledge checks on TD v${docs.versions.technicalDesign}; recorder ${JSON.stringify(recorderInfo())}; cap $${opts.cap}; ledger $${budget.priorSpendUsd.toFixed(2)} spent before this (total cap $${totalCap})`);
+  /** Each Claude call's usage, for the cache hit rate. */
+  const claudeUsage: (ClaudeUsage & { kind: string; cost: number })[] = [];
+
   // --rpm: keep under a provider's requests-per-minute limit (e.g. OpenRouter's 20/min for GPT-5.4 on new accounts).
   const rpm = opts.rpm ? Number(opts.rpm) : null;
   const sent: number[] = [];
@@ -103,13 +119,29 @@ async function main(): Promise<void> {
     slot = mine;
     return mine;
   };
-  const send = async (system: string, user: string, maxTokens: number) => {
+  const send = async (system: string, user: string, maxTokens: number, kind: string) => {
     await pace();
+    if (claude) {
+      // Worst case: the whole prompt written to the cache, and every token of max_tokens.
+      const worst = worstCaseCost(system.length + user.length, maxTokens, { input: claude.price.cacheWrite, output: claude.price.output });
+      if (!budget.tryReserve(worst)) throw new ReplayStop("the next call could pass the cap");
+      const r = await callClaude(claude, system, user, maxTokens);
+      const cost = r.ok ? r.costUsd : 0;
+      budget.settle(worst, cost);
+      log.write({ type: "claude-call", runId, model: claude.model, kind, costUsd: cost, ok: r.ok, ...(r.ok ? { servedModel: r.model, stop: r.stopReason, usage: r.usage } : { status: r.status, error: r.error.slice(0, 300) }), at: new Date().toISOString() } as unknown as LogRecord);
+      if (!r.ok) throw new ReplayStop(`Claude API error (${r.status ?? "no status"}): ${r.error.slice(0, 200)}`);
+      if (servedId !== null && r.model !== servedId) throw new ReplayStop(`served by model ${r.model}, not ${servedId}`);
+      servedId = r.model;
+      claudeUsage.push({ ...r.usage, kind, cost });
+      const res = { ok: true as const, content: r.content, usage: { inputTokens: r.usage.input + r.usage.cacheWrite + r.usage.cacheRead, outputTokens: r.usage.output }, provider: "Anthropic", model: r.model, latencyMs: r.latencyMs };
+      return { res: res as unknown as Awaited<ReturnType<typeof callModel>>, cost };
+    }
+    const { model, client, endpoint } = route!;
     const worst = worstCaseCost(system.length + user.length, maxTokens, endpoint.price);
     if (!budget.tryReserve(worst)) throw new ReplayStop("the next call could pass the cap");
     const res = await callModel(
       client,
-      { model, ...messages(route, system, user), temperature: route.temperature, maxTokens, extra: route.thinking },
+      { model, ...messages(route!, system, user), temperature: route!.temperature, maxTokens, extra: route!.thinking },
       {
         maxAttempts: 5,
         retryable: (status) => status === 429 || status === null,
@@ -120,7 +152,7 @@ async function main(): Promise<void> {
     budget.settle(worst, cost);
     log.write({ type: "minigame-call", runId, costUsd: cost, ok: res.ok, ...(res.ok ? { provider: res.provider, servedModel: res.model, reasoningTokens: res.usage.reasoningTokens } : { status: res.status, error: res.error.slice(0, 300) }), at: new Date().toISOString() } as unknown as LogRecord);
     if (!res.ok) throw new ReplayStop(`call failed (${res.status ?? "no status"}): ${res.error.slice(0, 200)}`);
-    if (route.endpointLabel === "OpenRouter" && res.provider !== endpoint.providerName) throw new ReplayStop(`served by ${res.provider}, not the pinned ${endpoint.providerName}`);
+    if (route!.endpointLabel === "OpenRouter" && res.provider !== endpoint.providerName) throw new ReplayStop(`served by ${res.provider}, not the pinned ${endpoint.providerName}`);
     if (servedId !== null && res.model !== servedId) throw new ReplayStop(`served by model ${res.model}, not ${servedId}`);
     servedId = res.model;
     return { res, cost };
@@ -141,7 +173,7 @@ async function main(): Promise<void> {
     const caller = async (kind: SystemCallKind, character: CharacterName | null, system: string, user: string): Promise<unknown | null> => {
       let u = user;
       for (let attempt = 1; attempt <= 2; attempt++) {
-        const { res, cost } = await send(system, u, MAX_TOKENS[kind]);
+        const { res, cost } = await send(system, u, MAX_TOKENS[kind], kind);
         const ok = res.ok as true;
         const j = ok ? parseJson(res.ok ? res.content : "") : { json: null, fenced: false, error: "failed" };
         const good = !j.error;
@@ -182,6 +214,16 @@ async function main(): Promise<void> {
     };
     const turns = turnsOf(rec);
     if (!perceptionOnly) addCode(0);
+    if (opts.probe) {
+      // One conversation-turn (10a and 10d) and one 10b call: the first turn's first conversation and first thinker.
+      const t = turns[0]!;
+      turn = t;
+      addCode(t);
+      const conv = rec.lines.find((l) => l.turn === t && l.kind === "speech")!.conversation;
+      const mine = thoughts.filter((x) => x.turn === t && !x.repeat && x.call !== "murder");
+      await recorder.turn(t, rec.lines.filter((l) => l.turn !== t || l.conversation === conv), mine.filter((x) => x.character === mine[0]!.character));
+      return;
+    }
     for (const t of turns) {
       turn = t;
       if (!perceptionOnly) addCode(t);
@@ -194,7 +236,7 @@ async function main(): Promise<void> {
 
     const version = docs.versions.technicalDesign;
     // A non-default recorder is named in the file and game ID, so its records sit beside the default's.
-    const tag = `td${version}${route.model.id === DEFAULT_PLAY_MODEL ? "" : `-${route.model.id}`}`;
+    const tag = `td${version}${claude ? `-${claude.model}` : route!.model.id === DEFAULT_PLAY_MODEL ? "" : `-${route!.model.id}`}`;
     const out: SavedGame = {
       ...rec,
       header: {
@@ -208,10 +250,10 @@ async function main(): Promise<void> {
             : "extraction passes and knowledge checks re-run on the saved transcript; play unchanged",
           technical_design: version,
           docs: docs.versions,
-          system_model: model.slug,
-          system_provider: endpoint.providerName,
+          system_model: claude ? `${CLAUDE_PREFIX}${claude.model}` : route!.model.slug,
+          system_provider: claude ? "Anthropic" : route!.endpoint.providerName,
           system_served_model: servedId,
-          recorder: describeRoute(route, servedId),
+          recorder: recorderInfo(),
           commit: gitCommit(),
           at: new Date().toISOString(),
         },
@@ -237,6 +279,10 @@ async function main(): Promise<void> {
     );
   };
 
+  if (opts.probe) {
+    await replayOne(positionals[0]!);
+    return probeReport(claudeUsage, positionals, budget.spentUsd);
+  }
   const queue = [...positionals];
   let stop: string | null = null;
   await Promise.all(
@@ -251,7 +297,10 @@ async function main(): Promise<void> {
       }
     }),
   );
-  console.log(`${stop ? `STOPPED: ${stop}\n` : ""}Spent $${budget.spentUsd.toFixed(4)}; ledger $${(budget.priorSpendUsd + budget.spentUsd).toFixed(2)}.`);
+  const cached = claudeUsage.reduce((a, u) => a + u.cacheRead, 0);
+  const prompt = claudeUsage.reduce((a, u) => a + u.input + u.cacheWrite + u.cacheRead, 0);
+  if (claude) console.log(`Cache: ${cached.toLocaleString()} of ${prompt.toLocaleString()} prompt tokens read from cache (${prompt ? ((100 * cached) / prompt).toFixed(1) : 0}%); ${claudeUsage.filter((u) => u.cacheRead > 0).length} of ${claudeUsage.length} calls hit.`);
+  console.log(`${stop ? `STOPPED: ${stop}\n` : ""}Spent $${budget.spentUsd.toFixed(4)}; ledger $${(budget.priorSpendUsd + budget.spentUsd).toFixed(4)}.`);
   if (stop) process.exitCode = 1;
 }
 
@@ -327,6 +376,31 @@ async function estimate(docs: ReturnType<typeof loadDocs>, paths: string[], perc
   console.log(
     `Estimate (no calls): ${calls} calls, ~${Math.round(tokensIn).toLocaleString()} input tokens (chars ÷ 3.5); typical cost $${(tokensIn * p.input + calls * 300 * p.output).toFixed(3)}, worst case (every reply at max_tokens) $${(tokensIn * p.input + maxOut * p.output).toFixed(3)} on ${route.model.id} via ${route.endpoint.providerName}`,
   );
+}
+
+/**
+ * --probe: the probe's calls by kind, and the full replay of every game given projected from them: each
+ * kind's mean cost per call (the probe's mean call for a kind it didn't make), times that kind's first-attempt
+ * calls in the games' own records.
+ */
+function probeReport(usage: (ClaudeUsage & { kind: string; cost: number })[], paths: string[], spent: number): void {
+  const counts = new Map<string, number>();
+  for (const path of paths) {
+    const rec = JSON.parse(gunzipSync(readFileSync(path)).toString()) as SavedGame;
+    for (const c of rec.calls) if (c.attempt === 1 && c.kind in MAX_TOKENS) counts.set(c.kind, (counts.get(c.kind) ?? 0) + 1);
+  }
+  console.log(`Probe: ${usage.length} calls, $${spent.toFixed(5)}`);
+  for (const u of usage) console.log(`  ${u.kind}: input ${u.input}, cache write ${u.cacheWrite}, cache read ${u.cacheRead}, output ${u.output}, $${u.cost.toFixed(5)}`);
+  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
+  const overall = mean(usage.map((u) => u.cost));
+  let total = 0;
+  for (const [kind, n] of counts) {
+    const mine = usage.filter((u) => u.kind === kind);
+    const each = mine.length ? mean(mine.map((u) => u.cost)) : overall;
+    total += n * each;
+    console.log(`  full replay: ${n} ${kind} x $${each.toFixed(5)}${mine.length ? "" : " (the probe's mean call)"} = $${(n * each).toFixed(4)}`);
+  }
+  console.log(`Projected full replay of ${paths.length} game(s): ~$${total.toFixed(3)}, at the probe's cache use (its first calls write the cache, so later calls should cost less)`);
 }
 
 audited(main, OUT, "replay");
