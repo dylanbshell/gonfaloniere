@@ -3,12 +3,11 @@
 // whatever order parallel calls resolve in. Valid replies throughout, with readings, moves, and seats.
 
 import { config } from "../../probe.config.ts";
-import { CAST, STANDINS, STANDIN_FILE } from "../../src/minigame/cast.ts";
+import { CAST, castBriefings } from "../../src/minigame/cast.ts";
 import { MiniGame, type CallRequest, type Caller, type GameSettings } from "../../src/minigame/engine.ts";
-import { loadDocs, loadStandinBriefings, type DocSources } from "../../src/sources/docs.ts";
+import { loadDocs, type DocSources } from "../../src/sources/docs.ts";
 
 export const fakeDocs = loadDocs(config.docs);
-const briefings = { ...fakeDocs.briefings, ...loadStandinBriefings(STANDIN_FILE, STANDINS, fakeDocs.socialAwareness) };
 
 export function fakeCaller(calls: CallRequest[] = []): Caller {
   const count = new Map<string, number>();
@@ -46,7 +45,7 @@ export function fakeCaller(calls: CallRequest[] = []): Caller {
 export function fakeSettings(over: Partial<GameSettings> = {}): GameSettings {
   return {
     cast: CAST,
-    briefings,
+    briefings: castBriefings(fakeDocs),
     seed: 2000,
     turns: 6,
     utterancesPerTurn: 12,
@@ -71,7 +70,8 @@ export function playFake(over: Partial<GameSettings> = {}, ...rest: unknown[]): 
 export async function playFakeOn(docs: DocSources, over: Partial<GameSettings> = {}, ...rest: unknown[]): Promise<{ game: MiniGame; calls: CallRequest[] }> {
   const calls: CallRequest[] = [];
   // `rest`: the engine's further constructor arguments (hooks, the live store), passed through.
-  const game = new (MiniGame as unknown as new (...a: unknown[]) => MiniGame)(docs, fakeSettings(over), fakeCaller(calls), ...rest);
+  // The briefings follow the docs, so a game on an older TD gets that version's Characters and stand-ins.
+  const game = new (MiniGame as unknown as new (...a: unknown[]) => MiniGame)(docs, fakeSettings({ briefings: castBriefings(docs), ...over }), fakeCaller(calls), ...rest);
   await game.play();
   return { game, calls };
 }

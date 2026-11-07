@@ -1,0 +1,29 @@
+{
+  "_comment": "Technical Design v0.34's In-World Names: what characters hear in place of the game's own names. Docs, code, the game record, and the system prompts (10a–10d) keep the game names. Setting content: it belongs in the setting pack with the roster, so a reskin renames these in one file. The names load only when both docs use them (since); a prompt never mixes the two sets.",
+  "since": { "technicalDesign": "0.34", "characters": "0.10" },
+  "phase": {
+    "_comment": "Block 5's {phase_label}. A round of mingling is cut into thirds of its turns: early, midway, late.",
+    "mingling": "The {round} round of mingling, {part}",
+    "council": "The {nth} {faction} council",
+    "midnight": "Midnight",
+    "speeches": "The speeches",
+    "ballot": "The ballot",
+    "runoff": "The run-off"
+  },
+  "time": {
+    "_comment": "The short form that opens each block 6 line, in place of T4.",
+    "mingling": "{round} round, {part}",
+    "council": "the {faction} council",
+    "midnight": "midnight",
+    "speeches": "the speeches"
+  },
+  "rounds": ["first", "second", "third"],
+  "roundsShort": ["1st", "2nd", "3rd"],
+  "parts": ["early", "midway", "late"],
+  "acts": {
+    "_comment": "Block 9e's act words, in-world → game act. A game word (kill, guard, investigate) is accepted too, without a repair.",
+    "kill": "kill",
+    "guard": "guard",
+    "watch": "investigate"
+  }
+}

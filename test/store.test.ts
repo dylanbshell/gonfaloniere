@@ -16,7 +16,7 @@ import { isolationCheck, type IsolationRecord } from "../src/minigame/isolation.
 import { LORE_BUDGET, loreHeader, loreLines, readLoreFile, type LoreEntry } from "../src/minigame/lore.ts";
 import { MemoryStore, overlapScore, renderReading, type Belief, type GameLine, type Thought } from "../src/minigame/memory.ts";
 import { VectorStore, notebookQuery, openStoreDb, storeRows } from "../src/minigame/store.ts";
-import { config, technicalDesignPath } from "../probe.config.ts";
+import { docsFor } from "../probe.config.ts";
 import { loadDocs } from "../src/sources/docs.ts";
 import { fakeDocs, playFake, playFakeOn } from "./fixtures/fake-game.ts";
 
@@ -41,9 +41,10 @@ function promptHash(calls: CallRequest[]): string {
 const PROMPTS_BEFORE_STORE = "517f372fd98c75344369f1e9e203384886bd3f3f632bebf1b6ff4841e3b4f494";
 
 /** A game record's fields the isolation check reads. */
-function recordOf(game: MiniGame, lore: LoreEntry[] = []): IsolationRecord {
+/** `turns`: what the game was played with, which places block 6's in-world time labels. */
+function recordOf(game: MiniGame, turns: number, lore: LoreEntry[] = []): IsolationRecord {
   return {
-    header: { docs: { technicalDesign: fakeDocs.versions.technicalDesign }, notebook: "perceived" },
+    header: { docs: { technicalDesign: fakeDocs.versions.technicalDesign, characters: fakeDocs.versions.characters }, notebook: "perceived", config: { turns } },
     calls: game.calls,
     lines: game.lines,
     memory: { entries: game.memory.entries, beliefs: game.memory.beliefs, readings: game.memory.readings, lore },
@@ -64,7 +65,7 @@ const loreSection = (user: string) => {
 
 // ---- No database ---------------------------------------------------------------------------------------
 
-const docs24 = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.24") });
+const docs24 = loadDocs(docsFor("0.24"));
 
 test("lore off, word-overlap retrieval: every prompt is byte-identical to before the store (golden from f812ab4)", async () => {
   const { calls } = await playFakeOn(docs24);
@@ -76,7 +77,7 @@ test("lore off, word-overlap retrieval: every prompt is byte-identical to before
 
 test("TD v0.27's register wording: every prompt is v0.24's with only block 1's new line and the 9a and 9b swaps, anchors intact", async () => {
   const before = (await playFakeOn(docs24)).calls;
-  const after = (await playFakeOn(loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.27") }))).calls;
+  const after = (await playFakeOn(loadDocs(docsFor("0.27")))).calls;
   assert.deepEqual(after.map((c) => `${c.kind}|${c.character}`), before.map((c) => `${c.kind}|${c.character}`));
   const block1 = "No one knows what the years ahead will bring.";
   const register = 'Speak and think in plain, everyday English: no "thee" or "thou", no proverbs or flowery metaphors, and no modern slang.';
@@ -111,8 +112,8 @@ test("TD v0.27's register wording: every prompt is v0.24's with only block 1's n
 });
 
 test("TD v0.29's voice wording: every prompt is v0.27's with only block 1's line and 9b's ornament sentence changed, anchors intact", async () => {
-  const before = (await playFakeOn(loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.27") }))).calls;
-  const after = (await playFakeOn(loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.29") }))).calls;
+  const before = (await playFakeOn(loadDocs(docsFor("0.27")))).calls;
+  const after = (await playFakeOn(loadDocs(docsFor("0.29")))).calls;
   assert.deepEqual(after.map((c) => `${c.kind}|${c.character}`), before.map((c) => `${c.kind}|${c.character}`));
   const swaps: [string, string][] = [
     ['no "thee" or "thou", no proverbs or flowery metaphors, and no modern slang.', 'no "thee" or "thou", and no modern slang.'],
@@ -144,8 +145,8 @@ test("TD v0.29's voice wording: every prompt is v0.27's with only block 1's line
 });
 
 test("TD v0.32 reverts v0.29's voice wording: every prompt is byte-identical to v0.27's", async () => {
-  const before = (await playFakeOn(loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.27") }))).calls;
-  const after = (await playFakeOn(loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.32") }))).calls;
+  const before = (await playFakeOn(loadDocs(docsFor("0.27")))).calls;
+  const after = (await playFakeOn(loadDocs(docsFor("0.32")))).calls;
   assert.equal(after.length, before.length);
   after.forEach((c, i) => assert.deepEqual(c, before[i], `${c.kind} ${i}`));
   assert.equal(promptHash(after), promptHash(before));
@@ -381,14 +382,14 @@ describe("live store (PostgreSQL + pgvector)", { skip: DB ? false : "TEST_DATABA
     const { rows } = await pool.query("SELECT owner, count(*)::int AS n FROM memory_rows WHERE game_id = $1 GROUP BY owner", [s.gameId]);
     assert.ok(rows.length >= 6, "rows for every character");
     assert.equal(rows.reduce((t, r) => t + r.n, 0), storeRows(game.memory).length);
-    const iso = isolationCheck(recordOf(game));
+    const iso = isolationCheck(recordOf(game, 4));
     assert.equal(iso.violations.length, 0, JSON.stringify(iso.violations.slice(0, 3)));
     assert.ok(iso.memoryLines > 50, `block 6 lines checked: ${iso.memoryLines}`);
     // Plant one of Isabella's readings in Lupo's last think().
     const foreign = game.memory.readings.find((r) => r.character === I && !game.memory.readings.some((x) => x.character === L && x.line === r.line))!;
     const lupo = [...game.calls].reverse().find((c) => c.character === L && c.user.includes("WHAT YOU REMEMBER FROM EARLIER TONIGHT\n- "))!;
-    const planted = renderReading(foreign, game.lines.find((l) => l.id === foreign.line)!, undefined, true);
-    const tampered = { ...recordOf(game), calls: game.calls.map((c) => (c === lupo ? { ...c, user: c.user.replace("WHAT YOU REMEMBER FROM EARLIER TONIGHT\n", `WHAT YOU REMEMBER FROM EARLIER TONIGHT\n- ${planted}\n`) } : c)) };
+    const planted = renderReading(foreign, game.lines.find((l) => l.id === foreign.line)!, undefined, true, game.memory.timeLabel);
+    const tampered = { ...recordOf(game, 4), calls: game.calls.map((c) => (c === lupo ? { ...c, user: c.user.replace("WHAT YOU REMEMBER FROM EARLIER TONIGHT\n", `WHAT YOU REMEMBER FROM EARLIER TONIGHT\n- ${planted}\n`) } : c)) };
     assert.deepEqual(isolationCheck(tampered).violations.map((v) => [v.character, v.belongsTo]), [[L, [I]]]);
     assert.ok(calls.length > 100);
   });
@@ -432,7 +433,7 @@ describe("live store (PostgreSQL + pgvector)", { skip: DB ? false : "TEST_DATABA
     }
     assert.ok(withLore.some((c) => c.character === L && c.user.includes(file[5]!.text)), "Lupo's own lore reaches him");
     assert.ok(calls.filter((c) => c.kind === "star-pass").every((c) => !c.user.includes("WHAT YOU KNOW OF FLORENCE")), "system calls carry no lore");
-    assert.equal(isolationCheck(recordOf(game, lore.loadable)).violations.length, 0);
+    assert.equal(isolationCheck(recordOf(game, 3, lore.loadable)).violations.length, 0);
     assert.equal(loreHeader(lore, "on").lore_file.hash, createHash("sha256").update(JSON.stringify(file)).digest("hex"));
   });
 });

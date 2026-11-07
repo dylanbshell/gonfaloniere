@@ -2,7 +2,7 @@
 // words, and the 20-word cap.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { config, technicalDesignPath } from "../probe.config.ts";
+import { docsFor } from "../probe.config.ts";
 import { parseSpeak } from "../src/output/speak.ts";
 import { checkWords } from "../src/output/think.ts";
 import { MemoryStore, tookTargetLine, type GameLine, type Thought } from "../src/minigame/memory.ts";
@@ -20,7 +20,7 @@ const speak = (o: Record<string, unknown>) =>
   parseSpeak(JSON.stringify({ addressee: null, utterance: UTTER, action: null, ...o }), { present: [B], allowedActions: [], florins: 5, meant: { cap: 20 } });
 
 test("TD v0.14 (from git history): Block 9b's meant and words lines sit after the actions and before the reply line; caps are 20", () => {
-  const d = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.14") });
+  const d = loadDocs(docsFor("0.14"));
   assert.equal(d.versions.technicalDesign, "0.14");
   assert.ok(speakAsksMeant(d.templates));
   const t = d.templates.speak;
@@ -30,7 +30,7 @@ test("TD v0.14 (from git history): Block 9b's meant and words lines sit after th
   assert.ok(t.indexOf("{allowed_actions}") < meant && meant < words && words < reply, "actions, meant, words, reply");
   assert.equal(wordsCap(d.templates, "think"), 20);
   assert.equal(wordsCap(d.templates, "speak"), 20);
-  const v12 = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.12") });
+  const v12 = loadDocs(docsFor("0.12"));
   assert.ok(!speakAsksMeant(v12.templates));
   assert.equal(wordsCap(v12.templates, "think"), 12);
 });

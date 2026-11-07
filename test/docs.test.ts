@@ -3,12 +3,12 @@ import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import { gunzipSync } from "node:zlib";
-import { config, technicalDesignPath } from "../probe.config.ts";
+import { docsFor } from "../probe.config.ts";
 import { thinkAsksTook } from "../src/prompt/assemble.ts";
 import { loadDocs, memoryDefinitions } from "../src/sources/docs.ts";
 
 test("TD v0.9: 9a asks for took; no perception pass; 10a–10d and the seven definitions load", () => {
-  const d = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.9") });
+  const d = loadDocs(docsFor("0.9"));
   assert.equal(d.versions.technicalDesign, "0.9");
   assert.ok(thinkAsksTook(d.templates));
   assert.match(d.templates.think, /\n2\. took — how you take the last thing said aloud, in one word: promise, deal, threat, admission, claim, denial, or none\./);
@@ -18,7 +18,7 @@ test("TD v0.9: 9a asks for took; no perception pass; 10a–10d and the seven def
 });
 
 test("TD v0.8 still loads (from git history): perception pass present, no took", () => {
-  const d = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.8") });
+  const d = loadDocs(docsFor("0.8"));
   assert.equal(d.versions.technicalDesign, "0.8");
   assert.ok(d.systemPrompts?.perceptionPass);
   assert.ok(!thinkAsksTook(d.templates));

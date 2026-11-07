@@ -5,7 +5,7 @@ import { test } from "node:test";
 import type OpenAI from "openai";
 import { callModel, type CallResult, type TokenLogprob } from "../src/harness/openrouter.ts";
 import { callWithLogprobs, labelCandidates, logprobsRequest, storedLogprobs, type LogprobsState } from "../src/minigame/logprobs.ts";
-import { config, technicalDesignPath } from "../probe.config.ts";
+import { config, docsFor } from "../probe.config.ts";
 import { CAST, STANDINS, STANDIN_FILE } from "../src/minigame/cast.ts";
 import { MiniGame, type CallRequest, type Caller } from "../src/minigame/engine.ts";
 import { loadDocs, loadStandinBriefings } from "../src/sources/docs.ts";
@@ -129,7 +129,7 @@ test("callModel passes the provider's logprobs through (fake OpenAI client)", as
 
 // ---- In play ---------------------------------------------------------------------------------
 
-const docs21 = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.21") });
+const docs21 = loadDocs(docsFor("0.21"));
 const briefings = { ...docs21.briefings, ...loadStandinBriefings(STANDIN_FILE, STANDINS, docs21.socialAwareness) };
 
 async function play(d: typeof docs21, moveJoinsOwnGroup: boolean) {
@@ -184,6 +184,6 @@ test("TD v0.20+: a join toward someone in one's own group becomes stay, logged; 
   assert.ok(!g.events.some((e) => e.type === "move-noop"));
   // The move prompt has no {target} placeholder left, and no repair is logged for these moves.
   assert.ok(!docs21.templates.move!.includes("{target}") && !docs21.templates.move!.includes("{colloquio_note}"));
-  const v19 = await play(loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.19") }), true);
+  const v19 = await play(loadDocs(docsFor("0.19")), true);
   assert.ok(v19.events.some((e) => e.type === "move" && e.choice === "join") && v19.events.some((e) => e.type === "move-noop"));
 });

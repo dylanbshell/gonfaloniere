@@ -12,7 +12,7 @@
 import { RESULTS_DIR } from "../harness/log.ts";
 import { audited } from "../harness/keyaudit.ts";
 import { parseArgs } from "node:util";
-import { config, technicalDesignPath, type ModelConfig } from "../../probe.config.ts";
+import { config, docsFor, type ModelConfig } from "../../probe.config.ts";
 import { IMPLICIT_CONFIRMATION_ID, buildCandidatePrompt, candidateJsonSchema, checkCandidateLabels, type CandidateInput } from "../judge/candidates.ts";
 import type { TranscriptTurn } from "../judge/judge.ts";
 import { Budget, worstCaseCost } from "../harness/budget.ts";
@@ -35,7 +35,7 @@ const { values: opts } = parseArgs({
 const HONEST_HOLDS = ["decline", "deflect", "call_bluff", "demand_proof"];
 
 async function main(): Promise<void> {
-  const docs = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath(process.env.PROBE_TD ?? "0.9") });
+  const docs = loadDocs(docsFor(process.env.PROBE_TD ?? "0.9"));
   const all = readRecords(runLogFiles());
   const runs = currentDataRuns(all);
   const strict = new Set(

@@ -6,10 +6,19 @@
 
 import { z } from "zod";
 import { resolveAlias } from "../game/roster.ts";
+import { gameAct } from "../prompt/names.ts";
 import { parseJson } from "./json.ts";
 
 export const PlanOutput = z.object({ thought: z.string().min(1), plan: z.string().min(1) });
-const murderAct = z.object({ type: z.enum(["kill", "guard", "investigate"]), target: z.string() });
+/**
+ * An act's type: the game's word (kill, guard, investigate) or, from TD v0.34, the in-world word
+ * characters are given ("watch"), read as the game act it stands for. Either is accepted without a repair.
+ */
+const actType = z
+  .string()
+  .refine((w) => gameAct(w) !== null, { message: "type must be kill, guard, or watch (or investigate)" })
+  .transform((w) => gameAct(w) as "kill" | "guard" | "investigate");
+const murderAct = z.object({ type: actType, target: z.string() });
 /**
  * TD v0.5: a single `act`, or Lupo's `kills` list. TD v0.4: an `acts` list.
  * All three are read into `acts` so the checks below see one shape.

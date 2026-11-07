@@ -6,11 +6,13 @@
 
 import type { CharacterName } from "../game/roster.ts";
 import { tdMinor } from "../prompt/assemble.ts";
+import { atLeast, inWorldNames, minglingTime, usesInWorldNames } from "../prompt/names.ts";
 import type { LoreEntry } from "./lore.ts";
-import { renderBelief, renderCodeEntryFor, renderEntry, renderReading, type Belief, type GameLine, type MemoryEntry, type Reading } from "./memory.ts";
+import { gameTime, renderBelief, renderCodeEntryFor, renderEntry, renderReading, type Belief, type GameLine, type MemoryEntry, type Reading, type TimeLabel } from "./memory.ts";
 
 export interface IsolationRecord {
-  header: { docs: { technicalDesign: string }; notebook?: string };
+  /** `docs.characters` and `config.turns` place block 6's in-world time labels (TD v0.34); records before them have neither need. */
+  header: { docs: { technicalDesign: string; characters?: string }; notebook?: string; config?: { turns?: number } };
   calls: { n: number; kind: string; character: string | null; user: string }[];
   lines: GameLine[];
   memory: { entries: MemoryEntry[]; beliefs: Belief[]; readings: Reading[]; lore?: LoreEntry[] };
@@ -41,10 +43,19 @@ function bulletsUnder(prompt: string, heading: string): string[] | null {
   return out;
 }
 
+/** The time label a record's block 6 lines open with: from TD v0.34, the in-world one, which needs the Characters version and the turn count. */
+function timeLabelOf(header: IsolationRecord["header"]): TimeLabel {
+  const { docs, config } = header;
+  if (!atLeast(docs.technicalDesign, inWorldNames().since.technicalDesign)) return gameTime;
+  if (!docs.characters || !config?.turns) throw new Error(`A TD v${docs.technicalDesign} record needs docs.characters and config.turns to place block 6's time labels`);
+  return usesInWorldNames({ technicalDesign: docs.technicalDesign, characters: docs.characters }) ? (t) => minglingTime(t, config.turns!) : gameTime;
+}
+
 export function isolationCheck(rec: IsolationRecord): { calls: number; memoryLines: number; loreLines: number; violations: IsolationViolation[] } {
   const lines = new Map(rec.lines.map((l) => [l.id, l]));
   const dropPunct = tdMinor(rec.header.docs.technicalDesign) >= 15;
   const shared = (rec.header.notebook ?? "perceived") === "shared";
+  const when = timeLabelOf(rec.header);
   // Every render a row can have in a prompt, with whose row it is. A belief's kind can change after it
   // was shown ("firmer"), so both kinds' renders count as the owner's.
   const owners = new Map<string, Set<string>>();
@@ -52,14 +63,14 @@ export function isolationCheck(rec: IsolationRecord): { calls: number; memoryLin
   if (!shared) {
     for (const r of rec.memory.readings) {
       const line = lines.get(r.line);
-      if (line) own(renderReading(r, line, r.words_line ? lines.get(r.words_line) : undefined, dropPunct), r.character);
+      if (line) own(renderReading(r, line, r.words_line ? lines.get(r.words_line) : undefined, dropPunct, when), r.character);
     }
   }
   for (const e of rec.memory.entries) {
-    if (e.source === "code") for (const c of e.audience) own(shared ? renderEntry(e, c) : renderCodeEntryFor(e, c), c);
-    else if (shared) for (const c of e.audience) own(renderEntry(e, c), c);
+    if (e.source === "code") for (const c of e.audience) own(shared ? renderEntry(e, c, when) : renderCodeEntryFor(e, c, when), c);
+    else if (shared) for (const c of e.audience) own(renderEntry(e, c, when), c);
   }
-  for (const b of rec.memory.beliefs) for (const kind of ["suspicion", "conclusion"] as const) own(renderBelief({ ...b, kind }), b.character);
+  for (const b of rec.memory.beliefs) for (const kind of ["suspicion", "conclusion"] as const) own(renderBelief({ ...b, kind }, when), b.character);
   const lore = rec.memory.lore ?? [];
   const loreScope = new Map(lore.map((e) => [e.text, e.scope]));
 

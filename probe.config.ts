@@ -1,6 +1,7 @@
 // Capability probe configuration (Models & Research v0.5, Capability Probe Plan).
 
 import { readFileSync } from "node:fs";
+import { atLeast, inWorldNames } from "./src/prompt/names.ts";
 
 export interface ModelConfig {
   /** Short id used on the command line and in logs. */
@@ -65,15 +66,25 @@ function tinkerCheckpoint(name: string): string {
  * in git history, and every logged result records the versions it ran on.
  */
 export const technicalDesignPath = (version: string) => `docs/Gonfaloniere_Technical_Design_v${version}.md`;
-const CHARACTERS_VERSION = process.env.PROBE_CHARACTERS ?? "0.4";
 
-export const config = {
-  docs: {
-    technicalDesign: technicalDesignPath(process.env.PROBE_TD ?? "0.32"),
-    characters: `docs/Gonfaloniere_Characters_v${CHARACTERS_VERSION}.md`,
+/**
+ * The docs for one TD version. TD v0.34+ and Characters v0.10+ use in-world names and must be
+ * loaded together (TD In-World Names; loadDocs refuses a mix), so Characters follows the TD:
+ * v0.10 from TD v0.34 on, v0.4 before, which every earlier game ran on. PROBE_CHARACTERS overrides.
+ */
+export function docsFor(td: string) {
+  const since = inWorldNames().since;
+  const characters = process.env.PROBE_CHARACTERS ?? (atLeast(td, since.technicalDesign) ? since.characters : "0.4");
+  return {
+    technicalDesign: technicalDesignPath(td),
+    characters: `docs/Gonfaloniere_Characters_v${characters}.md`,
     mechanics: "docs/Gonfaloniere_Game_Mechanics_v0.20.md",
     modelsResearch: "docs/Gonfaloniere_Models_Research_v0.38.md",
-  },
+  };
+}
+
+export const config = {
+  docs: docsFor(process.env.PROBE_TD ?? "0.35"),
 
   /** Same for every model; 0.7 until Technical Design sets a play value. */
   temperature: 0.7,

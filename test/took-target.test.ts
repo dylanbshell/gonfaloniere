@@ -2,7 +2,7 @@
 // same rule that stores the reading (The perceived notebook, "Which line a label belongs to").
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { config, technicalDesignPath } from "../probe.config.ts";
+import { config, docsFor } from "../probe.config.ts";
 import { CAST, STANDINS, STANDIN_FILE } from "../src/minigame/cast.ts";
 import { MiniGame, type CallRequest, type Caller } from "../src/minigame/engine.ts";
 import { MemoryStore, tookTargetLine, type GameLine, type Thought } from "../src/minigame/memory.ts";
@@ -76,7 +76,7 @@ const docs = loadDocs(config.docs);
 const briefings = { ...docs.briefings, ...loadStandinBriefings(STANDIN_FILE, STANDINS, docs.socialAwareness) };
 
 test("TD v0.10 loads (from git history): 9a has {took_target}, and thinkAsksTook still matches", () => {
-  const v10 = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.10") });
+  const v10 = loadDocs(docsFor("0.10"));
   assert.equal(v10.versions.technicalDesign, "0.10");
   assert.ok(thinkAsksTook(v10.templates));
   assert.ok(thinkNamesTarget(v10.templates));
@@ -154,7 +154,7 @@ function checkTargets(g: MiniGame, prompts: { character: string; user: string }[
 }
 
 test("TD v0.12, in play: every think() prompt names the line its reading is stored on, own lines included", async () => {
-  const { g, prompts, td } = await playWith(loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.12") }));
+  const { g, prompts, td } = await playWith(loadDocs(docsFor("0.12")));
   const seen = checkTargets(g, prompts, td);
   for (const k of ["other", "own after own line", "none", "other closing", "own after own line closing"]) assert.ok(seen.has(k), `saw ${k}`);
   // v0.12 has no meant: own readings come from think().
@@ -162,7 +162,7 @@ test("TD v0.12, in play: every think() prompt names the line its reading is stor
 });
 
 test("TD v0.14, in play: after an own line, think() names the line they were answering; own readings come only from speak()", async () => {
-  const { g, prompts, speaks, td } = await playWith(loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.14") }));
+  const { g, prompts, speaks, td } = await playWith(loadDocs(docsFor("0.14")));
   assert.equal(g.memory.quoteDropsPunct, false);
   assert.ok(!g.thoughts.some((t) => t.target_answering) || prompts.every((p) => !p.user.includes("you were answering")), "v0.14 keeps 'last line'");
   const seen = checkTargets(g, prompts, td);
@@ -192,7 +192,7 @@ test("TD v0.14, in play: after an own line, think() names the line they were ans
 });
 
 test("TD v0.16, in play: the hostility ladder in think() and speak(), v0.15's wording after an own line, no v0.15 scope line", async () => {
-  const v16 = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.16") });
+  const v16 = loadDocs(docsFor("0.16"));
   assert.equal(v16.versions.technicalDesign, "0.16");
   const { g, prompts, speaks, td } = await playWith(v16);
   assert.equal(g.memory.fillCap, null, "no fill cap before v0.17");
@@ -215,7 +215,7 @@ test("TD v0.16, in play: the hostility ladder in think() and speak(), v0.15's wo
 });
 
 test("TD v0.17, in play: the narrowed pressure gloss in think() and speak(), v0.16's gloss gone, the fill cap on", async () => {
-  const v17 = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.17") });
+  const v17 = loadDocs(docsFor("0.17"));
   assert.equal(v17.versions.technicalDesign, "0.17");
   const { g, prompts, speaks, td } = await playWith(v17);
   checkTargets(g, prompts, td);
@@ -230,7 +230,7 @@ test("TD v0.17, in play: the narrowed pressure gloss in think() and speak(), v0.
 });
 
 test("TD v0.19+, in play: the bare list, then only 'your own reading/call' and 'Most lines are none'; the ladder and descriptions gone; the per-label cap on", async () => {
-  for (const v of ["0.19", "0.21"]) await bareListCheck(loadDocs({ ...config.docs, technicalDesign: technicalDesignPath(v) }));
+  for (const v of ["0.19", "0.21"]) await bareListCheck(loadDocs(docsFor(v)));
 });
 
 async function bareListCheck(d: typeof docs) {

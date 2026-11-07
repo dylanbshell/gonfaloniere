@@ -14,7 +14,7 @@
 import { RESULTS_DIR } from "../harness/log.ts";
 import { audited } from "../harness/keyaudit.ts";
 import { parseArgs } from "node:util";
-import { config, technicalDesignPath, type ModelConfig } from "../../probe.config.ts";
+import { config, docsFor, type ModelConfig } from "../../probe.config.ts";
 import { AUDIENCE_LINE, CLAIM_LINE, REPLY_LINE } from "../../scenarios/s5-claim-line.ts";
 import { allowedActionTypes, allowedActionsText } from "../game/actions.ts";
 import { Budget, worstCaseCost } from "../harness/budget.ts";
@@ -77,7 +77,10 @@ async function main(): Promise<void> {
   const model = config.models.find((m) => m.id === opts.model);
   if (!model) throw new Error(`Unknown --model ${opts.model}`);
   const td = process.env.PROBE_TD ?? "0.9";
-  const docs = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath(td) });
+  const docs = loadDocs(docsFor(td));
+  // S8–S10's items set their own phase labels and Il Notaio lines in game names ("Faction meeting 3",
+  // "The Murder Round"), so on an in-world TD a prompt would mix the two sets (TD v0.34). Not ported yet.
+  if (docs.inWorld) throw new Error(`TD v${td} uses in-world names, but the S8–S10 items are written with game names; run them on TD v0.33 or earlier`);
   const wanted = opts.items.split(",");
   const items = STRATEGY_ITEMS.filter((i) => wanted.some((w) => i.probe === w || i.id === w));
   const lines = opts.lines;

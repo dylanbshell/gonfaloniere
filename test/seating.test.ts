@@ -3,16 +3,16 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { config, technicalDesignPath } from "../probe.config.ts";
+import { docsFor } from "../probe.config.ts";
 import { CAST, STANDINS, STANDIN_FILE } from "../src/minigame/cast.ts";
 import { MiniGame, type CallRequest, type Caller, type GameEvent } from "../src/minigame/engine.ts";
 import { loadDocs, loadStandinBriefings } from "../src/sources/docs.ts";
 import type { CharacterName } from "../src/game/roster.ts";
 import { seatingHealth } from "../src/minigame/seating-health.ts";
 
-const docs24 = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.24") });
-const docs21 = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.21") });
-const docs27 = loadDocs({ ...config.docs, technicalDesign: technicalDesignPath("0.27") });
+const docs24 = loadDocs(docsFor("0.24"));
+const docs21 = loadDocs(docsFor("0.21"));
+const docs27 = loadDocs(docsFor("0.27"));
 const briefings = { ...docs24.briefings, ...loadStandinBriefings(STANDIN_FILE, STANDINS, docs24.socialAwareness) };
 
 const L: CharacterName = "Lupo";
