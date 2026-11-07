@@ -2,9 +2,6 @@
 // context the recorder reads, and the rubric can't change silently.
 
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { test } from "node:test";
 import type Anthropic from "@anthropic-ai/sdk";
 import { memoryDefinitions } from "../src/sources/docs.ts";
@@ -42,10 +39,8 @@ test("the judge stops before a call that could pass the Claude-credit stop, and 
   process.env.ANTHROPIC_API_KEY = "must-not-be-used";
   let called = 0;
   const client = { messages: { create: async () => (called++, {}) } } as unknown as Pick<Anthropic, "messages">;
-  const dir = mkdtempSync(join(tmpdir(), "credit-"));
   const j = new Judge("t", -1, client);
   assert.equal(process.env.ANTHROPIC_API_KEY, undefined);
   await assert.rejects(j.ask("S", "U", "x"), StopError);
   assert.equal(called, 0);
-  assert.ok(dir);
 });
