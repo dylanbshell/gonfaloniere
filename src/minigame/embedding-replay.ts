@@ -338,12 +338,19 @@ export function rankWith(table: EmbeddingTable): Rank {
 
 // ---- Measures ------------------------------------------------------------------------------------------
 
-/** The names a row is about: a reading's or entry's speaker and about fields; a belief has none, so the roster names in its statement. */
-function rowNames(memory: MemoryStore, id: string): { names: string[]; kind: string } {
+/**
+ * The names a row is about: a reading's or entry's speaker and about fields; a belief has none, so the
+ * roster names in its statement. With `text`, an entry whose fields are empty (Il Notaio's and other
+ * code-written entries) is read for the names in its summary instead.
+ */
+function rowNames(memory: MemoryStore, id: string, text = false): { names: string[]; kind: string } {
   const r = memory.readings.find((x) => x.id === id);
   if (r) return { names: [r.speaker, ...r.about], kind: "reading" };
   const e = memory.entries.find((x) => x.id === id);
-  if (e) return { names: [e.speaker, ...e.about].filter(Boolean) as string[], kind: "entry" };
+  if (e) {
+    const names = [e.speaker, ...e.about].filter(Boolean) as string[];
+    return { names: text && !names.length ? namesIn(e.summary) : names, kind: names.length ? "entry" : "entry (no speaker or about)" };
+  }
   const b = memory.beliefs.find((x) => x.id === id);
   if (b) return { names: namesIn(b.statement), kind: "belief" };
   throw new Error(`No row ${id}`);
@@ -354,11 +361,12 @@ function relevant(p: Point): Set<string> {
   return new Set([...p.present, ...p.query.flatMap((q) => [...(q.speaker ? [q.speaker] : []), ...namesIn(q.text)])]);
 }
 
-export function wrongPerson(p: Point, m: Method, memory: MemoryStore): { id: string; line: string; names: string[]; kind: string }[] {
+/** Fill items about no one relevant. `text`: entries with empty fields are read for names (see rowNames). */
+export function wrongPerson(p: Point, m: Method, memory: MemoryStore, text = false): { id: string; line: string; names: string[]; kind: string }[] {
   const rel = relevant(p);
   return m.items
     .filter((x) => x.step === "fill")
-    .map((x) => ({ ...x, ...rowNames(memory, x.id) }))
+    .map((x) => ({ ...x, ...rowNames(memory, x.id, text) }))
     .filter((x) => !x.names.some((n) => rel.has(n)))
     .map((x) => ({ id: x.id, line: x.line, names: x.names, kind: x.kind }));
 }
@@ -510,8 +518,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const runId = new Date().toISOString().replace(/[:.]/g, "-");
 
   if (values.determinism) {
-    // 20 short spoken lines from the first game, embedded twice with no cache.
-    const lines = (readRecord(positionals[0]!) as unknown as { lines: { kind: string; text: string }[] }).lines.filter((l) => l.kind === "speech" && l.text.split(/\s+/).length <= 25).slice(0, 20).map((l) => l.text);
+    // The 20 shortest spoken lines of the first game, embedded twice with no cache.
+    const speech = (readRecord(positionals[0]!) as unknown as { lines: { kind: string; text: string }[] }).lines.filter((l) => l.kind === "speech").map((l) => l.text);
+    const lines = [...new Set(speech)].sort((a, b) => a.length - b.length || a.localeCompare(b)).slice(0, 20);
     const embedder = embedderFromEnv(process.env, { provider: EMBED_PROVIDER });
     if (!embedder) throw new Error("EMBEDDING_MODEL_BASE_URL, EMBEDDING_MODEL_API_KEY, and EMBEDDING_MODEL_ID must all be set");
     const d = await determinism(embedder, lines);
@@ -553,17 +562,23 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   writeFileSync(join(OUT, "points.json"), JSON.stringify(points.map((p) => ({ ...p, rows: p.rows.length }))));
 
   // Measures.
-  const measure = (m: "overlap" | "embeddings") => {
+  const measure = (m: "overlap" | "embeddings", text = false) => {
     let fill = 0;
     let wrong = 0;
+    let noFields = 0;
     for (const p of points) {
       fill += p[m]!.items.filter((x) => x.step === "fill").length;
-      wrong += wrongPerson(p, p[m]!, memoryOf.get(p.game)!).length;
+      const w = wrongPerson(p, p[m]!, memoryOf.get(p.game)!, text);
+      wrong += w.length;
+      noFields += w.filter((x) => x.kind === "entry (no speaker or about)").length;
     }
-    return { fill, wrong, share: fill ? wrong / fill : 0 };
+    return { fill, wrong, share: fill ? wrong / fill : 0, ofThemEntriesWithEmptyFields: noFields };
   };
   const ov = measure("overlap");
   const em = measure("embeddings");
+  // Not the rule's measure: the same with empty-field entries read for the names in their text.
+  const ovText = measure("overlap", true);
+  const emText = measure("embeddings", true);
   const slots = points.map((p) => p.overlap.fillSlots);
   const measures = {
     commit: gitCommit(),
@@ -573,7 +588,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     identicalFillShare: points.filter(sameFill).length / points.length,
     fillSlots: { mean: slots.reduce((a, b) => a + b, 0) / slots.length, zeroShare: slots.filter((s) => s === 0).length / slots.length, sameForBoth: points.every((p) => p.overlap.fillSlots === p.embeddings!.fillSlots) },
     wrongPerson: { overlap: ov, embeddings: em, gapPoints: 100 * (em.share - ov.share) },
-    wrongExamples: points.flatMap((p) => wrongPerson(p, p.embeddings!, memoryOf.get(p.game)!).map((w) => ({ point: p.id, character: p.character, present: p.present, query: p.query.map((q) => q.shown), item: w }))).slice(0, 12),
+    wrongPersonReadingEntryText: { overlap: ovText, embeddings: emText, gapPoints: 100 * (emText.share - ovText.share) },
+    wrongExamples: points.flatMap((p) => wrongPerson(p, p.embeddings!, memoryOf.get(p.game)!, true).map((w) => ({ point: p.id, character: p.character, present: p.present, query: p.query.map((q) => q.shown), item: w }))).slice(0, 12),
   };
   writeFileSync(join(OUT, "measures.json"), JSON.stringify(measures, null, 1));
   console.log(JSON.stringify({ ...measures, wrongExamples: measures.wrongExamples.length }, null, 1));

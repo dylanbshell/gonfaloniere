@@ -34,10 +34,11 @@ Work arrives as tasks from Dylan, often relayed from Technical Design (TD). The 
 
 - Model calls run with the keys from 1Password: `PROBE_TOTAL_USD=<stop> op run --env-file=.env -- npm run -s minigame -- …`.
 - Never print, log, or commit an API key.
-- Every call is logged as JSONL, and the ledger is the sum of those logs. There are three ledgers:
+- Every call is logged as JSONL, and the ledger is the sum of those logs. There are four ledgers:
   - the probes: `results/*.jsonl`
   - the Capitulation Pilot: `results/pilot/`
-  - the mini-games: `results/minigame/`
+  - the mini-games: `results/minigame/` (OpenRouter, embeddings included)
+  - Dylan's Claude credit: `results/claude-credit/`, for calls on the native Claude API with `CLAUDE_CREDIT_API_KEY`. Never use `ANTHROPIC_API_KEY`
 - Caps:
   - mini-game: $45 (`src/minigame/ledger.ts`)
   - probe: $70 (`probe.config.ts`)

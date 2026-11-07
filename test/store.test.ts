@@ -200,7 +200,14 @@ test("embedders: the OpenAI-compatible one keeps input order and reported cost; 
     },
   };
   const e = openAiCompatibleEmbedder(client as never, "some/embedding-model");
-  assert.deepEqual(await e.embed(["a", "b"]), { vectors: [[1, 0], [0, 1]], inputTokens: 7, costUsd: 0.00001 });
+  assert.deepEqual(await e.embed(["a", "b"]), { vectors: [[1, 0], [0, 1]], inputTokens: 7, costUsd: 0.00001, provider: null });
+  // CC-20261107-03: a pinned provider is sent as OpenRouter's routing, with no fallbacks, and the serving provider reported.
+  const sent: unknown[] = [];
+  const pinned = openAiCompatibleEmbedder({ embeddings: { create: async (req: unknown) => (sent.push(req), { ...(await client.embeddings.create(req as never)), provider: "Nebius" }) } } as never, "some/embedding-model", { provider: "nebius" });
+  assert.equal((await pinned.embed(["a", "b"])).provider, "Nebius");
+  assert.deepEqual((sent[0] as { provider: unknown }).provider, { order: ["nebius"], allow_fallbacks: false });
+  await openAiCompatibleEmbedder({ embeddings: { create: async (req: unknown) => (sent.push(req), client.embeddings.create(req as never)) } } as never, "m").embed(["a", "b"]);
+  assert.equal((sent[1] as { provider?: unknown }).provider, undefined);
   assert.equal(embedderFromEnv({ EMBEDDING_MODEL_BASE_URL: "http://x", EMBEDDING_MODEL_ID: "m" }), null);
   assert.equal(embedderFromEnv({ EMBEDDING_MODEL_BASE_URL: "http://x", EMBEDDING_MODEL_API_KEY: "k", EMBEDDING_MODEL_ID: "m" })!.model, "m");
 });
