@@ -48,7 +48,7 @@ import { CLAUDE_PREFIX, DEFAULT_PLAY_MODEL, callClaude, claudeRoute, describeCla
 
 const { values: opts, positionals } = parseArgs({
   allowPositionals: true,
-  options: { cap: { type: "string", default: "2" }, "recorder-model": { type: "string" }, concurrency: { type: "string", default: "3" }, "dry-run": { type: "boolean", default: false }, rpm: { type: "string" }, only: { type: "string" }, estimate: { type: "boolean", default: false }, probe: { type: "boolean", default: false } },
+  options: { cap: { type: "string", default: "2" }, "recorder-model": { type: "string" }, concurrency: { type: "string", default: "3" }, "dry-run": { type: "boolean", default: false }, rpm: { type: "string" }, only: { type: "string" }, estimate: { type: "boolean", default: false }, probe: { type: "boolean", default: false }, "in-flight": { type: "string", default: "4" } },
 });
 const OUT = "results/minigame";
 /** The Claude-credit ledger (CLAUDE.md): Claude API spend, separate from the mini-game ledger. */
@@ -100,6 +100,8 @@ async function main(): Promise<void> {
   console.log(`Replay: ${positionals.length} game(s); extraction and knowledge checks on TD v${docs.versions.technicalDesign}; recorder ${JSON.stringify(recorderInfo())}; cap $${opts.cap}; ledger $${budget.priorSpendUsd.toFixed(2)} spent before this (total cap $${totalCap})`);
   /** Each Claude call's usage, for the cache hit rate. */
   const claudeUsage: (ClaudeUsage & { kind: string; cost: number })[] = [];
+  const maxInFlight = Number(opts["in-flight"]);
+  let inFlight = 0;
 
   // --rpm: keep under a provider's requests-per-minute limit (e.g. OpenRouter's 20/min for GPT-5.4 on new accounts).
   const rpm = opts.rpm ? Number(opts.rpm) : null;
@@ -125,7 +127,10 @@ async function main(): Promise<void> {
       // Worst case: the whole prompt written to the cache, and every token of max_tokens.
       const worst = worstCaseCost(system.length + user.length, maxTokens, { input: claude.price.cacheWrite, output: claude.price.output });
       if (!budget.tryReserve(worst)) throw new ReplayStop("the next call could pass the cap");
-      const r = await callClaude(claude, system, user, maxTokens);
+      // The Claude API limits concurrent requests per organization: at most --in-flight at once.
+      while (inFlight >= maxInFlight) await new Promise((r) => setTimeout(r, 50));
+      inFlight++;
+      const r = await callClaude(claude, system, user, maxTokens).finally(() => inFlight--);
       const cost = r.ok ? r.costUsd : 0;
       budget.settle(worst, cost);
       log.write({ type: "claude-call", runId, model: claude.model, kind, costUsd: cost, ok: r.ok, ...(r.ok ? { servedModel: r.model, stop: r.stopReason, usage: r.usage } : { status: r.status, error: r.error.slice(0, 300) }), at: new Date().toISOString() } as unknown as LogRecord);

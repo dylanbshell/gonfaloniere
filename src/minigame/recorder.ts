@@ -182,7 +182,7 @@ export function claudeRoute(id: string, opts: { offline?: boolean; client?: Pick
   delete process.env.ANTHROPIC_AUTH_TOKEN;
   const apiKey = key("CLAUDE_CREDIT_API_KEY");
   if (!apiKey && !opts.offline && !opts.client) throw new Error("No CLAUDE_CREDIT_API_KEY in .env for the Claude recorder");
-  return { role: "recorder", api: "claude", model, thinking, price, client: opts.client ?? new Anthropic({ apiKey: apiKey ?? "dry-run-no-key", maxRetries: 4 }) };
+  return { role: "recorder", api: "claude", model, thinking, price, client: opts.client ?? new Anthropic({ apiKey: apiKey ?? "dry-run-no-key", maxRetries: 8 }) };
 }
 
 export function claudeCost(price: ClaudeRoute["price"], u: ClaudeUsage): number {
