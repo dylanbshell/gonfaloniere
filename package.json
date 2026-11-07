@@ -24,6 +24,7 @@
     "minigame:replay": "tsx src/minigame/replay.ts",
     "minigame:view": "tsx src/minigame/view.ts",
     "minigame:names": "tsx src/minigame/names-check.ts",
+    "minigame:embed-replay": "tsx src/minigame/embedding-replay.ts",
     "minigame:register": "tsx src/minigame/register.ts",
     "minigame:labels": "tsx src/minigame/labels.ts",
     "minigame:voice": "tsx src/minigame/voice.ts",
@@ -31,6 +32,7 @@
     "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
     "openai": "^7.39.0",
     "pg": "8.23.0",
     "zod": "^4.6.7"

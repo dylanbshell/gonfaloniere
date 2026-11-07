@@ -11,6 +11,8 @@ export interface EmbedResult {
   inputTokens: number;
   /** As the endpoint reports it; null when it reports none. */
   costUsd: number | null;
+  /** The provider that served the call, when the endpoint reports one (OpenRouter does). */
+  provider?: string | null;
 }
 
 export interface Embedder {
@@ -20,24 +22,28 @@ export interface Embedder {
 }
 
 /** The embedder named by the environment, or null when EMBEDDING_MODEL_* aren't all set. */
-export function embedderFromEnv(env: NodeJS.ProcessEnv = process.env): Embedder | null {
+export function embedderFromEnv(env: NodeJS.ProcessEnv = process.env, opts: { provider?: string } = {}): Embedder | null {
   const baseURL = env.EMBEDDING_MODEL_BASE_URL;
   const apiKey = env.EMBEDDING_MODEL_API_KEY;
   const model = env.EMBEDDING_MODEL_ID;
   if (!baseURL || !apiKey || !model) return null;
-  return openAiCompatibleEmbedder(new OpenAI({ baseURL, apiKey, maxRetries: 2 }), model);
+  return openAiCompatibleEmbedder(new OpenAI({ baseURL, apiKey, maxRetries: 2 }), model, opts);
 }
 
-export function openAiCompatibleEmbedder(client: Pick<OpenAI, "embeddings">, model: string): Embedder {
+/** `provider`: an OpenRouter provider slug to pin, with no fallbacks (CC-20261107-03); omitted, the endpoint routes as it likes. */
+export function openAiCompatibleEmbedder(client: Pick<OpenAI, "embeddings">, model: string, opts: { provider?: string } = {}): Embedder {
+  // OpenRouter's provider routing; other endpoints never see it.
+  const routing = opts.provider ? { provider: { order: [opts.provider], allow_fallbacks: false } } : {};
   return {
     model,
     async embed(texts) {
       if (!texts.length) return { vectors: [], inputTokens: 0, costUsd: 0 };
-      const res = await client.embeddings.create({ model, input: texts, encoding_format: "float" });
+      const res = await client.embeddings.create({ model, input: texts, encoding_format: "float", ...routing } as OpenAI.EmbeddingCreateParams);
       const vectors = [...res.data].sort((a, b) => a.index - b.index).map((d) => d.embedding);
       if (vectors.length !== texts.length) throw new Error(`Embeddings endpoint returned ${vectors.length} vectors for ${texts.length} texts`);
       const usage = res.usage as { prompt_tokens?: number; cost?: number } | undefined;
-      return { vectors, inputTokens: usage?.prompt_tokens ?? 0, costUsd: typeof usage?.cost === "number" ? usage.cost : null };
+      const provider = (res as { provider?: unknown }).provider;
+      return { vectors, inputTokens: usage?.prompt_tokens ?? 0, costUsd: typeof usage?.cost === "number" ? usage.cost : null, provider: typeof provider === "string" ? provider : null };
     },
   };
 }
