@@ -1,8 +1,77 @@
 # Gonfaloniere
 ## Models & Research — Working Document
-### Version 0.38
+### Version 0.48
 
 ---
+
+## Changes in v0.48
+
+- **The in-world names check passed** (CC-20261107-01; Findings Log, Nov 7): 0 game terms in 888 character prompts, 0 in 900 outputs, 0 midnight repairs. The names are built, version-gated, and the defaults (TD v0.35, Characters v0.10), merged to `main` as PR #42. It was also the first play on Characters v0.10's briefings
+- **Not gated, but worth watching in the full games:**
+  - **Characters label fewer of their own lines:** `meant: none` rose from 16.7% to 32.8% of spoken lines. Under the register check's guardrail rule it would have flagged (doubled, moved 16 points). The briefings changed at the same time, so the cause can't be pinned down. Fewer own readings means characters keep fewer of their own commitments in memory, which is one of the perceived notebook's watch items
+  - **Rate-limit retries rose from 0 to 29** (all succeeded). Full games run twice the characters in parallel, so the provider's limits may bite there
+  - **Block 6 fits slightly fewer lines** (9.94 against 10.22), because time labels are longer than "T3". Sent to Technical Design with the arrival label Claude Code had to choose
+- **Label shares: three denominators, now named** (Findings Log, Nov 7). Claude Code reported admission at 6.4% of the v0.27 baseline where my table says 4.8%: it divided by labels other than `none`, and I divided by thinks asked for a label. Both are right; reports now say which
+
+## Changes in v0.47
+
+*Plans the three checks Claude Code runs next, each with its rule set before anything runs (Open Questions). Answers the tracker's "In-world names: check and build", "Embedding replay check", and "Claude as the recorder" handoffs.*
+
+- **In-world names check:** 2 mini-games on TD v0.35 and Characters v0.10, seeds 2000–2001, after Claude Code builds the names. Pass: no game term in any character-facing prompt (a code scan), none in any thought, line, or plan, and every midnight act parses with no repair. It's also the first play on Characters v0.10, so Dylan reads it in the viewer for circling. Label mix reported against the v0.27 baseline, not gated, since the briefings changed too
+- **Embedding replay check, updated:** it replays the **v0.27 games** (the current baseline and register) instead of v0.19's, and the blind judge runs on **Dylan's Claude credit** instead of the OpenRouter key. Rule unchanged
+- **Claude recorder test (a gate 8 retry), with the measure fixed first.** The old judge's ★ list grew with the record it was shown (162 against 249 items on the same transcripts), so a new recorder can't be scored fairly with it. The judge now lists ★ moments from the transcript alone, once per game, and every recorder is matched against that one list (rubric `gate8 v3`). Recorders: **Claude Haiku 5.5** and **Claude Sonnet 5.5**, through the native Claude API with prompt caching, against DeepSeek's records from the same games. Games: the 4 plain-register mini-games (v0.27 and v0.29, seeds 2000–2001), since every future game uses that register. Judge: **Claude Opus 5.5**, which isn't one of the recorders tested; the shared family is a caveat, so the hand-check stays. About $10–15 of the credit, capped at $20
+- **Haiku 5.5 changes the cost question:** at $0.10/$0.50 per million tokens it's priced near DeepSeek, so if it passes, a better recorder costs almost nothing extra per game. Sonnet 5.5 ($2/$10) would cost roughly what GPT-5.4 did
+- **Claude 5 models through the API:** temperatures below 1 are rejected, so the recorder runs at the model default and the record says so. TD's "temperature 0, or the lowest accepted value" covers this
+- **New ledger line:** spend on Dylan's Claude credit is tracked separately from the mini-game ledger and the OpenRouter key
+
+## Changes in v0.46
+
+*Clears three tracker handoffs: "Personalities moved to dead last" (from the Hub for Dylan, Nov 3–4), "Register settled" (from Technical Design, Oct 29), and "Tested briefings changed" (from Characters, Oct 29; updated Nov 3).*
+
+- **New order of work** (Dylan, Nov 3–4; Current Model Plan): technically complete, then balancing, then personalities, LoRAs, and Tinker research batches **dead last**, grant or not. Until then every game runs on the stock model with no adapter, and the Tinker-only steps (the Neutral re-measure, the log-probability harness, Experiment 2) wait
+- **Balancing runs on DeepSeek V4.1 Flash, through the hosted API, on the pinned provider** (DeepInfra fp8, where every baseline was measured). A rough comparison (Cost and Throughput, Balancing: API or self-hosted?) puts a full game at roughly $0.30–0.45 by API, and a self-hosted node at $15–30 an hour that would need dozens of games an hour, every hour, to match it. To be redone once the first full game measures real tokens
+- **Both register checks logged** (Findings Log, Oct 28–29): the register check (CC-20261028-09) passed the rule set in v0.45, 11 of 15 baseline lines marked hard to follow against 1 of 15. The voice check (CC-20261029-01) was adopted on Dylan's judgment, then reverted in TD v0.31. The plainer-speech question is closed
+- **New label baseline: the v0.27 games** (seeds 2000–2001), recorded in full in the Findings Log. Against v0.19: insult and threat down, deal and admission up, pressure about level. Threat's fall (5.5% to 2.2% of `took`) stayed under the flag but is worth watching, since threats are ★ and reach midnight's retrieval
+- **Tested briefings changed, acknowledged:** Characters v0.9 puts each errand before its faction, adds voice lines, and completes the cast, with no secret, fact, or plot point changed in Lupo, Isabella, or LeNoir. The v0.27 baseline ran on v0.4 plus stand-ins, so the first full games' mix will move for input reasons too; it's reported against the baseline, not gated. "Does it cut the circling?" is parked for the first full games' read, with no separate check
+- **The claim-line echo** ("my story stays straight") is parked the same way: it's a gate-tested secret-keeping line, so it isn't reworded unless the full games still echo with the new briefings
+
+## Changes in v0.45
+
+- **Thoughts change with speech, in the same check** (Dylan, Oct 28). Dylan reads thoughts in the replay viewer too, and a character's own ornate thoughts sit in its context when it speaks, so they would likely pull speech back toward the old style. One check instead of two before the full games; the label guardrails already cover `took`, which think() writes
+- **Dylan's target register:** closer to a modern TV period drama (his reference: Game of Thrones) than to Shakespeare; given the choice, everyday English. Framings that change what a character knows (a time traveler from 2026) or tell them they're fiction ("a modern adaptation of a play") were considered and not proposed
+
+## Changes in v0.44
+
+- **Dialogue is hard to follow** (Dylan, Oct 28, watching the seating check game in the replay viewer, CC-20261028-08). Lines are ornate one-liners built on metaphor ("a heavy purse buys silence, not absolution"), and every character sounds alike. In that game spoken lines averaged 45 words, and the longest ran 90, over speak()'s ~60-word limit. Block 9b already says "in clear modern English"; the model keeps the 1492 part and drops the plain part. Nothing breaks (labels attach, plots move), but it matters for anyone watching, for a human player, and for telling personalities apart
+- **Dylan wants it settled before the first full games,** which set the research baseline. A speech change can shift the label mix (wording alone swung it several-fold), so it's checked once against the v0.19 baseline under a rule set now (Open Questions). Proposed wording sent to Technical Design; sample voice lines in briefings go to Characters as the next lever, not a second round of prompt wording
+
+## Changes in v0.43
+
+- **Embeddings are now the default for the first full games, and the replay check can only reverse that** (Dylan, Oct 28, before anything ran). Word overlap was always a stand-in; the design was written for embeddings, and lore will need them. v0.42's rule assumed overlap unless embeddings proved better, and its "fills identical at least 80% of the time" clause would almost never fire, since the two methods would rarely pick exactly the same set. Both are dropped. New rule in Open Questions
+- **Wrong-person recall gets fixed, not reverted.** The embedding risk specific to this game is recalling a memory about the wrong person, since a vector mostly encodes what a line is about, not who. Renaming characters wouldn't help ("Lorenzo offered me gold" sits next to "Isabella offered me gold"). Every row already records who spoke and who it's about, so if the check finds the problem, the fix is to rank by those fields before similarity, which goes to Technical Design
+
+## Changes in v0.42
+
+*Answers Technical Design's handoff "Embedding model and when memory switches to it" (Oct 28).*
+
+- **Embedding model: Qwen3-Embedding-8B,** through OpenRouter with one provider pinned, at its full 4,096 dimensions and with no query instruction (Hosting plan). It's the strongest open-weight embedding model on MTEB (~75 against ~68 for the 0.6B size), costs about $0.01 per million tokens (well under a cent per game), and has open weights, so a run can be reproduced locally if the hosted version ever goes away
+- **Whether the first full games switch is decided by a replay check, not a new game.** Similarity only fills the slots left after ★ items about present guests (up to 6) and beliefs (up to 3), so the check replays saved v0.19 games' block 6 fills under both methods, measures how often they differ, and has a blind judge compare the ones that do. Decision rule set in advance (Open Questions). About $1.50 at most; no character calls
+- **Why decide now:** whichever method the first full games use becomes the research baseline and stays fixed through every batch. Switching after the first full games would cost that baseline; switching before costs only a little comparability with the mini-game measurements, which the full games replace anyway
+
+## Changes in v0.41
+
+- **New post-simulation question: off-register player input** (Dylan, Oct 28). A human player writing slang, very casual phrasing, or anachronisms won't break parsing or mechanics, but may pull the characters' register casual, draw in-world suspicion the player didn't intend, blur the line with deliberate fourth-wall breaks, and sit outside what the personality adapters were trained on. Test planned for when a human player exists (Open Questions); design questions sent to Mechanics and Technical Design
+
+## Changes in v0.40
+
+- **v0.19 baseline entry completed** from Claude Code's full report (CC-20261026-05): full label tables on the same seeds for v0.14, v0.16, v0.17, and v0.19, and the hand-reads. **Correction:** on seeds 2000–2001, v0.14's threat share was 17.2% of `took`, not the 14.4% I quoted (that was the 4-seed figure)
+- **"Already known" sources widened:** a reveal the judge identifies but labels deliberate (and so doesn't flag as a leak) also teaches its listeners, so it counts as a source. It changed nothing on the saved games
+
+## Changes in v0.39
+
+- **Logged the v0.19 baseline** (CC-20261026-05, from Technical Design's summary in its v0.20 changelog): with bare label words, threat rose from 1.3% to 5.5% of `took`, pressure fell from 32.2% to 25.7%, and `none` from 40.9% to 30.7%. Fit 27 of 30 on both samples; the per-label cap held in all 798 block 6 calls. **One short description could swing a label's share several-fold.** This mix is the research baseline. See Findings Log
+- **v0.17 entry completed** from Claude Code's full report (CC-20261026-03): the "already known" pass on the saved games, and how hard the cap was working
+- **Decision: no provider switch for log probabilities; research batches get them on Tinker.** Development stays on the pinned OpenRouter provider (DeepInfra fp8, no log probabilities), since every baseline so far was measured there and a switch would change play. **Research batches run every variant, Neutral included, on Tinker**, so serving can't be confounded with personality, and Tinker's sampler returns the top-k log probabilities of sampled tokens (`topk_sample_logprobs`). The label probabilities TD v0.21 records will exist exactly where they're analysed. Consequence: the label-mix baseline must be re-measured on Tinker for Neutral, as part of Experiment 2 (Hosting plan; Open Questions)
 
 ## Changes in v0.38
 
@@ -291,12 +360,22 @@ This doc owns three things:
 - **Development model** (chosen by the probes, now): plays the stock game while the engine and rules are built and balanced. Changing it later is a config change plus a re-run of the probes
 - **Fine-tuning base model** (deferred): must be fixed before any LoRA is trained, because a LoRA is tied to the exact weights it was trained on. Chosen when fine-tuning is near, from the models and prices available then. It may or may not be the development model
 
+**Order of work (Dylan, Nov 3–4):**
+1. **Technically complete:** every piece of the engine works end to end (tracker, Next milestone)
+2. **Balancing:** on **DeepSeek V4.1 Flash** with no adapter, through the hosted API on the pinned provider (Cost and Throughput, Balancing: API or self-hosted?). Most of it happens in the rules-only simulator; LLM batches check it
+3. **Personalities, LoRAs, and Tinker research batches, dead last,** as the most expensive part, whether or not the grant comes through
+
+Until step 3, every game is stock play. The Neutral re-measure on Tinker, the Tinker log-probability harness, and Experiment 2 wait for it.
+
 **Priorities (Dylan, Oct 21):** cost is the main constraint. Technical difficulty is not; self-hosting is acceptable. "Support" means community resources and documentation, not managed services.
 
 ### Hosting plan: API first, self-host only for adapters
 
 - **Development and all stock-model tests run through a hosted API** (OpenRouter, provider pinned). No GPU rental until there's an adapter to serve
 - **Fine-tuned play** runs either self-hosted (mid-size models) or through Tinker's per-token serving (large models). See **Fine-Tuning Paths**
+- **Balancing batches** (Nov 3–4): DeepSeek V4.1 Flash, stock, through OpenRouter pinned to DeepInfra fp8, fallbacks off, for every batch. A provider or quantization change can shift play, so it stays fixed for all of balancing
+- **Research batches run every variant on one serving stack** (Oct 27; dead last since Nov 3–4): on DeepSeek that's Tinker, Neutral included, so a provider difference can't pass for a personality difference. Tinker's sampler returns top-k log probabilities (`topk_sample_logprobs`), which TD v0.21's label-probability record uses. Development games stay on the pinned OpenRouter provider (DeepInfra fp8), which returns none; providers that do (DeepSeek's own endpoint, Novita, Parasail, Nebius; CC-20261027-06) aren't worth a switch, since it would change play mid-development
+- **Embedding model** (Oct 28): **Qwen3-Embedding-8B** through OpenRouter (`qwen/qwen3-embedding-8b`), one provider pinned and recorded, full 4,096 dimensions, no query instruction (an instruction prefix is model-specific, and the run setting is meant to be model-neutral). Same embedding stack for every game in a research batch, whichever stack serves the characters. Open weights, so it can be served locally if needed; Qwen3-Embedding-0.6B (1,024 dimensions, runs on a laptop CPU) is the fallback for self-hosting. `retrieval: embeddings` is the default for the first full games unless the replay check in Open Questions reverses it
 - **Turn thinking off** on hybrid models. Thinking multiplies output tokens and cost
 - **Idle pods are the biggest hidden cost.** Stop pods between sessions; keep weights on a network volume (~$0.05–0.07/GB/month)
 
@@ -634,7 +713,7 @@ DeepSeek has no small current models (its small models are older Qwen- and Llama
 
 | Measure | How | Pass line |
 |---|---|---|
-| **Secrets kept** | `cal5` judge on each character's lines across the whole game; per-secret survival and first-leak turn. **Deliberate reveals are not leaks** (Oct 26): a reveal counts as a leak unless the character's thought just before it shows they chose to reveal it, for a goal from their briefing. Deliberate reveals are reported separately. **Already known** (v0.36): after judging, code marks a flagged line "already known" when every listener was present for an earlier flagged line revealing the same secret. Raw `cal5` counts are reported beside the adjusted ones | Report. Flag any secret that falls before turn 3 in most games |
+| **Secrets kept** | `cal5` judge on each character's lines across the whole game; per-secret survival and first-leak turn. **Deliberate reveals are not leaks** (Oct 26): a reveal counts as a leak unless the character's thought just before it shows they chose to reveal it, for a goal from their briefing. Deliberate reveals are reported separately. **Already known** (v0.36; cumulative since v0.38): after judging, code marks a flagged line "already known" when every listener already knew the secret: from their briefing, or from any earlier line the judge identified as revealing it, flagged as a leak or labelled deliberate (v0.40). Raw `cal5` counts are reported beside the adjusted ones | Report. Flag any secret that falls before turn 3 in most games |
 | **Probes predict play** | Compare leak timing and pressure type with S5b/S5d/held-out | Report; this is assumption #2 |
 | **Memory (gate 8)** | Judge compares the extraction passes with the transcript and thoughts: missed ★ items, invented facts, and conclusions or suspicions the thoughts don't support. Code-dropped entries reported by reason. **Since Oct 25 (rubric `gate8 v2`), the judge loads its definitions of each entry type and of `toward` word for word from TD blocks 10a and 10d, and counts as ★ items only what 10a says to record** (payments are written by code, not counted). A hand-checked sample of flags is reported with each run. **Known flaw (Oct 25):** the judge lists ★ items while seeing the record, and its count grows with the number of entries shown (162 against DeepSeek's records, 249 against GPT-5.4's, same transcripts). Before any future use, split it in two: list ★ items from the transcript alone, then match the record against that list | ≥90% of ★ items captured; **no invented facts**. *Closed Oct 25 as a known limit (not met)* |
 | **Knowledge checks** | TD block 10c at the end of each game, four verdicts (told, firm conclusion, suspicion, none); the (LeNoir, F2) check settles Isabella's, LeNoir's, and Raffaello's plot points. Hand-check against transcripts | Report agreement by verdict |
@@ -783,6 +862,13 @@ Rough count per turn at the default 4 Capannelli of 3: 12 `speak()` calls plus 3
 
 **Biggest lever: the number of research games.** It changes totals more than any model choice. Decide it once the first batch shows how much behavior varies between runs.
 
+### Balancing: API or self-hosted? *(rough, Nov 6)*
+
+**Lean: the hosted API.** Redo this once the first full game measures real tokens and cost.
+- **API:** the v0.27 mini-games cost about $0.106 each, for ~550 calls and ~1.8M input tokens (~3,220 per call, ~140 output). A full game is ~1,500 calls at ~3,450 input tokens (TD v0.34's larger briefings), about 5.2M input tokens, so roughly **$0.30–0.45 per game** at the same prices. A 50-game balancing batch is then about $15–25
+- **Self-hosted:** DeepSeek's V4 Flash family is about 284B parameters in total (13B active), so even at fp8 the weights alone are ~290GB. That needs a multi-GPU node (for example 4× H200 or 8× H100), roughly $15–30 an hour to rent, plus time to load the weights. To match the API's cost per game, the node would have to finish about 35–100 games an hour, every hour it's up, which needs many games running in parallel and near-full use of the GPUs. Balancing batches are small and bursty, so the node would sit idle much of the time
+- **So the API is cheaper at balancing's scale** unless batches grow to hundreds of games run back to back. Self-hosting is kept for the delivery form that needs it (Delivery & Presentation), not for balancing
+
 ### Cost levers
 
 Decided in Technical Design (Model Routing): batched `think()` rejected in favor of parallel requests plus caching; `detectDesignation()` no longer a model call; system calls on the stock play model; running `think()` less often deferred until a full game is measured.
@@ -900,16 +986,46 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
   - Total ~$5.25; mini-game ledger stays under $25
 - [x] **Perceived notebook mini-game checks: done** (v0.9–v0.16, Oct 26; Findings Log). Attachment, gate 1, `words`, `insult`, and `pressure`'s main job all pass; the leak flag is resolved
 - [x] **Last check: TD v0.17's narrowed `pressure`** (Oct 26, CC-20261026-03): failed the decision rule (pressure 32.2% of `took`, 42.7% of `meant`; threat 1.3%). Superseded by Dylan's v0.19 baseline (Findings Log)
-- [ ] **TD v0.19 baseline test** (Dylan, Oct 26). 2 DeepSeek mini-games, seeds 2000–2001, `notebook: perceived`, no judge, cap $0.40. **Report only; a measurement, not a gate:** whatever it shows, v0.19 goes to the first full games, and its mix becomes the research baseline
-  - **Label mix** for `took` and `meant` separately, next to v0.14 (bare words, no pressure), v0.16 (ladder with examples), and v0.17 (narrowed), all on seeds 2000–2001 so the columns compare
-  - **Questions:** does threat recover from v0.17's 1.3% of `took`? Does `pressure` settle without a description? Do dares and questions stay out of threat and claim?
-  - **Hand-reads:** 30 own and 30 others' readings (right line, key part, fit; own judged against the line as said, plan departures counted separately); up to 20 threat (harm to come?), 20 pressure (pushing to answer or act?), and 20 claim readings (any questions or dares?)
-  - **Memory cap:** block 6 calls with more than 3 readings of one non-★ label (should be 0)
+- [x] **TD v0.19 baseline test** (Oct 26, CC-20261026-05): done. Its mix was the research baseline until the v0.27 games replaced it (Findings Log, Oct 28–29)
+- [ ] **Tinker baseline for Experiment 2** *(waits: personalities come dead last, Nov 3–4)*: before any personality batch, run Neutral (stock model with the prompt competence) on Tinker with `topk_sample_logprobs` on, and re-measure the label mix there. The label baselines (v0.19, then v0.27) were measured on DeepInfra fp8, and research comparisons need both sides on the same stack
+- [ ] **Harness: Tinker log probabilities** (Claude Code, before Experiment 2; waits with it): request top-5 sampled-token log probabilities on Tinker and map them to the `took` and `meant` label tokens, per TD v0.21
 - [ ] **Perceived notebook in the first full games:**
   - **Fit bars:** at least 60 hand-read readings per kind (own, others'); pass ≥48 (80%), fail ≤42 (70%), read more in between. Own readings are judged against the line as said; departures from the speaker's earlier plan are counted separately
-  - **Label mix:** `pressure` well below v0.16's 33.8% of `took` and 47.4% of `meant`, without threat and claim swinging back to v0.14 levels (14.4% and 24.1% of `took`)
+  - **Label mix:** reported against the v0.27 baseline (Findings Log, Oct 28–29), with no targets. The 12-character cast, Characters v0.9's briefings, and TD v0.34's in-world names will all shift it; the shift is a finding. Watch `took: threat` in particular (2.2% on v0.27)
+  - **Own readings** (added Nov 7): `meant: none` was 32.8% of spoken lines in the names check against 16.7% on v0.27. Count own ★ readings per character and check whether characters forget their own promises (perceived notebook watch item)
+  - **Rate limits:** retries per game (29 across the names check's two games, 0 before), and whether full games' larger bursts slow turns
+  - **Talking in circles** (parked here, Nov 6, from Characters v0.9's Open Questions): do errand-first briefings, voice lines, and the full cast cut it? Read alongside the fit bars, with no separate check. Dylan's read decides; if the games still circle, the levers are in Technical Design's Open Questions ("Talking in circles")
+  - **The claim-line echo** (parked, Nov 6): count thoughts restating "my story stays straight" or "I have told no untruth". If they're still common with the new briefings, test a reworded 9a claim line in a 2-game check against S5d, since it's one of the three tested secret-keeping lines
   - Then (d)–(i) (Perceived Notebook Tests). No more spend on gate 8
-- [ ] **Harness: the "already known" leak pass** (Mini-Game Spec, Secrets kept), for Claude Code before the first full games. No model calls
+- [x] **Harness: the "already known" leak pass** (Mini-Game Spec, Secrets kept): built and run on the saved games (CC-20261026-03), cumulative as defined in v0.38
+- [ ] **Do the first full games switch to embeddings?** Yes by default (v0.43); a replay check before them can reverse it (Oct 28). Replay every block 6 fill from the saved **v0.27 games** (seeds 2000–2001; v0.19's until v0.47) under both methods, overlap as run and Qwen3-Embedding-8B, with the same order, caps, and budget. Measures:
+  - **Identical-fill rate:** how often both methods pick the same items. This shows how much the choice matters at all
+  - **Blind preference:** a sample of 80 fills that differ, judged by Sonnet 5.5 (on Dylan's Claude credit since v0.47) twice with the order swapped, shown the character, who is present, the last two History lines, and the two fills (A/B), never the character's actual next line (it was written under overlap). A verdict counts only if both orders agree; otherwise it's a tie
+  - **Wrong-person items:** fill items about no one present and no one named in, or speaking, the query lines, as a share of fill items for each method
+  - **Reported, not gated:** how many fill slots block 6 leaves on average, and whether the endpoint returns identical vectors for identical text
+  - **Decision rule, set before anything ran (v0.43; replaces v0.42's):** embeddings by default. Go back to overlap only if the judge clearly prefers it, with embeddings winning 40% or less of agreeing verdicts. If embeddings' wrong-person share of fill items is at least 10 percentage points above overlap's, keep embeddings and send Technical Design a fix that ranks by the rows' speaker and about fields before similarity. Whatever results is fixed for the first full games and every research batch after them
+- [x] **Plainer speech and thoughts: done** (Findings Log, Oct 28–29). Adopted on the register check; the voice check's looser wording was reverted. Original item: **Plainer speech and thoughts: does Technical Design's new wording work?** (Oct 28; settle before the first full games.) One check, 2 mini-games on seeds 2000–2001 like the v0.19 baseline, `retrieval: overlap` so only the register wording (speak() and think()) differs. Measures:
+  - **Dylan's read, the deciding measure:** 15 random spoken lines from the baseline games and 15 from the new ones, shuffled with no labels. Dylan marks each line he finds hard to follow. Also 10 thoughts from each, shuffled the same way, reported but not part of the rule
+  - **From code:** words per line and per thought (mean, and lines over the limit), sentences per line, and Flesch–Kincaid grade, against the baseline games
+  - **Guardrails, reported against the v0.19 baseline:** the `took` and `meant` label mix (flag any label whose share both doubles or halves and moves 5 points or more), and secret leaks and deliberate reveals from the runner's existing checks (flag more than 2 above the baseline count)
+  - **Decision rule, set now:** adopt the new wording if Dylan marks clearly fewer new lines hard to follow (at least 5 fewer of 15) and nothing is flagged. If a guardrail flags, Technical Design decides with the numbers in hand. If the lines aren't clearly easier, the next step is sample voice lines in the briefings (Characters), not another round of prompt wording
+- [x] **In-world names check: passed** (Nov 7, CC-20261107-01; Findings Log). Original plan: **In-world names check** (v0.47; Technical Design v0.35, Open Questions). After Claude Code builds TD v0.34–v0.35's in-world names with Characters v0.10: 2 DeepSeek mini-games, seeds 2000–2001, `notebook: perceived`, `retrieval: overlap`
+  - **Prompt scan (code, every character-facing prompt sent):** none of the game terms: Murder Round, plot point, Plot Reward, faction meeting, KILL, GUARD, INVESTIGATE (as act names), or a turn number in the form "T3" or "turn 3". System prompts (10a–10d) are exempt by design
+  - **Output scan (code, then hand-confirm each hit):** the same terms in every thought, spoken line, and plan
+  - **Midnight acts:** every 9e answer parses with no repair; count acts by type, `watch` included
+  - **Pass, set now:** 0 game terms in prompts, 0 confirmed in outputs, 0 midnight repairs. A hit in a prompt is a build bug for Claude Code; a hit in output with a clean prompt goes to Technical Design with the examples
+  - **Reported, not gated:** the label mix against the v0.27 baseline (the briefings changed too, so a shift can't be pinned on the names); knowledge checks; and Dylan's read in the viewer, the first look at Characters v0.10 in play (errands, voice lines, circling)
+- [ ] **Claude as the recorder: a gate 8 retry** (v0.47; from the Hub for Dylan, Nov 4). Uses Dylan's Claude credit (check its expiry first). Replay only; no new games
+  - **Games:** the 4 plain-register mini-games, TD v0.27 and v0.29, seeds 2000–2001. DeepSeek's records from play are the comparison
+  - **Recorders:** Claude Haiku 5.5 and Claude Sonnet 5.5, on TD's 10a–10d exactly as written (unchanged since v0.7), and 10c's knowledge checks. Native Claude API with prompt caching (the OpenAI-compatible layer has no caching). Thinking off where the model allows it; temperature at the model default (Claude 5 models reject values below 1), recorded
+  - **The measure, fixed first (rubric `gate8 v3`):** the judge lists every ★ moment from each conversation-turn's lines alone, using TD's DEFINITIONS lines word for word, before seeing any record. That list is fixed and shared by every recorder. Then each recorder's entries are matched to it: captured, missed, and unmatched. Each unmatched entry is judged against the DEFINITIONS and its line: **invented** (not a valid entry, or a summary that says more than its line) or **valid but unlisted** (a list miss, reported separately and never added to the list). Claims and denials (10d) count toward invented; beliefs are judged as before (unsupported or not)
+  - **Judge:** Claude Opus 5.5, which isn't a recorder here. Hand-check by Claude Code: 20 invented flags and 20 misses per Claude recorder, plus 10 list items per game checked against the transcript
+  - **Pass, set now (gate 8):** ★ captured ≥90% and invented ≤1 per game on average, after the hand-check removes judge errors
+  - **Clearly better, if it doesn't pass:** ★ captured at least 15 points above DeepSeek's and invented at most half of DeepSeek's, on the same list. Recommend switching if its recording cost per full game is $0.25 or less; above that, Dylan decides with the numbers
+  - **Otherwise:** gate 8 stays a known limit and DeepSeek keeps recording. No further recorder rounds
+  - **Reported:** cost per mini-game and per full game for each recorder (scaled by recorder call and token counts), knowledge-check verdicts where the recorders disagree, the judge's own list-miss rate, and the credit's spend
+  - **Cap:** $20 of the credit; stop at the cap and report
+- [ ] **Post-simulation: off-register player input** (Dylan, Oct 28). Once a human player exists, script a player character whose lines use slang, very casual phrasing, and a few anachronisms into 2–3 mini-games, against the same seeds with period-style player lines. Measure: register drift in the other characters' speech (a judge rating of each line's period register, before and after the player's lines), in-world reactions to the player (suspicion, mockery, confusion in thoughts), false fourth-wall flags if a detector exists by then, and, once adapters exist, whether Bold and Cautious behaviour holds up on off-register input. Design (input nudges, an optional previewed "polish" rewrite, never a silent one) belongs to Mechanics and Technical Design
 - [ ] Should "Mine's for hire" count as revealing Lupo's trade (F5)? The knowledge check said *told*; the secrets judge said no leak. Align the two judges before the full game
 
 ---
@@ -918,16 +1034,154 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
 
 *Record each test result here: date, model, provider and quantization, prompt and briefing versions, gate tested, result, and what it changes. Tooling and price checks go in Tooling Status, not here.*
 
+### 2026-11-07 — In-world names check (CC-20261107-01)
+
+**Setup:** TD v0.35 and Characters v0.10 (in-world names throughout; all six mini-game characters on their own rewritten briefings, no stand-ins). 2 DeepSeek V4.1 Flash mini-games on DeepInfra fp8, seeds 2000–2001, `notebook: perceived`, `retrieval: overlap`. Built and merged to `main` as PR #42: the name table in one data file (`scenarios/in-world-names.json`), version-gated to TD ≥ 0.34 with Characters ≥ 0.10, older versions replaying byte-identical. 143 tests pass (151 with the database). **$0.22**; mini-game ledger $33.57 of $45.
+
+**Result: passed the rule set in v0.47.**
+
+| Rule | Result |
+|---|---|
+| Game terms in character-facing prompts (888 calls, system and user) | 0 |
+| Game terms in outputs (696 thoughts, 192 spoken lines, 12 plans) | 0 |
+| Midnight answers needing a repair | 0 of 12 |
+
+- **Midnight acts:** kill 6, Lupo's double kill twice, watch 4; the `investigate` alias was never needed
+- **The new words took:** per game, "errand" 46 times, "council" 22–33, "midnight" 9–11. "Faction" fell from 24–37 to 0 and "murder" from 13–18 to 1–3 (what's left is the story's own killing). No one cites a time label the way characters cited "my T3 sighting"
+
+**Reported, not gated, against the v0.27 games** (the briefings changed at the same time, so no shift can be pinned on the names):
+- `took: none` 39.0% of all thinks (32.5%); `meant: none` 32.8% of spoken lines (16.7%)
+- `took: admission` 1.5% of labels other than `none` (6.4%)
+- Words per spoken line 30.8 (31.6)
+- Knowledge checks: none 27, suspicion 21 (none 35, suspicion 13), so more characters are close to secrets, with no secret learned outright
+- Repairs: 2 move repairs and 2 thought-pass retries (3 and 1)
+- **Rate-limit retries: 29, against 0.** All succeeded
+
+**For Technical Design:**
+- **Block 6 fits fewer lines:** time labels ("1st round, early") are longer than "T3" and count toward block 6's ~450-token cap. Mean 9.94 lines against 10.22 in the real games; 147 of 360 calls fit fewer in a synthetic game. Whether labels should count toward the cap is TD's call
+- **Arrival has no label in TD's table;** Claude Code used "1st round, early"
+
+**Label shares: which denominator.** Three are in use, and reports should name theirs:
+- **All thinks:** every `think()` call (the v0.19 entry's measure)
+- **Labelled thinks:** thinks asked for a label, `none` answers included (the register check's guardrail measure)
+- **Non-none labels:** only answers other than `none` (Claude Code's measure here; v0.27's admission is 6.4% on it, 4.8% on labelled thinks)
+
+**What it changes:** in-world names are settled. Characters v0.10's first play passed its checks; Dylan's read in the viewer is the first look at errand-first briefings and voice lines (exports in `results/published/minigame/`, game 2026-11-07T05-49-38-879Z). The `meant: none` rise and the rate-limit retries are watch items for the first full games (Open Questions).
+
+---
+
+### 2026-10-28/29 — Register check and voice check; the v0.27 label baseline (CC-20261028-09, CC-20261029-01)
+
+*Logged from Technical Design's v0.28–v0.32 changelogs and Claude Code's published files (`results/published/register-check/`). Label shares below were computed from the four game records on Nov 6.*
+
+**Setup:** DeepSeek V4.1 Flash on DeepInfra fp8, Characters v0.4 with stand-ins for Francesco, Raffaello, and Giorgia, `notebook: perceived`, `retrieval: overlap`, seeds 2000–2001, no judge. Register check: TD v0.27 against the v0.19 games on the same seeds. Voice check: TD v0.29 (looser ornament ban) against v0.27's games. **$0.21 each.** Mini-game ledger afterwards $33.35 of $45.
+
+**Register check (TD v0.27): passed the rule set in v0.45.**
+- **Dylan's blind read, the deciding measure:** 11 of 15 baseline lines marked hard to follow, against 1 of 15 new, a gap of 10 against a bar of 5. Thoughts, reported only: 6 of 10 against 2 of 10
+- **From code:** 31.4 words per spoken line against 44.9 (longest 49 against 66). Flesch–Kincaid grade 3.9 against 6.6 for lines, 8.0 against 9.7 for thoughts. 0 repairs or retries on either side
+- **Guardrails:** one flag, `took: insult` (11.6% to 4.8% of labelled thinks: halved, and moved 6.8 points). Technical Design accepted it as the register's own effect: ornate lines carried veiled jabs, and plain lines say what they want, so `meant: pressure` rose by about as much. `took: admission` rose from 0.8% to 4.8%, under the flag. **Leaks closed without the judge** (TD v0.30): all 28 admission readings come from about 12 lines, mostly invitations to talk privately later, ambitions stated openly, and deliberate cover stories that confirm something harmless. No knowledge check found a secret learned on either side. Judge cost saved: ~$2.40
+
+**Voice check (TD v0.29, against v0.27): adopted on judgment, then reverted.**
+- Dylan skimmed the blind read, found both sides readable, and adopted v0.29 without marking it, a departure from the preset rule (TD v0.30). Code measures were clean: 32.3 words per line against 31.4, Flesch–Kincaid 4.4 against 3.9, figurative "like a / as a / as if" lines 9 of 192 against 1, no label flags
+- **Reverted in TD v0.31** after Dylan read the games in the viewer: the flowery metaphors came back, and characters talked in circles. Every prompt returned to v0.27/v0.28's wording, and the v0.29 games stay in the record as a tested variant
+- **Lesson:** the deciding measure was skipped, and the games then failed on reading. Reading whole games in the viewer caught what a 15-line sample didn't (circling builds up over a conversation), so future register or voice checks should include a whole-game read, not just sampled lines
+
+**The v0.27 games are the research label baseline** (TD v0.28 and v0.31), replacing v0.19's. Share of all `think()` calls (the v0.19 entry's measure), with the share of labelled thinks (the guardrails' measure) and v0.19 alongside:
+
+| `took` | v0.27, all thinks (644) | v0.27, labelled thinks (580) | v0.19, all thinks (567) |
+|---|---|---|---|
+| none | 32.5% | 26.6% | 30.7% |
+| pressure | 26.4% | 28.8% | 25.7% |
+| claim | 17.2% | 18.4% | 17.3% |
+| deal | 7.0% | 7.6% | 4.4% |
+| admission | 4.3% | 4.8% | 0.7% |
+| insult | 4.3% | 4.8% | 10.6% |
+| denial | 3.9% | 4.1% | 3.9% |
+| promise | 2.2% | 2.4% | 1.2% |
+| threat | 2.2% | 2.4% | 5.5% |
+
+| `meant` (192 spoken lines each) | v0.27 | v0.19 |
+|---|---|---|
+| pressure | 40.6% | 33.9% |
+| none | 16.7% | 29.2% |
+| deal | 14.6% | 8.3% |
+| claim | 14.1% | 13.0% |
+| denial | 7.8% | 4.2% |
+| insult | 2.6% | 6.8% |
+| admission | 1.6% | 0% |
+| promise | 1.0% | 1.0% |
+| threat | 1.0% | 3.6% |
+
+**What it shows:**
+- **Plain speech makes intent explicit.** Deals, admissions, and denials rose; insults and threats fell; and speakers labelled fewer of their own lines `none` (16.7% against 29.2%)
+- **Threat is the one to watch.** It fell to 2.2% of `took` and 1.0% of `meant`, under the flag (it moved 3.3 points), but threats are ★ and are what midnight's retrieval puts first. If the full games keep it this low, check whether conditional threats are landing as pressure again (as on v0.17) before blaming the register
+- **What this baseline is for:** a reference for the first full games' mix, not the research control. Inputs have changed since (Characters v0.9, TD v0.34's in-world names, 12 characters), and research compares variants within one batch against Neutral on the same inputs
+
+---
+
+### 2026-10-26 — TD v0.19 symmetric baseline (CC-20261026-05)
+
+*Logged from Technical Design's summary (TD v0.20 changelog).*
+
+**Setup:** TD v0.19: nine bare label words in both labelling prompts (promise, deal, threat, admission, claim, denial, insult, pressure, none), no label-specific text, and at most 3 readings of any non-★ label per block 6 call. 2 DeepSeek mini-games, seeds 2000–2001, `notebook: perceived`, no judge. A measurement, not a gate. Mini-game ledger afterwards **$32.76 of $35**; key $126.22 of $150 used.
+
+Spend $0.21 ($0.106 per game).
+
+**Label mix, shares of all calls, all on seeds 2000–2001:**
+
+| `took` | v0.14 | v0.16 | v0.17 | **v0.19** |
+|---|---|---|---|---|
+| none | 39.8% | 43.4% | 40.9% | **30.7%** |
+| pressure | – | 33.8% | 32.2% | **25.7%** |
+| claim | 19.3% | 7.5% | 12.1% | **17.3%** |
+| threat | 17.2% | 4.3% | 1.3% | **5.5%** |
+| insult | 11.8% | 4.8% | 6.5% | **10.6%** |
+| deal | 5.2% | 3.1% | 3.5% | **4.4%** |
+| denial | 2.0% | 1.3% | 1.0% | **3.9%** |
+| promise | 4.1% | 1.3% | 0.5% | **1.2%** |
+
+| `meant` | v0.14 | v0.16 | v0.17 | **v0.19** |
+|---|---|---|---|---|
+| none | 41.1% | 30.2% | 29.2% | **29.2%** |
+| pressure | – | 47.4% | 42.7% | **33.9%** |
+| claim | 17.7% | 4.2% | 11.5% | **13.0%** |
+| deal | 12.0% | 6.2% | 7.3% | **8.3%** |
+| insult | 9.9% | 5.7% | 3.6% | **6.8%** |
+| threat | 11.5% | 2.1% | 1.0% | **3.6%** |
+
+**The three questions:**
+- **Threat recovers partly:** 5.5% of `took` and 3.6% of `meant`, still well below v0.14's 17.2% before `pressure` existed. 12 of 20 hand-read threats are harm to come; the rest are warnings, taunts, or dismissals
+- **Pressure settles at 25.7% of `took` and 33.9% of `meant`** with no description; `none` paid for the drop (40.9% → 30.7%), so labelled lines now outnumber unlabelled ones about 2 to 1
+- **Dares and questions mostly stay out:** 1 of 20 threats and 1 of 20 claims were questions; no dares
+
+**Hand-reads:**
+- Own readings (30, against the line as said): right line 30, key part 29, fit 27; 3 plan departures counted separately
+- Others' readings (30): right line 30, key part 30, fit 27. Misfits in both samples are needling lines filed as pressure
+- Pressure (20): all 20 push the other person to answer or act. Claim (20): 1 question, the rest assertions or boasts
+
+**Memory cap:** 0 of 798 block 6 calls had more than 3 of one non-★ label; 448 had exactly 3 (on v0.17's pressure-only cap, 90 calls went over on other labels).
+
+**Other:** repairs 0 (`think()` 567, `speak()` 192); words found 95.4% (`think()`, counting same speaker) and 99.3% (`speak()`); 0 wrong-line readings; output 159.6 and 96.4 tokens. The "already known" pass re-run on the saved games gave the same counts as before (v0.14 16 → 7; Oct 24 7 → 7).
+
+**What it shows:**
+- **The prompt's wording sets the label mix as much as the characters do.** Across v0.14–v0.19 on the same seeds, one short description moved its own label's share several-fold (threat 17.2% → 4.3% → 1.3% → 5.5% as its neighbours' descriptions came and went; pressure 33.8% with examples, 25.7% with none). Any label description is a strong lever, which is why the research baseline uses none
+- **Bare words still fit.** Labels match the character's own thought as well as with descriptions, so the descriptions bought nothing in accuracy
+- **Bare "threat" now covers warnings and taunts too.** That's the character's own reading, which is what the study measures
+
+**What it changed:** v0.19's mix became the research baseline (replaced by the v0.27 games' after the register check, Oct 28–29). TD v0.20 records it and answers four build questions with no change. A Neutral baseline is re-measured on Tinker before Experiment 2 (Open Questions).
+
 ### 2026-10-26 — TD v0.17 check: narrowed `pressure` (CC-20261026-03)
 
-*Logged from Technical Design's summary (TD v0.18 changelog); the full report went to Technical Design.*
+*Logged first from Technical Design's summary, then completed from Claude Code's full report.*
 
 **Setup:** TD v0.17 (`pressure` gloss narrowed to "pushing you to answer or act"; at most 2 pressure readings per block 6 call). 2 DeepSeek mini-games, seeds 2000–2001, `notebook: perceived`, no judge. Decision rule set in advance (v0.37). Mini-game ledger afterwards $32.55 of $35.
 
 **Results:**
 - **Label mix:** `pressure` 32.2% of `took` (target 10–25%) and 42.7% of `meant` (target ≤35%), barely below v0.16's 33.8% and 47.4%. **Threat fell to 1.3% of `took`** (v0.14: 14.4%)
 - **The labels fit:** 18 of 20 hand-read pressure readings really were someone pushing to answer or act. Fit 27 of 30 (own, judged against the line as said) and 26 of 30 (others')
-- **Retrieval cap held:** 0 of 828 block 6 calls had more than 2 pressure readings
+- **Retrieval cap held, and worked hard:** 0 of 828 block 6 calls had more than 2 pressure readings, and 630 had exactly 2. On v0.16, with no cap, 555 of 836 had more than 2
+- **Threat nearly vanished:** 7 threat readings in two games; 5 of the 7 meant harm to come
+- **"Already known" pass** (built in the same session, run on the saved games): v0.14's leaks 16 → 7 adjusted, Oct 24's 7 → 7. It disagreed with the hand re-score on two lines, both expected: a repeat to the same three listeners (already known by rule), and Francesco knowing Raffaello's debt from a line the judge never flagged (invisible to code, so the pass errs toward counting a leak)
 - **Decision rule: failed** on the label mix
 
 **What it shows:**
