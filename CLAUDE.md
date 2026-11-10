@@ -9,6 +9,7 @@ Work arrives as tasks from Dylan, often relayed from Technical Design (TD). The 
 - The report starts with the title line `CC-YYYYMMDD-NN: <descriptive title>`. Put the same ID in every commit message for the task and in the PR comment.
 - Each report states: commits, tests passing, spend and the ledger total (for any step that made model calls), and anything that differed from what was expected.
 - Put the full report in the PR description, minus spend, ledger totals, balances, and any quoted blind-read lines. Give Dylan those separately at the end of the session. The issue's closing comment links to the PR rather than repeating it.
+- End every session with a wrap-up of only the highlights, not the details: what's done, each with a link to its PR (whose description holds the full report), anything that needs Dylan's decision, and the session's spend and ledger totals. Follow it with a short summary of the broader context: why the work matters and how it connects to the rest of the project.
 
 ## Branches and PRs
 
