@@ -81,7 +81,8 @@ export function docsFor(td: string) {
     characters: `docs/Gonfaloniere_Characters_v${characters}.md`,
     // Only the Tunable Values table is read; v0.30's values are v0.20's, so prompts are unchanged.
     mechanics: mechanicsPath("0.30"),
-    modelsResearch: "docs/Gonfaloniere_Models_Research_v0.38.md",
+    // Read only for its version and the secrets judge's rubric, which v0.52 carries unchanged from v0.38 (#59).
+    modelsResearch: "docs/Gonfaloniere_Models_Research_v0.52.md",
   };
 }
 
