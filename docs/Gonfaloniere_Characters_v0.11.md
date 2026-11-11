@@ -1,8 +1,15 @@
 # Gonfaloniere
 ## Characters & Briefings — Working Document
-### Version 0.10
+### Version 0.11
 
 ---
+
+## Changes in v0.11
+
+*Clears Lore's handoff on the date of Isabella's recognition (Lore v0.3, The Evening).*
+
+- **Isabella recognized LeNoir at Easter Mass, not "midnight Mass".** The evening is now fixed at mid-May 1492 (Lore v0.3), and Easter fell on 22 April, so the recognition was a few weeks before it. Lore asked whether it was the Easter vigil. It can't have been a night service in 1492: by the late Middle Ages the vigil was held on Holy Saturday morning, and it only moved back to the night in the 1950s. "Midnight Mass" in 1492 would mean Christmas, five months earlier, not "a few weeks ago". The rewording also takes "midnight" out of her backstory, since midnight is now the in-world name for the killing round. No secret, fact, or errand changed
+- **Shared Canon: Setting** gains the evening's date, from Lore v0.3
 
 ## Changes in v0.10
 
@@ -171,6 +178,7 @@ Checklist for adapting each original briefing:
 *Facts every briefing, stand-in, and lore entry must agree with. Divergences from real history are also logged in Lore (Divergences From Real History).*
 
 - **The Pazzi coup was fourteen years ago, in 1478** (Dylan, Oct 29: match real history). It ended in blood: a Pazzi uncle hanged from the palace windows, the family disgraced since. Francesco's elders led it; he was young
+- **The evening is mid-May 1492** (Lore v0.3, The Evening; Dylan, Nov 11): five weeks after Lorenzo's death on 8 April, a few days after his month's mind requiem. Easter fell on 22 April, a few weeks before
 - **Requirements:** Francesco's briefing and stand-in say fourteen years (1478), not two or twenty. Piero's briefing says the Pazzi (his family, not Francesco himself) led the coup that killed his uncle
 
 ---
@@ -184,7 +192,7 @@ Checklist for adapting each original briefing:
 - She paid **Lupo** to kill him by the north chapel of San Frediano. Lupo knew only that the man was a French gambler causing his client trouble
 - That night Isabella lost her **silver boar seal** (the Salviati arms) and never found it
 - The sacristan found the seal. When **LeNoir** came to Florence looking for his brother's killer, the sacristan gave it to him. LeNoir doesn't know Florentine heraldry
-- A few weeks ago, at midnight Mass in the French Embassy chapel, Isabella recognized Lucien's face in LeNoir's. Neither LeNoir nor Lupo knows the connection
+- A few weeks ago, at Easter Mass in the French Embassy chapel (22 April; v0.11, was "midnight Mass"), Isabella recognized Lucien's face in LeNoir's. Neither LeNoir nor Lupo knows the connection
 
 **Starting knowledge:**
 
@@ -340,7 +348,7 @@ Once your errand is done, or out of reach, your faction's win is what matters. Y
 **What you know**
 
 - **San Frediano.** Seven years ago, while your husband lived, you ran a gambling table. A French gambler known in the dens as Lucien threatened to expose it. You paid Lupo, outwardly the Pazzi bodyguard and in truth a killer for hire, to silence him at the church of San Frediano. That night you lost your silver boar seal. You never found it.
-- **The captain.** A few weeks ago, at midnight Mass in the French Embassy chapel, you watched Captain Armand LeNoir kneel to pray and saw Lucien's face in his. You are certain: the man you had killed was his brother. LeNoir doesn't know. Lupo doesn't know whom he killed. Only you know.
+- **The captain.** A few weeks ago, at Easter Mass in the French Embassy chapel, you watched Captain Armand LeNoir kneel to pray and saw Lucien's face in his. You are certain: the man you had killed was his brother. LeNoir doesn't know. Lupo doesn't know whom he killed. Only you know.
 - **Raffaello de' Medici** owes you money. You covered a gambling loss for him, and your bankers have written to remind him on your house's boar letterhead. He hasn't paid.
 - **The boar.** Anyone who knows Florentine heraldry knows a silver boar means Salviati.
 
@@ -368,7 +376,7 @@ A widow's fortune: modest tonight, but people believe you can pay. The respectab
 
 *(Standard text.)*
 
-**Rewrite notes:** Cut Claudette (her "blood on your sleeve" suspicion) and Brother Matteo (the accuser); Beatrice's plot point now supplies the in-faction threat. Cut LeNoir's "romantic attention," which his own briefing never supported. The lost seal is new, linking her to LeNoir's clue. Raffaello's debt kept as leverage without an amount. Faction goal reworked from "cleanse Florence" to the repentance win condition.
+**Rewrite notes:** Cut Claudette (her "blood on your sleeve" suspicion) and Brother Matteo (the accuser); Beatrice's plot point now supplies the in-faction threat. Cut LeNoir's "romantic attention," which his own briefing never supported. The lost seal is new, linking her to LeNoir's clue. Raffaello's debt kept as leverage without an amount. Faction goal reworked from "cleanse Florence" to the repentance win condition. *v0.11:* "midnight Mass" became "Easter Mass" (the evening is mid-May 1492; there was no night Easter service in 1492, and "midnight" now names the killing round).
 
 ---
 
@@ -983,6 +991,8 @@ Your title. Everyone here wants something from you, which is its own kind of pow
 *For Models & Research's probes, as replacements for the fixture briefings in the confirmation run. Real secrets differ from the fixtures' test-only ones; the real-briefing result stands.*
 
 *v0.5 reorders each briefing (errand before faction) and adds one framing sentence to each section; no secret, fact, or plot point changed. Results on v0.4 and v0.5 are close but not identical inputs.*
+
+*v0.11 changes one phrase in Isabella's What you know ("Easter Mass" for "midnight Mass"); nothing else in the tested three.*
 
 *v0.10 changes the tested three only in wording: in-world names in every deadline and in Lupo's power line, and Lupo's pension line (the stakes, not a ban). No secret, fact, or errand changed.*
 
