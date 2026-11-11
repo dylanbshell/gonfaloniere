@@ -36,6 +36,7 @@ import {
   wordsCap,
   type TookTarget,
   fill,
+  rulesText,
   speakHasAddressee,
   type AssembledPrompt,
   type CharacterContext,
@@ -443,6 +444,10 @@ export class MiniGame {
       addressee: speakHasAddressee(this.docs.templates, conv.kind),
       ...(speakAsksMeant(this.docs.templates) && { meant: { cap: wordsCap(this.docs.templates, "speak"), values: labelValues(this.docs.templates, "speak") } }),
     };
+    if (this.player && conv.members.includes(this.human!)) {
+      this.speaking = speaker;
+      this.sendState();
+    }
     const out = await this.characterCall("speak", speaker, p, (raw) => {
       const r = parseSpeak(raw, expect);
       return {
@@ -453,6 +458,10 @@ export class MiniGame {
       };
     });
     this.char(speaker).feedback = null;
+    if (this.speaking) {
+      this.speaking = null;
+      if (!out) this.sendState();
+    }
     if (!out) {
       // TD default: skip this speaker; the next-highest importance speaks next time.
       conv.importance.set(speaker, 0);
@@ -1146,7 +1155,11 @@ export class MiniGame {
 
   private async knowledge(): Promise<void> {
     this.knowledgeChecks.push(...(await this.recorder.knowledge(this.s.checks, this.s.cast)));
-    if (this.player) this.player.ctrl.send({ type: "result", result: { deaths: this.midnight?.deaths ?? [], alive: !this.midnight?.deaths.includes(this.human!), foiled: this.midnight?.events.filter((e) => e.type !== "death").length ?? 0 } });
+    if (this.player) {
+      // The end screen: who died at midnight, how many attempts were foiled (never by whom), and the errands' checks.
+      const checks = (this.knowledgeChecks as { character: CharacterName; fact: string; verdict: { verdict: string } | null }[]).map((k) => ({ character: k.character, fact: this.docs.plotFacts.find((f) => f.id === k.fact)?.fact ?? k.fact, verdict: k.verdict?.verdict ?? "unchecked" }));
+      this.player.ctrl.send({ type: "result", result: { deaths: this.midnight?.deaths ?? [], alive: !this.midnight?.deaths.includes(this.human!), foiled: this.midnight?.events.filter((e) => e.type !== "death").length ?? 0, checks } });
+    }
   }
 
   // ---- Prompts ---------------------------------------------------------------------------------
@@ -1234,6 +1247,9 @@ export class MiniGame {
   // between requests are held (a message), queued (a command), or refused. Every input is a call record
   // with source "human". The player's feed carries only their own History and block 5 state.
 
+  /** The AI guest generating a line in the player's conversation, for the screen's "…is speaking". */
+  private speaking: CharacterName | null = null;
+
   /** A line the player heard goes to their feed, then block 5 if it changed. */
   private toPlayer(line: GameLine): void {
     this.player!.heard(line);
@@ -1245,7 +1261,10 @@ export class MiniGame {
     if (!this.player) return;
     const h = this.human!;
     const allowed = this.seatOf(h) ? allowedActionTypes(this.actionContext(h)) : [];
-    this.player.state(this.stateFor(h) as unknown as Record<string, unknown>, menu([...allowed, ...extra, "conclude"], { amount: this.rules.pensionSize }));
+    this.player.state(this.stateFor(h) as unknown as Record<string, unknown>, menu([...allowed, ...extra, "conclude"], { amount: this.rules.pensionSize }), this.speaking, () => ({
+      rules: rulesText(this.docs.templates, { ...this.docs.tunables, plotProtection: false, plotReward: false }),
+      briefing: this.s.briefings[h]!,
+    }));
   }
 
   private recordHuman(kind: CallRecord["kind"], raw: string, parsed: unknown, refused: string | null): void {

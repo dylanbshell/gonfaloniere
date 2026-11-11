@@ -90,6 +90,7 @@ export class HumanController {
       const a = p.accept(m);
       if (a && "value" in a) {
         this.pending = null;
+        this.send({ type: "request", id: p.event.id, kind: p.event.kind, options: {}, closed: true });
         p.resolve(a.value);
         return;
       }

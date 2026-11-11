@@ -29,17 +29,23 @@
     "minigame:labels": "tsx src/minigame/labels.ts",
     "minigame:voice": "tsx src/minigame/voice.ts",
     "minigame:score": "tsx src/minigame/blindread.ts",
-    "test": "tsx --test test/*.test.ts"
+    "test": "tsx --test test/*.test.ts",
+    "play": "tsx src/minigame/play.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.6.0",
     "openai": "^7.39.0",
     "pg": "8.23.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
     "@types/pg": "8.15.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "esbuild": "^0.28.2",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }

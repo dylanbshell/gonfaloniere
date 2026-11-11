@@ -6,6 +6,9 @@
 # Dependencies
 node_modules/
 
+# The player screen's build (npm run play builds it)
+web/dist/
+
 # Probe logs and reports: all ignored except the curated, published slice
 results/*
 !results/published/

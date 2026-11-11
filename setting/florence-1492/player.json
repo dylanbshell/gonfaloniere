@@ -1,5 +1,5 @@
 {
-  "_comment": "Technical Design v0.38–v0.39's Setting Pack and Player Interface: the player's words. Command names and hints, refusal reasons, and the lines the screen shows. Code fills the {named} placeholders and writes none of these words itself (CC-20261111-08, #61). The screen's labels come with the player screen (#62).",
+  "_comment": "Technical Design v0.38–v0.39's Setting Pack and Player Interface: the player's words. Command names and hints, refusal reasons, example lines, and every label the player screen shows. Code fills the {named} placeholders and writes none of these words itself (CC-20261111-08, #61; the screen's labels CC-20261111-09, #62).",
   "commands": {
     "_comment": "Keyed by the game's action. `name` is what the player types; `usage` shows its arguments; `hint` is the command menu's one line.",
     "bribe": {
@@ -70,5 +70,110 @@
     "My family has long memories, and longer purses.",
     "I'd rather speak of this somewhere quieter."
   ],
-  "orientation": "Speak as your character would, plainly. The other guests react to strange talk as guests would."
+  "orientation": "Speak as your character would, plainly. The other guests react to strange talk as guests would.",
+  "screen": {
+    "_comment": "The player screen's labels (TD v0.39, The screen).",
+    "title": "Gonfaloniere",
+    "connecting": "Connecting…",
+    "reconnecting": "The connection dropped. Reconnecting…",
+    "start": {
+      "heading": "Choose your guest",
+      "play": "Play as {name}",
+      "starting": "The guests are arriving…"
+    },
+    "you": "You",
+    "purse": "Purse",
+    "purseValue": "{amount} {currency}",
+    "pensions": "Pensions held",
+    "errand": "Errand",
+    "here": "Here",
+    "nobody": "No one else is here.",
+    "withdrawals": "Times you've withdrawn",
+    "briefing": "Your briefing",
+    "rules": "The rules",
+    "close": "Close",
+    "notaio": "Il Notaio",
+    "private": "Private",
+    "toYou": "(to you)",
+    "to": "(to {name})",
+    "speaking": "{name} is speaking…",
+    "capannello": "Capannello with {others}",
+    "colloquio": "Colloquio with {other}",
+    "alone": "On your own",
+    "joined": "You joined {others}",
+    "withdrew": "You withdrew with {other}",
+    "apart": "You stand apart",
+    "talkingTo": "Talking with",
+    "input": {
+      "placeholder": "Say something. @ addresses a guest; / opens the commands.",
+      "count": "{count}/{max}",
+      "speak": "Speak",
+      "pass": "Pass",
+      "end": "End conversation",
+      "commands": "Commands",
+      "example": "For example: “{line}”",
+      "used": "You've spoken your piece this turn.",
+      "held": "Your words will be spoken at the next pause.",
+      "waiting": "The company waits for you: speak, or pass.",
+      "answering": "{name} has addressed you: answer, or pass.",
+      "closing": "{name} has ended the conversation: a last word, or pass.",
+      "yourTurn": "Your turn to speak.",
+      "closed": "A choice is waiting above."
+    },
+    "move": {
+      "title": "Your movement window",
+      "stay": "Stay",
+      "join": "Move toward…",
+      "colloquio": "Call aside…",
+      "pick": "Choose a guest",
+      "confirm": "Confirm"
+    },
+    "seat": {
+      "inviteeTitle": "The conversation with {initiator} is over. Where do you go?",
+      "loneTitle": "You're left alone. Join a group.",
+      "joinGroup": "Join {members}",
+      "colloquio": "Call aside…",
+      "wait": "Wait for a seat",
+      "pick": "Choose a guest",
+      "confirm": "Confirm"
+    },
+    "midnight": {
+      "title": "Midnight",
+      "intro": "Choose your act for tonight.",
+      "introTwo": "Choose one or two acts for tonight.",
+      "submit": "Submit",
+      "pick": "Choose a guest",
+      "acts": {
+        "kill": "Kill",
+        "guard": "Guard",
+        "watch": "Watch",
+        "investigate": "Watch"
+      }
+    },
+    "death": {
+      "banner": "{name} has died.",
+      "you": "You have died. From here you watch, as the city does."
+    },
+    "end": {
+      "title": "The evening is over",
+      "died": "Died at midnight",
+      "noDeaths": "No one died at midnight.",
+      "foiled": "Attempts foiled: {count}",
+      "survived": "You survived the night.",
+      "dead": "You did not survive the night.",
+      "errands": "Errands",
+      "check": "{character} · {fact}: {verdict}",
+      "verdicts": {
+        "told": "was told",
+        "conclusion": "worked it out",
+        "suspicion": "suspects it",
+        "none": "doesn't know",
+        "known_at_start": "knew it from the start",
+        "unchecked": "not checked"
+      },
+      "replay": "Open the full replay",
+      "replayPending": "Preparing the replay…"
+    },
+    "and": "and"
+  }
 }
