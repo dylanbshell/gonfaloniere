@@ -11,8 +11,10 @@ export const SETTING = process.env.PROBE_SETTING ?? DEFAULT_SETTING;
 
 export const settingFile = (file: string, name = SETTING): string => join("setting", name, file);
 
-/** Mechanics' pension roles: may take a French pension, keeps the treasury (and its ledger), or neither. */
-export type PensionRole = "may take" | "keeps the treasury" | "can't take";
+import type { PensionRole } from "../rules/config.ts";
+
+/** Mechanics' pension roles (the rules module's type): may take a French pension, keeps the treasury (and its ledger), or neither. */
+export type { PensionRole };
 
 export interface SettingPack {
   name: string;

@@ -6,9 +6,13 @@
 // checks at the end. Model calls go through the injected caller; everything
 // that happens is kept for the game record.
 
-import type { ActionType } from "../game/actions.ts";
 import { allowedActionTypes, allowedActionsText, type ActionContext } from "../game/actions.ts";
-import { ROSTER, factionOf, keepsTreasury, type CharacterName } from "../game/roster.ts";
+import { ROSTER, factionOf, rulesGuest, type CharacterName } from "../game/roster.ts";
+import type { RulesConfig } from "../rules/config.ts";
+import { borrow, bribe, newEconomy, repay, seesLedger, type ActionType, type Economy } from "../rules/economy.ts";
+import { capannelloStart, fallbackTarget, movementWindow } from "../rules/movement.ts";
+import { mulberry32 } from "../rules/random.ts";
+import { fewestGuests, initiatorSeat, interimLoneSeat, inviteeSeatProblem, leastInvolved, loneSeatOptions, loneSeatValid, openGroups, returnSeat, type SeatProblem } from "../rules/seating.ts";
 import { say } from "../setting/pack.ts";
 import { parseSpeak } from "../output/speak.ts";
 import { parseStrategy } from "../output/strategy.ts";
@@ -176,8 +180,6 @@ interface ColloquioSeating {
 
 interface CharState {
   name: CharacterName;
-  florins: number;
-  pensions: number;
   plan: string | null;
   lines: GameLine[];
   thoughts: string[];
@@ -216,8 +218,10 @@ export class MiniGame {
   private nextConv = 1;
   private nextCall = 1;
   private rng: () => number;
-  private treasury: number;
-  private ledger = new Map<CharacterName, number>();
+  /** The rules module's state (TD v0.39, Layers): purses, pensions, the treasury, and its ledger. */
+  private econ: Economy;
+  /** Mechanics' Tunable Values and the table size, as the rules module takes them. */
+  private rules: RulesConfig;
   private ledgerLatest: string | null = null;
   private rotation: CharacterName[] = [];
   private pendingColloquio: { mover: CharacterName; target: CharacterName } | null = null;
@@ -256,13 +260,13 @@ export class MiniGame {
     this.namesNotaio = tdMinor(docs.versions.technicalDesign) >= 36;
     this.recorder = new Recorder(docs, this.memory, (kind, c, system, user) => this.systemCall(kind, c, system, user), this.events, formatLine, listJoin);
     Object.assign(this.prefixes, this.recorder.prefixes);
-    this.treasury = docs.tunables.embassy_treasury;
+    const t = docs.tunables;
+    this.rules = { startingFlorins: t.starting_florins, income: t.income, pensionSize: t.pension_size, treasury: t.embassy_treasury, colloquioCap: t.colloquio_cap, maxCapannello: s.maxCapannello };
+    // One evening round: starting Florins plus one round's income.
+    this.econ = newEconomy(s.cast.map(rulesGuest), this.rules, 1);
     for (const c of s.cast) {
       this.chars.set(c, {
         name: c,
-        // One evening round: starting Florins plus one round's income.
-        florins: docs.tunables.starting_florins + docs.tunables.income,
-        pensions: 0,
         plan: null,
         lines: [],
         thoughts: [],
@@ -303,14 +307,14 @@ export class MiniGame {
 
   /** Mechanics: all living characters split at random into groups of 3; movement order randomized. */
   private openCapannelli(): void {
-    const order = shuffle([...this.s.cast], this.rng);
-    this.rotation = shuffle([...this.s.cast], this.rng);
+    const start = capannelloStart(this.s.cast, this.rng);
+    this.rotation = start.rotation;
     // Mini-game setting (Dylan, Oct 24): six of the twelve attend. Without this, characters read the
     // absent guests' missing names under "All living guests" as deaths.
     const absent = ROSTER.map((r) => r.name).filter((n) => !this.s.cast.includes(n));
     const smaller = say("notaio", "notes.attendance", { cast: listJoin(this.s.cast), absent: listJoin(absent) });
-    for (let i = 0; i < order.length; i += 3) {
-      const conv = this.newConversation("capannello", order.slice(i, i + 3));
+    for (const group of start.groups) {
+      const conv = this.newConversation("capannello", group);
       // The attendance note announces the guests here tonight; the groups note names the group formed.
       this.notaio(conv, smaller, this.s.cast);
       this.notaio(conv, say("notaio", "notes.groups", { others: listJoin(conv.members) }), conv.members);
@@ -515,39 +519,34 @@ export class MiniGame {
 
   // ---- Actions (Stage Manager) --------------------------------------------------------------
 
+  /** The rules module applies the action; the game writes its line and memory entry through the setting pack. */
   private applyAction(conv: Conversation, actor: CharacterName, a: { type: ActionType; amount?: number; for?: string }): void {
     const me = this.char(actor);
-    const size = this.docs.tunables.pension_size;
+    const size = this.rules.pensionSize;
     if (a.type === "bribe" && conv.kind === "colloquio") {
       const to = conv.members.find((m) => m !== actor)!;
-      const amount = a.amount!;
-      me.florins -= amount;
-      this.char(to).florins += amount;
-      const paid = say("notaio", "lines.payment", { actor, other: to, amount });
+      const e = bribe(this.econ, actor, to, a.amount!);
+      if (e.type !== "payment") return;
+      const paid = say("notaio", "lines.payment", { actor: e.from, other: e.to, amount: e.amount });
       const line = this.addLine(conv, "event", null, paid);
       this.memory.addEntry({ turn: this.turn, conversation: conv.id, where: this.where(conv), type: "payment", speaker: actor, toward: to, about: [actor, to], summary: paid, quote: null, lines: [line.id], audience: [...conv.members], source: "code" });
-      this.events.push({ turn: this.turn, type: "bribe", from: actor, to, amount, line: line.id });
+      this.events.push({ turn: this.turn, type: "bribe", from: actor, to, amount: e.amount, line: line.id });
     } else if (a.type === "borrow") {
-      me.florins += size;
-      me.pensions += 1;
-      this.treasury -= size;
-      this.ledger.set(actor, (this.ledger.get(actor) ?? 0) + 1);
+      const e = borrow(this.econ, actor, size);
+      if (e.type !== "pension taken") return;
       this.ledgerLatest = say("notaio", "lines.ledger_taken", { actor });
-      this.privateLine(conv, actor, say("notaio", "lines.pension_taken", { amount: size, purse: me.florins }), "pension");
+      this.privateLine(conv, actor, say("notaio", "lines.pension_taken", { amount: e.amount, purse: e.purse }), "pension");
       this.events.push({ turn: this.turn, type: "borrow", character: actor });
     } else if (a.type === "repay") {
       const holder = (resolveName(a.for ?? "") ?? actor) as CharacterName;
-      const ok = (this.ledger.get(holder) ?? 0) > 0 && (holder === actor || factionOf(holder) === factionOf(actor)) && me.florins >= size;
-      if (!ok) {
+      const e = repay(this.econ, actor, holder, size);
+      if (e.type === "pension refused") {
         me.feedback = say("notaio", "lines.pension_refused", { holder: a.for ?? say("notaio", "lines.pension_refused_self") });
         return;
       }
-      me.florins -= size;
-      this.treasury += size;
-      this.ledger.set(holder, this.ledger.get(holder)! - 1);
-      if (this.chars.has(holder)) this.char(holder).pensions -= 1;
+      if (e.type !== "pension renounced") return;
       this.ledgerLatest = say("notaio", "lines.ledger_renounced", { holder });
-      this.privateLine(conv, actor, say("notaio", "lines.pension_renounced", { holder, amount: size }), "pension");
+      this.privateLine(conv, actor, say("notaio", "lines.pension_renounced", { holder, amount: e.amount }), "pension");
       this.events.push({ turn: this.turn, type: "repay", character: actor, holder });
     }
   }
@@ -561,7 +560,7 @@ export class MiniGame {
   }
 
   private async movement(): Promise<void> {
-    const mover = this.rotation[(this.turn - 1) % this.rotation.length]!;
+    const mover = movementWindow(this.rotation, this.turn) as CharacterName;
     const here = this.conv(mover);
     if (here.kind === "colloquio") {
       this.events.push({ turn: this.turn, type: "move", character: mover, choice: "stay", note: "in a Colloquio when the window arrived" });
@@ -578,7 +577,7 @@ export class MiniGame {
     let target = v.target as CharacterName | null;
     if (choice !== "stay" && !target) {
       // TD: invalid target with join or Colloquio → the highest-urgency valid contact, else stay.
-      target = ([...v.contacts].sort((a, b) => b.urgency - a.urgency)[0]?.name as CharacterName | undefined) ?? null;
+      target = fallbackTarget(v.contacts) as CharacterName | null;
       if (!target) choice = "stay";
     }
     // TD v0.20 (Output Validation & Repair, Movement): a join toward someone already in the mover's own
@@ -623,7 +622,7 @@ export class MiniGame {
     this.leave(from, mover, say("notaio", "notes.leave", { actor: mover }));
     if (to.members.length >= this.s.maxCapannello) {
       // TD collision: the open seat first; both full, the lower-importance member moves.
-      const bumped = [...to.members].sort((a, b) => (to.importance.get(a) ?? 0) - (to.importance.get(b) ?? 0))[0]!;
+      const bumped = leastInvolved(to.members, (m) => to.importance.get(m) ?? 0);
       this.leave(to, bumped, say("notaio", "notes.leave", { actor: bumped }));
       this.enter(from, bumped);
     }
@@ -638,9 +637,7 @@ export class MiniGame {
   private fixLoneGuests(): void {
     for (const conv of this.convs.values()) {
       if (!conv.open || conv.kind !== "capannello" || conv.members.length !== 1) continue;
-      const other = [...this.convs.values()]
-        .filter((x) => x.open && x.kind === "capannello" && x.id !== conv.id && x.members.length >= 1 && x.members.length < this.s.maxCapannello)
-        .sort((a, b) => b.members.length - a.members.length)[0];
+      const other = interimLoneSeat(conv, this.convs.values(), this.s.maxCapannello);
       if (!other) continue;
       const lone = conv.members[0]!;
       conv.members = [];
@@ -712,10 +709,7 @@ export class MiniGame {
     for (const c of conv.members) {
       const back = this.convs.get(conv.returnTo.get(c)!);
       // Mechanics: back to the Capannello they left, or the smallest open one if it's full.
-      const dest =
-        back && back.open && back.members.length < this.s.maxCapannello
-          ? back
-          : [...this.convs.values()].filter((x) => x.open && x.kind === "capannello" && x.members.length < this.s.maxCapannello).sort((x, y) => x.members.length - y.members.length)[0]!;
+      const dest = returnSeat(back, this.convs.values(), this.s.maxCapannello);
       const others = [...dest.members];
       dest.members.push(c);
       this.char(c).conversation = dest.id;
@@ -753,7 +747,7 @@ export class MiniGame {
     const from = this.conv(mover);
     if (to.id === from.id) return false;
     if (to.members.length >= this.s.maxCapannello) {
-      const bumped = [...to.members].sort((a, b) => (to.importance.get(a) ?? 0) - (to.importance.get(b) ?? 0))[0]!;
+      const bumped = leastInvolved(to.members, (m) => to.importance.get(m) ?? 0);
       this.leave(to, bumped, say("notaio", "notes.leave", { actor: bumped }));
       this.enter(from, bumped);
     }
@@ -845,10 +839,8 @@ export class MiniGame {
     const offered = this.offered(groups, k.snapshot?.capannello);
     const p = assembleSeatPrompt(this.docs.templates, await this.context(v, { seat: true }), { form: "invitee", initiator: k.initiator }, offered);
     const check = (choice: string, t: CharacterName | null): string | null => {
-      if (choice === "join") return t && groups.some((g) => g.members.includes(t)) ? null : "join target not in a group with room";
-      if (choice === "colloquio") return t && t !== v && this.s.cast.includes(t) && !this.inColloquio(t) ? null : "colloquio target not a free living guest";
-      if (choice === "wait") return groups.length ? "wait while a group has room" : null;
-      return `unknown choice "${choice}"`;
+      const problem = inviteeSeatProblem(choice, t, { invitee: v, groups, living: this.s.cast, inColloquio: (x) => this.inColloquio(x) });
+      return problem && SEAT_PROBLEM[problem](choice);
     };
     const out = (await this.characterCall("seat", v, p, (raw) => parseSeat(raw, "invitee", check))) as SeatOutput | null;
     if (out) this.addThought(v, "seat", out.thought);
@@ -881,16 +873,14 @@ export class MiniGame {
     const i = k.initiator;
     const own = k.snapshot ? this.convs.get(k.snapshot.capannello) : undefined;
     const base = { turn: this.turn, type: "seat", form: "initiator", character: i, colloquio: conv.id, ...chainOf(conv) };
-    let reason: string;
     // Edge case (a): a free Colloquio's caller is placed as if their Capannello had dissolved.
-    if (!k.snapshot || !own) reason = "free Colloquio caller";
-    else if (!own.open || !k.snapshot.guests.some((g) => own.members.includes(g))) reason = "own dissolved";
-    else if (own.members.length >= this.s.maxCapannello) reason = "own full";
-    else {
-      this.place(own, i, true);
-      this.events.push({ ...base, rule: "own Capannello", to: own.id });
+    const seat = initiatorSeat(k.snapshot, own, this.s.maxCapannello);
+    if (seat.seat === "own") {
+      this.place(own!, i, true);
+      this.events.push({ ...base, rule: "own Capannello", to: own!.id });
       return;
     }
+    const reason = seat.reason;
     const groups = this.openGroups();
     // Logged before placing, so it shows the groups as they were offered.
     const offered = this.offeredLog(groups);
@@ -931,7 +921,8 @@ export class MiniGame {
       const lone = conv.members[0]!;
       const groups = this.openGroups(conv.id);
       const base = { turn: this.turn, type: "seat", form: "lone", character: lone, from: conv.id, offered: this.offeredLog(groups) };
-      if (!groups.length) {
+      const options = loneSeatOptions(groups);
+      if (options === "stays") {
         // None open: the guest stays; their Capannello of one takes the next returning or seatless guest.
         if (!this.loneStays.has(id)) this.events.push({ ...base, rule: "none open, stays", to: null });
         this.loneStays.add(id);
@@ -942,12 +933,12 @@ export class MiniGame {
       let to: Conversation;
       let rule: string;
       let extra: Record<string, unknown> = {};
-      if (groups.length === 1) {
+      if (options === "only one open") {
         to = groups[0]!;
         rule = "only one open";
       } else {
         const p = assembleSeatPrompt(this.docs.templates, await this.context(lone, { seat: true }), { form: "lone" }, this.offered(groups));
-        const check = (_: string, t: CharacterName | null) => (t && groups.some((g) => g.members.includes(t)) ? null : "target not in another group with room");
+        const check = (_: string, t: CharacterName | null) => (loneSeatValid(t, groups) ? null : "target not in another group with room");
         const out = (await this.characterCall("seat", lone, p, (raw) => parseSeat(raw, "lone", check))) as SeatOutput | null;
         if (out) this.addThought(lone, "seat", out.thought);
         if (out && !out.invalid) {
@@ -1003,20 +994,13 @@ export class MiniGame {
 
   /** Open Capannelli: at least one guest, and room under the maximum. */
   private openGroups(except?: string): Conversation[] {
-    return [...this.convs.values()].filter((x) => x.open && x.kind === "capannello" && x.id !== except && x.members.length >= 1 && x.members.length < this.s.maxCapannello);
+    return openGroups(this.convs.values(), this.s.maxCapannello, except);
   }
 
   /** The fewest guests, ties to the fewest of the guest's own faction, then at random (seeded); with the rule that decided. */
   private fewest(c: CharacterName, groups: Conversation[]): { conv: Conversation; rule: string } | null {
-    if (!groups.length) return null;
-    const least = Math.min(...groups.map((g) => g.members.length));
-    let pool = groups.filter((g) => g.members.length === least);
-    if (pool.length === 1) return { conv: pool[0]!, rule: "fewest guests" };
-    const mine = (g: Conversation) => g.members.filter((m) => factionOf(m) === factionOf(c)).length;
-    const fewestMine = Math.min(...pool.map(mine));
-    pool = pool.filter((g) => mine(g) === fewestMine);
-    if (pool.length === 1) return { conv: pool[0]!, rule: "fewest of own faction" };
-    return { conv: pool[Math.floor(this.rng() * pool.length)]!, rule: "random" };
+    const pick = fewestGuests(factionOf(c), groups, factionOf, this.rng);
+    return pick && { conv: pick.group, rule: pick.rule };
   }
 
   private offered(groups: Conversation[], initiatorsOwn?: string): SeatGroup[] {
@@ -1090,8 +1074,8 @@ export class MiniGame {
     const me = this.char(c);
     const conv = this.conv(c);
     const others = conv.members.filter((m) => m !== c);
-    const french = keepsTreasury(factionOf(c));
-    const ledgerText = [...this.ledger].filter(([, n]) => n > 0).map(([n, k]) => (k > 1 ? `${n} (${k})` : n)).join(", ") || "none";
+    const french = seesLedger(this.econ.guests.get(c)!.pension);
+    const ledgerText = [...this.econ.ledger].filter(([, n]) => n > 0).map(([n, k]) => (k > 1 ? `${n} (${k})` : n)).join(", ") || "none";
     const history = me.lines.slice(-this.s.historyWindow);
     const outside = opts.gathering || opts.seat;
     const present = outside ? [] : others;
@@ -1115,9 +1099,9 @@ export class MiniGame {
         present,
         livingOthers: this.living(c),
         dead: [],
-        florins: me.florins,
-        pensionsHeld: me.pensions,
-        ...(french && { embassyLedger: { treasury: this.treasury, pensions: ledgerText, ...(this.ledgerLatest && { latest: this.ledgerLatest }) } }),
+        florins: this.econ.purse.get(c)!,
+        pensionsHeld: this.econ.pensions.get(c)!,
+        ...(french && { embassyLedger: { treasury: this.econ.treasury, pensions: ledgerText, ...(this.ledgerLatest && { latest: this.ledgerLatest }) } }),
         withdrawalCount: me.withdrawals,
         ...(me.feedback && { actionFeedback: me.feedback }),
       },
@@ -1142,9 +1126,9 @@ export class MiniGame {
     const conv = this.conv(c);
     return {
       faction: factionOf(c),
-      florins: this.char(c).florins,
-      pensionSize: this.docs.tunables.pension_size,
-      treasury: this.treasury,
+      florins: this.econ.purse.get(c)!,
+      pensionSize: this.rules.pensionSize,
+      treasury: this.econ.treasury,
       colloquioWith: conv.kind === "colloquio" ? conv.members.find((m) => m !== c)! : null,
     };
   }
@@ -1292,9 +1276,9 @@ export class MiniGame {
       turn: this.turn,
       // Copies: members change in place later (a seat is pushed), and the record must keep this moment.
       conversations: [...this.convs.values()].filter((c) => c.open).map((c) => ({ id: c.id, kind: c.kind, members: [...c.members], ...(c.seating && { seating: structuredClone(c.seating) }) })),
-      characters: [...this.chars.values()].map((c) => ({ name: c.name, florins: c.florins, pensions: c.pensions, withdrawals: c.withdrawals, conversation: c.conversation })),
-      treasury: this.treasury,
-      ledger: Object.fromEntries(this.ledger),
+      characters: [...this.chars.values()].map((c) => ({ name: c.name, florins: this.econ.purse.get(c.name)!, pensions: this.econ.pensions.get(c.name)!, withdrawals: c.withdrawals, conversation: c.conversation })),
+      treasury: this.econ.treasury,
+      ledger: Object.fromEntries(this.econ.ledger),
       // TD v0.23: seatless guests in order, and moves waiting on a guest in a Colloquio.
       ...(this.seating && { seatless: [...this.seatless], waiting_colloquios: [...this.waitingColloquios], waiting_joins: [...this.waitingJoins] }),
     });
@@ -1440,24 +1424,13 @@ function listJoin(items: string[]): string {
   return `${items.slice(0, -1).join(", ")}, and ${items.at(-1)}`;
 }
 
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function shuffle<T>(xs: T[], rng: () => number): T[] {
-  for (let i = xs.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [xs[i], xs[j]] = [xs[j]!, xs[i]!];
-  }
-  return xs;
-}
+/** The invitee's seat problems as the game record has always logged them. */
+const SEAT_PROBLEM: Record<SeatProblem, (choice: string) => string> = {
+  "join target not seated with room": () => "join target not in a group with room",
+  "colloquio target not free": () => "colloquio target not a free living guest",
+  "wait with room": () => "wait while a group has room",
+  "unknown choice": (choice) => `unknown choice "${choice}"`,
+};
 
 export { renderBelief };
 

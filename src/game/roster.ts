@@ -1,6 +1,7 @@
 // The roster (Characters, Roster), read from the setting pack (TD v0.38): setting/<name>/setting.json.
 // Names are the exact spellings models must use in contact lists and addressees.
 
+import type { Guest } from "../rules/config.ts";
 import { settingPack, type PensionRole } from "../setting/pack.ts";
 
 export type Faction = string;
@@ -30,11 +31,18 @@ export function factionOf(name: CharacterName): Faction {
   return ROSTER.find((c) => c.name === name)!.faction;
 }
 
-const pensionRole = (f: Faction): PensionRole => pack.factions.find((x) => x.name === f)!.pension;
+/** A faction's pension role (Mechanics), from the setting pack. */
+export const pensionRoleOf = (f: Faction): PensionRole => pack.factions.find((x) => x.name === f)!.pension;
 /** Mechanics: who may /borrow a French pension. */
-export const mayTakePension = (f: Faction): boolean => pensionRole(f) === "may take";
+export const mayTakePension = (f: Faction): boolean => pensionRoleOf(f) === "may take";
 /** Mechanics: who keeps the treasury, and so sees the pension ledger in block 5. */
-export const keepsTreasury = (f: Faction): boolean => pensionRole(f) === "keeps the treasury";
+export const keepsTreasury = (f: Faction): boolean => pensionRoleOf(f) === "keeps the treasury";
+
+/** A cast member as the rules module sees them: faction (an id), pension role, and special roles. */
+export function rulesGuest(name: CharacterName): Guest {
+  const r = pack.roster.find((x) => x.name === name)!;
+  return { name, faction: r.faction, pension: pensionRoleOf(r.faction), roles: r.roles ?? [] };
+}
 
 /** A character's special roles (Mechanics), e.g. "two kills": the Murder Round's two Kill orders. */
 export function hasRole(name: CharacterName, role: string): boolean {

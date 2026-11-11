@@ -5,7 +5,7 @@
 // unusable, so both are reported as warnings with counts, not failures.
 
 import { z } from "zod";
-import type { ActionType } from "../game/actions.ts";
+import { rejectAction, type ActionType } from "../rules/economy.ts";
 import { resolveAlias } from "../game/roster.ts";
 import { say } from "../setting/pack.ts";
 import { parseJson } from "./json.ts";
@@ -146,9 +146,11 @@ export function parseSpeak(raw: string, expect: SpeakExpectation): SpeakParseRes
   };
 }
 
+/** The Stage Manager's check (src/rules/economy.ts), worded for the guest's next call. */
 function rejectReason(a: SpeakAction, expect: SpeakExpectation): string | null {
-  if (!expect.allowedActions.includes(a.type)) return `${a.type} is not allowed right now`;
-  if (a.type === "bribe" && a.amount <= 0) return say("actions", "bribe_not_positive", { amount: a.amount });
-  if (a.type === "bribe" && a.amount > expect.florins) return `bribe of ${a.amount} exceeds purse of ${expect.florins}`;
-  return null;
+  const r = rejectAction(a, expect.allowedActions, expect.florins);
+  if (!r) return null;
+  if (r.why === "not allowed") return `${r.type} is not allowed right now`;
+  if (r.why === "not positive") return say("actions", "bribe_not_positive", { amount: r.amount });
+  return `bribe of ${r.amount} exceeds purse of ${r.purse}`;
 }
