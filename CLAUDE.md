@@ -46,7 +46,8 @@ Work arrives as tasks from Dylan, often relayed from Technical Design (TD). The 
 
 - TD v0.39's layers: `src/core/` (conversations, no setting), `src/rules/` (the game's rules as pure functions: no model calls, I/O, or text; config and roles passed in; structured events out), the game, and content. `test/layers.test.ts` fails if `src/rules/` imports anything outside itself, or `src/core/` imports the rules, a game, the mini-game, or the setting.
 - A new rule goes in `src/rules/` with a table test in `test/rules.test.ts` named for its Mechanics section; the game words its events through the setting pack.
-- The human player: the controller, protocol, and WebSocket server are in `src/core/`; the mini-game's side is `src/minigame/player.ts`, with its words in `setting/<name>/player.json`. `test/human.test.ts` plays a scripted game through the protocol and checks the player's event stream holds only their own History and State. A human game (`npm run minigame -- --human "<full name>" --games 1`) still makes model calls for the AI guests.
+- The human player: the controller, protocol, and WebSocket server are in `src/core/`; the mini-game's side is `src/minigame/player.ts`, with its words in `setting/<name>/player.json`. `test/human.test.ts` plays a scripted game through the protocol and checks the player's event stream holds only their own History and State. A human game still makes model calls for the AI guests.
+- The player screen is `web/` (React, built by esbuild): `npm run play -- --as "Francesco Pazzi" --minigame` serves it on localhost and runs the runner with `--human` (under `op run`, with `PROBE_TOTAL_USD`, as for any run; runner flags after `--`). `--fake` plays it on the fake model caller, with no calls. Every look is a token in `web/theme.css`, every word is in `player.json`; `test/web.test.ts` checks both.
 
 ## Spend
 

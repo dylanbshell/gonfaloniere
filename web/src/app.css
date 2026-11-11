@@ -1,0 +1,94 @@
+/* The components' styles. Only theme.css's tokens: no colour, font, size, spacing, or radius is written here. */
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: var(--text-md); line-height: var(--line-height); }
+button, select, textarea { font: inherit; color: inherit; }
+button, .button { background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-md); padding: var(--space-1) var(--space-3); cursor: pointer; text-decoration: none; display: inline-block; }
+button:disabled { opacity: var(--opacity-disabled); cursor: default; }
+button.primary, .button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+select, textarea { background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-md); padding: var(--space-1) var(--space-2); }
+h1 { font-size: var(--text-xl); margin: 0 0 var(--space-3); }
+h2 { font-size: var(--text-lg); margin: var(--space-4) 0 var(--space-2); }
+h3 { font-size: var(--text-md); margin: 0 0 var(--space-3); }
+.muted { color: var(--text-muted); }
+.label { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-label); color: var(--text-muted); margin: var(--space-4) 0 var(--space-2); }
+.label:first-child { margin-top: 0; }
+.name { font-weight: var(--weight-bold); }
+.notice { background: var(--notice-bg); color: var(--notice); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); margin: var(--space-2) 0; font-size: var(--text-sm); }
+.notice.danger { background: var(--danger-bg); color: var(--danger); }
+
+/* Portraits: initials in a faction-coloured circle */
+.portrait { display: inline-flex; align-items: center; justify-content: center; flex: none; width: var(--portrait-size); height: var(--portrait-size); border-radius: var(--radius-round); color: var(--portrait-text); font-size: var(--text-sm); font-weight: var(--weight-bold); }
+.portrait.large { width: var(--portrait-size-lg); height: var(--portrait-size-lg); font-size: var(--text-lg); }
+.who { display: flex; align-items: center; gap: var(--space-3); }
+.who.column { flex-direction: column; text-align: center; }
+.guest { text-decoration: underline dotted; text-underline-offset: var(--space-1); cursor: help; }
+
+/* Start and end screens */
+.start, .end { max-width: var(--modal-width); margin: var(--space-6) auto; padding: 0 var(--space-4); }
+.cards { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-top: var(--space-4); }
+.start-card { background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-lg); padding: var(--space-4); width: var(--card-width); display: flex; flex-direction: column; gap: var(--space-3); }
+.intro { margin: 0; font-size: var(--text-sm); }
+.checks li { margin-bottom: var(--space-1); font-size: var(--text-sm); }
+
+/* The game: three columns */
+.layout { display: grid; grid-template-columns: var(--side-width) 1fr var(--side-width); height: var(--screen-height); }
+.side { background: var(--surface); border-right: var(--border-width) solid var(--border); padding: var(--space-4); overflow-y: auto; }
+.side.right { border-right: none; border-left: var(--border-width) solid var(--border); }
+.facts { display: grid; grid-template-columns: auto auto; gap: var(--space-1) var(--space-3); margin: var(--space-4) 0 0; font-size: var(--text-sm); }
+.facts dt { color: var(--text-muted); }
+.facts dd { margin: 0; text-align: right; }
+.here { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.here li { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); }
+.here .portrait { width: var(--portrait-size); height: var(--portrait-size); }
+.buttons { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-5); }
+
+.centre { display: flex; flex-direction: column; min-width: 0; height: var(--screen-height); }
+.conv-head { padding: var(--space-3) var(--space-4); border-bottom: var(--border-width) solid var(--border); background: var(--surface); }
+.phase { font-weight: var(--weight-bold); }
+.stream { flex: 1; overflow-y: auto; padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
+.ln { padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); }
+.ln .sp { font-weight: var(--weight-bold); font-size: var(--text-sm); margin-right: var(--space-2); }
+.ln .to { color: var(--text-muted); font-size: var(--text-sm); margin-right: var(--space-2); }
+.ln .tx { white-space: pre-wrap; }
+.ln.mine { background: var(--surface-2); }
+.ln.to-you { background: var(--to-you-bg); }
+.ln.notaio { background: var(--notaio-bg); color: var(--notaio); font-style: italic; }
+.ln.notaio .sp { font-style: normal; }
+.ln.action { color: var(--text-muted); font-size: var(--text-sm); }
+.ln.private { border: var(--border-width) dashed var(--border); }
+.divider { display: flex; align-items: center; gap: var(--space-3); color: var(--text-muted); font-size: var(--text-xs); margin: var(--space-3) 0; }
+.divider::before, .divider::after { content: ""; flex: 1; border-top: var(--border-width) solid var(--border); }
+.speaking { color: var(--text-muted); font-style: italic; font-size: var(--text-sm); padding: 0 var(--space-3); }
+.banner { background: var(--danger-bg); color: var(--danger); border-radius: var(--radius-md); padding: var(--space-3); font-weight: var(--weight-bold); }
+
+/* Decision cards */
+.card { background: var(--surface); border: var(--border-width) solid var(--accent); border-radius: var(--radius-lg); padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); max-width: var(--modal-width); }
+.tiles { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.tiles.column { flex-direction: column; }
+.tile { padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); text-align: left; }
+.tile.chosen { border-color: var(--accent); background: var(--to-you-bg); }
+.act { display: flex; gap: var(--space-2); }
+
+/* The input box */
+.input { border-top: var(--border-width) solid var(--border); background: var(--surface); padding: var(--space-3) var(--space-4); position: relative; }
+.input.closed { color: var(--text-muted); }
+.prompt { font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-2); }
+.prompt.waiting { color: var(--accent); font-weight: var(--weight-bold); }
+.row { display: flex; gap: var(--space-3); align-items: stretch; }
+.row textarea { flex: 1; height: var(--input-height); resize: none; }
+.actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-content: flex-start; max-width: var(--side-width); }
+.count { font-size: var(--text-xs); color: var(--text-muted); width: 100%; text-align: right; }
+.count.over { color: var(--danger); }
+.example { font-size: var(--text-sm); margin-top: var(--space-2); }
+.dropdown { position: absolute; bottom: 100%; left: var(--space-4); list-style: none; margin: 0; padding: var(--space-1); background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-md); max-height: var(--menu-height); overflow-y: auto; min-width: var(--card-width); }
+.dropdown button { display: flex; align-items: center; gap: var(--space-2); width: 100%; border: none; text-align: left; }
+.dropdown.menu button { flex-direction: column; align-items: flex-start; gap: 0; }
+.cmd { font-family: var(--font-mono); font-size: var(--text-sm); }
+
+/* Modals */
+.overlay { position: fixed; inset: 0; background: var(--overlay); display: flex; align-items: center; justify-content: center; padding: var(--space-4); }
+.modal { background: var(--surface); border-radius: var(--radius-lg); width: 100%; max-width: var(--modal-width); max-height: var(--modal-max-height); display: flex; flex-direction: column; }
+.modal header { display: flex; justify-content: space-between; align-items: center; padding: var(--space-3) var(--space-4); border-bottom: var(--border-width) solid var(--border); }
+.modal h2 { margin: 0; }
+.sheet { padding: var(--space-4); overflow-y: auto; white-space: pre-wrap; font-size: var(--text-sm); }

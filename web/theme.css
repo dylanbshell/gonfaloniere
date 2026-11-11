@@ -1,0 +1,98 @@
+/*
+ * The player screen's theme (TD v0.38–v0.39, The screen): the one file for the look. Every colour, font,
+ * size, spacing, and corner radius the components use is a token here, and components use only these
+ * tokens. The visual direction isn't chosen yet (TD, The look), so this is plain and neutral; applying
+ * a chosen look means editing this file, fonts included, not the components.
+ */
+
+:root {
+  /* Fonts. A chosen look loads its fonts here (an @import or @font-face). */
+  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Sizes */
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-md: 15px;
+  --text-lg: 18px;
+  --text-xl: 24px;
+  --line-height: 1.45;
+  --tracking-label: 0.06em;
+  --weight-normal: 400;
+  --weight-bold: 600;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* Corners and lines */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-round: 999px;
+  --border-width: 1px;
+
+  /* Layout */
+  --side-width: 260px;
+  --portrait-size: 44px;
+  --portrait-size-lg: 64px;
+  --card-width: 340px;
+  --modal-width: 640px;
+  --input-height: 72px;
+  --menu-height: 220px;
+  --screen-height: 100vh;
+  --modal-max-height: 90vh;
+  --opacity-disabled: 0.5;
+
+  /* Colours: light */
+  --bg: #f6f6f4;
+  --surface: #ffffff;
+  --surface-2: #efefec;
+  --text: #1d1d1b;
+  --text-muted: #6b6b66;
+  --border: #d9d9d4;
+  --accent: #3a5a8c;
+  --accent-text: #ffffff;
+  --notice: #8a5a00;
+  --notice-bg: #fff4dc;
+  --danger: #a33a2e;
+  --danger-bg: #fbe9e6;
+  --notaio: #4b6b5a;
+  --notaio-bg: #eef3ef;
+  --to-you-bg: #eef2f9;
+  --overlay: rgba(20, 20, 18, 0.45);
+  --portrait-text: #ffffff;
+
+  /* Faction colours, by the faction's place in setting.json (used when the setting gives no colour) */
+  --faction-0: #6a4c93;
+  --faction-1: #2f7d6d;
+  --faction-2: #7a6a3a;
+  --faction-3: #3a5a8c;
+  --faction-4: #8c3a5a;
+  --faction-5: #5a5a5a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161615;
+    --surface: #1f1f1d;
+    --surface-2: #2a2a27;
+    --text: #ecece8;
+    --text-muted: #a3a39c;
+    --border: #3a3a36;
+    --accent: #8fb0e6;
+    --accent-text: #10151f;
+    --notice: #e7c27a;
+    --notice-bg: #3a3020;
+    --danger: #f0a196;
+    --danger-bg: #3b2220;
+    --notaio: #9fc4ae;
+    --notaio-bg: #1f2a24;
+    --to-you-bg: #1f2633;
+    --overlay: rgba(0, 0, 0, 0.6);
+  }
+}

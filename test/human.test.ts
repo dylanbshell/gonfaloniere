@@ -65,7 +65,7 @@ function scriptedPlayer(url: string, seen: Seen, opts: { dropAfter: number }) {
         }
         if (ev.type === "request" && ev.resent) {
           seen.did.add("pending request re-sent");
-          assert.equal(ev.id, seen.log.findLast((e) => e.type === "request")!.id);
+          assert.equal(ev.id, seen.log.findLast((e) => e.type === "request" && !e.closed)!.id);
         } else seen.log.push(ev);
         if (ev.type === "result") {
           ws.close();
@@ -80,7 +80,7 @@ function scriptedPlayer(url: string, seen: Seen, opts: { dropAfter: number }) {
           send({ type: "command", text: "/fly" });
         }
         if (ev.type === "refusal") seen.did.add(`refused: ${ev.reason}`);
-        if (ev.type !== "request") return;
+        if (ev.type !== "request" || ev.closed) return;
         if (first && !reconnected && seen.log.length > opts.dropAfter) {
           // Drop the connection with a request pending, and come back.
           reconnected = true;

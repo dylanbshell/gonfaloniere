@@ -118,11 +118,13 @@ export class PlayerFeed {
     this.ctrl.send(ev);
   }
 
-  state(state: Record<string, unknown>, commands: { name: string; usage: string; hint: string }[]): void {
-    const key = JSON.stringify([state, commands]);
+  /** Block 5 and the command menu, when either changes; the sheet (blocks 2 and 3) goes with the first. */
+  state(state: Record<string, unknown>, commands: { name: string; usage: string; hint: string }[], speaking: string | null, sheet: () => Record<string, string>): void {
+    const key = JSON.stringify([state, commands, speaking]);
     if (key === this.lastState) return;
+    const first = !this.lastState;
     this.lastState = key;
-    this.ctrl.send({ type: "state", state, commands });
+    this.ctrl.send({ type: "state", state, commands, speaking, ...(first && { sheet: sheet() }) });
   }
 
   refuse(reason: string, values: Record<string, string | number> = {}, input: string | null = null): void {

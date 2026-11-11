@@ -455,6 +455,11 @@ function assemble(t: PromptTemplates, ctx: CharacterContext, task: string): Asse
   return { blocks, text: join(blocks), system: join(blocks.slice(0, 3)), user: join(blocks.slice(3)) };
 }
 
+/** Block 2 as a character's prompt holds it: what the human player's "The rules" shows (TD v0.39, The screen). */
+export function rulesText(t: PromptTemplates, r: RulesValues): string {
+  return rulesBlock(t, r);
+}
+
 function rulesBlock(t: PromptTemplates, r: RulesValues): string {
   return fill(t.rulesPrimer, {
     starting_florins: String(r.starting_florins),

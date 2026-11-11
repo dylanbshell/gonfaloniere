@@ -12,8 +12,17 @@ export type OutgoingBody =
   | { type: "line"; id: string; turn: number; conversation: string; speaker: string; addressee: string | null; text: string; you: boolean }
   | { type: "notaio"; id: string; turn: number; conversation: string; text: string }
   | { type: "action"; id: string; turn: number; conversation: string; text: string; private: boolean }
-  | { type: "state"; state: Record<string, unknown>; commands: { name: string; usage: string; hint: string }[] }
-  | { type: "request"; id: string; kind: RequestKind; options: Record<string, unknown>; resent?: true }
+  | {
+      type: "state";
+      state: Record<string, unknown>;
+      commands: { name: string; usage: string; hint: string }[];
+      /** Who is generating a line in the player's conversation now ("…is speaking"), or null. */
+      speaking?: string | null;
+      /** Sent once: the player's own sheet, the texts the game gives that character (in the game, blocks 2 and 3). */
+      sheet?: Record<string, string>;
+    }
+  /** A request opens with its options; `closed` marks it answered, so a replayed log shows which is still open. */
+  | { type: "request"; id: string; kind: RequestKind; options: Record<string, unknown>; resent?: true; closed?: true }
   | { type: "refusal"; reason: string; input: string | null }
   | { type: "death"; name: string; you: boolean }
   | { type: "result"; result: Record<string, unknown> };
