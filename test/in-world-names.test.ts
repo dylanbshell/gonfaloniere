@@ -15,7 +15,7 @@ import { loadDocs } from "../src/sources/docs.ts";
 import { playFakeOn } from "./fixtures/fake-game.ts";
 
 const docs32 = loadDocs(docsFor("0.32"));
-const docs35 = loadDocs(docsFor("0.35"));
+const docs35 = loadDocs(docsFor("0.35", "0.10"));
 const old = (await playFakeOn(docs32)).calls;
 const neu = (await playFakeOn(docs35)).calls;
 const TURNS = 6;

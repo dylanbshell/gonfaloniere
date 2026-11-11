@@ -67,18 +67,27 @@ function tinkerCheckpoint(name: string): string {
  */
 export const technicalDesignPath = (version: string) => `docs/Gonfaloniere_Technical_Design_v${version}.md`;
 export const mechanicsPath = (version: string) => `docs/Gonfaloniere_Game_Mechanics_v${version}.md`;
+export const charactersPath = (version: string) => `docs/Gonfaloniere_Characters_v${version}.md`;
+
+/**
+ * The Characters version a run loads from TD v0.34 on (PROBE_CHARACTERS overrides). Only the default:
+ * the in-world names' minimum stays `since.characters` in the setting pack (v0.10), so a new
+ * Characters version changes just this line (#73: v0.11, Isabella's Easter Mass).
+ */
+export const DEFAULT_CHARACTERS = "0.11";
 
 /**
  * The docs for one TD version. TD v0.34+ and Characters v0.10+ use in-world names and must be
  * loaded together (TD In-World Names; loadDocs refuses a mix), so Characters follows the TD:
- * v0.10 from TD v0.34 on, v0.4 before, which every earlier game ran on. PROBE_CHARACTERS overrides.
+ * DEFAULT_CHARACTERS from TD v0.34 on, v0.4 before, which every earlier game ran on.
+ * `characters` (a record's own version) or PROBE_CHARACTERS overrides.
  */
-export function docsFor(td: string) {
+export function docsFor(td: string, characters?: string) {
   const since = inWorldNames().since;
-  const characters = process.env.PROBE_CHARACTERS ?? (atLeast(td, since.technicalDesign) ? since.characters : "0.4");
+  characters ??= process.env.PROBE_CHARACTERS ?? (atLeast(td, since.technicalDesign) ? DEFAULT_CHARACTERS : "0.4");
   return {
     technicalDesign: technicalDesignPath(td),
-    characters: `docs/Gonfaloniere_Characters_v${characters}.md`,
+    characters: charactersPath(characters),
     // Only the Tunable Values table is read; v0.30's values are v0.20's, so prompts are unchanged.
     mechanics: mechanicsPath("0.30"),
     // Read only for its version and the secrets judge's rubric, which v0.52 carries unchanged from v0.38 (#59).
