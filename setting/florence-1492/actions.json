@@ -1,0 +1,9 @@
+{
+  "_comment": "Technical Design v0.38's Setting Pack: how each action is described in a character's {allowed_actions} list (block 9b), as templates; code fills the {named} placeholders. Copied verbatim from src/game/actions.ts (CC-20261111-04).",
+  "bribe": "{\"type\": \"bribe\", \"amount\": N} — hand {other} N {currency} (you have {purse})",
+  "borrow": "{\"type\": \"borrow\"} — accept one French pension of {amount} {currency}",
+  "repay": "{\"type\": \"repay\", \"for\": \"Name\"} — renounce one French pension held by yourself or a relative who has told you of it",
+  "none": "None available right now. Set action to null.",
+  "_errors_comment": "Validation messages written into the record when a reply's action is refused.",
+  "bribe_not_positive": "bribe of {amount} {currency}"
+}

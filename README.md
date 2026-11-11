@@ -47,6 +47,6 @@ Full design and research log in [`docs/`](docs/): Game Mechanics, Technical Desi
 ## Licensing
 
 - **Code** (`src/`, `pilot/*.py`, configuration): MIT.
-- **Game content** (setting, characters, briefings, rules, and scenes in `docs/`, `scenarios/`, and `results/published/`): CC BY-NC-SA 4.0, adapted from **[Plots in the Palazzo](https://www.matthewclifford.com/)** by Matt Clifford ([CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)). The rules have been substantially reworked for AI play.
+- **Game content** (setting, characters, briefings, rules, and scenes in `docs/`, `scenarios/`, `setting/`, `lore/`, `results/published/`, and exported game records): CC BY-NC-SA 4.0, adapted from **[Plots in the Palazzo](https://www.matthewclifford.com/)** by Matt Clifford ([CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)). The rules have been substantially reworked for AI play.
 
 See [LICENSE](LICENSE). This project is non-commercial.

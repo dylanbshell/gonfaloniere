@@ -8,7 +8,8 @@
 
 import type { ActionType } from "../game/actions.ts";
 import { allowedActionTypes, allowedActionsText, type ActionContext } from "../game/actions.ts";
-import { ROSTER, factionOf, type CharacterName } from "../game/roster.ts";
+import { ROSTER, factionOf, keepsTreasury, type CharacterName } from "../game/roster.ts";
+import { say } from "../setting/pack.ts";
 import { parseSpeak } from "../output/speak.ts";
 import { parseStrategy } from "../output/strategy.ts";
 import { parseThink, type Took, type WordsLog } from "../output/think.ts";
@@ -307,12 +308,12 @@ export class MiniGame {
     // Mini-game setting (Dylan, Oct 24): six of the twelve attend. Without this, characters read the
     // absent guests' missing names under "All living guests" as deaths.
     const absent = ROSTER.map((r) => r.name).filter((n) => !this.s.cast.includes(n));
-    const smaller = `Tonight is a smaller gathering than most: only ${listJoin(this.s.cast)} attend. ${listJoin(absent)} are alive, but elsewhere tonight, and can't be reached.`;
+    const smaller = say("notaio", "notes.attendance", { cast: listJoin(this.s.cast), absent: listJoin(absent) });
     for (let i = 0; i < order.length; i += 3) {
       const conv = this.newConversation("capannello", order.slice(i, i + 3));
       // The attendance note announces the guests here tonight; the groups note names the group formed.
       this.notaio(conv, smaller, this.s.cast);
-      this.notaio(conv, `The guests drifted into company: ${listJoin(conv.members)}.`, conv.members);
+      this.notaio(conv, say("notaio", "notes.groups", { others: listJoin(conv.members) }), conv.members);
     }
     this.events.push({ turn: 0, type: "capannelli", groups: [...this.convs.values()].map((c) => [...c.members]), rotation: this.rotation });
   }
@@ -522,30 +523,31 @@ export class MiniGame {
       const amount = a.amount!;
       me.florins -= amount;
       this.char(to).florins += amount;
-      const line = this.addLine(conv, "event", null, `${actor} gave ${to} ${amount} Florins.`);
-      this.memory.addEntry({ turn: this.turn, conversation: conv.id, where: this.where(conv), type: "payment", speaker: actor, toward: to, about: [actor, to], summary: `${actor} gave ${to} ${amount} Florins.`, quote: null, lines: [line.id], audience: [...conv.members], source: "code" });
+      const paid = say("notaio", "lines.payment", { actor, other: to, amount });
+      const line = this.addLine(conv, "event", null, paid);
+      this.memory.addEntry({ turn: this.turn, conversation: conv.id, where: this.where(conv), type: "payment", speaker: actor, toward: to, about: [actor, to], summary: paid, quote: null, lines: [line.id], audience: [...conv.members], source: "code" });
       this.events.push({ turn: this.turn, type: "bribe", from: actor, to, amount, line: line.id });
     } else if (a.type === "borrow") {
       me.florins += size;
       me.pensions += 1;
       this.treasury -= size;
       this.ledger.set(actor, (this.ledger.get(actor) ?? 0) + 1);
-      this.ledgerLatest = `${actor} accepted a pension`;
-      this.privateLine(conv, actor, `You accepted a French pension of ${size} Florins. Your purse: ${me.florins} Florins.`, "pension");
+      this.ledgerLatest = say("notaio", "lines.ledger_taken", { actor });
+      this.privateLine(conv, actor, say("notaio", "lines.pension_taken", { amount: size, purse: me.florins }), "pension");
       this.events.push({ turn: this.turn, type: "borrow", character: actor });
     } else if (a.type === "repay") {
       const holder = (resolveName(a.for ?? "") ?? actor) as CharacterName;
       const ok = (this.ledger.get(holder) ?? 0) > 0 && (holder === actor || factionOf(holder) === factionOf(actor)) && me.florins >= size;
       if (!ok) {
-        me.feedback = `Your attempt to renounce a pension for ${a.for ?? "yourself"} failed: no such pension that you can repay.`;
+        me.feedback = say("notaio", "lines.pension_refused", { holder: a.for ?? say("notaio", "lines.pension_refused_self") });
         return;
       }
       me.florins -= size;
       this.treasury += size;
       this.ledger.set(holder, this.ledger.get(holder)! - 1);
       if (this.chars.has(holder)) this.char(holder).pensions -= 1;
-      this.ledgerLatest = `the pension held by ${holder} was renounced`;
-      this.privateLine(conv, actor, `You renounced the French pension held by ${holder}: ${size} Florins returned to the Embassy.`, "pension");
+      this.ledgerLatest = say("notaio", "lines.ledger_renounced", { holder });
+      this.privateLine(conv, actor, say("notaio", "lines.pension_renounced", { holder, amount: size }), "pension");
       this.events.push({ turn: this.turn, type: "repay", character: actor, holder });
     }
   }
@@ -618,11 +620,11 @@ export class MiniGame {
       this.events.push({ turn: this.turn, type: "move-noop", character: mover, note: "target already in the same group" });
       return;
     }
-    this.leave(from, mover, `${mover} took leave of the company.`);
+    this.leave(from, mover, say("notaio", "notes.leave", { actor: mover }));
     if (to.members.length >= this.s.maxCapannello) {
       // TD collision: the open seat first; both full, the lower-importance member moves.
       const bumped = [...to.members].sort((a, b) => (to.importance.get(a) ?? 0) - (to.importance.get(b) ?? 0))[0]!;
-      this.leave(to, bumped, `${bumped} took leave of the company.`);
+      this.leave(to, bumped, say("notaio", "notes.leave", { actor: bumped }));
       this.enter(from, bumped);
     }
     this.enter(to, mover);
@@ -677,7 +679,7 @@ export class MiniGame {
     conv.members.push(c);
     this.char(c).conversation = conv.id;
     // Joiners hear only what is said after they arrive: the join note is their first line here.
-    this.notaio(conv, others.length ? `${c} joined ${listJoin(others)}.` : `${c} took a place in company.`, [c]);
+    this.notaio(conv, others.length ? say("notaio", "notes.join", { actor: c, others: listJoin(others) }) : say("notaio", "notes.join_alone", { actor: c }), [c]);
     conv.needsThink = true;
   }
 
@@ -717,7 +719,7 @@ export class MiniGame {
       const others = [...dest.members];
       dest.members.push(c);
       this.char(c).conversation = dest.id;
-      this.notaio(dest, others.length ? `${c} returned to company and rejoined ${listJoin(others)}.` : `${c} returned to company.`, [c]);
+      this.notaio(dest, others.length ? say("notaio", "notes.rejoin", { actor: c, others: listJoin(others) }) : say("notaio", "notes.return_alone", { actor: c }), [c]);
       dest.needsThink = true;
     }
     this.fixLoneGuests();
@@ -752,10 +754,10 @@ export class MiniGame {
     if (to.id === from.id) return false;
     if (to.members.length >= this.s.maxCapannello) {
       const bumped = [...to.members].sort((a, b) => (to.importance.get(a) ?? 0) - (to.importance.get(b) ?? 0))[0]!;
-      this.leave(to, bumped, `${bumped} took leave of the company.`);
+      this.leave(to, bumped, say("notaio", "notes.leave", { actor: bumped }));
       this.enter(from, bumped);
     }
-    this.leave(from, mover, `${mover} took leave of the company.`);
+    this.leave(from, mover, say("notaio", "notes.leave", { actor: mover }));
     this.enter(to, mover);
     return true;
   }
@@ -903,7 +905,7 @@ export class MiniGame {
     while (this.seatless.length >= 2) {
       const [a, b] = this.seatless.splice(0, 2) as [CharacterName, CharacterName];
       const conv = this.newConversation("capannello", [a, b]);
-      this.notaio(conv, `${a} and ${b} returned to company and formed a new group.`, [a, b]);
+      this.notaio(conv, say("notaio", "notes.new_group", { actor: a, other: b }), [a, b]);
       this.events.push({ turn: this.turn, type: "seatless-pair", conversation: conv.id, members: [a, b] });
     }
     for (const w of [...this.waitingJoins]) {
@@ -989,7 +991,7 @@ export class MiniGame {
     conv.members.push(c);
     this.char(c).conversation = conv.id;
     this.seatless = this.seatless.filter((x) => x !== c);
-    this.notaio(conv, others.length ? `${c} returned to company and ${own ? "rejoined" : "joined"} ${listJoin(others)}.` : `${c} returned to company.`, [c]);
+    this.notaio(conv, others.length ? say("notaio", own ? "notes.rejoin" : "notes.return_join", { actor: c, others: listJoin(others) }) : say("notaio", "notes.return_alone", { actor: c }), [c]);
     conv.needsThink = true;
   }
 
@@ -1088,7 +1090,7 @@ export class MiniGame {
     const me = this.char(c);
     const conv = this.conv(c);
     const others = conv.members.filter((m) => m !== c);
-    const french = factionOf(c) === "French Embassy";
+    const french = keepsTreasury(factionOf(c));
     const ledgerText = [...this.ledger].filter(([, n]) => n > 0).map(([n, k]) => (k > 1 ? `${n} (${k})` : n)).join(", ") || "none";
     const history = me.lines.slice(-this.s.historyWindow);
     const outside = opts.gathering || opts.seat;
@@ -1417,7 +1419,7 @@ function toHistoryLine(l: GameLine): HistoryLine {
 }
 
 export function formatLine(l: GameLine): string {
-  if (l.kind === "notaio") return `[Il Notaio] ${l.text}`;
+  if (l.kind === "notaio") return `[${inWorldNames().narrator.name}] ${l.text}`;
   if (l.kind === "event" || l.kind === "private") return `[${l.text}]`;
   return l.addressee ? `${l.speaker} (to ${l.addressee}): ${l.text}` : `${l.speaker}: ${l.text}`;
 }
@@ -1428,10 +1430,9 @@ export function formatLine(l: GameLine): string {
  * before, not that they drew someone aside before (Il Notaio: Delivery Mechanism).
  */
 function withdrawalNote(mover: CharacterName, target: CharacterName, n: number, td: string): string {
-  if (n <= 1) return `${mover} drew ${target} aside from company — a private word, where none could hear.`;
-  return tdMinor(td) >= 26
-    ? `${mover} was once again seen withdrawing in private, this time with ${target}.`
-    : `${mover} was once again seen drawing another aside — this time ${target}. Some note it is not the first private word sought this evening.`;
+  const who = { actor: mover, other: target };
+  if (n <= 1) return say("notaio", "notes.withdrawal", who);
+  return say("notaio", tdMinor(td) >= 26 ? "notes.withdrawal_repeat" : "notes.withdrawal_repeat_before_td26", who);
 }
 
 function listJoin(items: string[]): string {

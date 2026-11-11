@@ -1,11 +1,12 @@
 // Technical Design v0.34's In-World Names (CC-20261107-01): the names characters hear in place of
-// the game's own. The table is setting content, read from scenarios/in-world-names.json; this module
+// the game's own. The table is setting content, read from the setting pack (setting/<name>/in-world-names.json, TD v0.38); this module
 // only decides when it applies and fills its templates. Docs, code, the game record, and the system
 // prompts (10a–10d) keep the game names.
 
 import { readFileSync } from "node:fs";
+import { settingFile } from "../setting/pack.ts";
 
-export const IN_WORLD_NAMES_FILE = "scenarios/in-world-names.json";
+export const IN_WORLD_NAMES_FILE = settingFile("in-world-names.json");
 
 export interface InWorldNames {
   since: { technicalDesign: string; characters: string };

@@ -1,5 +1,5 @@
 {
-  "_comment": "Technical Design v0.34's In-World Names: what characters hear in place of the game's own names. Docs, code, the game record, and the system prompts (10a–10d) keep the game names. Setting content: it belongs in the setting pack with the roster, so a reskin renames these in one file. The names load only when both docs use them (since); a prompt never mixes the two sets.",
+  "_comment": "Technical Design v0.34's In-World Names: what characters hear in place of the game's own names. Docs, code, the game record, and the system prompts (10a–10d) keep the game names. Setting content: it belongs in the setting pack with the roster, so a reskin renames these in one file. Moved here from scenarios/ with TD v0.38's Setting Pack. The names load only when both docs use them (since); a prompt never mixes the two sets.",
   "since": { "technicalDesign": "0.34", "characters": "0.10" },
   "phase": {
     "_comment": "Block 5's {phase_label}. A round of mingling is cut into thirds of its turns: early, midway, late.",

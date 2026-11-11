@@ -30,8 +30,9 @@ SOFTWARE.
 
 Applies to the game content: the setting, factions, characters, briefings,
 rules, and scripted scenes, wherever they appear. That includes docs/,
-scenarios/, and results/published/ (which quote briefings and scenes), and
-the prompt text these files supply to the code.
+scenarios/, setting/, lore/, results/published/ (which quote briefings and
+scenes), and exported game records, and the prompt text these files supply
+to the code.
 
 This content is adapted from "Plots in the Palazzo" by Matt Clifford
 (https://www.matthewclifford.com/), licensed under CC BY-NC-SA 4.0. The

@@ -277,7 +277,8 @@ export class Recorder {
   /** TD block 10c: entries naming the fact's key people plus the 10 most similar, capped at 60 (★ first); all beliefs. */
   private evidence(c: CharacterName, f: PlotFact, cast: CharacterName[]): { entries: MemoryEntry[]; beliefs: Belief[] } {
     const mine = this.memory.entriesFor(c);
-    const key = cast.filter((n) => f.fact.includes(n) || f.fact.includes(n.split(" ").at(-1)!) || (n === "Contessa Isabella" && f.fact.includes("Isabella")));
+    // A guest is named by full name or last word ("LeNoir", "Isabella" for Contessa Isabella).
+    const key = cast.filter((n) => f.fact.includes(n) || f.fact.includes(n.split(" ").at(-1)!));
     const names = (e: MemoryEntry) => [e.speaker, e.toward, ...e.about, ...(e.parties ?? [])];
     const named = mine.filter((e) => names(e).some((n) => key.includes(n as CharacterName)));
     const factWords = new Set(f.fact.toLowerCase().split(/\W+/).filter((w) => w.length > 3));
