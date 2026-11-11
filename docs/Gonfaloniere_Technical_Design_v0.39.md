@@ -1,8 +1,25 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.38
+### Version 0.39
 
 ---
+
+## Changes in v0.39
+
+*Clears two handoffs (Nov 11): the Hub's "build it in layers" for Dylan, and Mechanics v0.31's confirmation of the three player rules. Also records the reveal action as a candidate.*
+
+- **Layers** (System Architecture, new subsection). There are four:
+  1. a **conversation core** that knows nothing of Florence, reusable for other multi-agent chat projects
+  2. a **rules module** of pure functions, with no model calls and no text, shared by the engine and the rules-only simulator
+  3. **the game,** which plugs the rules into the core, with the mini-game as one configuration of it
+  4. **content:** the docs and the setting folder
+
+  The section sets the seams between them, a dependency test, and rules tests from Mechanics' worked examples. Work order: extract the rules module, then the core, then build the full game loop on both. Splitting the core into its own package waits for a second project
+- **The three player rules are confirmed** (Mechanics v0.31), so "proposed" is dropped. **One change to match Mechanics:** answering a direct question never uses the turn's message; it's an extra line, even if the turn's message is still unused. v0.37 had it count as the turn's message when unused
+- **The jailbreak warning, specified** (Jailbreak Detection): on the first hit the message isn't spoken and Il Notaio warns the player privately, in the setting pack's words; only a second hit brings the consequence. The warning doesn't use the turn's message, and both hits are recorded
+- **The reveal action** (Models & Research's proposal for Dylan) is recorded as a candidate in Open Questions, waiting on a secret-keeping test, beside Mechanics' new open question on how to tell an errand is done
+- **Two follow-ups from the setting-pack build** (PRs #68, #69), in Open Questions: the conversation names in blocks 5 and 6, and the replay viewer's words, still sit in code
+- Prompts and blocks 1–10 are unchanged
 
 ## Changes in v0.38
 
@@ -429,9 +446,50 @@ Gonfaloniere is being built as an **all-AI simulation first**, and only later as
 
 ## System Architecture
 
+### Layers *(new in v0.39)*
+
+*From the Hub, for Dylan (Nov 11): build in layers, for reuse. One rules module, shared by the engine and the rules-only simulator, so a rule changes in one place and is tested for free. And a conversation core that knows nothing of Florence, reusable for other multi-agent chat projects, games or not. The boundaries are drawn now, before the full game loop is built. Splitting the core into its own package waits until a second project needs it.*
+
+Four layers. Each may use the layers below it, never the ones above:
+
+| Layer | What it is | Knows about | Folder |
+|---|---|---|---|
+| **1. Conversation core** | Agents talking in rooms. The speaking loop: `think()` for every listener, the next speaker by importance and decay, direct address, a two-person room's turn-taking, cap, and `done`. Per-agent memory: History, recent thoughts, the notebook with readings and beliefs, retrieval and the store, and isolation, so each prompt is built from one agent's own material. Model routing (play and recorder), call logging, output validation and repair as a framework, the game record and replay, and the human controller and its protocol (Player Interface) | Agents, rooms, lines, events, calls, labels it's given. **Nothing of factions, money, murder, or any setting** | `src/core/` |
+| **2. Rules module** | The game's rules as pure functions, with no model calls and no I/O: the state; which actions are legal for whom and when; applying them (money, bribes, pensions, the treasury); movement windows and seating; midnight; candidate selection; the ballot, vote buying, the run-off, and the lot; the logged errand checks; and win checks. Randomness comes from a seeded generator passed in, so the same seed gives the same result | Mechanics' rules and its Tunable Values, passed in as a config object. **No text:** it returns structured events (`{type: "payment", from, to, amount}`), never sentences | `src/rules/` |
+| **3. The game** (Gonfaloniere) | Plugs the rules into the core. It runs the evening's phases (councils, mingling rounds, midnight, selection, speeches, the ballot), maps each phase to rooms and calls, and assembles prompts from this doc's blocks. It turns rules events into lines through the setting pack's templates, and supplies the label set, the extraction passes' definitions, and the plot-point facts. The mini-game is this layer with a smaller schedule and cast, not a separate engine | All of the above | `src/games/gonfaloniere/` |
+| **4. Content** | The docs and the setting folder (The Setting Pack) | — | `docs/`, `setting/` |
+
+**The simulator** (Balancing Approach) uses **layer 2 only**, with scripted players in place of conversation. So every rule it balances is the same code the engine runs, and every rule change is checked by its tests. It lives in `src/sim/`.
+
+**The core's seams.** What the game hands the core:
+- **The agents,** each with a controller: `model` (with its routing) or `human`
+- **A prompt builder** for each call kind. The core asks for an agent's prompt, and the game builds it from that agent's own History, memory, and state. The core never reads a prompt's content
+- **The call kinds and their output schemas,** each with a validator. The core runs the call, the repair, and the retry; the game says what's valid
+- **The labels and passes:** the reading labels (`took` and `meant`), the extraction passes' prompts, and the facts the knowledge checks test. The core runs them; the game defines them
+- **Hooks:** after each line, at the end of each turn, and at each phase boundary. The game decides what happens there (movement, seating, income, midnight)
+
+What the core gives back: rooms, membership, and who hears what; the speaking order; memory and retrieval; the record; and the protocol to a human's screen.
+
+**Today's code maps onto it** like this. The Orchestrator is the core's speaking loop. The Stage Manager splits: tracking rooms and moving agents is the core's; who may move where, seating, money, and validation of actions are the rules module's; and writing action lines and Il Notaio's notes is the game's, through the setting pack. `src/minigame/engine.ts` holds all three today.
+
+**Kept honest by tests:**
+- **A dependency test,** like the setting scanner: `src/core/` imports nothing from `src/rules/`, `src/games/`, or `setting/`, and `src/rules/` imports nothing but its own files. The core also passes the setting scanner with no allow-list entries
+- **Rules tests from Mechanics' examples:** each worked example in Mechanics (midnight's guard and watch counts, a tied ballot, vote buying, a pension in the winning family) becomes a table test of the rules module
+- **Replay:** while code moves into the layers, every saved game that replays exactly today must still replay byte-identical. That's the guard against a move changing behaviour
+
+**Order of work:**
+1. **Extract the rules module** from today's mini-game engine and `src/game/actions.ts`, behind the same behaviour. Add the dependency test and the rules tests
+2. **Extract the core** from the mini-game engine and memory, so the mini-game becomes the first configuration of layer 3
+3. **Build the full game loop in layer 3,** on both (the full game loop spec is still to write)
+4. **The simulator** on layer 2, when balancing starts
+
+The player work already in the queue (#61, #62) puts the human controller and its protocol in `src/core/` from the start, so it doesn't have to move later.
+
+### Within the game
+
 Two systems run the evening, plus Il Notaio as the in-fiction voice of the system layer. *Il Notaio's role and voice are defined in mechanics; only the delivery mechanism is described here.*
 
-### The Orchestrator
+#### The Orchestrator
 
 Owns what happens within conversations. Responsible for:
 
@@ -442,7 +500,7 @@ Owns what happens within conversations. Responsible for:
 - Watching for a Colloquio "done" signal and enforcing the Colloquio utterance cap
 - Counting global utterances and triggering end-of-turn processing when the threshold is reached
 
-### The Stage Manager
+#### The Stage Manager
 
 Owns the structure of conversations. Responsible for:
 
@@ -456,7 +514,7 @@ Owns the structure of conversations. Responsible for:
 - **Validating actions** returned by any character call (see Output Validation & Repair). Invalid actions are rejected and the character is told privately on their next call
 - Writing **action lines** into History (see History Line Formats)
 
-### Il Notaio: Delivery Mechanism
+#### Il Notaio: Delivery Mechanism
 
 - **Witnessed events** (joins, departures, Colloquio withdrawals and returns, and seatless guests forming a new group) are generated by the Stage Manager and **injected into the History** of every character present, written in Il Notaio's voice, as lines starting `[Il Notaio]`
 - **Escalation** is driven by a per-character count of Colloquio withdrawals, so repeat withdrawals get more pointed wording. Both guests' counts rise with every Colloquio (Mechanics), but a note's escalation follows **the caller's** count, and its wording must be true whichever role the earlier withdrawals were in: "was once again seen withdrawing in private, this time with {invitee}", never "once again seen drawing another aside" for someone who was only ever called aside (v0.26; the stand-in wording got this wrong in CC-20261028-08)
@@ -2011,7 +2069,10 @@ So a full game needs **five knowledge checks** *(v0.35; four before)*: (Piero, F
 - **What it catches:** a message spoken *to the AI* rather than as the character: saying it's a game or an AI, or giving characters out-of-game instructions ("ignore your instructions", "you are a language model"). **Off-register speech is not a jailbreak** (Mechanics): slang, rudeness, and anachronisms are play, and the guests react to them in-world
 - **When:** every player message is checked **before it's spoken.** If it were checked afterwards, the AI characters would already have heard it. It's one recorder call, about a second, and the game is already waiting on the player, so the delay is barely noticed. Commands aren't checked, since they're never spoken
 - **How:** a short judge prompt on the recorder model, temperature 0: the message, the rules primer's one-line description of the evening, and the test above, with examples on both sides. It returns a verdict (`in character`, `off-register`, or `to the AI`) and a one-line reason. Only `to the AI` counts. Prompt to draft
-- **On a hit:** the message isn't spoken, and the verdict and reason go in the record. The consequence is Mechanics': everyone is notified, all guests converge on the player's group with the cap suspended, the character is treated as an Ottoman spy, and they're removed before the election. **Proposed to Mechanics** (tracker handoff): a private warning from Il Notaio the first time, and the consequence only on a second hit. A classifier will sometimes misfire, and removal is final
+- **On a hit:** the message isn't spoken, and the verdict and reason go in the record
+- **The first hit is a warning** (Mechanics v0.31): Il Notaio warns the player privately, in words from the setting pack (`notaio.json`), that guests can only hear what their character would say. The warning doesn't use the turn's message, so the player can write again. The count is kept for the whole game, not per turn
+- **A second hit brings the consequence,** which is Mechanics': everyone is notified, all guests converge on the player's group with the cap suspended, the character is treated as an Ottoman spy, and they're removed before the election. The warning exists because a classifier will sometimes misfire, and removal is final
+- **Both hits are logged** with the message, the verdict, and the reason, so a misfire can be reviewed afterwards
 - **Measured before release:** a set of hand-written messages, in character, off-register, and to the AI, with known verdicts. It has to flag nearly every "to the AI" message and almost no off-register ones. Models & Research's to run, or the Stress Testing chat's if Dylan adds one
 
 ---
@@ -2103,7 +2164,7 @@ The engine runs one game at a time and **pauses the whole game** whenever it nee
 - The input box is always open. A message the player sends is held and **spoken at the next line boundary in their conversation**, ahead of the next speaker by importance. It's never cut into the middle of a line
 - **One message per turn** (Mechanics). Once it's used, the box says so until the next turn. A **Pass** button gives up the turn's message
 - **Before the turn's last utterance,** if the player hasn't spoken or passed this turn, the game pauses for them. That's the only point where the game waits in a group conversation
-- **When someone addresses the player** (`detectDesignation()`), the player must speak next, so the game pauses for them at once. That reply counts as the turn's message if it isn't used yet. **If it is, the player may still answer** *(proposed to Mechanics, tracker handoff: Mechanics says both that a direct question must be answered and that the player gets one message per turn)*. Passing is always allowed; the next speaker is then chosen by importance, as when the ping-pong guard fires
+- **When someone addresses the player** (`detectDesignation()`), the player must speak next, so the game pauses for them at once. **The answer never uses the turn's message** (Mechanics v0.31): it's an extra line, whether or not the turn's message has been used. Passing is always allowed; the next speaker is then chosen by importance, as when the ping-pong guard fires
 - The player's message counts as one of the turn's utterances, like any line
 - **Addressing someone:** an @-mention of a guest present makes them the addressee, so they must answer next. The first @-mention counts, and only in a Capannello. The @ is dropped from the stored line, which records the addressee as `(to Name)`, as for any guest. The ping-pong guard applies as usual
 - **Speaking order without importance:** the player makes no `think()` call, so they have no importance score. Their held message takes the next slot, and they're otherwise skipped in the importance order. They never win a collision on importance; in a movement collision where both groups are full, the player counts as the more involved guest, so an AI guest moves
@@ -2135,7 +2196,7 @@ Commands are actions, not speech, so they don't use the turn's message (Mechanic
 - **The command menu** shows only the commands allowed right now, with a one-line hint each. A command's name and its hint come from the setting pack, not code
 - **The words in `<>` count toward nothing** and are never spoken aloud
 
-**`/conclude`: how a player works something out** *(new; Dylan, Nov 10; proposed to Mechanics as a command, tracker handoff)*. An AI character gets credit for a deduction from its private thoughts, through the thought pass (10b). A human has no recorded thoughts, so without this a player could only complete a knowledge errand by being told or by saying it aloud.
+**`/conclude`: how a player works something out** *(Dylan, Nov 10; a rule since Mechanics v0.31)*. An AI character gets credit for a deduction from its private thoughts, through the thought pass (10b). A human has no recorded thoughts, so without this a player could only complete a knowledge errand by being told or by saying it aloud.
 - **What it does:** stores the statement as the player's own **belief**, kind `conclusion`, with their exact words as the quote, at that moment. A new `/conclude` replaces the last one (the old one is marked `dropped`), so only the latest counts at the deadline
 - **How it's judged:** the knowledge check (10c) reads it like any belief: matched against the true fact in substance, and a wrong conclusion counts for nothing. The hedge rule applies too, so "perhaps Clarice…" is a suspicion
 - **Never shown to anyone else,** and never in any AI character's prompt
@@ -2184,7 +2245,7 @@ A single page in the style of a Slack chat. Placeholder portraits until Art's ar
 ### How it's built
 
 - **Two parts, as Delivery plans** (Packaging): the `engine` (Node/Express) runs the game and holds all state, and the `web` app (React) is the screen. During development, one command starts both on localhost and opens the browser, e.g. `npm run play -- --as "Francesco Pazzi" --minigame`. Compose comes with Delivery's containers
-- **A human controller:** a character can be marked human in the run settings (`human: <full name>`; none by default). Wherever the engine would make a character call for them, it creates a **pending request** instead and waits for the player's answer. The answer goes through the same validation and the same code paths as a parsed model answer. Everything else in the engine stays as it is
+- **A human controller** *(in the conversation core, `src/core/`; System Architecture, Layers)*: a character can be marked human in the run settings (`human: <full name>`; none by default). Wherever the engine would make a character call for them, it creates a **pending request** instead and waits for the player's answer. The answer goes through the same validation and the same code paths as a parsed model answer. Everything else in the engine stays as it is
 - **The connection:** a WebSocket from the engine to the browser carries events. The player's inputs go back as messages on the same socket:
   - **To the browser:** `line`, `notaio`, `action`, `state` (block 5's fields), `request` (what's being waited for, with its options), `refusal` (with its reason), `death`, `result`
   - **From the browser:** `say` (text, with any @-addressee), `pass`, `command` (as typed), `choice` (the answer to a request), `end` (end the Colloquio)
@@ -2377,6 +2438,10 @@ Mechanics (Il Notaio — Player-Facing Duties) requires these for the first publ
 - ~~**Movement edge cases**~~ Settled: joining or calling someone in a Colloquio follows Seating, Edge cases (Mechanics v0.25)
 - **Seating in the full games** (v0.26): the first live check (CC-20261028-08) exercised only the invitee's wait form, since six guests filled one group of 4. Watch the join choice, the lone-guest form, and chain lengths with 12 guests, where groups with room should be common. No more mini-game spend on this
 - ~~**The in-world names check**~~ *(passed, CC-20261107-01: no game term in 888 prompts or 900 outputs, 0 of 12 midnight answers repaired; Models & Research v0.48)*. It asked (v0.34): one mini-game on TD v0.34 with the matching briefings. Does any game term still appear in thoughts or speech ("Murder Round", "plot point", "faction meeting", "T3"), do midnight acts parse with `watch`, and does the label mix stay within the register check's guardrails?
+- **The reveal action** *(candidate; Models & Research for Dylan, Nov 7)*. A character giving up a secret would mark it on the line, like a bribe, so deliberate tellings become exact entries rather than something the recorder has to catch. Deductions and slips would still need a knowledge check. **Waits on a secret-keeping test** (does marking a reveal make characters reveal more?), and goes with Mechanics' open question on how to tell an errand is done (Mechanics v0.31, Deferred and Open Questions)
+- **Setting text still in code** (from the setting-pack build, PRs #68 and #69):
+  - The conversation names in blocks 5 and 6 ("Colloquio", "Capannello", "the gathering"). They're kept as they are in Florence, but a reskin needs them in `in-world-names.json`. A small, version-gated follow-up
+  - The replay viewer's words ("Florins", "Il Notaio", and the conversation names). Taking them from the setting means each export embeds them, and every published page is re-exported. Best done with the player screen, which reads the same words
 - Is 0.7 the right play temperature on the chosen model? (Revisit after probes)
 - ~~**Run-off announcement**~~ Settled: no vote count is ever announced, the final result included (Mechanics v0.24)
 - **The register check** (v0.27; rule set in advance by Models & Research v0.45, Open Questions): 2 DeepSeek mini-games, seeds 2000–2001, against the v0.19 baseline on the same seeds (CC-20261026-05).
