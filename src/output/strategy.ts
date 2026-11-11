@@ -5,7 +5,7 @@
 // illegality the Stage Manager would reject, not a parse failure.
 
 import { z } from "zod";
-import { resolveAlias } from "../game/roster.ts";
+import { hasRole, resolveAlias } from "../game/roster.ts";
 import { gameAct } from "../prompt/names.ts";
 import { parseJson } from "./json.ts";
 
@@ -103,10 +103,11 @@ export function parseStrategy(kind: StrategyKind, raw: string, expect: StrategyE
 
   if (kind === "murder") {
     const acts = (value as z.infer<typeof MurderOutput>).acts;
-    const lupo = expect.character === "Lupo";
+    // Mechanics: the guest with two Kill orders (Lupo) may only kill, once or twice.
+    const lupo = hasRole(expect.character, "two kills");
     if (lupo) {
-      if (acts.length < 1 || acts.length > 2) illegal.push(`Lupo chose ${acts.length} acts (one or two kills)`);
-      if (acts.some((a) => a.type !== "kill")) illegal.push("Lupo may only kill");
+      if (acts.length < 1 || acts.length > 2) illegal.push(`${expect.character} chose ${acts.length} acts (one or two kills)`);
+      if (acts.some((a) => a.type !== "kill")) illegal.push(`${expect.character} may only kill`);
     } else if (acts.length !== 1) {
       illegal.push(`${acts.length} acts (exactly one)`);
     }

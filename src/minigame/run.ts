@@ -27,6 +27,8 @@ import { LOGPROBS_SETTINGS, callWithLogprobs, type LogprobsSetting, type Logprob
 import { EMBED_PROVIDER, embedderFromEnv, type Embedder } from "./embed.ts";
 import { LORE_SETTINGS, loreHeader, readLoreFile, type LoreEntry, type LoreFile, type LoreSetting } from "./lore.ts";
 import { tdMinor } from "../prompt/assemble.ts";
+import { inWorldNames } from "../prompt/names.ts";
+import { SETTING, say } from "../setting/pack.ts";
 import { RETRIEVAL_METHODS, VectorStore, defaultRetrieval, openStoreDb, pinsEmbeddingProvider, type RetrievalMethod } from "./store.ts";
 import { isolationCheck, type IsolationRecord } from "./isolation.ts";
 import type pg from "pg";
@@ -493,13 +495,15 @@ function buildRecord(
         plot_reward: false,
       },
       seed: x.seed,
+      // TD v0.38: the setting pack the game's words came from (setting/<name>/).
+      setting: SETTING,
       roster: ROSTER,
       aliases: ALIASES,
       cast: CAST,
       personality: "none: stock model; the secret-keeping lines are part of TD v0.5's prompts",
       // Test-setup choices for the mini-game, not the game's rules (Dylan, Oct 24).
       minigame_settings: [
-        "Il Notaio's opening line: a smaller gathering of six; the other guests are alive but elsewhere and can't be reached",
+        `${inWorldNames().narrator.name}'s opening line: a smaller gathering of six; the other guests are alive but elsewhere and can't be reached`,
         ...(tdMinor(x.docs.versions.technicalDesign) < 23 ? ["Interim lone-guest rule: a guest left alone in a Capannello joins the other Capannello at once (permanent rule with Mechanics)"] : []),
         ...(x.docs.templates.move?.includes("{target}") ? ["Block 9c's {target} in the choice lines reads 'your target' (fixed in TD v0.20)"] : []),
         ...((x.settings as { speakAppend?: string }).speakAppend ? [`Variant: every character's Block 9b ends with the added line "${(x.settings as { speakAppend?: string }).speakAppend}"`] : []),
@@ -564,7 +568,7 @@ function transcript(game: MiniGame, gameId: string): string {
     }
     if (e.type === "thought" && e.call !== "plan") out.push(`  - *${e.character} thinks (${e.closing ? "closing think" : e.call}${e.took !== undefined ? `, took ${e.took}${e.words ? `, words "${e.words}"${(e.words_log as { same_speaker?: string } | undefined)?.same_speaker ? ` (same speaker, earlier line ${(e.words_log as { same_speaker: string }).same_speaker})` : ""}` : (e.words_log as { wrong_line?: string } | undefined)?.wrong_line ? `, wrong-line words (in ${(e.words_log as { wrong_line: string }).wrong_line})` : (e.words_log as { fallback?: string } | undefined)?.fallback ? `, words fallback (${(e.words_log as { fallback: string }).fallback})` : ""}${e.took_target ? ` (asked about ${e.took_target === "own" ? "own line" : e.took_target === "other" ? `${e.target_line}` : "no line"})` : ""}` : ""}${e.importance !== undefined && !e.closing ? `, importance ${e.importance}` : ""}${e.done && !e.closing ? ", done" : ""}${e.repeat ? ", exact repeat: not shown again" : ""}):* ${e.text}`);
     if (e.type === "readings" && ((e.stored as string[]).length || (e.logged as string[]).length)) out.push(`- *readings: ${(e.stored as string[]).join(", ") || "none"}${(e.logged as string[]).length ? `; labels not stored: ${(e.logged as string[]).join("; ")}` : ""}*`);
-    if (e.type === "bribe") out.push(`  - **[${e.from} gave ${e.to} ${e.amount} Florins.]**`);
+    if (e.type === "bribe") out.push(`  - **[${say("notaio", "lines.payment", { actor: String(e.from), other: String(e.to), amount: String(e.amount) })}]**`);
     if (e.type === "borrow" || e.type === "repay") out.push(`  - **[${e.character}: ${e.type}${e.holder ? ` for ${e.holder}` : ""}]** (private)`);
     if (e.type === "move") out.push(`- **Movement window: ${e.character}** → ${e.choice}${e.target ? ` ${e.target}` : ""}${e.note ? ` (${e.note})` : ""}`);
     if (["colloquio-open", "colloquio-close", "colloquio-done", "colloquio-waits", "ping-pong-guard", "stall", "move-noop"].includes(e.type)) out.push(`- *${e.type}: ${JSON.stringify(Object.fromEntries(Object.entries(e).filter(([k]) => !["turn", "type"].includes(k))))}*`);
@@ -586,7 +590,7 @@ function memoryDump(game: MiniGame, gameId: string): string {
   for (const e of game.memory.entries.filter((x) => x.type !== "event")) {
     out.push(`- \`${e.id}\` ${renderEntry(e)} — speaker ${e.speaker ?? "–"}, lines ${e.lines.join(", ")}, heard by ${e.audience.join(", ")} (${e.source})`);
   }
-  out.push("", `Il Notaio event entries (code): ${game.memory.entries.filter((x) => x.type === "event").length}`, "", "## Beliefs", "");
+  out.push("", `${inWorldNames().narrator.name} event entries (code): ${game.memory.entries.filter((x) => x.type === "event").length}`, "", "## Beliefs", "");
   for (const b of game.memory.beliefs) out.push(`- \`${b.id}\` ${b.character} · ${renderBelief(b)} (${b.status}; from ${b.thought}: "${b.quote}")`);
   out.push("", "## Dropped extraction entries", "");
   for (const d of game.memory.dropped) out.push(`- ${d.pass} turn ${d.turn} ${d.scope}: ${d.reason} — \`${JSON.stringify(d.entry).slice(0, 300)}\``);

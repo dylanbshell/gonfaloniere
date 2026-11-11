@@ -1,0 +1,177 @@
+{
+  "_comment": "Technical Design v0.38's Setting Pack: the setting's name, currency, factions, roster, playable characters, and mini-game cast. Content, under the content license; code reads it and never writes these words itself. A reskin is new docs plus a new folder beside this one.",
+  "name": "Florence, 1492",
+  "currency": {
+    "singular": "Florin",
+    "plural": "Florins"
+  },
+  "factions": [
+    {
+      "name": "Medici",
+      "colour": null,
+      "pension": "may take"
+    },
+    {
+      "name": "Pazzi",
+      "colour": null,
+      "pension": "may take"
+    },
+    {
+      "name": "Dominicans",
+      "colour": null,
+      "pension": "can't take"
+    },
+    {
+      "name": "French Embassy",
+      "colour": null,
+      "pension": "keeps the treasury"
+    }
+  ],
+  "_factions_comment": "`pension`: Mechanics' pension roles. \"may take\" can /borrow a French pension; \"keeps the treasury\" holds it and sees the pension ledger in block 5; \"can't take\" neither. `colour` is unset until the player screen's look is chosen (TD v0.38, Player Interface).",
+  "roster": [
+    {
+      "name": "Piero de' Medici",
+      "faction": "Medici",
+      "subtitle": "Medici · the heir",
+      "aliases": [
+        "Piero",
+        "Signor Piero",
+        "Messer Piero"
+      ]
+    },
+    {
+      "name": "Clarice Orsini",
+      "faction": "Medici",
+      "subtitle": "Medici · the clever cousin",
+      "aliases": [
+        "Clarice",
+        "Madonna Clarice",
+        "Lady Clarice"
+      ]
+    },
+    {
+      "name": "Raffaello de' Medici",
+      "faction": "Medici",
+      "subtitle": "Medici · Piero's younger brother",
+      "aliases": [
+        "Raffaello",
+        "Signor Raffaello",
+        "Messer Raffaello"
+      ]
+    },
+    {
+      "name": "Francesco Pazzi",
+      "faction": "Pazzi",
+      "subtitle": "Pazzi · head of the family",
+      "aliases": [
+        "Francesco",
+        "Francesco de' Pazzi",
+        "Signor Francesco",
+        "Messer Francesco"
+      ]
+    },
+    {
+      "name": "Giorgia Pazzi",
+      "faction": "Pazzi",
+      "subtitle": "Pazzi · Francesco's sister",
+      "aliases": [
+        "Giorgia",
+        "Giorgia de' Pazzi",
+        "Madonna Giorgia",
+        "Lady Giorgia"
+      ]
+    },
+    {
+      "name": "Lupo",
+      "faction": "Pazzi",
+      "subtitle": "Pazzi · the family bodyguard",
+      "aliases": [],
+      "roles": [
+        "two kills"
+      ]
+    },
+    {
+      "name": "Fra Tommaso",
+      "faction": "Dominicans",
+      "subtitle": "Dominicans · the preacher",
+      "aliases": [
+        "Tommaso",
+        "Brother Tommaso",
+        "Father Tommaso"
+      ]
+    },
+    {
+      "name": "Sister Beatrice",
+      "faction": "Dominicans",
+      "subtitle": "Dominicans · the healer",
+      "aliases": [
+        "Beatrice"
+      ]
+    },
+    {
+      "name": "Contessa Isabella",
+      "faction": "Dominicans",
+      "subtitle": "Dominicans · a penitent widow",
+      "aliases": [
+        "Isabella",
+        "Contessa Isabella di Salviati",
+        "Isabella di Salviati",
+        "the Contessa"
+      ]
+    },
+    {
+      "name": "Jeanne d'Orléans",
+      "faction": "French Embassy",
+      "subtitle": "French Embassy · the ambassador",
+      "aliases": [
+        "Jeanne",
+        "Ambassador Jeanne",
+        "Madame Jeanne",
+        "Lady Jeanne"
+      ]
+    },
+    {
+      "name": "Emile de Valois",
+      "faction": "French Embassy",
+      "subtitle": "French Embassy · the King's cousin",
+      "aliases": [
+        "Emile",
+        "Prince Emile",
+        "Prince Emile de Valois"
+      ]
+    },
+    {
+      "name": "Captain Armand LeNoir",
+      "faction": "French Embassy",
+      "subtitle": "French Embassy · captain of the Prince's guard",
+      "aliases": [
+        "LeNoir",
+        "Captain LeNoir",
+        "Armand LeNoir",
+        "Armand",
+        "the Captain"
+      ]
+    }
+  ],
+  "_roster_comment": "Characters' roster: the exact spellings models must use; aliases for matching names in model output; the public subtitle from each briefing (Characters v0.10). `roles`: \"two kills\" is Mechanics' Murder Round special case (two Kill orders that guards and watchers can't stop, and no guard or watch).",
+  "playable": [
+    "Piero de' Medici",
+    "Francesco Pazzi"
+  ],
+  "minigame": {
+    "_comment": "Models & Research's Mini-Game Spec: the six guests, and the three played from stand-in briefings (scenarios/minigame-standin-briefings.md) before Characters v0.9 wrote all twelve.",
+    "cast": [
+      "Lupo",
+      "Contessa Isabella",
+      "Captain Armand LeNoir",
+      "Francesco Pazzi",
+      "Raffaello de' Medici",
+      "Giorgia Pazzi"
+    ],
+    "standins": [
+      "Francesco Pazzi",
+      "Raffaello de' Medici",
+      "Giorgia Pazzi"
+    ]
+  }
+}

@@ -1,6 +1,11 @@
 // Builds character prompts from Technical Design's blocks, in TD's order (most
-// static first, so a character's calls share a cacheable prefix). Pure: the
-// caller supplies templates and values, so the game engine can reuse it.
+// static first, so a character's calls share a cacheable prefix). Pure apart from
+// the setting pack's words (TD v0.38): the caller supplies templates and values,
+// so the game engine can reuse it.
+
+import { hasRole } from "../game/roster.ts";
+import { say } from "../setting/pack.ts";
+import { inWorldNames } from "./names.ts";
 
 export interface PromptTemplates {
   frame: string;
@@ -356,7 +361,8 @@ export function assemblePlanPrompt(t: PromptTemplates, ctx: CharacterContext, tr
  * `kills` list) and adds {distinct_targets_note}; TD v0.4 asked for an `acts` list.
  */
 export function assembleMurderPrompt(t: PromptTemplates, ctx: CharacterContext): AssembledPrompt {
-  const lupo = ctx.characterName === "Lupo";
+  // Mechanics' Murder Round special case: the guest with two Kill orders (Lupo) gets TD's other column.
+  const lupo = hasRole(ctx.characterName, "two kills");
   const murder = template(t, "murder");
   const who = lupo ? "lupo" : "others";
   // TD v0.34+: the in-world values come from TD's own table. Before, these strings (TD v0.4–v0.33's) are kept as they were.
@@ -471,9 +477,9 @@ function stateBlock(t: PromptTemplates, s: StateValues): string {
     florins: String(s.florins),
     pensions_held: s.pensionsHeld ? String(s.pensionsHeld) : "none",
     embassy_ledger: s.embassyLedger
-      ? `Embassy treasury: ${s.embassyLedger.treasury} Florins. Pensions held: ${s.embassyLedger.pensions}.` +
+      ? say("notaio", "lines.embassy_ledger", { amount: s.embassyLedger.treasury, pensions: s.embassyLedger.pensions }) +
         // TD v0.4 adds the most recent change; nothing has changed at a probe's start.
-        (s.embassyLedger.latest ? ` Latest: ${s.embassyLedger.latest}.` : "")
+        (s.embassyLedger.latest ? say("notaio", "lines.embassy_ledger_latest", { latest: s.embassyLedger.latest }) : "")
       : "",
     withdrawal_count: String(s.withdrawalCount),
     plot_status: s.plotStatus ?? "",
@@ -517,7 +523,7 @@ function loreSection(t: PromptTemplates, lore: string[]): string {
 }
 
 export function formatHistoryLine(line: HistoryLine): string {
-  if (line.kind === "notaio") return `[Il Notaio] ${line.text}`;
+  if (line.kind === "notaio") return `[${inWorldNames().narrator.name}] ${line.text}`;
   if (line.kind === "event") return `[${line.text}]`;
   return line.addressee
     ? `${line.speaker} (to ${line.addressee}): ${line.text}`

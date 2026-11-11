@@ -1,0 +1,29 @@
+{
+  "_comment": "Technical Design v0.38's Setting Pack: Il Notaio's notes, then code's private and action lines, as templates. Code fills the {named} placeholders and nothing else ({currency} is the setting's plural). Copied verbatim from the engine (CC-20261111-04), so every game replays unchanged; rewording one is a content change, version-gated like a prompt. The placement lines are still stand-ins until TD drafts Il Notaio's event templates.",
+  "notes": {
+    "attendance": "Tonight is a smaller gathering than most: only {cast} attend. {absent} are alive, but elsewhere tonight, and can't be reached.",
+    "groups": "The guests drifted into company: {others}.",
+    "join": "{actor} joined {others}.",
+    "join_alone": "{actor} took a place in company.",
+    "leave": "{actor} took leave of the company.",
+    "rejoin": "{actor} returned to company and rejoined {others}.",
+    "return_join": "{actor} returned to company and joined {others}.",
+    "return_alone": "{actor} returned to company.",
+    "new_group": "{actor} and {other} returned to company and formed a new group.",
+    "withdrawal": "{actor} drew {other} aside from company — a private word, where none could hear.",
+    "withdrawal_repeat": "{actor} was once again seen withdrawing in private, this time with {other}.",
+    "_withdrawal_repeat_before_comment": "TD v0.25 and earlier: the repeat note before v0.26's rewording, kept so older games replay as they ran.",
+    "withdrawal_repeat_before_td26": "{actor} was once again seen drawing another aside — this time {other}. Some note it is not the first private word sought this evening."
+  },
+  "lines": {
+    "payment": "{actor} gave {other} {amount} {currency}.",
+    "pension_taken": "You accepted a French pension of {amount} {currency}. Your purse: {purse} {currency}.",
+    "pension_renounced": "You renounced the French pension held by {holder}: {amount} {currency} returned to the Embassy.",
+    "pension_refused": "Your attempt to renounce a pension for {holder} failed: no such pension that you can repay.",
+    "pension_refused_self": "yourself",
+    "ledger_taken": "{actor} accepted a pension",
+    "ledger_renounced": "the pension held by {holder} was renounced",
+    "embassy_ledger": "Embassy treasury: {amount} {currency}. Pensions held: {pensions}.",
+    "embassy_ledger_latest": " Latest: {latest}."
+  }
+}

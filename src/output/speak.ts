@@ -7,6 +7,7 @@
 import { z } from "zod";
 import type { ActionType } from "../game/actions.ts";
 import { resolveAlias } from "../game/roster.ts";
+import { say } from "../setting/pack.ts";
 import { parseJson } from "./json.ts";
 import { checkWords, normalizeTook, type Took, type WordsLog } from "./think.ts";
 
@@ -147,7 +148,7 @@ export function parseSpeak(raw: string, expect: SpeakExpectation): SpeakParseRes
 
 function rejectReason(a: SpeakAction, expect: SpeakExpectation): string | null {
   if (!expect.allowedActions.includes(a.type)) return `${a.type} is not allowed right now`;
-  if (a.type === "bribe" && a.amount <= 0) return `bribe of ${a.amount} Florins`;
+  if (a.type === "bribe" && a.amount <= 0) return say("actions", "bribe_not_positive", { amount: a.amount });
   if (a.type === "bribe" && a.amount > expect.florins) return `bribe of ${a.amount} exceeds purse of ${expect.florins}`;
   return null;
 }

@@ -7,6 +7,8 @@
 
 import { z } from "zod";
 import { ALIASES, ROSTER, resolveAlias, type CharacterName } from "../game/roster.ts";
+import { inWorldNames } from "../prompt/names.ts";
+import { settingPack } from "../setting/pack.ts";
 import type { MemoryRules } from "../sources/docs.ts";
 import type { Took, WordsLog } from "../output/think.ts";
 import { nearMiss } from "../output/think.ts";
@@ -352,7 +354,7 @@ export class MemoryStore {
         // The other party: a context line's speaker, or the other name in a cited payment line.
         const others = [
           ...new Set(
-            ctx.flatMap((c) => (c.kind === "speech" ? [c.speaker!] : c.kind === "event" && / gave .* Florins/.test(c.text) ? namesIn(c.text) : [])).filter((n) => n !== speaker),
+            ctx.flatMap((c) => (c.kind === "speech" ? [c.speaker!] : c.kind === "event" && paymentLine.test(c.text) ? namesIn(c.text) : [])).filter((n) => n !== speaker),
           ),
         ];
         if (!toward || !others.includes(toward as CharacterName)) {
@@ -982,7 +984,7 @@ export function renderCodeEntryFor(e: MemoryEntry, c: CharacterName, when: TimeL
   // Il Notaio's v0.26 repeat note is the one "X was …" entry; the pre-v0.26 note keeps its "You was" so old replays stay byte-identical.
   const summary = e.summary.startsWith(`${c} `) ? `You ${e.summary.slice(c.length + 1)}`.replace(/^You was (?=once again seen withdrawing)/, "You were ") : e.summary;
   // TD v0.10: Il Notaio's entries are trimmed to 15 words like quotes, shown as `Il Notaio: "…"`.
-  if (e.type === "event") return `${when(e.turn)} · Il Notaio: "${trimQuote(summary)}"`;
+  if (e.type === "event") return `${when(e.turn)} · ${inWorldNames().narrator.name}: "${trimQuote(summary)}"`;
   return `${when(e.turn)} · ${conversationType(e.where)} · ${e.salient ? "★ " : ""}${summary}`;
 }
 
@@ -1060,15 +1062,18 @@ export function tookTargetLine(
 
 /** Roster names (full or alias) written in a line, e.g. both parties of "Contessa Isabella gave Lupo 3 Florins." */
 export function namesIn(text: string): CharacterName[] {
-  return ROSTER.map((r) => r.name).filter((n) => [n, ...ALIASES[n]].some((a) => new RegExp(`\\b${escapeRe(a)}\\b`).test(text)));
+  return ROSTER.map((r) => r.name).filter((n) => [n, ...ALIASES[n]!].some((a) => new RegExp(`\\b${escapeRe(a)}\\b`).test(text)));
 }
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/** A code-written payment line ("… gave … 3 Florins."), whose names count as context for 10a's `toward`. */
+const paymentLine = new RegExp(` gave .* ${escapeRe(settingPack().currency.plural)}`);
+
 /** TD v0.6 verb check: the summary begins with the speaker's name (any alias), then a verb allowed for the type. */
 export function summaryVerbOk(summary: string, speaker: CharacterName, type: string, rules: MemoryRules): boolean {
   const s = summary.trim().toLowerCase();
-  const names = [speaker, ...ALIASES[speaker]].map((n) => n.toLowerCase()).sort((a, b) => b.length - a.length);
+  const names = [speaker, ...ALIASES[speaker]!].map((n) => n.toLowerCase()).sort((a, b) => b.length - a.length);
   const name = names.find((n) => s.startsWith(`${n} `));
   if (!name) return false;
   const verb = s.slice(name.length).trim().split(/\s+/)[0]!.replace(/[^a-z]/g, "");

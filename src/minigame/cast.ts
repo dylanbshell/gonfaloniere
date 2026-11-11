@@ -4,12 +4,14 @@
 import { readFileSync } from "node:fs";
 import type { CharacterName } from "../game/roster.ts";
 import { atLeast } from "../prompt/names.ts";
+import { settingFile, settingPack } from "../setting/pack.ts";
 import { loadStandinBriefings, type DocSources } from "../sources/docs.ts";
 
-export const CAST: CharacterName[] = ["Lupo", "Contessa Isabella", "Captain Armand LeNoir", "Francesco Pazzi", "Raffaello de' Medici", "Giorgia Pazzi"];
+/** The Mini-Game Spec's six guests, from the setting pack (setting/<name>/setting.json, TD v0.38). */
+export const CAST: CharacterName[] = settingPack().minigame.cast;
 
 /** Played from stand-in briefings until Characters writes them. */
-export const STANDINS: CharacterName[] = ["Francesco Pazzi", "Raffaello de' Medici", "Giorgia Pazzi"];
+export const STANDINS: CharacterName[] = settingPack().minigame.standins;
 export const STANDIN_FILE = "scenarios/minigame-standin-briefings.md";
 
 /** The stand-ins a game on this Characters version needs: none from v0.9, which wrote all twelve briefings (TD v0.34 retires them). */
@@ -23,7 +25,7 @@ export function castBriefings(docs: DocSources): Partial<Record<CharacterName, s
   return { ...docs.briefings, ...(standins.length && loadStandinBriefings(STANDIN_FILE, standins, docs.socialAwareness)) };
 }
 
-export const KNOWN_AT_START_FILE = "scenarios/minigame-known-at-start.json";
+export const KNOWN_AT_START_FILE = settingFile("known-at-start.json");
 
 /**
  * Whether a saved game's character knew a fact at the start, so the check is a sanity check, not spread.
