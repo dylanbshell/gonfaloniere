@@ -111,6 +111,7 @@ details.filters summary { color: var(--muted); cursor: pointer; width: max-conte
 @keyframes arrive { from { background: var(--lapis-wash); } to { background: transparent; } }
 @media (prefers-reduced-motion: reduce) { .ln.fresh { animation: none; } }
 .ln .sp { font-weight: 600; font-size: 12.5px; }
+.ln .player-tag { margin-left: 6px; padding: 0 5px; border: 1px solid var(--lapis); border-radius: 3px; color: var(--lapis); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
 .ln .to { color: var(--muted); font-size: 12.5px; margin-left: 4px; }
 .ln .tx { font: 15.5px/1.55 var(--serif); margin-top: 1px; }
 .ln.notaio .tx { font-style: italic; color: var(--verdigris); }
@@ -744,7 +745,9 @@ dialog#linebox::backdrop { background: rgba(20, 25, 34, 0.45); }
     const who = ui.focus;
     const sp = l.kind === "notaio" ? "Il Notaio" : l.kind === "private" ? `Private to ${nameTag(l.speaker)}` : l.speaker ? nameTag(l.speaker) : "";
     const to = l.addressee ? `<span class="to">(to ${nameTag(l.addressee)})</span>` : "";
-    return `<div class="ln ${cls}${fresh ? " fresh" : ""}" data-line="${esc(l.id)}" tabindex="0" role="button" aria-haspopup="dialog">${sp ? `<span class="sp${l.speaker === who && who ? " me" : ""}">${sp}</span>` : ""}${to}<div class="tx">${esc(l.text)}</div></div>`;
+    // TD v0.39: the header names the character a human played; their lines are marked as the player's.
+    const player = l.kind === "speech" && G && G.header && G.header.human && l.speaker === G.header.human ? `<span class="player-tag" title="Played by a human">player</span>` : "";
+    return `<div class="ln ${cls}${player ? " by-player" : ""}${fresh ? " fresh" : ""}" data-line="${esc(l.id)}" tabindex="0" role="button" aria-haspopup="dialog">${sp ? `<span class="sp${l.speaker === who && who ? " me" : ""}">${sp}</span>` : ""}${player}${to}<div class="tx">${esc(l.text)}</div></div>`;
   }
   const arr = (x) => (Array.isArray(x) ? x : []);
   /** A cast member's name that shows their tooltip on hover or focus; anyone else's is plain text. */

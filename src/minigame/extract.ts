@@ -38,6 +38,9 @@ const CONTEXT_LINES = 4;
 export class Recorder {
   readonly prefixes: Record<string, string> = {};
 
+  /** TD v0.39: a human player's character has no readings, so no perception pass (Player Interface, Calls the player doesn't make). */
+  skipPerception = new Set<CharacterName>();
+
   constructor(
     private docs: DocSources,
     private memory: MemoryStore,
@@ -78,7 +81,7 @@ export class Recorder {
     const thinkers = this.passes.includes("10b") ? [...new Set(thoughts.map((t) => t.character))] : [];
     // TD v0.8: one perception pass per character who heard or spoke a line this turn, alongside 10b.
     const perceivers =
-      this.notebook === "perceived" && this.passes.includes("10e") ? [...new Set(lines.filter((l) => l.turn === turn).flatMap((l) => l.heardBy))] : [];
+      this.notebook === "perceived" && this.passes.includes("10e") ? [...new Set(lines.filter((l) => l.turn === turn).flatMap((l) => l.heardBy))].filter((c) => !this.skipPerception.has(c)) : [];
     await Promise.all([
       ...conversations,
       ...thinkers.map((c) => this.thoughtPass(turn, c, thoughts.filter((t) => t.character === c))),

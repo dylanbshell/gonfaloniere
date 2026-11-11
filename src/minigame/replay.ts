@@ -73,6 +73,12 @@ interface SavedGame {
 
 class ReplayStop extends Error {}
 
+/** TD v0.39: the recorder passes skip a human player's character, which this replay doesn't do yet, so it refuses their games. */
+function notHuman(rec: SavedGame): SavedGame {
+  if (rec.header.human) throw new Error(`${rec.header.game_id} was played by a human (${String(rec.header.human)}); recorder replays of human games aren't built yet`);
+  return rec;
+}
+
 async function main(): Promise<void> {
   process.env.PROBE_RESULTS_DIR = OUT;
   if (!positionals.length) throw new Error("Give the saved game records to replay");
@@ -164,7 +170,7 @@ async function main(): Promise<void> {
   };
 
   const replayOne = async (path: string) => {
-    const rec = JSON.parse(gunzipSync(readFileSync(path)).toString()) as SavedGame;
+    const rec = notHuman(JSON.parse(gunzipSync(readFileSync(path)).toString()) as SavedGame);
     const started = Date.now();
     const memory = new MemoryStore();
     if (perceptionOnly) {
@@ -314,7 +320,7 @@ async function main(): Promise<void> {
  * network calls: the recorder's calls are captured and answered with empty replies.
  */
 async function dryRun(docs: ReturnType<typeof loadDocs>, path: string): Promise<void> {
-  const rec = JSON.parse(gunzipSync(readFileSync(path)).toString()) as SavedGame;
+  const rec = notHuman(JSON.parse(gunzipSync(readFileSync(path)).toString()) as SavedGame);
   const route = await recorderRoute(DEFAULT_PLAY_MODEL, opts["recorder-model"], { offline: true });
   console.log(`DRY RUN: no calls. TD v${docs.versions.technicalDesign}; game ${rec.header.game_id}\nRecorder: ${JSON.stringify(describeRoute(route, null), null, 2)}\n`);
   const shown = new Set<string>();
@@ -370,7 +376,7 @@ async function estimate(docs: ReturnType<typeof loadDocs>, paths: string[], perc
     return kind === "star-pass" ? { sweep: [], entries: [] } : kind === "claims-pass" ? { entries: [] } : kind === "thought-pass" ? { beliefs: [] } : kind === "perception-pass" ? { notes: [] } : null;
   };
   for (const path of paths) {
-    const rec = JSON.parse(gunzipSync(readFileSync(path)).toString()) as SavedGame;
+    const rec = notHuman(JSON.parse(gunzipSync(readFileSync(path)).toString()) as SavedGame);
     const recorder = new Recorder(docs, new MemoryStore(), capture, [], formatLine, listJoin, "perceived", perceptionOnly ? ["10e"] : undefined);
     const thoughts = prepareThoughts(rec);
     for (const t of turnsOf(rec)) await recorder.turn(t, rec.lines, thoughts.filter((x) => x.turn === t && !x.repeat && x.call !== "murder"));
@@ -391,7 +397,7 @@ async function estimate(docs: ReturnType<typeof loadDocs>, paths: string[], perc
 function probeReport(usage: (ClaudeUsage & { kind: string; cost: number })[], paths: string[], spent: number): void {
   const counts = new Map<string, number>();
   for (const path of paths) {
-    const rec = JSON.parse(gunzipSync(readFileSync(path)).toString()) as SavedGame;
+    const rec = notHuman(JSON.parse(gunzipSync(readFileSync(path)).toString()) as SavedGame);
     for (const c of rec.calls) if (c.attempt === 1 && c.kind in MAX_TOKENS) counts.set(c.kind, (counts.get(c.kind) ?? 0) + 1);
   }
   console.log(`Probe: ${usage.length} calls, $${spent.toFixed(5)}`);

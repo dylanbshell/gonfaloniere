@@ -46,6 +46,7 @@ Work arrives as tasks from Dylan, often relayed from Technical Design (TD). The 
 
 - TD v0.39's layers: `src/core/` (conversations, no setting), `src/rules/` (the game's rules as pure functions: no model calls, I/O, or text; config and roles passed in; structured events out), the game, and content. `test/layers.test.ts` fails if `src/rules/` imports anything outside itself, or `src/core/` imports the rules, a game, the mini-game, or the setting.
 - A new rule goes in `src/rules/` with a table test in `test/rules.test.ts` named for its Mechanics section; the game words its events through the setting pack.
+- The human player: the controller, protocol, and WebSocket server are in `src/core/`; the mini-game's side is `src/minigame/player.ts`, with its words in `setting/<name>/player.json`. `test/human.test.ts` plays a scripted game through the protocol and checks the player's event stream holds only their own History and State. A human game (`npm run minigame -- --human "<full name>" --games 1`) still makes model calls for the AI guests.
 
 ## Spend
 

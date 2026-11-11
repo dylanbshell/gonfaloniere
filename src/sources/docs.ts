@@ -69,6 +69,8 @@ export interface DocSources {
   templates: PromptTemplates;
   briefings: Partial<Record<CharacterName, string>>;
   tunables: Tunables;
+  /** Mechanics' "Guards / Investigations needed to block", for midnight's resolution (src/rules/midnight.ts). Not in Tunables, which every game record's header stores. */
+  midnight: { blockAt: number };
   /** Characters' standard social awareness text, filled into every briefing. */
   socialAwareness: string;
   /** TD v0.6's system prompts (★ pass, claims pass, thought pass, knowledge check), and from v0.8 the perception pass; absent before v0.6. */
@@ -174,6 +176,7 @@ export function loadDocs(paths: DocPaths): DocSources {
     templates,
     briefings,
     tunables: parseTunables(mech),
+    midnight: { blockAt: tunableRow(mech, "Guards / Investigations needed to block") ?? 2 },
     judgeRubric: judgeRubric(mr),
     socialAwareness,
     ...(systemPrompts(td) && { systemPrompts: systemPrompts(td)! }),
@@ -472,6 +475,16 @@ function judgeRubric(mr: string): JudgeRubric {
 }
 
 // Mechanics' Tunable Values table, keyed by the placeholder names the prompts use.
+/** One Tunable Values row's first number, or null if the row isn't there. */
+function tunableRow(mech: string, lever: string): number | null {
+  for (const line of section(mech, "## Tunable Values")) {
+    const cells = line.split("|").map((c) => c.trim());
+    const value = cells[2]?.match(/\d+/);
+    if (cells[1] === lever && value) return Number(value[0]);
+  }
+  return null;
+}
+
 function parseTunables(mech: string): Tunables {
   const rows = new Map<string, number>();
   for (const line of section(mech, "## Tunable Values")) {
