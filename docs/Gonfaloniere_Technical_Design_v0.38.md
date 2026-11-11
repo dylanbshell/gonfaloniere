@@ -1,8 +1,34 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.36
+### Version 0.38
 
 ---
+
+## Changes in v0.38
+
+*Clears Delivery's setting-pack handoff (Nov 6), confirms two of Claude Code's choices from the v0.36 build (PR #55), and records two player-screen decisions from Nov 10.*
+
+- **The Setting Pack** (new section): no setting-specific text in a code file if it reaches a prompt, a record, or the screen. Content has two homes, both under the content license. **The docs** keep everything a chat writes and versions, prompts and the rules primer included. **A setting folder** (`setting/florence-1492/`) holds the rest as data: the roster and factions, the in-world names, Il Notaio's templates, action descriptions, and the player screen's words. A reskin is new docs plus a new folder. The first move copies today's text exactly, so existing games replay unchanged
+- **The rules primer stays in this doc,** not in the folder as Delivery's doc suggests. It's a prompt, `docs/` is already content-licensed, and it keeps one owner (FYI to Delivery)
+- **Il Notaio's entries** (Memory Writing): two of Claude Code's choices confirmed. The attendance note names the guests attending, not the absent ones it mentions. A guest returning alone from a Colloquio is the only one named
+- **One theme file for the screen's look** (Player Interface): every colour, font, size, spacing, and corner radius comes from one theme file, so a chosen look is applied there, not in the components. Already in issue #62
+- **The look is still open** (Player Interface): Dylan leans toward the "palazzo ledger" direction (parchment and ink, serif type), with rounded corners rather than square boxes, and prefers a movement card with three choice tiles and a guest picker. Recorded as a preference, not a decision, with the design canvas linked
+- Prompts and blocks 1–10 are unchanged
+
+## Changes in v0.37
+
+*Clears the player front end handoff (the Hub and Mechanics for Dylan, Nov 3–6) and the off-register input handoff folded into it. Dylan's choices, Nov 10.*
+
+- **Player Interface is now a buildable spec** (rewritten). The principle: the player is just another guest. They see exactly what their character would see, the AI characters can't tell, and the server only ever sends the player's own view
+- **Type anytime:** the player's message is held and spoken at the next line boundary. The game pauses for them only before the turn's last utterance, if they haven't spoken or passed, or when someone addresses them. In a Colloquio the game waits for each of their lines
+- **`/conclude`**, a private command that records the player's own conclusion as a belief, so a human can complete a knowledge errand (Piero's) by working it out, as an AI can. Proposed to Mechanics
+- **Mini-game first:** the screen is built and playable as Francesco in the mini-game now. The full game (councils, Piero, candidate selection, speeches, the ballot) follows the full game loop
+- **Off-register input:** an example line under the input box and an orientation note. No polish until a playtest shows it's needed
+- **Il Notaio for the player** (v1): orientation notes, private questions answered from only what the character could know, and corrections. **Jailbreak Detection** gets a method: a judge call before each message is spoken, with a first warning proposed to Mechanics
+- **The game record** names the human character, and the player's inputs are stored as calls with `source: "human"`
+- **Two proposals to Mechanics** (tracker handoff): a player may answer a direct question even after using the turn's message, and a first warning before the jailbreak consequence
+- **Private section** added (tracker rule, Nov 10): the v0.15 changelog's spend line moved there. Per-game run costs stay in the changelogs as design data, like the README's cost per game
+- Prompts and blocks 1–10 are unchanged. The new prompts (Il Notaio's answers, the jailbreak judge) are listed to draft
 
 ## Changes in v0.36
 
@@ -253,7 +279,7 @@
 - **"This conversation" now starts at the character's latest arrival.** A character who returns from a Colloquio isn't asked about lines from before they left (18 stale targets, none stored)
 - **Quoted words drop trailing sentence punctuation** before an "…" (no more "both.…")
 - **Written up from v0.14's build:** when words match both an earlier line by the named speaker and a different speaker's line, the same-speaker match wins and the reading stays
-- **No dedicated re-check for this version.** Spend is near the caps (mini-game ledger $32.06 of $35; the OpenRouter key has $24.55 left of $150). The fit bars move to the first full games' hand-read, or a cheap 2-game play-only run if Models & Research prefers (Open Questions)
+- **No dedicated re-check for this version,** since spend was near the caps (Private). The fit bars move to the first full games' hand-read, or a cheap 2-game play-only run if Models & Research prefers (Open Questions)
 - Blocks 10a–10d are unchanged
 
 ## Changes in v0.14
@@ -397,7 +423,7 @@ Gonfaloniere is being built as an **all-AI simulation first**, and only later as
   - Observe emergent behavior
   - Balance the rules so each faction wins roughly 25% of games
 - Characters run on an open-weight model chosen in **Models & Research (Current Model Plan)**: a development model now, a fine-tuning base later. Personality variants (Neutral, Bold, Cautious; see Models & Research, Research Design) are added later. The engine doesn't depend on which model (see Run Configuration)
-- Features that exist only for a human player are listed under Post-Simulation in mechanics, and the player interface under **Player Interface** below
+- Features that exist only for a human player are in Mechanics (Human Player), and the player interface is under **Player Interface** below. Since v0.37 a player can take one character in the mini-game, and later in the full game; the all-AI simulation stays the default
 
 ---
 
@@ -727,9 +753,44 @@ Every line in block 8 is one of four kinds. All non-speech lines are written by 
 | Capannello round N, turn T | "the {first/second/third} round of mingling, {early/midway/late}", the part by thirds of the round's turns. In block 6 the short form "2nd round, early"; during a council, "the Medici council"; at midnight, "midnight"; during the speeches, "the speeches". **Before the first council** (v0.36): "arrival" in block 6, "The guests' arrival" in block 5 |
 
 - **Kept as they are,** since they're already in-world: Capannello, Colloquio, Il Notaio, Florins, French pension, the ballot, the run-off, the speeches, repentance
-- **Setting pack:** these names are content, not code. They belong in the setting pack with the roster and vocabulary (Open Questions, setting in content), so a reskin renames them in one file
+- **Setting pack:** these names are content, not code. They belong in the setting pack with the roster and vocabulary (The Setting Pack), so a reskin renames them in one file
 - **Switch together:** the briefings use the same names (Characters handoff). The engine loads TD v0.34 or later only with a Characters version that does, and version-gates the old names so earlier games replay byte-identical
 - **Untested:** the wording of blocks 2, 5, 6, and 9e changes, so Models & Research runs a small check (Open Questions)
+
+## The Setting Pack *(new in v0.38)*
+
+*Clears Delivery's handoff (Nov 6). Two reasons for one rule. **The license:** code is MIT and content is CC BY-NC-SA, split by folder, so text adapted from Clifford's game must never sit in a code file (Delivery & Presentation, Licensing and Credit). **A reskin:** Dylan may move the game to another setting (tracker), and that should mean new content, not new code. So everything the game says that belongs to Florence lives in content.*
+
+**The rule:** no setting-specific text in a code file if it reaches a prompt, a game record's text, or the screen. That covers character, faction, and place names, the currency, Il Notaio's words, action descriptions, and anything else of the setting. Code fills placeholders in templates and never writes the words itself. Identifiers and comments may use the game's own terms (`colloquio`, `notaio`), since a reskin keeps the mechanics and renames only what's shown.
+
+**Where the content lives.** Two homes, both under the content license:
+
+| Home | Holds |
+|---|---|
+| **The docs** (`docs/`) | Text a chat writes and versions: the briefings and the Shared Canon (Characters); every prompt block, the rules primer (block 2) included, the plot-point facts, and Il Notaio's templates once drafted (this doc); the tuning values (Mechanics). Loaded by `src/sources/docs.ts` as now |
+| **The setting folder** (`setting/<name>/`, here `setting/florence-1492/`) | Everything else of the setting, as data files (below) |
+
+- **Why the primer stays in this doc** rather than moving to the folder, as Delivery's doc suggests: it's a prompt, and this doc owns and versions prompts. `docs/` is already under the content license, so the folder rule holds either way, and the primer keeps one owner and one changelog. *(FYI to Delivery, tracker handoff)*
+- **A reskin** ships its own docs (or doc sections) and its own setting folder. The run settings name the folder (`setting: florence-1492`, the default). The game record header names it too
+
+**The setting folder's files:**
+
+| File | Holds | Today in |
+|---|---|---|
+| `setting.json` | The setting's name; the currency, singular and plural ("Florin", "Florins"); the factions, each with its colour and its roles (which may take a pension, which keeps the treasury, which can't take one); the roster, each with full name, aliases, faction, and public subtitle ("Pazzi · the family bodyguard"); the playable characters; the mini-game cast | `src/game/roster.ts`, `src/minigame/cast.ts`, faction tests in `src/game/actions.ts` |
+| `in-world-names.json` | The in-world names table (In-World Names) | `scenarios/in-world-names.json` |
+| `notaio.json` | Il Notaio's notes, as templates: join, return, rejoin, a new group, the attendance note. Then code's private and action lines: a payment, a pension taken, renounced, or refused. For the player (v1): orientation notes and corrections | Strings in `src/minigame/engine.ts` |
+| `actions.json` | How each action is described to a character in its allowed-actions list (block 9), as templates | Strings in `src/game/actions.ts` |
+| `player.json` | The player screen's words: labels, command names and hints, example lines, refusal reasons | New (Player Interface) |
+| `known-at-start.json` | Only if a scenario needs more than the facts table's "Known at start" column, as the mini-game does today | `scenarios/minigame-known-at-start.json` |
+
+- **Templates** use named placeholders: `{actor}`, `{others}`, `{amount}`, `{currency}`, `{holder}`. Code fills them, and nothing else
+- **Byte-identical, for now:** the first move copies today's text exactly, so every existing game replays unchanged. Rewording a template later is a content change, version-gated like a prompt
+- **Il Notaio's placement lines are still stand-ins** (Movement Implementation) until his event templates are drafted (Open Questions, prompts still to draft). They move as they are
+- **Test fixtures and probe scenarios** may use the setting freely (CLAUDE.md). Longer passages, like probe dialogue and strategy-test items, belong in `scenarios/`, which the content license covers, rather than in `src/`
+- **The license already follows folders.** The repo's `LICENSE` is one file with two parts, MIT for code and CC BY-NC-SA for content, and the README has a Licensing section. The content part names `docs/`, `scenarios/`, and `results/published/`. It needs `setting/`, `lore/`, and exported game records added (Delivery & Presentation, Licensing and Credit)
+
+---
 
 ## Prompt Drafts
 
@@ -1543,7 +1604,7 @@ Returners enter at the end of the current cycle like any joiner, and Il Notaio n
 | **Thought pass** (10b) | Suspicions and conclusions | The thinker only, as beliefs | – |
 | **Code: readings** (v0.9) | Each `took` other than `none` from the character's own `think()`, attached to its line | The character only. *Not shown in `notebook: shared`* | ★ if taken as a promise, deal, threat, or admission |
 
-**Il Notaio's entries name their people** *(v0.36)*. Code fills `about` from the event itself, never by reading the note's text: the mover for a join or departure, both guests for a withdrawal or return, and the people a broadcast announces (the dead, the candidates). `toward` stays empty. Before v0.36 both `speaker` and `about` were empty, so anything that selects entries by name missed his notes: the knowledge checks' `{memory_entries}`, the Murder Round's "guests the plan names", and Models & Research's wrong-person measure, which wrongly charged every note to retrieval. His notes are part of how secrets travel (Characters' Shared Canon lists them as one way to learn F3), so the checks should see them. **Version-gated** to TD ≥ 0.36, so older games replay byte-identical.
+**Il Notaio's entries name their people** *(v0.36)*. Code fills `about` from the event itself, never by reading the note's text: the mover for a join or departure, both guests for a withdrawal, the guest or guests returning, and the people a broadcast announces (the dead, the candidates). `toward` stays empty. *Confirmed in v0.38 (as built in PR #55):* the attendance note names the guests attending, not the absent ones it mentions; and a guest who returns from a Colloquio alone is the only one named, while a pair returning together are both named. Before v0.36 both `speaker` and `about` were empty, so anything that selects entries by name missed his notes: the knowledge checks' `{memory_entries}`, the Murder Round's "guests the plan names", and Models & Research's wrong-person measure, which wrongly charged every note to retrieval. His notes are part of how secrets travel (Characters' Shared Canon lists them as one way to learn F3), so the checks should see them. **Version-gated** to TD ≥ 0.36, so older games replay byte-identical.
 
 **Reference record** (v0.8): the 10a and 10d entries, stored with their audience exactly as before. In the default mode they're read by knowledge checks, research, and the dashboard, and never retrieved into a character's prompt.
 
@@ -1850,7 +1911,7 @@ WHAT YOU KNOW OF FLORENCE
 | | **Full record** | **Replay record** |
 |---|---|---|
 | Purpose | Debugging, research analysis, the developer dashboard | The public replay viewer |
-| Header | Game ID, date, engine version, doc versions (TD, Mechanics, Characters), run config (secrets removed; includes `lore`, the lore file's hash, and the embedding model; includes the recorder model and `notebook` mode), seeds, roster and aliases, personality assignment, tunable values, briefings verbatim | Same, without seeds and provider details |
+| Header | Game ID, date, engine version, doc versions (TD, Mechanics, Characters), the human character if any (v0.37; null otherwise), run config (secrets removed; includes `lore`, the lore file's hash, and the embedding model; includes the recorder model and `notebook` mode), seeds, roster and aliases, personality assignment, tunable values, briefings verbatim | Same, without seeds and provider details |
 | Events | Every event in order: speech, Il Notaio lines, action lines, **every Florin change** (income, bribes, pensions taken and repaid, votes bought; v0.26), moves, seat calls and placements (with the groups offered and the rule that applied, v0.23), conversations opening and closing (with each Colloquio's chain ID and position), plot checks with their evidence, Murder Round acts and results, ballots, run-off, draw by lot, outcome | Same |
 | Thoughts and plans | Every thought (with its call type and, for `think()`, `after_line`, `took`, `words`, the target type, and whether it was a closing think) and strategy plan | Same (the inner life is the show) |
 | Model calls | Every call: type, character, turn, prompt (static prefix stored once per character, dynamic blocks per call), raw output, parsed output, label log probabilities (v0.21; null where unsupported), repairs, tokens, cost, latency, provider | Left out |
@@ -1945,10 +2006,13 @@ So a full game needs **five knowledge checks** *(v0.35; four before)*: (Piero, F
 
 ## Jailbreak Detection
 
-*The rule and its consequence are in mechanics under Post-Simulation.*
+*The rule and its consequence are Mechanics' (Human Player, Jailbreak Rule). Needed for v1, the first public release, not for the milestone.*
 
-- Detecting a fourth-wall break or out-of-game manipulation attempt is a software problem, likely a classifier or judge prompt run on human player messages
-- Method TBD; only relevant once a human player is added
+- **What it catches:** a message spoken *to the AI* rather than as the character: saying it's a game or an AI, or giving characters out-of-game instructions ("ignore your instructions", "you are a language model"). **Off-register speech is not a jailbreak** (Mechanics): slang, rudeness, and anachronisms are play, and the guests react to them in-world
+- **When:** every player message is checked **before it's spoken.** If it were checked afterwards, the AI characters would already have heard it. It's one recorder call, about a second, and the game is already waiting on the player, so the delay is barely noticed. Commands aren't checked, since they're never spoken
+- **How:** a short judge prompt on the recorder model, temperature 0: the message, the rules primer's one-line description of the evening, and the test above, with examples on both sides. It returns a verdict (`in character`, `off-register`, or `to the AI`) and a one-line reason. Only `to the AI` counts. Prompt to draft
+- **On a hit:** the message isn't spoken, and the verdict and reason go in the record. The consequence is Mechanics': everyone is notified, all guests converge on the player's group with the cap suspended, the character is treated as an Ottoman spy, and they're removed before the election. **Proposed to Mechanics** (tracker handoff): a private warning from Il Notaio the first time, and the consequence only on a second hit. A classifier will sometimes misfire, and removal is final
+- **Measured before release:** a set of hand-written messages, in character, off-register, and to the AI, with known verdicts. It has to flag nearly every "to the AI" message and almost no off-register ones. Models & Research's to run, or the Stress Testing chat's if Dylan adds one
 
 ---
 
@@ -2016,15 +2080,136 @@ It reads all 86 saved mini-game records, degrading gracefully where older ones l
 
 ---
 
-## Player Interface
+## Player Interface *(buildable spec since v0.37)*
 
-*Post-simulation only. Player rules (message limits, Il Notaio's duties) are in mechanics under Post-Simulation.*
+*The rules are Mechanics' (v0.30, Human Player): the player chooses Piero or Francesco, the game waits for them, a dead player becomes a spectator, and commands use the in-world names. This section is how the software does it. Dylan's choices (Nov 10): type anytime, a private `/conclude`, examples and a note for off-register input (no polish yet), and the mini-game first.*
 
-- Entirely text-based, in the style of a Slack chat
-- An illustration of whoever the player is talking to sits alongside the conversation
-- @-mentions with a dropdown to address characters; only characters currently reachable appear
-- /commands for all mechanical actions
-- Il Notaio reachable by @-mention at any time, with messages styled distinctly from character dialogue
+**The principle: the player is just another guest.** The engine runs the same game. The one difference is that a human makes that character's choices instead of model calls. Three things follow:
+- **The player sees exactly what their character would see,** and nothing more. That's blocks 2, 3, and 5 and the character's own History, in the same words. They never see other characters' thoughts, readings, plans, purses, or any conversation their character wasn't in
+- **The AI characters can't tell.** No prompt ever says a guest is human. The player's lines enter History, memory, and the reference record exactly like anyone else's
+- **Isolation is enforced on the server.** The browser only ever receives events from the player character's own History and State. It never gets the full game state with parts hidden, so opening the browser's developer tools can't reveal anything
+
+### Build order
+
+1. **Mini-game first** (Dylan, Nov 10). The 6-guest mini-game already includes Francesco and runs Capannelli, Colloquios, movement, seat calls, `/bribe`, `/borrow`, `/repay`, and midnight, so the screen can be built and played now. Francesco's errand (paying Fra Tommaso) can't be done there, since Tommaso isn't in the cast; the mini-game runs with `plot_reward` off anyway
+2. **Then the full game,** once the full game loop is built: councils, Piero, candidate selection, speeches and `/repent`, the ballot and `/buy`, the run-off, and the full death and result screens. This is the milestone's test (Dylan plays a whole game)
+3. **Then v1, the first public release:** Il Notaio's full player-facing role (below)
+
+### How the game waits for the player
+
+The engine runs one game at a time and **pauses the whole game** whenever it needs the player. Every conversation stops at the next line boundary, so play stays in the same order as an all-AI game and the record stays sequential. There's no timer.
+
+**In a Capannello or council** *(type anytime, Dylan's choice)*:
+- The input box is always open. A message the player sends is held and **spoken at the next line boundary in their conversation**, ahead of the next speaker by importance. It's never cut into the middle of a line
+- **One message per turn** (Mechanics). Once it's used, the box says so until the next turn. A **Pass** button gives up the turn's message
+- **Before the turn's last utterance,** if the player hasn't spoken or passed this turn, the game pauses for them. That's the only point where the game waits in a group conversation
+- **When someone addresses the player** (`detectDesignation()`), the player must speak next, so the game pauses for them at once. That reply counts as the turn's message if it isn't used yet. **If it is, the player may still answer** *(proposed to Mechanics, tracker handoff: Mechanics says both that a direct question must be answered and that the player gets one message per turn)*. Passing is always allowed; the next speaker is then chosen by importance, as when the ping-pong guard fires
+- The player's message counts as one of the turn's utterances, like any line
+- **Addressing someone:** an @-mention of a guest present makes them the addressee, so they must answer next. The first @-mention counts, and only in a Capannello. The @ is dropped from the stored line, which records the addressee as `(to Name)`, as for any guest. The ping-pong guard applies as usual
+- **Speaking order without importance:** the player makes no `think()` call, so they have no importance score. Their held message takes the next slot, and they're otherwise skipped in the importance order. They never win a collision on importance; in a movement collision where both groups are full, the player counts as the more involved guest, so an AI guest moves
+
+**In a Colloquio** the player speaks in turn (Mechanics). The guests alternate, and **the game waits for each of the player's lines.** Whoever called the Colloquio speaks first. The player can end it at any time with the **End conversation** button. The other guest then gets one closing line, and the player gets nothing more. If the AI guest ends it (`done`), the player is asked for one closing line, which they can pass. The cap (about 6 lines) applies as usual.
+
+**At the player's own decision points** the game pauses and shows a card (see The screen):
+- **Movement window:** stay, move toward a guest, or call a Colloquio with a guest. The list is every living guest, with no locations, like block 9c. A move toward a guest in a Colloquio waits under the usual rule (Seating, edge case c)
+- **Seat choices:** as an invitee when a Colloquio ends, join a group with room or call a free Colloquio (or wait, only when no group has room). As a lone guest, join one of the groups with room. The groups offered are the ones block 9h shows, with their guests named
+- **Midnight:** one act (kill, guard, or watch, and a living guest), plus the extra act if they finished their errand. The same validation as block 9e applies: different targets, no guarding yourself
+- **Full game only:** candidate selection, a speech if they're the candidate, the ballot (`/vote` and `/buy`), and the run-off. Their cards follow the full game loop's spec of those phases, which is still to draft
+
+**Calls the player doesn't make:** `think()`, strategy plans, and every system call. The engine skips them for the player's character. So the player's character has no readings, no thoughts, and no plan in the record, and its notebook holds only code entries and `/conclude` beliefs (below). The recorder passes still read the player's lines, like anyone's.
+
+### Commands
+
+Commands are actions, not speech, so they don't use the turn's message (Mechanics). Each is checked by the Stage Manager exactly like an AI's action. A valid one is applied at the next line boundary and writes its usual action line. **A refused one** is refused with its reason, privately: mistimed, not allowed, can't afford it, unknown guest, or not present.
+
+| Command | When | Notes |
+|---|---|---|
+| `/bribe @Name n` | In a Colloquio, with that guest | A plain transfer of n Florins |
+| `/borrow` | Any time | Takes one French pension (not Dominicans or the French) |
+| `/repay` or `/repay @Name` | Any time before the ballot | Own pension, or a relative's |
+| `/kill`, `/guard`, `/watch @Name` | Midnight only | Typed, or chosen on the midnight card |
+| `/conclude <statement>` | Any time | Private. See below |
+| `/repent <tagline>` | Speeches, candidates only | Full game |
+| `/vote @Name`, `/buy n` | The ballot | Full game. `/buy` adds n votes for the same guest |
+
+- **The command menu** shows only the commands allowed right now, with a one-line hint each. A command's name and its hint come from the setting pack, not code
+- **The words in `<>` count toward nothing** and are never spoken aloud
+
+**`/conclude`: how a player works something out** *(new; Dylan, Nov 10; proposed to Mechanics as a command, tracker handoff)*. An AI character gets credit for a deduction from its private thoughts, through the thought pass (10b). A human has no recorded thoughts, so without this a player could only complete a knowledge errand by being told or by saying it aloud.
+- **What it does:** stores the statement as the player's own **belief**, kind `conclusion`, with their exact words as the quote, at that moment. A new `/conclude` replaces the last one (the old one is marked `dropped`), so only the latest counts at the deadline
+- **How it's judged:** the knowledge check (10c) reads it like any belief: matched against the true fact in substance, and a wrong conclusion counts for nothing. The hedge rule applies too, so "perhaps Clarice…" is a suspicion
+- **Never shown to anyone else,** and never in any AI character's prompt
+- **It matters for:** Piero's errand (F1), and any knowledge errand a playable character gets later. Francesco's errand is a payment, so it doesn't need it
+
+### The screen
+
+A single page in the style of a Slack chat. Placeholder portraits until Art's are ready: initials in a circle, coloured by faction.
+
+```
+┌──────────────┬─────────────────────────────────────┬──────────────┐
+│ YOU          │ The second round of mingling, early │ [portrait]   │
+│ [portrait]   │ Capannello with Giorgia, Lupo       │ Lupo         │
+│ Francesco    │─────────────────────────────────────│ Pazzi · the  │
+│ Pazzi        │ Il Notaio: Lupo joined the company. │ family       │
+│              │ Giorgia Pazzi: …                    │ bodyguard    │
+│ Purse  11 F  │ Lupo (to you): …                    │              │
+│ Pensions 0   │ You: …                              │              │
+│ Errand: …    │ Lupo is speaking…                   │              │
+│              │─────────────────────────────────────│              │
+│ HERE         │ ┌ MOVEMENT WINDOW ────────────────┐ │              │
+│ Giorgia      │ │ Stay · Move toward… · Call aside…│ │              │
+│ Lupo         │ └─────────────────────────────────┘ │              │
+│              │─────────────────────────────────────│              │
+│ [Briefing]   │ > @Lupo …              312/500 [Pass]│              │
+│ [Rules]      │ e.g. "Sit with me. We should talk." │              │
+└──────────────┴─────────────────────────────────────┴──────────────┘
+```
+
+- **Left, your character:** portrait, name, faction, purse, pensions held, and the errand line. Once the errand check has run, its result appears there in the same words as `{plot_status}`. Then **who's here,** and buttons for **Your briefing** (block 3, in full) and **The rules** (block 2). All of this is block 5's content and no more
+- **Centre, the conversation:** the time label (block 5's phase label) and the conversation's members at the top. Then the stream: lines, Il Notaio's notes in a distinct style, action lines, and lines addressed to the player marked as such. A "…is speaking" indicator shows while a line is generated. Earlier conversations stay above, behind a divider ("You joined Giorgia and Lupo")
+- **Decision cards** appear in the stream when the game is waiting for a choice: movement, seat, midnight, and in the full game candidate selection, the speech, the ballot, and the run-off. While a card is open, the message box is closed
+- **The input box:** a character counter (500, Mechanics), Pass, an @-mention dropdown of guests present only, and the command menu. Under it, **one example line**, plain and period-fitting, rotated from the setting pack (Off-register input, below)
+- **Right, who you're talking to:** in a Colloquio, the other guest; in a group, the last speaker. Their portrait and the same public line the briefing's subtitle gives ("Pazzi · the family bodyguard")
+- **Name tooltips** show only that public line and faction, never what the replay viewer shows. The player's character doesn't know another guest's purse or withdrawals
+- **No other conversations, no room map, no inner life.** Those are the replay viewer's, after the game
+
+**The look** *(undecided; Dylan, Nov 10)*. Three directions are on a [design canvas](https://claude.ai/artifact/MgVNN1NijQxXrbuy56Tof2): a "palazzo ledger" (parchment and ink, serif type), a dark modern chat, and a clean light style with period accents. **Leaning:** the palazzo ledger, with rounded corners rather than square boxes, and a movement card laid out as three choice tiles (Stay, Join, Colloquio) with a guest picker below, in the ledger's styling. Decide after the first playtest of the plain build.
+
+**Start screen:** one card per playable character, two in the full game (Piero and Francesco) and one in the mini-game (Francesco). Each shows the portrait, name, faction, and the briefing's public subtitle and first paragraph. Choosing a card starts the game; the seed is a run setting, as usual.
+
+**Death:** the box and the cards close, and a banner says the character has died. As a **spectator** the player sees only city-wide broadcasts, from Il Notaio, through to the result (Mechanics). Then the end screen.
+
+**End screen:** the outcome as Il Notaio announces it, whether the player won (their character's win condition, alive or dead), and their errand's result. Then **Open the full replay**, which opens this game's replay-viewer export with every character's inner life. In the mini-game, which has no election, it shows who died at midnight and the errand results.
+
+### How it's built
+
+- **Two parts, as Delivery plans** (Packaging): the `engine` (Node/Express) runs the game and holds all state, and the `web` app (React) is the screen. During development, one command starts both on localhost and opens the browser, e.g. `npm run play -- --as "Francesco Pazzi" --minigame`. Compose comes with Delivery's containers
+- **A human controller:** a character can be marked human in the run settings (`human: <full name>`; none by default). Wherever the engine would make a character call for them, it creates a **pending request** instead and waits for the player's answer. The answer goes through the same validation and the same code paths as a parsed model answer. Everything else in the engine stays as it is
+- **The connection:** a WebSocket from the engine to the browser carries events. The player's inputs go back as messages on the same socket:
+  - **To the browser:** `line`, `notaio`, `action`, `state` (block 5's fields), `request` (what's being waited for, with its options), `refusal` (with its reason), `death`, `result`
+  - **From the browser:** `say` (text, with any @-addressee), `pass`, `command` (as typed), `choice` (the answer to a request), `end` (end the Colloquio)
+  - **Every event sent is built from the player character's own History and State,** never from the game state. A test plays a whole scripted game and checks that the stream holds no thought, reading, plan, or line from any conversation the character wasn't in
+- **One theme file for the look** *(v0.38)*: every colour, font, size, spacing, and corner radius comes from a single theme file (CSS custom properties), and components use only its tokens. The first build is plain and neutral; a chosen look is applied by editing the theme file, not the components
+- **Refresh and reconnect:** the engine keeps the player's event log. On reconnect it replays it, then re-sends any pending request. Surviving an engine restart mid-game is later (Open Questions)
+- **In the game record:** the header names the human character (`human`, or null). Each of the player's inputs is a call record with `source: "human"`, the text as typed, the parsed result, and its verdict (valid or refused, with the reason). It has no model fields and no cost. The replay viewer marks the player's lines as the player's
+- **Setting in content:** every word the screen shows comes from the setting pack: labels, command names and hints, example lines, refusal reasons, orientation notes, and the playable characters. That includes "Florins", "Capannello", and "Il Notaio". Nothing setting-specific goes in the web app's code (The Setting Pack, `player.json`)
+- **A scripted player for tests:** a fake human that plays through the same WebSocket protocol with canned inputs, against the fake model caller. It speaks, passes, answers an address, bribes in a Colloquio, borrows, moves, calls a Colloquio, makes a seat choice, concludes, and submits midnight acts. It runs in `npm test`, so the whole path is tested with no model calls and no browser
+- **Cost:** a human character makes no model calls, so a game with a player costs a little less than an all-AI one. The extra calls in v1 are listed below
+
+### Off-register input *(Dylan, Nov 10: examples and a note; no polish yet)*
+
+Slang, very casual phrasing, or anachronisms are play, not a jailbreak (Mechanics, Jailbreak Rule). They won't break the engine, but they may pull the AI characters' register casual (Models & Research). Two light touches:
+- **An example line under the input box,** plain and period-fitting, rotated from a short list in the setting pack. It shows the register without a rule to read. Example lines follow the register: plain English, no "thee", no flourish
+- **An orientation note at the start** (v1: Il Notaio's first note; until then, a line on the start screen): speak as your character would, plainly; guests react to strange talk as guests would
+- **Not now: a previewed "polish"** that rewrites a message before sending. It would cost a model call and a wait per message, and make the player's words not quite theirs. Add it only if a playtest shows casual input pulling the AI characters casual. If it's added, it's always previewed and never silent (Open Questions)
+
+### Il Notaio for the player *(v1; not needed for the milestone)*
+
+Mechanics (Il Notaio — Player-Facing Duties) requires these for the first public release. The milestone's playtest runs without them; refusals show as plain notices from the same templates.
+- **Orientation notes:** short private notes at the first council, the first movement window, the first Colloquio, midnight, and the ballot. In the mini-game: the first movement window, the first Colloquio, and midnight. Templates in the setting pack, each shown once
+- **Questions:** the player can @-mention Il Notaio at any time to ask about the rules or the state of the game. This is a private aside: nothing is spoken, and the game doesn't pause for it. **One model call** on the recorder model, given only blocks 2, 3, and 5 and the character's History, so it can't answer beyond what the character could know. It answers in his voice, briefly. If it doesn't know, it says so. Prompt to draft
+- **Corrections:** every refusal explained in his voice, from templates, one per reason
+- **The jailbreak rule:** see Jailbreak Detection
 
 ---
 
@@ -2178,8 +2363,13 @@ It reads all 86 saved mini-game records, degrading gracefully where older ones l
 - **Should the ★ pass see the claims pass's output, or the reverse,** to avoid an admission also being recorded as a claim? Currently independent; duplicates are harmless in memory but would inflate counts
 - Is F2's "unmistakable description" right? If LeNoir firmly concludes "the Salviati widow" without naming her, it counts; "a Salviati" alone doesn't. Watch whether this line is hit in play
 - Should the thought pass skip characters whose thoughts this turn were all inside a Colloquio already read by the ★ and claims passes? (Cost only)
-- Jailbreak detection method (post-simulation)
-- **Prompts still to draft:** candidate selection and speeches (phases E–F); Il Notaio's event templates (wording examples exist in Mechanics)
+- ~~Jailbreak detection method~~ Specified in v0.37 (Jailbreak Detection); its judge prompt is still to draft, and it needs a test set before release
+- **Player interface, still open** (v0.37):
+  - **Surviving an engine restart mid-game.** Reconnecting after a browser refresh is in; resuming after the engine itself stops needs the full engine's state in the database. Matters once full games take hours to play
+  - **Does off-register input pull the AI characters casual?** Watch the first playtests. If it does, the previewed polish is the first lever
+  - **Does the player wait too long?** A group conversation is a few seconds per line, but the whole game pauses for the player. Measure how long a played game takes
+  - **A note pad for the player:** AI characters have a written plan (block 4). A private notes box, kept in the browser, might help a human over a long evening. Add if the playtest asks for it
+- **Prompts still to draft:** candidate selection and speeches (phases E–F); Il Notaio's event templates (wording examples exist in Mechanics); for v1, Il Notaio's answers to the player and the jailbreak judge (Player Interface, Jailbreak Detection)
 - **Actions in `speak()` or in their own call?** Decide after the mini-game
 - Whether characters should see Il Notaio's tally of *other* characters' withdrawals, or only infer it from witnessed notes (currently: only witnessed notes)
 - **Should characters see where everyone is?** In a real palazzo you could see across the room. Currently they see only their own group; showing the room would make movement easier and make Il Notaio's notes less special. Since v0.23 the seat call (9h) shows the groups with room, the first glimpse past a character's own group
