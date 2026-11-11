@@ -1,9 +1,19 @@
 # Gonfaloniere
 ## Game Mechanics — Working Document
-### Version 0.30
+### Version 0.31
 *Formerly "Plots in the Palazzo"*
 
 ---
+
+## Changes in v0.31
+
+*Clears two handoffs (Technical Design v0.38, Nov 10; Models & Research v0.52, Nov 7), with Dylan's answers.*
+
+- **`/conclude`** (Dylan's choice): a private command that records the player's own conclusion, so a human can complete a knowledge errand by working it out, as an AI can through its private thoughts. Only the latest conclusion counts at the deadline; a wrong or hedged one counts for nothing
+- **Answering a direct question** doesn't use the turn's message: a player addressed directly may answer even after speaking that turn
+- **One private warning** before the jailbreak consequence: the first hit isn't spoken and Il Notaio warns the player privately; only a second hit brings the consequence
+- **Reveal action** listed as a candidate under Deferred, waiting on two tests
+- **Open question raised:** how to tell when an errand is done is one of the hardest design problems in the game (Dylan)
 
 ## Changes in v0.30
 
@@ -510,6 +520,7 @@ The current value of every number that balancing may adjust. Each is also stated
 ## Considered, Deferred, or Removed
 
 **Deferred:**
+- **Reveal action** (Dylan, via Models & Research, Nov 7) — a character giving up a secret marks it on that line, like a bribe: which fact, and to whom. Deliberate tellings, every errand-completing event so far, would then be recorded exactly; deductions and slips would still need a knowledge check. Waits on two tests: a secret-keeping test (a reveal option on every line may prime characters to give secrets away) and Models & Research's golden set of errand scenes
 - **Sibyl of San Marco** — cryptic verse oracle for 1 Florin per question; deferred due to uncertainty about how well characters would decode her verse, and about game balance
 - **Pension and Florin inheritance** — passing a dead character's pensions or Florins to surviving faction members; a lever to test if killing proves too powerful
 - **Personal goal rewards** — a fixed Florin reward per achieved personal goal (one tuning knob, converting to votes through the vote price). Requires rewriting goals so they can be checked from the record of the game, and favoring goals that can be completed mid-game. Watch for Florins being worth more to Dominicans, and for goals that allies could trigger just by passing money around
@@ -558,6 +569,11 @@ The current value of every number that balancing may adjust. Each is also stated
   - **Beatrice's clue speeds LeNoir:** she can name Lupo, one step from Isabella. Weigh against Isabella's plot point
   - **Lupo is the hub:** games where he dies or talks early will diverge
   - **Uneven difficulty:** Emile's is now harder, Beatrice's gets another clue path from Characters, and Raffaello's stays (reachable in mini-games). Re-check all twelve once full games run
+- **How do we know an errand is done?** (Dylan, Nov 11: one of the hardest design questions in the game.) Five of the twelve errands are logged and exact (meetings, payments, the pension ledger). The other seven rest on whether a character has *learned* something, judged by a knowledge check that carries the memory known limit. Options so far, which can combine:
+  - **Knowledge checks as built,** if Models & Research's golden set shows they cross the pass line wrongly in at most 1 of ~30 scenes
+  - **The reveal action** (Deferred) for deliberate tellings, with a narrower check for deductions and slips
+  - **`/conclude`** for the human player's own deductions (adopted)
+  - **Fallback:** only logged errands earn the Plot Reward, and knowledge errands become motivation only, or are rewritten into logged ones
 - **More playable characters after v1:** which of the other ten to open up, and whether any (e.g. Lupo, with his special kills) need extra interface work
 
 ---
@@ -582,9 +598,11 @@ Rules for when one character is played by a human. The all-AI simulation ignores
 ### Human Player Input
 
 - **In a Capannello or council:** one message per turn, slotted in at the next natural break in the conversation, about what each AI guest gets in a group of three
+- **A direct question can always be answered:** if someone addresses the player, they may answer even if they've already used the turn's message. The answer is an extra line, not the turn's message
 - **In a Colloquio:** the human speaks in turn like any guest, up to the usual cap
 - Maximum 500 characters per message
-- **Commands** don't count toward the limit; they are actions, not speech. They use the in-world names: /kill, /guard, /watch (Investigate), plus /repent, /repay, /borrow, /bribe, /vote, and **/buy** for vote buying
+- **Commands** don't count toward the limit; they are actions, not speech. They use the in-world names: /kill, /guard, /watch (Investigate), plus /repent, /repay, /borrow, /bribe, /vote, **/buy** for vote buying, and **/conclude**
+- **/conclude [statement]:** privately records what the player has worked out, at any time. It's how a human completes a knowledge errand by deduction, as an AI character can through its private thoughts. It's never spoken or shown to anyone. A new /conclude replaces the last, so only the latest counts at the errand deadline, and it's judged like any conclusion: a wrong one counts for nothing, and a hedged one ("perhaps…") is only a suspicion
 - **Movement:** when their window comes, the human chooses stay, move toward a person, or call a Colloquio. As an invitee returning from a Colloquio, they get the same free choice as anyone (a Capannello with room, or a free Colloquio)
 - A command that's mistimed, illegal, or unaffordable is refused, and Il Notaio says why
 
@@ -604,6 +622,7 @@ All of these are required for v1, the first public release, so players always ge
 - All characters converge on that character's Capannello; the 4-character cap is suspended
 - The offending character is treated as an Ottoman spy — a grave social transgression in 1492 Florence
 - The result is effective removal from the game before the Election
+- **One private warning first:** the first time a player's message is judged to break the fourth wall, it isn't spoken, and Il Notaio warns them privately. Only a second hit brings the consequence above. A detector will sometimes misfire, and removal is final
 
 *How a fourth-wall break is detected is covered in Technical Design.*
 
