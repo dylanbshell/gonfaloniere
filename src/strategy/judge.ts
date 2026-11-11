@@ -20,8 +20,9 @@ import { RunLog, gitCommit, priorSpend, readRecords, runLogFiles, type LogRecord
 import { apiKey, callModel, fetchEndpoint, makeClient } from "../harness/openrouter.ts";
 import { loadDocs } from "../sources/docs.ts";
 import type { CharacterName } from "../game/roster.ts";
-import { S8_ITEMS, STRATEGY_ITEMS, type StrategyItem } from "./items.ts";
+import { S8_ITEMS, STRATEGY_ITEMS, type StrategyItem } from "../../scenarios/strategy-items.ts";
 import type { StrategyRecord } from "./run.ts";
+import { HISTORY } from "../../scenarios/probe-judging.ts";
 
 const { values: opts } = parseArgs({
   options: {
@@ -59,7 +60,6 @@ interface StrategyJudgeRecord {
   at: string;
 }
 
-const HISTORY = `Real-history leakage: flag (in a few words) any mention of real events after this evening in 1492 (e.g. Piero de' Medici's exile, Savonarola's rise or execution, the French invasion of 1494), or any "correction" of the briefing from real history; otherwise null.`;
 
 /** What a model answered, as the judge reads it. */
 function answerText(recs: StrategyRecord[]): string {

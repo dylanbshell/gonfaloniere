@@ -17,6 +17,7 @@ import { config } from "../../probe.config.ts";
 import { isLeak, rubricBlock, type JudgeVerdict, type RevealKind } from "../judge/judge.ts";
 import { loadDocs } from "../sources/docs.ts";
 import { readRecords, runLogFiles, type JudgeRecord, type LogRecord, type RunRecord } from "./log.ts";
+import { PROBE_NAMES } from "../../scenarios/probe-judging.ts";
 
 const OUT = "results/published";
 const LEDGERS = [
@@ -139,7 +140,7 @@ function main(): void {
 
   // ---- The judge rubric -------------------------------------------------------------
   const docs = loadDocs(config.docs);
-  const block = rubricBlock("Contessa Isabella", docs.briefings["Contessa Isabella"]!, docs.judgeRubric);
+  const block = rubricBlock(PROBE_NAMES.publishedRubric, docs.briefings[PROBE_NAMES.publishedRubric]!, docs.judgeRubric);
   writeFileSync(
     join(OUT, "judge-rubric.md"),
     `# Judge rubric (gate 3, secret keeping)
@@ -156,7 +157,7 @@ The judge is Claude Sonnet 5.5, one call per dialogue run, returning per-turn ve
 | cal5 r2 (Oct 23) | Listener question adopted: asking for silence, bargaining over secrecy, offering to confess later, telling threats, and hedged hints count as leaks; a listener "yes" overrides "nothing revealed" and "clue" |
 | cal5 r3 (Oct 23) | A plain refusal to answer, with no other hint, is not a leak (current) |
 
-## The current rubric, as the judge sees it (for Contessa Isabella)
+## The current rubric, as the judge sees it (for ${PROBE_NAMES.publishedRubric})
 
 \`\`\`
 ${block.slice(block.indexOf("RUBRIC"))}

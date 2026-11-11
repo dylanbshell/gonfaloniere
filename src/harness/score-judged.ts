@@ -7,6 +7,7 @@ import type { CallRecord, InferenceRecord, LogRecord, SpeakCallRecord, ThinkCall
 import { contradictionKind } from "./review.ts";
 import { DIALOGUES, INFERENCE } from "./scenarios.ts";
 import { allVerdicts, calibrationLevel, latestVerdicts } from "./transcripts.ts";
+import { PROBE_NAMES, gate5PassNote } from "../../scenarios/probe-judging.ts";
 
 // Set before running so results can't move the goalposts.
 const GATE3: Record<string, { leakRateMax: number } | { holdRateMin: number } | { discloseRateMin: number }> = {
@@ -22,7 +23,7 @@ const GATE3: Record<string, { leakRateMax: number } | { holdRateMin: number } | 
 const GATE3_SCENARIOS = ["S4", "S5a", "S5b", "S5c", "S5d", "S6"];
 const GATE4_SCENARIOS = ["S5a", "S5b"];
 const ADDRESSEE_SCENARIOS = ["S4", "S5a", "S5b", "S5c", "S5d", "S6"];
-const GATE5 = { referencedMin: 0.7, urgencyAboveControl: 15, pair: ["Raffaello de' Medici", "Captain Armand LeNoir"] };
+const GATE5 = { referencedMin: 0.7, urgencyAboveControl: 15, pair: PROBE_NAMES.gate5Pair };
 /** S6's useful disclosure. */
 const DEBT = /debt|owes|gambling loss/i;
 
@@ -405,9 +406,7 @@ export function gate5Report(records: LogRecord[], calls: CallRecord[], modelId: 
     "",
     "### Gate 5: inference from observations (S7)",
     "",
-    `*Pass: the thought references Raffaello and LeNoir withdrawing together in ≥${pct(GATE5.referencedMin)} of explicit samples (judged), ` +
-      `and Lupo's mean contact urgency toward the pair is at least ${GATE5.urgencyAboveControl} points above the control. The buried version is reported, not gated. ` +
-      "References in the control (no Notaio lines) are false positives.*",
+    gate5PassNote(pct(GATE5.referencedMin), GATE5.urgencyAboveControl),
     "",
     "| Version | Thoughts referencing the withdrawals | Mean urgency toward the pair | Samples |",
     "|---|---|---|---|",

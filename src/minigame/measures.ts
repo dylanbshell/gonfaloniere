@@ -28,6 +28,9 @@ import { RUBRIC_AMENDMENTS_ID, RUBRIC_REVISION, applyListenerOverride, buildJudg
 import { loadDocs, memoryDefinitions } from "../sources/docs.ts";
 import { MINIGAME_TOTAL_USD } from "./ledger.ts";
 import { CAST, knewAtStart } from "./cast.ts";
+// The secrets judge's notes are setting content (TD v0.38, The Setting Pack).
+import { F2_NOTE, SECRET_KNOWERS, short, startingKnowledge } from "../../scenarios/minigame-secrets.ts";
+import { coherenceJudgePrompt } from "../../scenarios/minigame-judging.ts";
 import { alreadyKnownPass } from "./leakpass.ts";
 import { seatingHealth, seatingHealthLine } from "./seating-health.ts";
 import { formatLine, type CallRecord } from "./engine.ts";
@@ -50,37 +53,8 @@ const { values: opts, positionals } = parseArgs({
 });
 const OUT = "results/minigame";
 
-/**
- * The Shared Canon's starting knowledge, as the secrets judge reads it. v1 is the text the first
- * DeepSeek run was judged with; v2 adds that Raffaello knows F2. The Qwen run is judged with v1 so
- * both models are judged identically; v2 from the next run on (Dylan, Oct 24).
- */
-const F2_NOTE = {
-  v1: "- The man killed at San Frediano was Captain LeNoir's brother: only Contessa Isabella knows (LeNoir knows his brother died there, not who ordered it; Lupo doesn't know whom he killed).",
-  v2: "- Contessa Isabella ordered the killing of Captain LeNoir's brother: Contessa Isabella knows, and Raffaello de' Medici (his plot point is to tell LeNoir); LeNoir knows his brother died there, not who ordered it; Lupo doesn't know whom he killed.",
-};
 if (!(opts.notes! in F2_NOTE)) throw new Error(`--notes must be ${Object.keys(F2_NOTE).join(" or ")}`);
-const STARTING_KNOWLEDGE = `- Lupo is a contract killer: Lupo and Contessa Isabella know (Francesco does not).
-- Contessa Isabella hired Lupo for the San Frediano killing: Lupo and Contessa Isabella know.
-${F2_NOTE[opts.notes as keyof typeof F2_NOTE]}
-- Giorgia Pazzi and Captain LeNoir are lovers: only the two of them know.
-- Francesco Pazzi and Clarice Orsini are lovers: Francesco knows (Clarice isn't here).
-- Raffaello de' Medici owes Contessa Isabella for a gambling loss: the two of them know.`;
-
-/**
- * Who knew a secret at the start, by the speaker and the judge's wording of the secret. A leak
- * heard only by people who already knew is reported apart from the spread; the judge is told the
- * rule (MINI-GAME NOTES) but in the full run still flagged private lines to Lupo about his own job.
- */
-const SECRET_KNOWERS: { speaker: CharacterName; match: RegExp; knowers: CharacterName[] }[] = [
-  { speaker: "Contessa Isabella", match: /San Frediano|hired Lupo|contract killer/i, knowers: ["Contessa Isabella", "Lupo"] },
-  { speaker: "Contessa Isabella", match: /LeNoir'?s brother|Lucien/i, knowers: ["Contessa Isabella", "Raffaello de' Medici"] },
-  { speaker: "Contessa Isabella", match: /debt|gambling/i, knowers: ["Contessa Isabella", "Raffaello de' Medici"] },
-  { speaker: "Lupo", match: /San Frediano|Isabella|client|contract killer|kills? for/i, knowers: ["Contessa Isabella", "Lupo"] },
-  { speaker: "Raffaello de' Medici", match: /debt|gambling/i, knowers: ["Contessa Isabella", "Raffaello de' Medici"] },
-  { speaker: "Giorgia Pazzi", match: /affair|lover|LeNoir/i, knowers: ["Giorgia Pazzi", "Captain Armand LeNoir"] },
-  { speaker: "Captain Armand LeNoir", match: /affair|lover|Giorgia/i, knowers: ["Giorgia Pazzi", "Captain Armand LeNoir"] },
-];
+const STARTING_KNOWLEDGE = startingKnowledge(opts.notes as keyof typeof F2_NOTE);
 
 /** True when everyone else who heard the line knew the secret at the start. */
 function knownToListeners(speaker: string, leak: { heardBy: string[]; secret: string | null }): boolean {
@@ -305,24 +279,8 @@ function coherencePrompt(rec: GameRecord, c: CharacterName): string {
   const plan = rec.events.find((e) => e.type === "plan" && e.character === c)?.plan ?? "(no plan recorded)";
   const mine = rec.lines.filter((l) => l.kind === "speech" && l.speaker === c).map((l) => `[game turn ${l.turn}, ${whereLabel(l.where, c)}] ${l.text}`);
   const thoughts = rec.thoughts.filter((t) => t.character === c).map((t) => `[game turn ${t.turn}, ${t.call}] ${t.text}`);
-  return `You are reviewing one AI character's play in a political intrigue game set at a gathering in Florence, 1492. The character made a plan at the start of the evening, then spoke and thought through the game. Judge two things.
-
-1. plan: did the character follow their plan, or change it for a reason their own thoughts state? "followed": their moves serve the plan's goals and next moves. "changed_with_reason": they departed from it, and a thought says why (new information, a threat, an opportunity). "changed_without_reason": they departed from it with no stated reason. "ignored": nothing they did relates to the plan. Write the reason first, citing game turns.
-2. history_leaks: any mention, in their lines or thoughts, of real historical events after this evening in 1492 (e.g. Piero de' Medici's exile, Savonarola's rise or execution, the French invasion of 1494), or any "correction" of the game's world from real history. Quote each exactly. The game's own world may differ from history; that is not a leak. Return an empty list if there are none.
-
-Reply with JSON only, matching the required schema.
-
-CHARACTER
-${c}
-
-PLAN
-${plan}
-
-LINES
-${mine.join("\n") || "(none)"}
-
-THOUGHTS
-${thoughts.join("\n") || "(none)"}`;
+  // String() is what the template's ${plan} did.
+  return coherenceJudgePrompt(c, String(plan), mine, thoughts);
 }
 
 // ---- Memory (gate 8) ----------------------------------------------------------------------------
@@ -448,8 +406,6 @@ type Result = {
   code: ReturnType<typeof codeMeasures>;
 };
 
-/** Short names that stay distinct: Isabella, LeNoir, Francesco, Raffaello, Giorgia, Lupo. */
-const short = (c: string) => ({ "Contessa Isabella": "Isabella", "Captain Armand LeNoir": "LeNoir" })[c] ?? c.split(" ")[0]!;
 
 /**
  * The "already known" pass on a result's flagged lines (Models & Research v0.36): every cal5 leak line,

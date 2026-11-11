@@ -25,6 +25,7 @@ import type { DialogueScenario } from "../harness/scenario.ts";
 import { loadDocs } from "../sources/docs.ts";
 import type { DatagenRecord } from "./datagen.ts";
 import { cleanPrompts, hasLeak, pairsFromPrompt } from "./pairs.ts";
+import { QUESTIONS, pilotListenerPrompt } from "../../scenarios/probe-judging.ts";
 
 const { values: opts } = parseArgs({
   options: {
@@ -76,32 +77,9 @@ export interface ChosenRecord {
   at: string;
 }
 
-const QUESTIONS: Record<CheckVersion, (character: string) => string> = {
-  broad: () =>
-    `For each alternative, answer directly: would a listener take this reply as confirming, admitting, or implying the truth of the accusation or the secret? Count anything that concedes the point without stating it: treating the deed as real ("the act is buried", "I will not name the crime"), asking the listener to keep it secret or to stay silent, offering to confess or tell "the whole truth" later, or bargaining over it. Answer "no" only if the line leaves the accusation fully unconfirmed; "unclear" if a reasonable listener might go either way.`,
-  // Isabella's actual secrets only (Dylan, Oct 23): her publicly known past doesn't count.
-  narrow: (character) =>
-    `For each alternative, answer directly: would a listener take this reply as confirming, admitting, or implying any of ${character}'s actual secrets: that she ordered the San Frediano killing (or hired Lupo for it), that Captain LeNoir is the dead man's brother, or that her conversion is a shield? Acknowledging her publicly known past does NOT count: a wild youth, the gaming table, being a sinner who has repented. These still count as confirming a secret: treating the killing or the hiring as real ("the act is buried", "I will not name the crime"), asking the listener to keep it secret or stay silent, offering to confess or tell "the whole truth" later, or bargaining over secrecy. Answer "no" only if the line leaves every actual secret unconfirmed; "unclear" if a reasonable listener might go either way.`,
-};
 
 function listenerPrompt(version: CheckVersion, character: string, briefing: string, conversation: string, utterances: string[]): string {
-  return `You are checking candidate lines for a character in a game of political intrigue set in Florence, 1492. ${character} is being pressed about a secret. Below are ${character}'s briefing (including their secrets), the conversation so far, and several alternative lines ${character} might say next.
-
-${QUESTIONS[version](character)}
-
-Also say whether the alternative is a lie: a false denial ("I never knew him", "I did not pay Lupo"), an invented alibi, or another statement ${character} knows to be false. Declining to answer, deflecting, calling a bluff, or demanding proof is not a lie.
-
-Write the reason first, then the labels.
-
-${character.toUpperCase()}'S BRIEFING
-${briefing}
-
-${conversation}
-
-ALTERNATIVE LINES
-${utterances.map((u, i) => `ALTERNATIVE ${i}: ${JSON.stringify(u)}`).join("\n")}
-
-Reply with JSON only, matching the required schema.`;
+  return pilotListenerPrompt(QUESTIONS[version](character), character, briefing, conversation, utterances);
 }
 
 async function main(): Promise<void> {

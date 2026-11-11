@@ -21,11 +21,12 @@ import {
 import { gate3Cell, gate4Cell, gate5Cell, gate5Report, judgedReport, judgedRuns, type JudgedRun } from "./score-judged.ts";
 import { scenarioById, unbriefedGuests } from "./scenarios.ts";
 import { probePool, tdVersionOf } from "./transcripts.ts";
+import { PROBE_NAMES } from "../../scenarios/probe-judging.ts";
 
 // Set before running so results can't move the goalposts. The raw bar applies
 // at every scoring level; constrained decoding ran in S1 only.
 const GATE1 = { raw: 0.95, constrained: 0.99 };
-const GATE2 = { character: "Captain Armand LeNoir", s2AboveS1Median: 30, minSd: 10 };
+const GATE2 = { character: PROBE_NAMES.gate2, s2AboveS1Median: 30, minSd: 10 };
 
 const IMPORTANCE_BANDS = [
   [0, 20],
@@ -301,7 +302,7 @@ function gate2Verdict(scored: Scored[]): { short: string; detail: string[] } {
   return {
     short: `${pass ? "pass" : "**fail**"} (Δ${delta >= 0 ? "+" : ""}${delta}, SD ${spread.toFixed(1)})`,
     detail: [
-      `- LeNoir's median importance: S1 ${median(s1)}, S2 ${median(s2)}; difference ${delta} (needs ≥${GATE2.s2AboveS1Median}): **${delta >= GATE2.s2AboveS1Median ? "pass" : "fail"}**`,
+      `- ${PROBE_NAMES.gate2Short}'s median importance: S1 ${median(s1)}, S2 ${median(s2)}; difference ${delta} (needs ≥${GATE2.s2AboveS1Median}): **${delta >= GATE2.s2AboveS1Median ? "pass" : "fail"}**`,
       `- SD of all raw importance scores across scenarios: ${spread.toFixed(1)} (needs >${GATE2.minSd}): **${spread > GATE2.minSd ? "pass" : "fail"}**`,
       `- Gate 2: **${pass ? "PASS" : "FAIL"}**`,
     ],
@@ -348,7 +349,7 @@ function gate7PreviewReport(scored: Scored[]): string[] {
     const n = (pred: (d: boolean | null | undefined) => boolean) => rows.filter(pred).length;
     // Lupo's plot point needs 5 Florins and he's been paid 3, so he has reason
     // to continue: the preview counts Isabella only (Models & Research v0.8).
-    const label = character === "Contessa Isabella" ? "**Contessa Isabella** (counted)" : `${character} (not counted: scenario flaw)`;
+    const label = character === PROBE_NAMES.gate7Counted ? `**${PROBE_NAMES.gate7Counted}** (counted)` : `${character} (not counted: scenario flaw)`;
     out.push(
       `| ${label} | ${rows.length} | ${pct(n((d) => d === true) / rows.length)} | ` +
         `${n((d) => d === false)} | ${n((d) => d === null || d === undefined)} |`,
