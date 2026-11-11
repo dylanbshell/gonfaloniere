@@ -107,8 +107,9 @@ export type Rank = (rows: { id: string; body: string }[], query: string) => Rank
 export async function replayGame(path: string, rank?: Rank): Promise<{ points: Point[]; calls: number; exact: number; inexact: { n: number; kind: string; character: string | null; firstDiff?: { line: number; recorded: string | null; replayed: string | null } }[]; memory: MemoryStore }> {
   const rec = readRecord(path) as unknown as Rec;
   const h = rec.header;
-  // Mechanics as the record ran on it: the pin moves (v0.20 to v0.30) without the prompts changing.
-  const docs = loadDocs({ ...docsFor(h.docs.technicalDesign!), ...(h.docs.mechanics && { mechanics: mechanicsPath(h.docs.mechanics) }) });
+  // Characters and Mechanics as the record ran on them: the defaults move (Characters v0.10 to v0.11,
+  // Mechanics v0.20 to v0.30) and old records still replay on their own versions.
+  const docs = loadDocs({ ...docsFor(h.docs.technicalDesign!, h.docs.characters), ...(h.docs.mechanics && { mechanics: mechanicsPath(h.docs.mechanics) }) });
   for (const k of ["technicalDesign", "characters", "mechanics"] as const) {
     if (docs.versions[k] !== h.docs[k]) throw new Error(`${h.game_id}: the record ran on ${k} v${h.docs[k]}, but docsFor loads v${docs.versions[k]}`);
   }

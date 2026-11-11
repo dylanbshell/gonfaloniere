@@ -158,8 +158,8 @@ test("TD v0.32 reverts v0.29's voice wording: every prompt is byte-identical to 
 const PROMPTS_V035 = "0864f910e9e5ccdd8ff9a2dd07d31b600f517e20e77f8183a3da39b67314c737";
 
 test("TD v0.36: every prompt is v0.35's with only the changelog's changes: arrival's labels, block 6's ~490 tokens, and no check for a fact known at start", async () => {
-  const v35 = await playFakeOn(loadDocs(docsFor("0.35")));
-  const v36 = await playFakeOn(loadDocs(docsFor("0.36")));
+  const v35 = await playFakeOn(loadDocs(docsFor("0.35", "0.10")));
+  const v36 = await playFakeOn(loadDocs(docsFor("0.36", "0.10")));
   const [before, after] = [v35.calls, v36.calls];
   assert.equal(promptHash(before), PROMPTS_V035, "v0.35 replays byte-identical");
   // The fake game's one knowledge check is (Lupo, F2), and Lupo starts knowing F2 (Known at start): no call.
