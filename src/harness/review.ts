@@ -19,6 +19,7 @@ import { formatHistoryLine } from "../prompt/assemble.ts";
 import { DIALOGUES, INFERENCE } from "./scenarios.ts";
 import type { DialogueScenario } from "./scenario.ts";
 import { allVerdicts, buildTranscripts, calibrationLevel, latestVerdicts, type Transcript } from "./transcripts.ts";
+import { PROBE_NAMES, S7_QUESTION } from "../../scenarios/probe-judging.ts";
 
 const NEGATIVE_SHARE = 0.2;
 
@@ -176,7 +177,7 @@ export function writeInferenceReview(modelId: string, targetIds: string[], rubri
   const out = [
     `# Inference review: ${modelId}, ${targetIds.join(", ")}`,
     "",
-    `Generated ${new Date().toISOString()}. Rubric ${rubricVersion}. Does each private thought reference Raffaello and LeNoir withdrawing together? ` +
+    `Generated ${new Date().toISOString()}. Rubric ${rubricVersion}. ${S7_QUESTION} ` +
       "The control version has no Notaio lines, so a reference there is a false positive.",
   ];
   for (const id of targetIds) {
@@ -203,7 +204,7 @@ export function writeInferenceReview(modelId: string, targetIds: string[], rubri
     out.push(
       `${yes.length} of ${rec.verdict!.samples.length} thoughts judged to reference the withdrawals. Showing all of them and ${no.length} of the rest.`,
       "",
-      "<details><summary>The History Lupo saw</summary>",
+      `<details><summary>The History ${PROBE_NAMES.s7Observer} saw</summary>`,
       "",
       ...(scenario?.history.map((l) => `> ${formatHistoryLine(l)}`) ?? []),
       "",

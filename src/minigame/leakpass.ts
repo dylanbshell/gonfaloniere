@@ -8,44 +8,18 @@
 // changed: the pass returns its own marks beside them. Deliberate reveals stay a hand-read.
 
 import type { CharacterName } from "../game/roster.ts";
+// The secrets themselves are setting content (TD v0.38, The Setting Pack).
+import { secrets } from "../../scenarios/minigame-secrets.ts";
+
+export { secrets };
 
 /** One secret, as a fact shared by everyone whose briefing holds it. */
-interface Secret {
+export interface Secret {
   id: string;
   /** Who knows it at the start of the evening (the Shared Canon, as the secrets judge's notes give it). */
   knowers: CharacterName[];
   /** The judge names secrets in its own words, per speaker; these match them to the fact. */
   match: Partial<Record<CharacterName, RegExp>>;
-}
-
-/**
- * The mini-game's secrets. `notes` follows the judge's notes: v2 adds that Raffaello knows F2 (Isabella
- * ordered the killing of LeNoir's brother), since his plot point is to tell it; v1 doesn't.
- */
-export function secrets(notes: "v1" | "v2"): Secret[] {
-  return [
-    {
-      id: "Isabella hired Lupo for San Frediano",
-      knowers: ["Contessa Isabella", "Lupo"],
-      match: {
-        "Contessa Isabella": /hired|San Frediano|paid him|silence|ordered (the )?San Frediano/i,
-        Lupo: /hired|client|San Frediano|killer|contract/i,
-      },
-    },
-    {
-      id: "the dead man was LeNoir's brother (F2)",
-      knowers: notes === "v2" ? ["Contessa Isabella", "Raffaello de' Medici"] : ["Contessa Isabella"],
-      match: { "Contessa Isabella": /LeNoir'?s brother|LeNoir is the dead man|Lucien|LeNoir'?s connection/i },
-    },
-    { id: "Raffaello's debt to Isabella", knowers: ["Contessa Isabella", "Raffaello de' Medici"], match: { "Raffaello de' Medici": /debt|gambl|owe/i, "Contessa Isabella": /debt|gambl|owes?/i } },
-    { id: "France would back Raffaello over Piero", knowers: ["Raffaello de' Medici", "Captain Armand LeNoir"], match: { "Raffaello de' Medici": /France|French|backing|Piero|encouragement/i } },
-    { id: "LeNoir came to avenge Lucien", knowers: ["Captain Armand LeNoir"], match: { "Captain Armand LeNoir": /avenge|Lucien/i } },
-    { id: "LeNoir carries the boar seal", knowers: ["Captain Armand LeNoir"], match: { "Captain Armand LeNoir": /boar|seal/i } },
-    { id: "Giorgia and LeNoir are lovers", knowers: ["Giorgia Pazzi", "Captain Armand LeNoir"], match: { "Captain Armand LeNoir": /Giorgia|affair|lover/i, "Giorgia Pazzi": /LeNoir|affair|lover/i } },
-    { id: "Francesco and Clarice are lovers", knowers: ["Francesco Pazzi"], match: { "Francesco Pazzi": /Clarice|affair|lover/i } },
-    { id: "Giorgia would put her rise above Francesco's", knowers: ["Giorgia Pazzi"], match: { "Giorgia Pazzi": /rise|above Francesco|ambition/i } },
-    { id: "Giorgia's grudge against Clarice", knowers: ["Giorgia Pazzi"], match: { "Giorgia Pazzi": /grudge|Clarice/i } },
-  ];
 }
 
 /**

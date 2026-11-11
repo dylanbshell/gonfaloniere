@@ -36,7 +36,7 @@ import {
   type CharacterContext,
 } from "../prompt/assemble.ts";
 import { loadDocs } from "../sources/docs.ts";
-import { STRATEGY_ITEMS, type StrategyItem } from "./items.ts";
+import { STRATEGY_ITEMS, type StrategyItem } from "../../scenarios/strategy-items.ts";
 
 const { values: opts } = parseArgs({
   options: {

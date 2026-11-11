@@ -65,13 +65,11 @@ import {
   sameRubric,
   type Transcript,
 } from "./transcripts.ts";
+import { S7_EVENT } from "../../scenarios/probe-judging.ts";
 
 /** Where a dialogue judge prompt's run-specific part begins; everything before it is cached. */
 const TRANSCRIPT_HEADING = "\nTRANSCRIPT\n";
 
-/** The event S7 thoughts are judged against. */
-const S7_EVENT =
-  "Raffaello de' Medici and Captain Armand LeNoir withdrawing together for private words, as recorded by Il Notaio (twice, the second time remarked on).";
 
 const { values: opts, positionals } = parseArgs({
   allowPositionals: true,

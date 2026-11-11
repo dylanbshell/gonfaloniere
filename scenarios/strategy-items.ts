@@ -1,10 +1,11 @@
 // Strategy probes S8–S10 (Models & Research v0.20, Strategy Probes): the
 // scripted moments, each answered through Technical Design v0.4's real task
-// prompt (blocks 9a, 9b, 9d, 9e, 9f, 9g), and S8's answer key.
+// prompt (blocks 9a, 9b, 9d, 9e, 9f, 9g), and S8's answer key. Setting content,
+// so it lives in scenarios/ (TD v0.38, The Setting Pack; moved from src/strategy/items.ts).
 
-import type { CharacterName } from "../game/roster.ts";
-import { defineScenario, type ThinkScenario } from "../harness/scenario.ts";
-import type { HistoryLine } from "../prompt/assemble.ts";
+import type { CharacterName } from "../src/game/roster.ts";
+import { defineScenario, type ThinkScenario } from "../src/harness/scenario.ts";
+import type { HistoryLine } from "../src/prompt/assemble.ts";
 
 const say = (speaker: string, text: string): HistoryLine => ({ kind: "speech", speaker, text });
 const notaio = (text: string): HistoryLine => ({ kind: "notaio", text });
