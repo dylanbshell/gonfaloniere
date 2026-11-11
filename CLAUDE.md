@@ -42,6 +42,11 @@ Work arrives as tasks from Dylan, often relayed from Technical Design (TD). The 
 - Test fixtures and scenarios may use the setting freely.
 - `test/setting-scan.test.ts` fails on any roster name, faction name, or currency word in a string literal under `src/`; an exception needs an allow-list entry with its reason. Still in code: the conversation names ("Colloquio", "Capannello", "The gathering") in block 5 and 6 labels, and the viewer's words (`tools/viewer/`). Don't add more, and move them out when the task touches them.
 
+## Layers
+
+- TD v0.39's layers: `src/core/` (conversations, no setting), `src/rules/` (the game's rules as pure functions: no model calls, I/O, or text; config and roles passed in; structured events out), the game, and content. `test/layers.test.ts` fails if `src/rules/` imports anything outside itself, or `src/core/` imports the rules, a game, the mini-game, or the setting.
+- A new rule goes in `src/rules/` with a table test in `test/rules.test.ts` named for its Mechanics section; the game words its events through the setting pack.
+
 ## Spend
 
 - Model calls run with the keys from 1Password: `PROBE_TOTAL_USD=<stop> op run --env-file=.env -- npm run -s minigame -- …`.

@@ -1,9 +1,13 @@
 // Which /bribe, /borrow, /repay actions a character may take right now
 // (mechanics v0.18, Commands & Public Actions; TD v0.2, Block 9b), as the
-// lines shown in speak()'s {allowed_actions} and the checks applied to replies.
+// lines shown in speak()'s {allowed_actions}. The rule itself is src/rules/economy.ts
+// (CC-20261111-07, #71); this maps a faction to its pension role and words the result.
 
 import { say } from "../setting/pack.ts";
-import { mayTakePension, type Faction } from "./roster.ts";
+import { allowedActionTypes as allowed, type ActionType } from "../rules/economy.ts";
+import { pensionRoleOf, type Faction } from "./roster.ts";
+
+export type { ActionType };
 
 export interface ActionContext {
   faction: Faction;
@@ -15,17 +19,8 @@ export interface ActionContext {
   colloquioWith: string | null;
 }
 
-export type ActionType = "bribe" | "borrow" | "repay";
-
 export function allowedActionTypes(a: ActionContext): ActionType[] {
-  const types: ActionType[] = [];
-  // /bribe: Colloquio only, and only with Florins to give.
-  if (a.colloquioWith && a.florins > 0) types.push("bribe");
-  // /borrow: factions that may take a pension (Medici and Pazzi), while the treasury holds one.
-  if (mayTakePension(a.faction) && a.treasury >= a.pensionSize) types.push("borrow");
-  // /repay: anyone who can pay a whole pension back.
-  if (a.florins >= a.pensionSize) types.push("repay");
-  return types;
+  return allowed({ pension: pensionRoleOf(a.faction), florins: a.florins, pensionSize: a.pensionSize, treasury: a.treasury, colloquioWith: a.colloquioWith });
 }
 
 /** The {allowed_actions} text, worded as in TD's Block 9b notes; the words are the setting pack's (actions.json). */

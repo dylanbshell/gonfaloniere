@@ -6,6 +6,8 @@
 
 import { z } from "zod";
 import { hasRole, resolveAlias } from "../game/roster.ts";
+import { ballotProblems, runoffProblem } from "../rules/ballot.ts";
+import { actProblems } from "../rules/midnight.ts";
 import { gameAct } from "../prompt/names.ts";
 import { parseJson } from "./json.ts";
 
@@ -103,34 +105,32 @@ export function parseStrategy(kind: StrategyKind, raw: string, expect: StrategyE
 
   if (kind === "murder") {
     const acts = (value as z.infer<typeof MurderOutput>).acts;
-    // Mechanics: the guest with two Kill orders (Lupo) may only kill, once or twice.
-    const lupo = hasRole(expect.character, "two kills");
-    if (lupo) {
-      if (acts.length < 1 || acts.length > 2) illegal.push(`${expect.character} chose ${acts.length} acts (one or two kills)`);
-      if (acts.some((a) => a.type !== "kill")) illegal.push(`${expect.character} may only kill`);
-    } else if (acts.length !== 1) {
-      illegal.push(`${acts.length} acts (exactly one)`);
-    }
-    const targets = acts.map((a) => {
-      if (a.target === expect.character) {
-        if (a.type === "guard") illegal.push("guards self");
-        else illegal.push(`${a.type} on self`);
-        return a.target;
-      }
+    // Mechanics (src/rules/midnight.ts): the guest with two Kill orders (Lupo) may only kill, once or twice.
+    const twoKills = hasRole(expect.character, "two kills");
+    const checked = acts.map((a) => {
+      if (a.target === expect.character) return { ...a, self: true, living: false };
       const t = resolve(a.target, expect.livingOthers);
-      if (!t) illegal.push(`target "${a.target}" is not a living guest`);
-      return t ?? a.target;
+      return { type: a.type, target: t ?? a.target, self: false, living: !!t };
     });
-    if (new Set(targets).size !== targets.length) illegal.push("two acts on the same guest");
+    for (const p of actProblems(twoKills, checked)) {
+      if (p.why === "count") illegal.push(p.twoKills ? `${expect.character} chose ${p.count} acts (one or two kills)` : `${p.count} acts (exactly one)`);
+      else if (p.why === "only kills") illegal.push(`${expect.character} may only kill`);
+      else if (p.why === "self") illegal.push(p.type === "guard" ? "guards self" : `${p.type} on self`);
+      else if (p.why === "not living") illegal.push(`target "${p.target}" is not a living guest`);
+      else illegal.push("two acts on the same guest");
+    }
   }
   if (kind === "ballot") {
     const b = value as z.infer<typeof BallotOutput>;
-    if (b.vote !== expect.character && !resolve(b.vote, expect.livingOthers)) illegal.push(`vote for "${b.vote}", not a living guest`);
-    if (b.buy < 0 || b.buy > (expect.maxBuy ?? 0)) illegal.push(`buys ${b.buy} votes (0 to ${expect.maxBuy})`);
+    const voteValid = b.vote === expect.character || !!resolve(b.vote, expect.livingOthers);
+    for (const p of ballotProblems(b.vote, voteValid, b.buy, expect.maxBuy)) {
+      illegal.push(p.why === "vote not living" ? `vote for "${p.vote}", not a living guest` : `buys ${p.buy} votes (0 to ${p.max})`);
+    }
   }
   if (kind === "runoff") {
     const r = value as z.infer<typeof RunoffOutput>;
-    if (!resolve(r.vote, expect.tied ?? [])) illegal.push(`run-off vote for "${r.vote}", not one of the tied guests`);
+    const p = runoffProblem(r.vote, !!resolve(r.vote, expect.tied ?? []));
+    if (p) illegal.push(`run-off vote for "${p.vote}", not one of the tied guests`);
   }
   return { verdict: "valid", fenced, aliasRepairs, errors: [], illegal, value, ...(words !== undefined && { words, truncated }) };
 }
