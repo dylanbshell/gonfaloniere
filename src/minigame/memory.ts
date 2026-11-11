@@ -190,6 +190,8 @@ export interface Belief {
   quote: string;
   /** TD v0.6 hedge rule: the model said "conclusion" but the quote's sentence hedges, so code stored a suspicion. */
   downgraded?: boolean;
+  /** TD v0.39: a human player's `/conclude`, in their own words (no thought). */
+  concluded?: true;
 }
 
 /** An extraction entry that failed a check, kept for the gate 8 report. */
@@ -275,6 +277,22 @@ export class MemoryStore {
 
   entriesFor(c: CharacterName): MemoryEntry[] {
     return this.entries.filter((e) => e.audience.includes(c));
+  }
+
+  /**
+   * TD v0.39's `/conclude` (Player Interface › Commands): the player's statement becomes their own
+   * belief, kind `conclusion`, with their exact words as the quote; a new one drops the last. The
+   * hedge rule applies, so a hedged statement is stored as a suspicion. It has no thought.
+   */
+  conclude(character: CharacterName, statement: string, turn: number, hedges: string[]): Belief {
+    for (const b of this.beliefs) if (b.character === character && b.status === "held" && b.concluded) {
+      b.status = "dropped";
+      b.lastTurn = turn;
+    }
+    const hedged = isHedged(statement, statement, hedges);
+    const belief: Belief = { id: `B${this.nextB++}`, character, kind: hedged ? "suspicion" : "conclusion", status: "held", statement, firstTurn: turn, lastTurn: turn, thought: "", quote: statement, concluded: true, ...(hedged && { downgraded: true }) };
+    this.beliefs.push(belief);
+    return belief;
   }
 
   beliefsOf(c: CharacterName, held = true): Belief[] {

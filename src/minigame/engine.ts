@@ -7,9 +7,12 @@
 // that happens is kept for the game record.
 
 import { allowedActionTypes, allowedActionsText, type ActionContext } from "../game/actions.ts";
-import { ROSTER, factionOf, rulesGuest, type CharacterName } from "../game/roster.ts";
+import type { Answer, HumanController } from "../core/human.ts";
+import type { Incoming } from "../core/protocol.ts";
+import { ROSTER, factionOf, hasRole, rulesGuest, type CharacterName } from "../game/roster.ts";
+import { resolveMidnight, type Act, type MidnightEvent } from "../rules/midnight.ts";
 import type { RulesConfig } from "../rules/config.ts";
-import { borrow, bribe, newEconomy, repay, seesLedger, type ActionType, type Economy } from "../rules/economy.ts";
+import { borrow, bribe, newEconomy, rejectAction, repay, seesLedger, type ActionType, type Economy } from "../rules/economy.ts";
 import { capannelloStart, fallbackTarget, movementWindow } from "../rules/movement.ts";
 import { mulberry32 } from "../rules/random.ts";
 import { fewestGuests, initiatorSeat, interimLoneSeat, inviteeSeatProblem, leastInvolved, loneSeatOptions, loneSeatValid, openGroups, returnSeat, type SeatProblem } from "../rules/seating.ts";
@@ -46,8 +49,11 @@ import { Recorder, sameThought } from "./extract.ts";
 import type { LogprobsSetting, StoredLogprobs } from "./logprobs.ts";
 import { loreLines, type LoreSetting } from "./lore.ts";
 import type { RetrievalMethod, VectorStore } from "./store.ts";
-import { hasArrival, inWorldNames, inWorldTime, minglingPhase } from "../prompt/names.ts";
+import { gameAct, hasArrival, inWorldNames, inWorldTime, minglingPhase } from "../prompt/names.ts";
+import type { RequestKind } from "../core/protocol.ts";
+import { actProblems } from "../rules/midnight.ts";
 import { MemoryStore, renderBelief, tookTargetLine, resolveName, whereLabel, type GameLine, type Thought, type Where } from "./memory.ts";
+import { MESSAGE_MAX, PlayerFeed, mentions, menu, parseCommand, playable, playerSays, refusal, type CommandAction } from "./player.ts";
 
 // ---- Calls -----------------------------------------------------------------------------
 
@@ -82,13 +88,15 @@ export type Caller = (req: CallRequest) => Promise<CallResponse | null>;
 export interface CallRecord {
   n: number;
   turn: number;
-  kind: CallKind;
+  /** "command": a human player's typed command (TD v0.39). */
+  kind: CallKind | "command";
   character: CharacterName | null;
   attempt: number;
   user: string;
   raw: string | null;
   parsed: unknown;
-  verdict: "valid" | "failed" | "default";
+  /** "refused": a human player's input the game refused, with the reason in `error`. */
+  verdict: "valid" | "failed" | "default" | "refused";
   repairs: string[];
   error: string | null;
   costUsd: number;
@@ -99,6 +107,8 @@ export interface CallRecord {
   model: string | null;
   /** TD v0.21: the top 5 candidates at the `took` / `meant` label token (or every token's, with `all`); null where unsupported. Nothing in play reads it. */
   logprobs?: StoredLogprobs | null;
+  /** TD v0.39: a human player's input, with the text as typed in `raw`; no prompt, no model, no cost. */
+  source?: "human";
 }
 
 /** Runner hooks: a turn-end report, for progress lines. */
@@ -143,6 +153,11 @@ export interface GameSettings {
   lore?: LoreSetting;
   /** Knowledge checks at the end: (character, fact id). */
   checks: { character: CharacterName; fact: string }[];
+  /**
+   * TD v0.37–v0.39 run setting `human`: the character a human plays, one of setting.json's playable
+   * characters (none by default). The engine then needs that character's HumanController.
+   */
+  human?: CharacterName | null;
 }
 
 interface Conversation {
@@ -239,6 +254,19 @@ export class MiniGame {
   private loneStays = new Set<string>();
   private nextChain = 1;
 
+  /** TD v0.39's human player, if any: their character, their feed, and what they've sent between line boundaries. */
+  private human: CharacterName | null;
+  private player: PlayerFeed | null = null;
+  /** A message held for the next line boundary in the player's conversation. */
+  private heldSay: string | null = null;
+  /** The turn's message in a Capannello: spoken or passed (Mechanics, one per turn), and whether the game asked before the last utterance. */
+  private turnMessage = { used: false, passed: false, asked: false };
+  private queuedCommands: string[] = [];
+  /** The player ended their Colloquio between line boundaries. */
+  private endRequested = false;
+  /** Midnight's resolution, in a game with a human player (src/rules/midnight.ts); all-AI games log the acts unresolved. */
+  midnight: { deaths: CharacterName[]; events: MidnightEvent[] } | null = null;
+
   constructor(
     private docs: DocSources,
     private s: GameSettings,
@@ -246,6 +274,8 @@ export class MiniGame {
     private hooks: GameHooks = {},
     /** TD v0.22's live store, for `retrieval: embeddings` and `lore: on`. */
     private store: VectorStore | null = null,
+    /** TD v0.39: the human player's controller, with `human` set. */
+    private ctrl: HumanController | null = null,
   ) {
     if (((s.retrieval ?? "overlap") === "embeddings" || s.lore === "on") && !store) throw new Error("retrieval: embeddings and lore: on need the live store (PostgreSQL with pgvector, and an embedding model)");
     this.rng = mulberry32(s.seed);
@@ -264,6 +294,15 @@ export class MiniGame {
     this.rules = { startingFlorins: t.starting_florins, income: t.income, pensionSize: t.pension_size, treasury: t.embassy_treasury, colloquioCap: t.colloquio_cap, maxCapannello: s.maxCapannello };
     // One evening round: starting Florins plus one round's income.
     this.econ = newEconomy(s.cast.map(rulesGuest), this.rules, 1);
+    this.human = s.human ?? null;
+    if (this.human || ctrl) {
+      if (!this.human || !ctrl || ctrl.character !== this.human) throw new Error("a human player needs both the run setting `human` and that character's controller");
+      if (!s.cast.includes(this.human)) throw new Error(`human: ${this.human} isn't in the cast`);
+      if (!playable().includes(this.human)) throw new Error(`human: ${this.human} isn't a playable character (setting.json: ${playable().join(", ")})`);
+      this.player = new PlayerFeed(ctrl, this.human);
+      ctrl.onInput = (m) => this.playerInput(m);
+      this.recorder.skipPerception = new Set([this.human]);
+    }
     for (const c of s.cast) {
       this.chars.set(c, {
         name: c,
@@ -302,6 +341,7 @@ export class MiniGame {
     }
     this.turn = Math.min(this.turn, this.s.turns);
     if (!this.stopped) await this.murderRound();
+    if (!this.stopped && this.player) this.resolveMidnightForPlayer();
     if (!this.stopped) await this.knowledge();
   }
 
@@ -324,8 +364,9 @@ export class MiniGame {
 
   /** No faction meeting in the mini-game: one strategy call (9d) per character to open. */
   private async opening(): Promise<void> {
+    this.sendState();
     await Promise.all(
-      this.s.cast.map(async (c) => {
+      this.s.cast.filter((c) => c !== this.human).map(async (c) => {
         const ctx = await this.context(c);
         const p = assemblePlanPrompt(this.docs.templates, ctx, "The evening has begun, and the guests are gathering.");
         const r = await this.characterCall("plan", c, p, (raw) => {
@@ -347,17 +388,28 @@ export class MiniGame {
       this.pendingColloquio = null;
       if (this.conv(target).kind === "capannello" && this.conv(mover).kind === "capannello") this.openColloquio(mover, target);
     }
+    this.turnMessage = { used: false, passed: false, asked: false };
     let utterances = 0;
     while (utterances < this.s.utterancesPerTurn && !this.stopped) {
       let progressed = false;
       for (const conv of [...this.convs.values()]) {
         if (utterances >= this.s.utterancesPerTurn || this.stopped) break;
+        // TD v0.39: before the turn's last utterance, the game waits for a player who hasn't spoken or passed.
+        if (this.human && utterances === this.s.utterancesPerTurn - 1 && (await this.lastCall())) {
+          const own = this.conv(this.human);
+          if (own.needsThink) await this.thinkAll(own);
+          const r = await this.step(own);
+          if (r === true) utterances++;
+          progressed = true;
+          continue;
+        }
         if (!conv.open || conv.members.length < 2) continue;
         if (conv.needsThink) await this.thinkAll(conv);
-        if (await this.step(conv)) {
+        const r = await this.step(conv);
+        if (r === true) {
           utterances++;
           progressed = true;
-        }
+        } else if (r === "no line") progressed = true;
       }
       if (!progressed) {
         this.events.push({ turn: this.turn, type: "stall", note: "no conversation could produce a line" });
@@ -366,8 +418,12 @@ export class MiniGame {
     }
   }
 
-  /** One utterance in one conversation. False if no line could be produced. */
-  private async step(conv: Conversation): Promise<boolean> {
+  /**
+   * One utterance in one conversation. False if no line could be produced; "no line" when the human
+   * player passed or ended, which moves the conversation on without an utterance.
+   */
+  private async step(conv: Conversation): Promise<boolean | "no line"> {
+    if (this.human) this.lineBoundary();
     const speaker = this.pickSpeaker(conv);
     const cap = this.docs.tunables.colloquio_cap;
     const closing =
@@ -376,6 +432,7 @@ export class MiniGame {
         : conv.kind === "colloquio" && conv.utterances >= cap - 1
           ? ({ reason: "cap" } as const)
           : undefined;
+    if (speaker === this.human) return this.playerStep(conv, closing, cap);
     const ctx = await this.context(speaker);
     const actions = this.actionContext(speaker);
     const p = assembleSpeakPrompt(this.docs.templates, ctx, { allowedActions: allowedActionsText(actions), ...(closing && { closing }), ...(this.s.speakAppend && { appendLine: this.s.speakAppend }) });
@@ -410,7 +467,11 @@ export class MiniGame {
     this.events.push({ turn: this.turn, type: "speech", line: line.id, conversation: conv.id, speaker, addressee, text: line.text, ...meant });
     if (r.actionRejected) this.char(speaker).feedback = `Your last action was rejected: ${r.actionRejected}.`;
     if (r.action) this.applyAction(conv, speaker, r.action);
+    return this.afterLine(conv, speaker, addressee, closing, cap);
+  }
 
+  /** After a line: speaking order, the Colloquio's close, and everyone's think(). */
+  private async afterLine(conv: Conversation, speaker: CharacterName, addressee: CharacterName | null, closing: { reason: "other-ended"; other: CharacterName } | { reason: "cap" } | undefined, cap: number): Promise<boolean> {
     // Speaking order bookkeeping: decay for repeat speakers, designation with the ping-pong guard.
     conv.consecutive = conv.lastSpeaker === speaker ? conv.consecutive + 1 : 1;
     conv.forcedRun = conv.designated === speaker ? conv.forcedRun + 1 : 0;
@@ -459,7 +520,7 @@ export class MiniGame {
     const sinceArrival = tdMinor(this.docs.versions.technicalDesign) >= 15;
     const tookValues = labelValues(this.docs.templates, "think");
     await Promise.all(
-      conv.members.map(async (c) => {
+      conv.members.filter((c) => c !== this.human).map(async (c) => {
         const ctx = await this.context(c);
         // TD v0.10: {took_target} names the line the reading will attach to, by the same rule (labelLine).
         const { line, type, answering } = tookTargetLine(c, conv.id, this.char(c).lines.at(-1)?.id ?? null, this.lines, ownFromSpeak, sinceArrival);
@@ -507,8 +568,12 @@ export class MiniGame {
   /** TD: designation first (ping-pong guard applied when set); then importance with 20% decay per repeat; ties at random. */
   private pickSpeaker(conv: Conversation): CharacterName {
     if (conv.kind === "colloquio" && conv.closingBy) return conv.members.find((m) => m !== conv.closingBy)!;
+    // TD v0.39: with the player, a Colloquio alternates from its caller; in a Capannello a held message takes the next slot after an addressee's answer, and the player is never chosen by importance.
+    const withPlayer = !!this.human && conv.members.includes(this.human);
+    if (withPlayer && conv.kind === "colloquio") return conv.lastSpeaker ? conv.members.find((m) => m !== conv.lastSpeaker)! : (conv.seating?.initiator ?? conv.members[0]!);
     if (conv.designated && conv.members.includes(conv.designated)) return conv.designated;
-    const scored = conv.members.map((m) => {
+    if (withPlayer && this.heldSay !== null && !this.turnMessage.used && !this.turnMessage.passed) return this.human!;
+    const scored = conv.members.filter((m) => m !== this.human).map((m) => {
       const base = conv.importance.get(m) ?? 0;
       const eff = m === conv.lastSpeaker ? base * 0.8 ** conv.consecutive : base;
       return { m, eff, tie: this.rng() };
@@ -520,35 +585,37 @@ export class MiniGame {
   // ---- Actions (Stage Manager) --------------------------------------------------------------
 
   /** The rules module applies the action; the game writes its line and memory entry through the setting pack. */
-  private applyAction(conv: Conversation, actor: CharacterName, a: { type: ActionType; amount?: number; for?: string }): void {
+  private applyAction(conv: Conversation, actor: CharacterName, a: { type: ActionType; amount?: number; for?: string }): boolean {
     const me = this.char(actor);
     const size = this.rules.pensionSize;
     if (a.type === "bribe" && conv.kind === "colloquio") {
       const to = conv.members.find((m) => m !== actor)!;
       const e = bribe(this.econ, actor, to, a.amount!);
-      if (e.type !== "payment") return;
+      if (e.type !== "payment") return false;
       const paid = say("notaio", "lines.payment", { actor: e.from, other: e.to, amount: e.amount });
       const line = this.addLine(conv, "event", null, paid);
       this.memory.addEntry({ turn: this.turn, conversation: conv.id, where: this.where(conv), type: "payment", speaker: actor, toward: to, about: [actor, to], summary: paid, quote: null, lines: [line.id], audience: [...conv.members], source: "code" });
       this.events.push({ turn: this.turn, type: "bribe", from: actor, to, amount: e.amount, line: line.id });
     } else if (a.type === "borrow") {
       const e = borrow(this.econ, actor, size);
-      if (e.type !== "pension taken") return;
+      if (e.type !== "pension taken") return false;
       this.ledgerLatest = say("notaio", "lines.ledger_taken", { actor });
       this.privateLine(conv, actor, say("notaio", "lines.pension_taken", { amount: e.amount, purse: e.purse }), "pension");
       this.events.push({ turn: this.turn, type: "borrow", character: actor });
     } else if (a.type === "repay") {
       const holder = (resolveName(a.for ?? "") ?? actor) as CharacterName;
       const e = repay(this.econ, actor, holder, size);
+      if (e.type === "pension refused" && actor === this.human) return false;
       if (e.type === "pension refused") {
         me.feedback = say("notaio", "lines.pension_refused", { holder: a.for ?? say("notaio", "lines.pension_refused_self") });
-        return;
+        return false;
       }
-      if (e.type !== "pension renounced") return;
+      if (e.type !== "pension renounced") return false;
       this.ledgerLatest = say("notaio", "lines.ledger_renounced", { holder });
       this.privateLine(conv, actor, say("notaio", "lines.pension_renounced", { holder, amount: e.amount }), "pension");
       this.events.push({ turn: this.turn, type: "repay", character: actor, holder });
     }
+    return true;
   }
 
   // ---- End of turn: movement, extraction -------------------------------------------------------
@@ -566,11 +633,15 @@ export class MiniGame {
       this.events.push({ turn: this.turn, type: "move", character: mover, choice: "stay", note: "in a Colloquio when the window arrived" });
       return;
     }
-    const ctx = await this.context(mover);
-    const p = assembleMovePrompt(this.docs.templates, ctx);
-    const living = this.living(mover);
-    const out = await this.characterCall("move", mover, p, (raw) => parseMove(raw, living));
-    const v = (out as MoveOutput | null) ?? { thought: null, contacts: [], choice: "stay", target: null, repairs: [] };
+    let v: MoveOutput;
+    if (mover === this.human) v = await this.playerMove(mover);
+    else {
+      const ctx = await this.context(mover);
+      const p = assembleMovePrompt(this.docs.templates, ctx);
+      const living = this.living(mover);
+      const out = await this.characterCall("move", mover, p, (raw) => parseMove(raw, living));
+      v = (out as MoveOutput | null) ?? { thought: null, contacts: [], choice: "stay", target: null, repairs: [] };
+    }
     if (v.thought) this.addThought(mover, "move", v.thought);
     let choice = v.choice;
     // parseMove resolved the target to a living cast member, or null.
@@ -622,7 +693,8 @@ export class MiniGame {
     this.leave(from, mover, say("notaio", "notes.leave", { actor: mover }));
     if (to.members.length >= this.s.maxCapannello) {
       // TD collision: the open seat first; both full, the lower-importance member moves.
-      const bumped = leastInvolved(to.members, (m) => to.importance.get(m) ?? 0);
+      // TD v0.39: the player counts as the more involved guest, so an AI guest moves.
+      const bumped = leastInvolved(to.members, (m) => (m === this.human ? Infinity : (to.importance.get(m) ?? 0)));
       this.leave(to, bumped, say("notaio", "notes.leave", { actor: bumped }));
       this.enter(from, bumped);
     }
@@ -747,7 +819,8 @@ export class MiniGame {
     const from = this.conv(mover);
     if (to.id === from.id) return false;
     if (to.members.length >= this.s.maxCapannello) {
-      const bumped = leastInvolved(to.members, (m) => to.importance.get(m) ?? 0);
+      // TD v0.39: the player counts as the more involved guest, so an AI guest moves.
+      const bumped = leastInvolved(to.members, (m) => (m === this.human ? Infinity : (to.importance.get(m) ?? 0)));
       this.leave(to, bumped, say("notaio", "notes.leave", { actor: bumped }));
       this.enter(from, bumped);
     }
@@ -837,13 +910,17 @@ export class MiniGame {
     const v = k.invitee;
     const groups = this.openGroups();
     const offered = this.offered(groups, k.snapshot?.capannello);
-    const p = assembleSeatPrompt(this.docs.templates, await this.context(v, { seat: true }), { form: "invitee", initiator: k.initiator }, offered);
     const check = (choice: string, t: CharacterName | null): string | null => {
       const problem = inviteeSeatProblem(choice, t, { invitee: v, groups, living: this.s.cast, inColloquio: (x) => this.inColloquio(x) });
       return problem && SEAT_PROBLEM[problem](choice);
     };
-    const out = (await this.characterCall("seat", v, p, (raw) => parseSeat(raw, "invitee", check))) as SeatOutput | null;
-    if (out) this.addThought(v, "seat", out.thought);
+    let out: SeatOutput | null;
+    if (v === this.human) out = await this.playerSeat("invitee", offered, check, { initiator: k.initiator, colloquio: this.s.cast.filter((x) => x !== v && !this.inColloquio(x)), wait: !groups.length });
+    else {
+      const p = assembleSeatPrompt(this.docs.templates, await this.context(v, { seat: true }), { form: "invitee", initiator: k.initiator }, offered);
+      out = (await this.characterCall("seat", v, p, (raw) => parseSeat(raw, "invitee", check))) as SeatOutput | null;
+      if (out) this.addThought(v, "seat", out.thought);
+    }
     const base = { turn: this.turn, type: "seat", form: "invitee", character: v, colloquio: conv.id, ...chainOf(conv), offered: this.offeredLog(groups, k.snapshot?.capannello) };
     if (!out || out.invalid) {
       // TD's default: placed as an initiator would be (fewest guests, then faction, then at random), or seatless.
@@ -937,10 +1014,14 @@ export class MiniGame {
         to = groups[0]!;
         rule = "only one open";
       } else {
-        const p = assembleSeatPrompt(this.docs.templates, await this.context(lone, { seat: true }), { form: "lone" }, this.offered(groups));
         const check = (_: string, t: CharacterName | null) => (loneSeatValid(t, groups) ? null : "target not in another group with room");
-        const out = (await this.characterCall("seat", lone, p, (raw) => parseSeat(raw, "lone", check))) as SeatOutput | null;
-        if (out) this.addThought(lone, "seat", out.thought);
+        let out: SeatOutput | null;
+        if (lone === this.human) out = await this.playerSeat("lone", this.offered(groups), check, { colloquio: [], wait: false });
+        else {
+          const p = assembleSeatPrompt(this.docs.templates, await this.context(lone, { seat: true }), { form: "lone" }, this.offered(groups));
+          out = (await this.characterCall("seat", lone, p, (raw) => parseSeat(raw, "lone", check))) as SeatOutput | null;
+          if (out) this.addThought(lone, "seat", out.thought);
+        }
         if (out && !out.invalid) {
           to = groups.find((g) => g.members.includes(out.target!))!;
           rule = "call";
@@ -1038,6 +1119,7 @@ export class MiniGame {
   private async murderRound(): Promise<void> {
     await Promise.all(
       this.s.cast.map(async (c) => {
+        if (c === this.human) return this.playerMidnight(c);
         const ctx = await this.context(c, { gathering: true });
         const p = assembleMurderPrompt(this.docs.templates, ctx);
         const out = await this.characterCall("murder", c, p, (raw) => {
@@ -1064,6 +1146,7 @@ export class MiniGame {
 
   private async knowledge(): Promise<void> {
     this.knowledgeChecks.push(...(await this.recorder.knowledge(this.s.checks, this.s.cast)));
+    if (this.player) this.player.ctrl.send({ type: "result", result: { deaths: this.midnight?.deaths ?? [], alive: !this.midnight?.deaths.includes(this.human!), foiled: this.midnight?.events.filter((e) => e.type !== "death").length ?? 0 } });
   }
 
   // ---- Prompts ---------------------------------------------------------------------------------
@@ -1074,8 +1157,6 @@ export class MiniGame {
     const me = this.char(c);
     const conv = this.conv(c);
     const others = conv.members.filter((m) => m !== c);
-    const french = seesLedger(this.econ.guests.get(c)!.pension);
-    const ledgerText = [...this.econ.ledger].filter(([, n]) => n > 0).map(([n, k]) => (k > 1 ? `${n} (${k})` : n)).join(", ") || "none";
     const history = me.lines.slice(-this.s.historyWindow);
     const outside = opts.gathering || opts.seat;
     const present = outside ? [] : others;
@@ -1089,12 +1170,34 @@ export class MiniGame {
       briefing: this.s.briefings[c]!,
       rules: { ...this.docs.tunables, plotProtection: false, plotReward: false },
       strategy: me.plan,
-      state: {
+      state: this.stateFor(c, opts),
+      // TD v0.9: in "perceived", block 6 is the notebook (readings and code entries); the reference record is never shown.
+      longTermMemory:
+        notebook === "perceived"
+          ? this.memory.retrieveNotebook(c, present.length ? present : others, recent, { murder: opts.gathering, ...(ranked && { ranked }) })
+          : this.memory.retrieve(c, present.length ? present : others, recent, { murder: opts.gathering, ...(ranked && { ranked }) }),
+      shortTermThoughts: me.thoughts.slice(-this.s.thoughtWindow),
+      history: history.map(toHistoryLine),
+      ...(lore?.length && { lore }),
+    };
+  }
+
+  /** Block 5's fields for a character: what their prompts show, and all the player's screen gets of the game's state. */
+  private stateFor(c: CharacterName, opts: { gathering?: boolean; seat?: boolean } = {}): CharacterContext["state"] {
+    const me = this.char(c);
+    // A seatless guest (only ever the player, between seats) reads as outside a conversation.
+    const conv = this.seatOf(c);
+    const others = conv ? conv.members.filter((m) => m !== c) : [];
+    const french = seesLedger(this.econ.guests.get(c)!.pension);
+    const ledgerText = [...this.econ.ledger].filter(([, n]) => n > 0).map(([n, k]) => (k > 1 ? `${n} (${k})` : n)).join(", ") || "none";
+    const outside = opts.gathering || opts.seat || !conv;
+    const present = outside ? [] : others;
+    return {
         phaseLabel: this.phaseLabel(opts.gathering ?? false),
         conversation: outside
           ? { kind: "gathering" }
-          : conv.kind === "colloquio"
-            ? { kind: "colloquio", other: others[0]!, utterance: Math.max(1, conv.utterances), cap: this.docs.tunables.colloquio_cap }
+          : conv!.kind === "colloquio"
+            ? { kind: "colloquio", other: others[0]!, utterance: Math.max(1, conv!.utterances), cap: this.docs.tunables.colloquio_cap }
             : { kind: "capannello", others },
         present,
         livingOthers: this.living(c),
@@ -1104,15 +1207,6 @@ export class MiniGame {
         ...(french && { embassyLedger: { treasury: this.econ.treasury, pensions: ledgerText, ...(this.ledgerLatest && { latest: this.ledgerLatest }) } }),
         withdrawalCount: me.withdrawals,
         ...(me.feedback && { actionFeedback: me.feedback }),
-      },
-      // TD v0.9: in "perceived", block 6 is the notebook (readings and code entries); the reference record is never shown.
-      longTermMemory:
-        notebook === "perceived"
-          ? this.memory.retrieveNotebook(c, present.length ? present : others, recent, { murder: opts.gathering, ...(ranked && { ranked }) })
-          : this.memory.retrieve(c, present.length ? present : others, recent, { murder: opts.gathering, ...(ranked && { ranked }) }),
-      shortTermThoughts: me.thoughts.slice(-this.s.thoughtWindow),
-      history: history.map(toHistoryLine),
-      ...(lore?.length && { lore }),
     };
   }
 
@@ -1131,6 +1225,273 @@ export class MiniGame {
       treasury: this.econ.treasury,
       colloquioWith: conv.kind === "colloquio" ? conv.members.find((m) => m !== c)! : null,
     };
+  }
+
+  // ---- The human player (TD v0.39, Player Interface; CC-20261111-08, #61) ------------------------
+  //
+  // Wherever the engine would call a model for the player's character, it waits for the player instead
+  // (the core's HumanController), and the answer takes the same path as a parsed model reply. Inputs
+  // between requests are held (a message), queued (a command), or refused. Every input is a call record
+  // with source "human". The player's feed carries only their own History and block 5 state.
+
+  /** A line the player heard goes to their feed, then block 5 if it changed. */
+  private toPlayer(line: GameLine): void {
+    this.player!.heard(line);
+    this.sendState();
+  }
+
+  /** Block 5, with the command menu: the actions allowed now, midnight's acts while it waits, and /conclude. */
+  private sendState(extra: CommandAction[] = []): void {
+    if (!this.player) return;
+    const h = this.human!;
+    const allowed = this.seatOf(h) ? allowedActionTypes(this.actionContext(h)) : [];
+    this.player.state(this.stateFor(h) as unknown as Record<string, unknown>, menu([...allowed, ...extra, "conclude"], { amount: this.rules.pensionSize }));
+  }
+
+  private recordHuman(kind: CallRecord["kind"], raw: string, parsed: unknown, refused: string | null): void {
+    this.calls.push({ n: this.nextCall++, turn: this.turn, kind, character: this.human, attempt: 1, user: "", raw, parsed: parsed ?? null, verdict: refused ? "refused" : "valid", repairs: [], error: refused, costUsd: 0, inputTokens: 0, outputTokens: 0, latencyMs: 0, provider: null, model: null, source: "human" });
+  }
+
+  /** Waits for the player. Every answer and refusal is recorded. */
+  private ask<T>(kind: RequestKind, options: Record<string, unknown>, record: CallRecord["kind"], accept: (m: Incoming) => Answer<T>): Promise<T> {
+    this.sendState(kind === "midnight" ? ["kill", "guard", "investigate"] : []);
+    return this.player!.ctrl.request(kind, options, (m) => {
+      const a = accept(m);
+      if (a) this.recordHuman(record, m.type === "say" || m.type === "command" ? m.text : JSON.stringify(m), "value" in a ? a.value : null, "refusal" in a ? a.refusal : null);
+      return a;
+    });
+  }
+
+  /** Why a message can't be spoken (Mechanics: at most 500 characters), or null. */
+  private sayProblem(text: string): string | null {
+    if (!text.trim()) return refusal("empty");
+    if (text.length > MESSAGE_MAX) return refusal("too_long", { length: text.length, max: MESSAGE_MAX });
+    return null;
+  }
+
+  /** A message, pass, end, or command that no request took. */
+  private playerInput(m: Incoming): void {
+    const h = this.human!;
+    const conv = this.seatOf(h);
+    const refuse = (reason: string, text: string | null) => {
+      this.player!.ctrl.send({ type: "refusal", reason, input: text });
+      this.recordHuman(m.type === "command" ? "command" : "speak", text ?? JSON.stringify(m), null, reason);
+    };
+    if (m.type === "command") {
+      // While the game waits for the player it's at a line boundary, so a command applies at once.
+      if (this.player!.ctrl.waiting) this.applyCommand(m.text);
+      else this.queuedCommands.push(m.text);
+    } else if (m.type === "say") {
+      const bad = this.sayProblem(m.text);
+      if (bad) return refuse(bad, m.text);
+      if (conv?.kind !== "colloquio" && (this.turnMessage.used || this.turnMessage.passed)) return refuse(refusal("message_used"), m.text);
+      if (this.heldSay !== null) return refuse(refusal("message_held"), m.text);
+      this.heldSay = m.text;
+      this.recordHuman("speak", m.text, { held: true }, null);
+    } else if (m.type === "pass") {
+      if (conv?.kind === "colloquio" || this.turnMessage.used) return;
+      this.turnMessage.passed = true;
+      this.heldSay = null;
+      this.recordHuman("speak", JSON.stringify(m), { pass: true }, null);
+    } else if (m.type === "end") {
+      if (!conv?.open || conv.kind !== "colloquio" || conv.closingBy) return refuse(refusal("end_mistimed"), null);
+      this.endRequested = true;
+      this.recordHuman("speak", JSON.stringify(m), { end: true }, null);
+    }
+  }
+
+  /** At each line boundary: queued commands, and a Colloquio the player ended. */
+  private lineBoundary(): void {
+    for (const text of this.queuedCommands.splice(0)) this.applyCommand(text);
+    if (!this.endRequested) return;
+    this.endRequested = false;
+    const conv = this.seatOf(this.human!);
+    if (conv?.open && conv.kind === "colloquio" && !conv.closingBy) {
+      conv.closingBy = this.human;
+      this.events.push({ turn: this.turn, type: "colloquio-done", conversation: conv.id, by: this.human, ...chainOf(conv) });
+    }
+  }
+
+  /** A typed command, checked as the Stage Manager checks an AI's action; refused privately with the reason. */
+  private applyCommand(text: string): void {
+    const h = this.human!;
+    const conv = this.seatOf(h);
+    const p = parseCommand(text, this.s.cast);
+    const refuse = (reason: string, values: Record<string, string | number> = {}) => {
+      const r = refusal(reason, values);
+      this.player!.ctrl.send({ type: "refusal", reason: r, input: text });
+      this.recordHuman("command", text, p, r);
+    };
+    if (p.action === null) return refuse("unknown_command", { command: p.name });
+    const command = playerSays(`commands.${p.action}.name`);
+    if (p.action === "conclude") {
+      if (!p.statement) return refuse("conclude_empty");
+      const b = this.memory.conclude(h, p.statement, this.turn, this.docs.memoryRules?.hedges ?? []);
+      this.events.push({ turn: this.turn, type: "conclude", character: h, belief: b.id, kind: b.kind });
+      return this.recordHuman("command", text, p, null);
+    }
+    // Midnight's acts answer midnight's request; at any other time they're mistimed.
+    if (p.action === "kill" || p.action === "guard" || p.action === "investigate" || !conv?.open) return refuse("mistimed", { command });
+    const ctx = this.actionContext(h);
+    const allowed = allowedActionTypes(ctx);
+    let applied: boolean;
+    if (p.action === "bribe") {
+      if (conv.kind !== "colloquio") return refuse("mistimed", { command });
+      const other = conv.members.find((m) => m !== h)!;
+      if (!p.target || !this.s.cast.includes(p.target)) return refuse("unknown_guest", { name: p.target ?? "" });
+      if (p.target !== other) return refuse("not_present", { name: p.target });
+      if (p.amount === null || p.amount <= 0) return refuse("not_positive");
+      if (rejectAction({ type: "bribe", amount: p.amount }, allowed, ctx.florins)) return refuse("cant_afford", { purse: ctx.florins });
+      applied = this.applyAction(conv, h, { type: "bribe", amount: p.amount });
+    } else if (p.action === "borrow") {
+      if (!allowed.includes("borrow")) return refuse("not_allowed", { command });
+      applied = this.applyAction(conv, h, { type: "borrow" });
+    } else {
+      if (!allowed.includes("repay")) return refuse("cant_afford", { purse: ctx.florins });
+      applied = this.applyAction(conv, h, { type: "repay", ...(p.target && { for: p.target }) });
+      if (!applied) return refuse("pension_refused", { holder: p.target ?? say("notaio", "lines.pension_refused_self") });
+    }
+    this.recordHuman("command", text, p, applied ? null : refusal("mistimed", { command }));
+    this.sendState();
+  }
+
+  /** Before the turn's last utterance: asks a player in a Capannello who hasn't spoken or passed. True if they'll speak now. */
+  private async lastCall(): Promise<boolean> {
+    const h = this.human!;
+    const conv = this.seatOf(h);
+    if (this.turnMessage.asked || this.turnMessage.used || this.turnMessage.passed || !conv?.open || conv.kind !== "capannello" || conv.members.length < 2) return false;
+    this.turnMessage.asked = true;
+    if (this.heldSay !== null) return true;
+    const said = await this.ask<string | null>("speak", { conversation: "capannello", with: conv.members.filter((m) => m !== h), answering: false, last: true, closing: null, canPass: true, canEnd: false, max: MESSAGE_MAX }, "speak", (m) => {
+      if (m.type === "say") {
+        const bad = this.sayProblem(m.text);
+        return bad ? { refusal: bad } : { value: m.text };
+      }
+      return m.type === "pass" ? { value: null } : null;
+    });
+    if (said === null) {
+      this.turnMessage.passed = true;
+      return false;
+    }
+    this.heldSay = said;
+    return true;
+  }
+
+  /** The player's line: a held message, an answer when addressed, or their turn in a Colloquio. */
+  private async playerStep(conv: Conversation, closing: { reason: "other-ended"; other: CharacterName } | { reason: "cap" } | undefined, cap: number): Promise<boolean | "no line"> {
+    const h = this.human!;
+    const others = conv.members.filter((m) => m !== h);
+    const answering = conv.kind === "capannello" && conv.designated === h;
+    let said: string | "pass" | "end";
+    if (this.heldSay !== null && !answering) {
+      said = this.heldSay;
+      this.heldSay = null;
+      if (conv.kind === "capannello") this.turnMessage.used = true;
+    } else {
+      // Mechanics v0.31: an answer when addressed never uses the turn's message.
+      const canEnd = conv.kind === "colloquio" && !closing;
+      said = await this.ask<string | "pass" | "end">("speak", { conversation: conv.kind, with: others, answering, last: false, closing: closing?.reason ?? null, canPass: true, canEnd, max: MESSAGE_MAX }, "speak", (m) => {
+        if (m.type === "say") {
+          const bad = this.sayProblem(m.text);
+          return bad ? { refusal: bad } : { value: m.text };
+        }
+        if (m.type === "pass") return { value: "pass" };
+        if (m.type === "end") return canEnd ? { value: "end" } : { refusal: refusal("end_mistimed") };
+        return null;
+      });
+    }
+    if (said === "end") {
+      // The other guest gets one closing line, and the player nothing more.
+      conv.closingBy = h;
+      this.events.push({ turn: this.turn, type: "colloquio-done", conversation: conv.id, by: h, ...chainOf(conv) });
+      return this.step(conv);
+    }
+    if (said === "pass") {
+      if (closing && conv.kind === "colloquio") {
+        if (this.seating) await this.endColloquio(conv, closing.reason === "other-ended" ? "ended" : "cap");
+        else this.closeColloquio(conv, closing.reason === "other-ended" ? "ended" : "cap");
+        return "no line";
+      }
+      if (conv.kind === "colloquio") {
+        conv.lastSpeaker = h;
+        return "no line";
+      }
+      // An address passed: the next speaker by importance, as when the ping-pong guard fires.
+      conv.designated = null;
+      return this.step(conv);
+    }
+    const m = mentions(said, others);
+    const addressee = conv.kind === "capannello" ? m.addressee : null;
+    const line = this.addLine(conv, "speech", h, m.text, addressee);
+    this.events.push({ turn: this.turn, type: "speech", line: line.id, conversation: conv.id, speaker: h, addressee, text: line.text, source: "human" });
+    return this.afterLine(conv, h, addressee, closing, cap);
+  }
+
+  /** The player's movement window (block 9c's choice): stay, join a guest, or call a Colloquio, from every living guest. */
+  private async playerMove(mover: CharacterName): Promise<MoveOutput> {
+    const living = this.living(mover);
+    const v = await this.ask<{ choice: MoveOutput["choice"]; target: CharacterName | null }>("move", { guests: living, choices: ["stay", "join", "colloquio"] }, "move", (m) => {
+      if (m.type !== "choice") return null;
+      const c = (m.value ?? {}) as { choice?: unknown; target?: unknown };
+      if (c.choice === "stay") return { value: { choice: "stay", target: null } };
+      if (c.choice !== "join" && c.choice !== "colloquio") return { refusal: refusal("choice") };
+      const t = living.find((x) => x === c.target) ?? null;
+      if (!t) return { refusal: refusal("unknown_guest", { name: String(c.target ?? "") }) };
+      return { value: { choice: c.choice, target: t } };
+    });
+    return { thought: null, contacts: [], choice: v.choice, target: v.target, repairs: [] };
+  }
+
+  /** A seat choice (block 9h's options): as the invitee when a Colloquio ends, or as a lone guest. */
+  private async playerSeat(form: "invitee" | "lone", offered: SeatGroup[], check: (choice: string, t: CharacterName | null) => string | null, o: { initiator?: CharacterName; colloquio: CharacterName[]; wait: boolean }): Promise<SeatOutput> {
+    const v = await this.ask<{ choice: string; target: CharacterName | null }>("seat", { form, ...(o.initiator && { initiator: o.initiator }), groups: offered, colloquio: o.colloquio, wait: o.wait }, "seat", (m) => {
+      if (m.type !== "choice") return null;
+      const c = (m.value ?? {}) as { choice?: unknown; target?: unknown };
+      const choice = form === "lone" ? "join" : String(c.choice ?? "");
+      const target = this.s.cast.find((x) => x === c.target) ?? null;
+      return check(choice, target) ? { refusal: refusal("choice") } : { value: { choice, target } };
+    });
+    return { thought: "", choice: v.choice, target: v.target, invalid: null };
+  }
+
+  /** Midnight (block 9e's choice): the same checks as an AI's acts, chosen on the card or typed as /kill, /guard, /watch. */
+  private async playerMidnight(c: CharacterName): Promise<void> {
+    const living = this.living(c);
+    const twoKills = hasRole(c, "two kills");
+    const words = this.docs.inWorld ? Object.fromEntries(Object.entries(inWorldNames().acts).filter(([k]) => !k.startsWith("_"))) : { kill: "kill", guard: "guard", investigate: "investigate" };
+    const acts = await this.ask<Act[]>("midnight", { guests: living, acts: words, count: twoKills ? [1, 2] : [1] }, "murder", (m) => {
+      let list: unknown;
+      if (m.type === "choice") list = (m.value as { acts?: unknown } | null)?.acts;
+      else if (m.type === "command") {
+        const p = parseCommand(m.text, living);
+        if (p.action !== "kill" && p.action !== "guard" && p.action !== "investigate") return null;
+        list = [{ type: p.action, target: p.target ?? "" }];
+      } else return null;
+      if (!Array.isArray(list)) return { refusal: refusal("choice") };
+      const checked = list.map((a: { type?: unknown; target?: unknown }) => {
+        const type = gameAct(String(a?.type ?? "")) as Act["type"] | null;
+        const target = String(a?.target ?? "");
+        const known = living.find((x) => x === target) ?? resolveName(target);
+        return { type, target: known && living.includes(known as CharacterName) ? known : target, self: target === c || known === c, living: !!known && living.includes(known as CharacterName) };
+      });
+      if (checked.some((a) => !a.type)) return { refusal: refusal("choice") };
+      const problem = actProblems(twoKills, checked as (Act & { self: boolean; living: boolean })[])[0];
+      if (problem) return { refusal: refusal(`acts.${problem.why.replace(/ /g, "_")}`) };
+      return { value: checked.map((a) => ({ type: a.type!, target: a.target })) };
+    });
+    this.murderActs.push({ character: c, acts, thought: null, failed: false });
+    this.events.push({ turn: this.turn, type: "murder-act", character: c, acts, resolved: false, source: "human" });
+  }
+
+  /** With a player, midnight resolves (src/rules/midnight.ts) and the deaths are announced to them. */
+  private resolveMidnightForPlayer(): void {
+    const order = (x: { character: CharacterName }) => this.s.cast.indexOf(x.character);
+    const submitted = (this.murderActs as { character: CharacterName; acts: { type: Act["type"]; target: string }[] | null }[]).filter((a) => a.acts).sort((a, b) => order(a) - order(b));
+    const subs = submitted.map((a) => ({ by: a.character, acts: a.acts!.map((x) => ({ type: x.type, target: (resolveName(x.target) as CharacterName | null) ?? x.target })) }));
+    const r = resolveMidnight(subs, (n) => hasRole(n, "two kills"), this.docs.midnight);
+    this.midnight = { deaths: r.deaths as CharacterName[], events: r.events };
+    this.events.push({ turn: this.turn, type: "midnight", deaths: r.deaths, events: r.events });
+    for (const d of r.deaths) this.player!.ctrl.send({ type: "death", name: d, you: d === this.human });
   }
 
   // ---- Calls ---------------------------------------------------------------------------------
@@ -1234,6 +1595,7 @@ export class MiniGame {
     const line: GameLine = { id: `L${this.nextLine++}`, turn: this.turn, conversation: conv.id, where: this.where(conv), kind, speaker, addressee, text, heardBy: [...conv.members] };
     this.lines.push(line);
     for (const m of conv.members) this.char(m).lines.push(line);
+    if (this.player && line.heardBy.includes(this.human!)) this.toPlayer(line);
     return line;
   }
 
@@ -1256,6 +1618,7 @@ export class MiniGame {
     this.lines.push(line);
     this.char(actor).lines.push(line);
     this.memory.addEntry({ turn: this.turn, conversation: conv.id, where: line.where, type, speaker: actor, toward: null, about: [actor], summary: text, quote: null, lines: [line.id], audience: [actor], source: "code" });
+    if (this.player && actor === this.human) this.toPlayer(line);
   }
 
   private addThought(c: CharacterName, call: string, text: string, extra: Record<string, unknown> = {}, fields: Pick<Thought, "took" | "conversation" | "closing" | "took_target" | "target_line" | "target_answering" | "words" | "words_log"> = {}): void {

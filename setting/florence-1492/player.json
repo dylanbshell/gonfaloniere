@@ -1,0 +1,74 @@
+{
+  "_comment": "Technical Design v0.38–v0.39's Setting Pack and Player Interface: the player's words. Command names and hints, refusal reasons, and the lines the screen shows. Code fills the {named} placeholders and writes none of these words itself (CC-20261111-08, #61). The screen's labels come with the player screen (#62).",
+  "commands": {
+    "_comment": "Keyed by the game's action. `name` is what the player types; `usage` shows its arguments; `hint` is the command menu's one line.",
+    "bribe": {
+      "name": "/bribe",
+      "usage": "/bribe @Name n",
+      "hint": "Hand the guest you're alone with n {currency}."
+    },
+    "borrow": {
+      "name": "/borrow",
+      "usage": "/borrow",
+      "hint": "Accept one French pension of {amount} {currency}."
+    },
+    "repay": {
+      "name": "/repay",
+      "usage": "/repay or /repay @Name",
+      "hint": "Renounce one French pension, your own or a relative's, for {amount} {currency}."
+    },
+    "kill": {
+      "name": "/kill",
+      "usage": "/kill @Name",
+      "hint": "Tonight, have this guest killed."
+    },
+    "guard": {
+      "name": "/guard",
+      "usage": "/guard @Name",
+      "hint": "Tonight, guard this guest."
+    },
+    "investigate": {
+      "name": "/watch",
+      "usage": "/watch @Name",
+      "hint": "Tonight, watch this guest."
+    },
+    "conclude": {
+      "name": "/conclude",
+      "usage": "/conclude what you've worked out",
+      "hint": "Note privately what you've worked out. Only your latest counts."
+    }
+  },
+  "refusals": {
+    "_comment": "Sent to the player alone, with the reason. Mechanics' reasons: mistimed, not allowed, can't afford it, unknown guest, not present.",
+    "mistimed": "{command} can't be used now.",
+    "not_allowed": "{command} isn't open to you.",
+    "cant_afford": "You can't afford that: you have {purse} {currency}.",
+    "not_positive": "Name a number of {currency} above nothing.",
+    "unknown_guest": "There's no guest here called {name}.",
+    "not_present": "{name} isn't with you.",
+    "unknown_command": "There's no command {command}.",
+    "message_used": "You've spoken your piece this turn. You can speak again next turn.",
+    "message_held": "Your words are waiting to be spoken.",
+    "empty": "Say something, or pass.",
+    "too_long": "That's {length} characters; keep it to {max}.",
+    "pension_refused": "You hold no pension you could renounce for {holder}, or can't pay it back.",
+    "choice": "That choice isn't open now.",
+    "conclude_empty": "Say what you've concluded after /conclude.",
+    "end_mistimed": "There's no private conversation for you to end.",
+    "acts": {
+      "_comment": "Midnight: why the acts were refused (Mechanics, Murder Round).",
+      "count": "Choose exactly the number of acts you may take tonight.",
+      "only_kills": "Tonight you may only kill.",
+      "self": "You can't take an act on yourself.",
+      "not_living": "Name a living guest.",
+      "same_guest": "Each of your acts must name a different guest."
+    }
+  },
+  "examples": [
+    "I hear the Signoria meets early tomorrow.",
+    "You seem very sure of that. Who told you?",
+    "My family has long memories, and longer purses.",
+    "I'd rather speak of this somewhere quieter."
+  ],
+  "orientation": "Speak as your character would, plainly. The other guests react to strange talk as guests would."
+}

@@ -43,7 +43,7 @@ export function settingPack(name = SETTING): SettingPack {
  * `{currency}` is the setting's plural unless given. A placeholder with no value is an error, so a
  * template can't silently keep its braces.
  */
-export function say(file: "notaio" | "actions", key: string, values: Record<string, string | number> = {}, name = SETTING): string {
+export function say(file: "notaio" | "actions" | "player", key: string, values: Record<string, string | number> = {}, name = SETTING): string {
   const doc = read<Record<string, unknown>>(`${file}.json`, name);
   const t = key.split(".").reduce<unknown>((o, k) => (o as Templates | undefined)?.[k], doc);
   if (typeof t !== "string") throw new Error(`setting/${name}/${file}.json has no template "${key}"`);

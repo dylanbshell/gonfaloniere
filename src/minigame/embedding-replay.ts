@@ -107,6 +107,8 @@ export type Rank = (rows: { id: string; body: string }[], query: string) => Rank
 export async function replayGame(path: string, rank?: Rank): Promise<{ points: Point[]; calls: number; exact: number; inexact: { n: number; kind: string; character: string | null; firstDiff?: { line: number; recorded: string | null; replayed: string | null } }[]; memory: MemoryStore }> {
   const rec = readRecord(path) as unknown as Rec;
   const h = rec.header;
+  // TD v0.39: a human game's player answered no prompts, so it can't replay from recorded replies (not built yet).
+  if ((h as { human?: string | null }).human) throw new Error(`${h.game_id} was played by a human (${(h as { human?: string }).human}); replaying a human game isn't built yet`);
   // Characters and Mechanics as the record ran on them: the defaults move (Characters v0.10 to v0.11,
   // Mechanics v0.20 to v0.30) and old records still replay on their own versions.
   const docs = loadDocs({ ...docsFor(h.docs.technicalDesign!, h.docs.characters), ...(h.docs.mechanics && { mechanics: mechanicsPath(h.docs.mechanics) }) });

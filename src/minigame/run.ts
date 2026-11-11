@@ -46,6 +46,8 @@ import { callModel, type EndpointInfo, type RetryPolicy } from "../harness/openr
 import { loadDocs } from "../sources/docs.ts";
 import { MINIGAME_TOTAL_USD } from "./ledger.ts";
 import { CAST, STANDIN_FILE, castBriefings, standinsFor } from "./cast.ts";
+import { HumanController } from "../core/human.ts";
+import { serveWebSocket } from "../core/ws.ts";
 import { MiniGame, formatLine, type CallKind, type Caller, type GameSettings } from "./engine.ts";
 import { memoryCounts, renderBelief, renderEntry, whereLabel } from "./memory.ts";
 import { describeRoute, messages, playRoute, recorderRoute, type ModelRoute } from "./recorder.ts";
@@ -77,6 +79,9 @@ const { values: opts } = parseArgs({
     // follows the TD: embeddings from v0.36, overlap before (defaultRetrieval). Lore: off (default) or on (needs the same).
     retrieval: { type: "string" },
     lore: { type: "string", default: "off" },
+    // TD v0.37–v0.39 run setting `human`: the playable character a human plays, over the WebSocket protocol on --port (one game).
+    human: { type: "string" },
+    port: { type: "string", default: "8765" },
     // Projected cost from saved games of the same play model; no calls.
     estimate: { type: "boolean", default: false },
   },
@@ -154,6 +159,7 @@ async function main(): Promise<void> {
     logprobs: opts.logprobs as LogprobsSetting,
     retrieval: (opts.retrieval ?? defaultRetrieval(docs.versions.technicalDesign)) as RetrievalMethod,
     lore: opts.lore as LoreSetting,
+    human: (opts.human ?? null) as CharacterName | null,
   };
   if (!["perceived", "shared"].includes(settingsBase.notebook)) throw new Error(`--notebook must be perceived or shared`);
   if (!LOGPROBS_SETTINGS.includes(settingsBase.logprobs)) throw new Error(`--logprobs must be ${LOGPROBS_SETTINGS.join(", ")}`);
@@ -184,6 +190,17 @@ async function main(): Promise<void> {
   const parallel = Number(opts.parallel);
   const replacements = Number(opts.replacements);
   const wanted = Number(opts.games);
+  // TD v0.39: a human game is one game, and the engine waits for the player over the WebSocket protocol.
+  let ctrl: HumanController | null = null;
+  let closeServer = async () => {};
+  if (settingsBase.human) {
+    if (wanted !== 1 || Number(opts.parallel) !== 1) throw new Error("--human plays one game: --games 1 --parallel 1");
+    ctrl = new HumanController(settingsBase.human);
+    const human = ctrl;
+    const server = await serveWebSocket(Number(opts.port), (conn) => human.attach(conn));
+    console.log(`Waiting for the player (${settingsBase.human}) on ws://127.0.0.1:${server.port}`);
+    closeServer = server.close;
+  }
   runLog.write({ type: "run", runId, startedAt: new Date().toISOString(), modelId: charModel.id, systemModelId: sysModel.id, endpoint: served.character.endpoint, systemEndpoint: served.system.endpoint, docVersions: docs.versions, gitCommit: gitCommit(), workingTree: tree, settings: { ...settingsBase, games: wanted, cap: opts.cap, parallel, replacements, seed: opts.seed } } as unknown as LogRecord);
   console.log(`Mini-game: ${wanted} game(s) × ${opts.turns} turns; characters on ${charModel.id} via ${served.character.endpoint.providerName}, system calls on ${sysModel.id} via ${served.system.endpoint.providerName}; up to ${parallel} at a time; cap $${opts.cap}; ledger $${budget.priorSpendUsd.toFixed(2)} spent before this (total cap $${MINIGAME_TOTAL_USD})`);
   console.log(`Docs: TD v${docs.versions.technicalDesign}, Characters v${docs.versions.characters}, Mechanics v${docs.versions.mechanics}, Models & Research v${docs.versions.modelsResearch}. Stand-ins: ${standins.join(", ") || "none"}. Commit ${gitCommit()}; untracked: ${tree.untracked.join(", ") || "none"}`);
@@ -306,6 +323,7 @@ async function main(): Promise<void> {
         turnEnd: (e) => progress(`${gameId} seed ${seed} turn ${e.turn}/${settingsBase.turns} calls ${e.calls} spend $${e.costUsd.toFixed(4)} retries ${retries}`),
       },
       store,
+      ctrl,
     );
     progress(`${gameId} seed ${seed} started`);
     let failure: string | null = null;
@@ -362,6 +380,7 @@ async function main(): Promise<void> {
     await Promise.race(running.values());
   }
   await storeDb?.end();
+  await closeServer();
   const summary = { runId, characterModel: charModel.id, systemModel: sysModel.id, wanted, counted: counted(), halt, serialSince, outcomes, spentUsd: budget.spentUsd, ledgerUsd: budget.priorSpendUsd + budget.spentUsd };
   writeFileSync(join(OUT, `run-${runId}.summary.json`), JSON.stringify(summary, null, 2));
   progress(`run ${runId} done: ${counted()}/${wanted} complete${halt ? `; HALTED: ${halt}` : ""}${serialSince ? `; one game at a time since ${serialSince}` : ""}; spent $${budget.spentUsd.toFixed(4)}`);
@@ -411,7 +430,7 @@ function postGameChecks(path: string, served: Record<"character" | "system", Ser
   const missingTurns = Array.from({ length: turns }, (_, i) => i + 1).filter((t) => !turnEnds.has(t));
   const silent = CAST.filter((c) => !rec.lines.some((l) => l.kind === "speech" && l.speaker === c));
   const offModel = (role: "character" | "system") =>
-    rec.calls.filter((c) => SYSTEM_KINDS.includes(c.kind) === (role === "system")).filter((c) => (served[role].servedId !== null && c.model !== served[role].servedId) || c.provider !== served[role].endpoint.providerName);
+    rec.calls.filter((c) => c.source !== "human" && SYSTEM_KINDS.includes(c.kind as CallKind) === (role === "system")).filter((c) => (served[role].servedId !== null && c.model !== served[role].servedId) || c.provider !== served[role].endpoint.providerName);
   const sysOff = offModel("system");
   const charOff = offModel("character");
   const off = refCalls ? Math.abs(rec.calls.length - refCalls) / refCalls : 0;
@@ -497,6 +516,8 @@ function buildRecord(
       seed: x.seed,
       // TD v0.38: the setting pack the game's words came from (setting/<name>/).
       setting: SETTING,
+      // TD v0.39: the character a human played, or null.
+      human: (x.settings as { human?: string | null }).human ?? null,
       roster: ROSTER,
       aliases: ALIASES,
       cast: CAST,
@@ -531,7 +552,7 @@ function buildRecord(
       notes: game.memory.notes,
     },
     snapshots: game.snapshots,
-    murder_round: { resolved: false, acts: game.murderActs },
+    murder_round: game.midnight ? { resolved: true, acts: game.murderActs, deaths: game.midnight.deaths, events: game.midnight.events } : { resolved: false, acts: game.murderActs },
     knowledge_checks: game.knowledgeChecks,
     summary: {
       wall_ms: x.ms,
