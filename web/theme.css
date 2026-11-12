@@ -48,6 +48,17 @@
   --modal-max-height: 90vh;
   --opacity-disabled: 0.5;
   --tip-width: 280px;
+  --web-height: 86vh;
+  --web-side-width: 380px;
+  --deck-card-min-height: 220px;
+  --swipe-distance: 48px;
+  --motion-fast: 160ms;
+  --motion-slow: 260ms;
+  /* The web's diagram, in its own units (100 across) */
+  --edge-width: 0.35;
+  --edge-width-on: 0.8;
+  --node-initials-size: 2.6px;
+  --node-name-size: 2.3px;
   --icon-row-height: 28px;
 
   /* Stacking: menus over the stream, decks over everything, the explanations over the decks */
@@ -79,6 +90,16 @@
   --tip-text: #f6f6f4;
   --errand-bg: #fbf6ea;
   --errand-border: #d8c79a;
+  --select-bg: #e3e9f5;
+  --hl-bg: #f4efe0;
+  --link: #3a5a8c;
+  --hint-bg: #f3f0f7;
+  --hint-border: #cfc4e0;
+  --hint-text: #4a3f5c;
+  --edge: #b8b8b0;
+  --edge-on: #3a5a8c;
+  --edge-yours: #8c6a3a;
+  --edge-note: #7a4c93;
 
   /* Faction colours, by the faction's place in setting.json (used when the setting gives no colour) */
   --faction-0: #6a4c93;
@@ -113,5 +134,15 @@
     --tip-text: #1d1d1b;
     --errand-bg: #2a261b;
     --errand-border: #6b5d38;
+    --select-bg: #26324a;
+    --hl-bg: #2e2a1f;
+    --link: #8fb0e6;
+    --hint-bg: #241f2c;
+    --hint-border: #4a3f5c;
+    --hint-text: #d5c8ea;
+    --edge: #4a4a45;
+    --edge-on: #8fb0e6;
+    --edge-yours: #d6b37a;
+    --edge-note: #c3a6ee;
   }
 }

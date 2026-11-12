@@ -1,0 +1,38 @@
+{
+  "_comment": "The web's fixed lines (TD v0.40–v0.43, The web viewer). `public`: connections everyone knows, each with a type and one public line (Characters to write). `private`: each character's own connections, from their briefing's Relationships section, seen only by that character. Until Characters supplies this file, it holds only the playable character's own connections, copied from his briefing (Characters v0.11).",
+  "public": [],
+  "private": {
+    "Francesco Pazzi": [
+      {
+        "with": "Clarice Orsini",
+        "type": "love",
+        "line": "Your secret love. You'd risk a great deal for her."
+      },
+      {
+        "with": "Piero de' Medici",
+        "type": "enmity",
+        "line": "Your family's enemy, and soft. He must not rule."
+      },
+      {
+        "with": "Raffaello de' Medici",
+        "type": "rivalry",
+        "line": "Piero's brother. A braggart, but at least he has nerve."
+      },
+      {
+        "with": "Giorgia Pazzi",
+        "type": "family",
+        "line": "Your sister. Clever, and too quick to think she should lead."
+      },
+      {
+        "with": "Lupo",
+        "type": "service",
+        "line": "Your bodyguard. Keeps you breathing."
+      },
+      {
+        "with": "Fra Tommaso",
+        "type": "interest",
+        "line": "A friar worth winning, if he can be bought without being trusted."
+      }
+    ]
+  }
+}

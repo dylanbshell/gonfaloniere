@@ -12,14 +12,15 @@ import { renderToString } from "react-dom/server";
 import { HumanController, type Connection } from "../src/core/human.ts";
 import { MiniGame } from "../src/minigame/engine.ts";
 import { castBriefings } from "../src/minigame/cast.ts";
-import { errandText } from "../src/minigame/player.ts";
+import { errandText, screenContent } from "../src/minigame/player.ts";
+import type { LoreEntry as StoredLore } from "../src/minigame/lore.ts";
 import { screenInfo } from "../src/minigame/screen-info.ts";
 import { settingPack } from "../src/setting/pack.ts";
 import { GameView, Start } from "../web/src/App.tsx";
 import type { Ev } from "../web/src/connection.ts";
 import { canDo, canSpeak, openMenu, trigger, withMention } from "../web/src/input.ts";
-import { derive } from "../web/src/model.ts";
-import { setInfo, type StartInfo } from "../web/src/words.ts";
+import { appearsIn, briefingCards, cityCards, derive, heardAndSaw, hintMoment, loreParts, rulesCards, type LoreEntry, type View } from "../web/src/model.ts";
+import { notaioHint, setInfo, type StartInfo } from "../web/src/words.ts";
 import { fakeCaller, fakeDocs, fakeSettings } from "./fixtures/fake-game.ts";
 
 const F = "Francesco Pazzi";
@@ -27,7 +28,7 @@ const files = (dir: string, ext: RegExp) => readdirSync(dir).filter((f) => ext.t
 const noComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
 
 /** A fake game as Francesco, answered in process; the log at every request, with which kind was open. */
-async function playedLog(): Promise<{ log: Ev[]; at: Record<string, Ev[]> }> {
+async function playedLog(): Promise<{ log: Ev[]; at: Record<string, Ev[]>; game: MiniGame }> {
   const ctrl = new HumanController(F);
   const game = new MiniGame(fakeDocs, fakeSettings({ briefings: castBriefings(fakeDocs), seed: 2000, turns: 12, human: F }), fakeCaller(), {}, null, ctrl);
   const log: Ev[] = [];
@@ -57,14 +58,14 @@ async function playedLog(): Promise<{ log: Ev[]; at: Record<string, Ev[]> }> {
   ctrl.attach(conn);
   queueMicrotask(() => reply(JSON.stringify({ type: "command", text: "/borrow" })));
   await game.play();
-  return { log, at };
+  return { log, at, game };
 }
 
 const info = { ...screenInfo([F], castBriefings(fakeDocs)), started: null, ws: null } as StartInfo;
 setInfo(info);
 const html = (el: ReturnType<typeof createElement>) => renderToString(el);
 /** Words the screen shows but couldn't find in player.json come out as their keys. */
-const missingWords = (h: string) => h.match(/\bscreen\.[\w.]+|\b(?:refusals|commands)\.[\w.]+|undefined|\[object Object\]/g) ?? [];
+const missingWords = (h: string) => h.match(/\bscreen\.[\w.]+|\b(?:refusals|commands|hints)\.[\w.]+|undefined|\[object Object\]/g) ?? [];
 
 test("the start screen: one card, for Francesco, with his public line and his briefing's first paragraph", () => {
   const h = html(createElement(Start, { onStart: () => {} }));
@@ -217,4 +218,145 @@ test("no words and no setting terms in the web app's code", () => {
     if (f.endsWith(".tsx")) assert.deepEqual(code.match(/<\/?[a-z][\w.]*(?:\s[^<>]*)?>\s*[A-Za-z][^<>{}]*</g), null, `${f}: words in JSX belong in player.json`);
   }
   assert.match(readFileSync("web/index.html", "utf8"), /<title><\/title>/);
+});
+
+// ---- CC-20261112-03 (#81): decks, selection, lore links, the web and the record, notes, Il Notaio's hint ----
+
+const game = (props: Record<string, unknown>) => html(createElement(GameView, { me: F, send: () => {}, status: "open", ...props } as Parameters<typeof GameView>[0]));
+const LORE: LoreEntry[] = [
+  { id: "L1", title: "San Frediano", aliases: ["the Oltrarno church"], subject: "Places", text: "A church across the river." },
+  { id: "L2", title: "1478", aliases: [], subject: "History", text: "The year the Pazzi rose." },
+  { id: "L3", title: "The Signoria", aliases: ["Signoria"], subject: null, text: "The city's government." },
+];
+/** A view with public lore in its sheet, and a line that names two entries. */
+function withLore(v: View): View {
+  const said = { ...v.stream.find((l) => l.item === "line" && !l.you)!, id: "LX", seq: 1e6, text: "They say the Signoria met at San Frediano after 1478." };
+  const segments = v.segments.map((seg, i) => (i === v.segments.length - 1 ? { ...seg, lines: [...seg.lines, said] } : seg));
+  return { ...v, sheet: { ...v.sheet!, lore: LORE }, stream: [...v.stream, said], segments };
+}
+
+test("the decks: one card per briefing section and per rules topic, with Your past; The city grouped by subject", async () => {
+  const briefing = castBriefings(fakeDocs)[F]!;
+  const cards = briefingCards(briefing);
+  assert.deepEqual(cards.slice(0, 4).map((c) => c.title), ["Who you are", "How you speak", "Your errand tonight", "Your faction"]);
+  assert.ok(cards.every((c) => c.text.trim() && !/^\*\*[^*]+\*\*$/m.test(c.text)), "every card has text, and no heading inside");
+  assert.equal(cards.map((c) => c.text).join(" ").length > briefing.length * 0.85, true, "the briefing's text is all there");
+  const { at } = await playedLog();
+  const v = derive(at.move!);
+  const rules = rulesCards(v.sheet!.rules);
+  assert.ok(rules.length >= 6 && rules.every((c) => c.title && c.text), rules.map((c) => c.title).join(", "));
+  assert.deepEqual(cityCards(LORE).map((c) => [c.group, c.title]), [["History", "1478"], ["Places", "San Frediano"], [null, "The Signoria"]]);
+  // Rendered: tabs along the top, one per card; the first card open; a back control; Your past when lore is on.
+  const past = { ...v, sheet: { ...v.sheet!, past: [{ id: "P1", title: "The garden wall", text: "You climbed it once." }] } };
+  for (const [deck, view, n] of [["briefing", past, cards.length + 1], ["rules", v, rules.length], ["city", withLore(v), 3]] as const) {
+    const h = game({ v: view, deck });
+    assert.deepEqual(missingWords(h), [], deck);
+    assert.equal((h.match(/class="tab( on)?"/g) ?? []).length, n, `${deck}: a tab per card`);
+    assert.match(h, /class="deck-card"[^>]*data-hint="deckCard"/, `${deck}: the card swipes on`);
+    assert.match(h, /data-hint="deckBack"/);
+  }
+  assert.match(game({ v: past, deck: "briefing" }), /data-hint="deckTab">Your past</, "Your past, last");
+  assert.equal((game({ v: withLore(v), deck: "city" }).match(/class="tab-group"/g) ?? []).length, 3, "The city's subjects head its list");
+  assert.match(game({ v, deck: "city" }), /class="deck-card empty"/, "an empty city says so");
+});
+
+test("selection: one guest at a time, on the right, with their lines highlighted and their earlier conversations open", async () => {
+  const { v } = await lateView();
+  const earlier = v.segments.slice(0, -1);
+  const name = v.stream.find((l) => l.item === "line" && !l.you && earlier.some((s) => appearsIn(s, l.speaker!)))!.speaker!;
+  const h = game({ v, selected: { kind: "guest", name } });
+  assert.deepEqual(missingWords(h), []);
+  assert.ok(h.includes(`data-guest="${name.replace(/'/g, "&#x27;")}"`), "their card on the right");
+  const opened = (h.match(/class="earlier-line" aria-expanded="true"/g) ?? []).length;
+  assert.equal(opened, earlier.filter((s) => appearsIn(s, name)).length, "the earlier conversations they were in, open");
+  for (const l of v.stream.filter((x) => x.item === "line" && x.speaker === name && h.includes(`data-line="${x.id}"`))) assert.match(h, new RegExp(`class="ln speech[^"]* hl" data-line="${l.id}"`), `${l.id} highlighted`);
+  assert.equal((game({ v }).match(/class="earlier-line" aria-expanded="true"/g) ?? []).length, 0, "nothing selected: all folded");
+  assert.match(game({ v }), /class="guest" aria-pressed="false"/, "names select");
+});
+
+test("lore links: a public entry's title or alias in any line links to it on the right; relationship entries never", async () => {
+  const parts = loreParts("They say the Signoria met at San Frediano after 1478, not at the Signorial palace.", LORE);
+  assert.deepEqual(parts.filter((p) => typeof p !== "string").map((p) => (p as { entry: LoreEntry }).entry.id), ["L3", "L1", "L2"], "whole words only");
+  assert.deepEqual(loreParts("the oltrarno church", LORE).map((p) => (typeof p === "string" ? p : p.entry.id)), ["L1"], "an alias, ignoring case");
+  const { at } = await playedLog();
+  const v = withLore(derive(at["speak:capannello"]!));
+  const h = game({ v });
+  assert.equal((h.match(/class="lore-link"/g) ?? []).length, 3);
+  const right = game({ v, selected: { kind: "lore", entry: LORE[0], back: null } });
+  assert.match(right, /data-lore="L1"/);
+  assert.match(right, /data-hint="back"/, "with a way back");
+  // What the engine sends: kind lore only; private entries only the player's own, and only with lore on.
+  const e = (id: string, scope: string, kind?: "lore" | "relationship") => ({ id, title: id, scope, text: id, source: "test", status: "approved", canon_checked: true, ...(kind && { kind }) }) as StoredLore;
+  const loadable = [e("pub", "public"), e("rel", "public", "relationship"), e("mine", F), e("theirs", "Lupo")];
+  const off = screenContent(F, "off", loadable);
+  assert.deepEqual([off.lore.map((x) => x.id), off.past], [["pub"], []]);
+  assert.deepEqual(screenContent(F, "on", loadable).past.map((x) => x.id), ["mine"]);
+  assert.ok(screenContent("Lupo", "on", loadable).connections.every((c) => !("private" in c)), "Francesco's own lines are his alone");
+});
+
+test("the web viewer: twelve guests, fixed lines, up to two selected, and only what the player heard and saw", async () => {
+  const { at, log, game: played } = await playedLog();
+  const v = derive(log.filter((e) => e.type !== "result"));
+  const ids = new Set(v.stream.map((l) => l.id));
+  const roster = info.roster.map((r) => r.name);
+  const h0 = game({ v, web: [] });
+  assert.deepEqual(missingWords(h0), []);
+  assert.equal((h0.match(/class="node( [^"]*)?"/g) ?? []).length, 12);
+  assert.equal((h0.match(/class="edge yours/g) ?? []).length, v.sheet!.connections!.filter((c) => c.private).length, "Francesco's own lines, marked as his");
+  // One guest, and every pair: only lines from the player's own stream, and never a thought.
+  const thoughts = played.thoughts.map((t) => t.text).filter((t) => t.length > 20);
+  for (const sel of [...roster.map((r) => [r]), ...roster.flatMap((a, i) => roster.slice(i + 1).map((b) => [a, b]))]) {
+    const h = game({ v, web: sel });
+    for (const m of h.matchAll(/data-line="(\w+)"/g)) assert.ok(ids.has(m[1]!), `${sel}: ${m[1]} is the player's own`);
+    for (const t of thoughts) assert.ok(!h.includes(t), `${sel}: a thought reached the web`);
+  }
+  const lupo = heardAndSaw(v, ["Lupo"], F);
+  assert.ok(lupo.heard.length > 0 && lupo.heard.every((l) => l.speaker === "Lupo"));
+  assert.ok(lupo.heard.every((l, i) => i === 0 || l.seq < lupo.heard[i - 1]!.seq), "newest first");
+  assert.ok(lupo.saw.every((s) => s.kind === "death" || s.line.about?.includes("Lupo")));
+  const pair = heardAndSaw(v, [F, "Lupo"], F);
+  assert.ok(pair.heard.every((l) => [F, "Lupo"].includes(l.addressee!)));
+  void at;
+});
+
+test("notes in the web viewer: on a guest, on a pair (drawn dashed), or free; all of them grouped, each can become a conclusion", async () => {
+  const { at } = await playedLog();
+  const base = at["speak:colloquio"]!;
+  const notes: Ev[] = [
+    { seq: 1e6, type: "note", id: "N1", turn: 1, guests: [], text: "Something is off tonight." },
+    { seq: 1e6 + 1, type: "note", id: "N2", turn: 1, guests: ["Lupo"], text: "Lupo watches the door." },
+    { seq: 1e6 + 2, type: "note", id: "N3", turn: 2, guests: ["Lupo", "Giorgia Pazzi"], text: "Those two talk too often." },
+  ];
+  const v = derive([...base, ...notes]);
+  assert.deepEqual(v.notes.map((n) => n.id), ["N1", "N2", "N3"]);
+  assert.equal((game({ v, web: [] }).match(/class="edge note-line/g) ?? []).length, 1, "the pair's dashed line");
+  const mine = game({ v, web: ["Lupo"], webTab: "notes" });
+  assert.match(mine, /Lupo watches the door\./);
+  assert.doesNotMatch(mine, /Something is off/, "only the notes on this selection");
+  const all = game({ v, web: [], webTab: "all" });
+  assert.deepEqual(missingWords(all), []);
+  assert.deepEqual([...all.matchAll(/class="note-text"[^>]*>([^<]+)</g)].map((m) => m[1]), ["Those two talk too often.", "Lupo watches the door.", "Something is off tonight."], "newest first");
+  assert.equal((all.match(/data-hint="conclude"/g) ?? []).length, 3);
+  assert.ok(v.commands.some((c) => c.action === "conclude"), "the conclusion's command, found by its action");
+});
+
+test("Il Notaio's hint: the moment's template at every wait, under the stream, styled apart from his notes", async () => {
+  const { at, log } = await playedLog();
+  const expect: Record<string, string> = { move: "move", seat: "seat", midnight: "midnight", "speak:colloquio": "colloquio" };
+  for (const [k, l] of Object.entries(at)) {
+    const v = derive(l);
+    const m = hintMoment(v, F);
+    const want = expect[k] ?? (k.startsWith("speak:colloquio") ? "colloquio" : null);
+    if (want) assert.equal(m.key, want, k);
+    else assert.ok(["mingling", "answering"].includes(m.key), `${k}: ${m.key}`);
+    const h = game({ v });
+    assert.match(h, new RegExp(`class="notaio-hint"[\\s\\S]*data-moment="${m.key}"`), k);
+    assert.ok(h.includes(notaioHint(m.key, m.values).replace(/'/g, "&#x27;")), `${k}: the template, filled`);
+    assert.ok(h.indexOf('class="notaio-hint"') > h.indexOf('class="stream"') && h.indexOf('class="notaio-hint"') < h.indexOf('class="input'), `${k}: docked under the stream`);
+  }
+  const refused = derive([...at.move!.filter((e) => e.type !== "request"), { seq: 1e6, type: "refusal", reason: "No.", input: "/fly" }]);
+  assert.equal(hintMoment(refused, F).key, "refused");
+  const dead = derive([...log.filter((e) => e.type !== "result"), { seq: 1e6, type: "death", name: F, you: true }]);
+  assert.equal(hintMoment(dead, F).key, "dead");
+  for (const k of ["mingling", "answering", "colloquio", "move", "seat", "midnight", "council", "ballot", "refused", "dead"]) assert.ok(!notaioHint(k, { name: "X", other: "Y" }).startsWith("hints."), k);
 });

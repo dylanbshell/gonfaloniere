@@ -26,6 +26,12 @@ const LoreEntryShape = z.object({
   source: z.string(),
   status: z.enum(["draft", "approved"]),
   canon_checked: z.boolean(),
+  /** TD v0.42: `lore` (the default) or `relationship`, a public relationship line for the AI guests only, never shown to the player as lore. */
+  kind: z.enum(["lore", "relationship"]).optional(),
+  /** The player screen (TD v0.40): other words a line may use for it, for lore links. */
+  aliases: z.array(z.string().min(1)).optional(),
+  /** The player screen (TD v0.40): the subject The city deck groups it under. */
+  subject: z.string().min(1).optional(),
 });
 export type LoreEntry = z.infer<typeof LoreEntryShape> & { scope: "public" | CharacterName };
 

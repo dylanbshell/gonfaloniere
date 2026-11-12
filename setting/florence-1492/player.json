@@ -62,7 +62,9 @@
       "self": "You can't take an act on yourself.",
       "not_living": "Name a living guest.",
       "same_guest": "Each of your acts must name a different guest."
-    }
+    },
+    "note_too_long": "That note is {length} characters; keep it to {max}.",
+    "note_guest": "A note can be about guests at this party only."
   },
   "examples": [
     "I hear the Signoria meets early tomorrow.",
@@ -216,7 +218,70 @@
       "confirm": "Lock in your choice. It can't be changed afterwards.",
       "close": "Close this and go back to the conversation.",
       "play": "Start the evening as this guest.",
-      "wait": "Wait here until a seat opens in a group. You'll be offered one at the next chance."
+      "wait": "Wait here until a seat opens in a group. You'll be offered one at the next chance.",
+      "city": "The city: what everyone in Florence knows, one topic per card.",
+      "web": "The web: who is tied to whom, what you heard and saw of each guest, and your notes.",
+      "select": "Select this guest: their public card shows on the right, their lines are highlighted, and earlier conversations they were in open up. Select again, or press Escape, to clear.",
+      "loreLink": "Something everyone in the city knows about. Opens it on the right.",
+      "earlierLine": "Open or fold this earlier conversation.",
+      "deckTab": "Jump to this topic.",
+      "deckCard": "Click anywhere on the card, or press the right arrow, for the next topic.",
+      "deckBack": "Back to the previous topic. The left arrow works too.",
+      "selected": "The guest you selected. Everything shown is what anyone at the party knows about them.",
+      "back": "Back to what you were looking at before.",
+      "openWeb": "Open the web with this guest selected.",
+      "notaioHint": "Il Notaio's advice for the moment. Click to fold it away or bring it back.",
+      "webNode": "Select a guest. Select a second to see what passed between the two; a third replaces the older.",
+      "recordTab": "What you heard the selected guests say, and what you saw of them, newest first. Only what you were there for.",
+      "notesTab": "Write a note on the selected guest or pair, or with no one selected, a free note. Only you see your notes.",
+      "allTab": "Every note you've written, newest first, grouped by guest and pair.",
+      "noteText": "Your note. No one else sees it, and no guest's mind is touched by it.",
+      "noteSave": "Keep this note. It stays with the game, even if you reload the page.",
+      "conclude": "Make this note your conclusion: what you've worked out. Only your latest conclusion counts.",
+      "noteItem": "Select the guest or pair this note is about."
+    },
+    "city": "The city",
+    "decks": {
+      "past": "Your past",
+      "back": "Back",
+      "counter": "{n} of {total}",
+      "empty": "Nothing here yet.",
+      "other": "Other"
+    },
+    "right": {
+      "selected": "Selected",
+      "lore": "The city",
+      "back": "Back",
+      "known": "Known to all",
+      "with": "With {name}:",
+      "openWeb": "Open in the web viewer"
+    },
+    "notaioHint": {
+      "title": "Il Notaio, to you",
+      "hide": "Hide",
+      "show": "Show"
+    },
+    "web": {
+      "title": "The web",
+      "record": "What you heard and saw",
+      "notes": "Notes",
+      "all": "All your notes",
+      "pick": "Select a guest to see what you heard and saw of them, or two to see what passed between them.",
+      "heard": "What you heard",
+      "saw": "What you saw",
+      "nothing": "Nothing yet.",
+      "yours": "(yours alone)",
+      "between": "{a} and {b}",
+      "died": "{name} died.",
+      "writeOn": "A note on {who}",
+      "writeFree": "A free note",
+      "placeholder": "What do you make of it?",
+      "save": "Save note",
+      "conclude": "This is my conclusion",
+      "filter": "Show notes on",
+      "everyone": "All guests",
+      "free": "Free notes",
+      "none": "No notes yet."
     }
   }
 }

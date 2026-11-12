@@ -16,7 +16,7 @@ import { borrow, bribe, newEconomy, rejectAction, repay, seesLedger, type Action
 import { capannelloStart, fallbackTarget, movementWindow } from "../rules/movement.ts";
 import { mulberry32 } from "../rules/random.ts";
 import { fewestGuests, initiatorSeat, interimLoneSeat, inviteeSeatProblem, leastInvolved, loneSeatOptions, loneSeatValid, openGroups, returnSeat, type SeatProblem } from "../rules/seating.ts";
-import { say } from "../setting/pack.ts";
+import { say, settingPack } from "../setting/pack.ts";
 import { parseSpeak } from "../output/speak.ts";
 import { parseStrategy } from "../output/strategy.ts";
 import { parseThink, type Took, type WordsLog } from "../output/think.ts";
@@ -54,7 +54,7 @@ import { gameAct, hasArrival, inWorldNames, inWorldTime, minglingPhase } from ".
 import type { RequestKind } from "../core/protocol.ts";
 import { actProblems } from "../rules/midnight.ts";
 import { MemoryStore, renderBelief, tookTargetLine, resolveName, whereLabel, type GameLine, type Thought, type Where } from "./memory.ts";
-import { MESSAGE_MAX, PlayerFeed, errandText, mentions, menu, parseCommand, playable, playerSays, refusal, type CommandAction } from "./player.ts";
+import { MESSAGE_MAX, NOTE_MAX, PlayerFeed, errandText, screenContent, type PlayerNote, mentions, menu, parseCommand, playable, playerSays, refusal, type CommandAction } from "./player.ts";
 
 // ---- Calls -----------------------------------------------------------------------------
 
@@ -302,6 +302,7 @@ export class MiniGame {
       if (!playable().includes(this.human)) throw new Error(`human: ${this.human} isn't a playable character (setting.json: ${playable().join(", ")})`);
       this.player = new PlayerFeed(ctrl, this.human);
       ctrl.onInput = (m) => this.playerInput(m);
+      ctrl.onNote = (m) => this.playerNote(m);
       this.recorder.skipPerception = new Set([this.human]);
     }
     for (const c of s.cast) {
@@ -602,7 +603,7 @@ export class MiniGame {
       const e = bribe(this.econ, actor, to, a.amount!);
       if (e.type !== "payment") return false;
       const paid = say("notaio", "lines.payment", { actor: e.from, other: e.to, amount: e.amount });
-      const line = this.addLine(conv, "event", null, paid);
+      const line = this.addLine(conv, "event", null, paid, null, [actor, to]);
       this.memory.addEntry({ turn: this.turn, conversation: conv.id, where: this.where(conv), type: "payment", speaker: actor, toward: to, about: [actor, to], summary: paid, quote: null, lines: [line.id], audience: [...conv.members], source: "code" });
       this.events.push({ turn: this.turn, type: "bribe", from: actor, to, amount: e.amount, line: line.id });
     } else if (a.type === "borrow") {
@@ -1251,8 +1252,8 @@ export class MiniGame {
   private speaking: CharacterName | null = null;
 
   /** A line the player heard goes to their feed, then block 5 if it changed. */
-  private toPlayer(line: GameLine): void {
-    this.player!.heard(line);
+  private toPlayer(line: GameLine, about?: CharacterName[]): void {
+    this.player!.heard(line, about);
     this.sendState();
   }
 
@@ -1265,7 +1266,22 @@ export class MiniGame {
       rules: rulesText(this.docs.templates, { ...this.docs.tunables, plotProtection: false, plotReward: false }),
       briefing: this.s.briefings[h]!,
       errand: errandText(this.s.briefings[h]!),
+      ...screenContent(h, this.s.lore ?? "off"),
     }));
+  }
+
+  /** The player's notes (TD v0.40, Notes): kept with the game and in the full record, never in a prompt or a replay. */
+  readonly playerNotes: PlayerNote[] = [];
+
+  private playerNote(m: { text: string; guests: string[] }): void {
+    const text = m.text.trim();
+    const guests = [...new Set(m.guests)];
+    const known = settingPack().roster.map((r) => r.name);
+    const problem = !text ? "empty" : text.length > NOTE_MAX ? "note_too_long" : guests.some((g) => !known.includes(g)) ? "note_guest" : null;
+    if (problem) return this.player!.refuse(problem, { length: text.length, max: NOTE_MAX });
+    const note: PlayerNote = { id: `N${this.playerNotes.length + 1}`, turn: this.turn, guests, text };
+    this.playerNotes.push(note);
+    this.player!.ctrl.send({ type: "note", ...note });
   }
 
   private recordHuman(kind: CallRecord["kind"], raw: string, parsed: unknown, refused: string | null): void {
@@ -1611,11 +1627,12 @@ export class MiniGame {
     return { kind: conv.kind, members: [...conv.members] };
   }
 
-  private addLine(conv: Conversation, kind: GameLine["kind"], speaker: CharacterName | null, text: string, addressee: CharacterName | null = null): GameLine {
+  /** `about` goes to the player's feed only (the web viewer's "what you saw"); the line itself is unchanged. */
+  private addLine(conv: Conversation, kind: GameLine["kind"], speaker: CharacterName | null, text: string, addressee: CharacterName | null = null, about?: CharacterName[]): GameLine {
     const line: GameLine = { id: `L${this.nextLine++}`, turn: this.turn, conversation: conv.id, where: this.where(conv), kind, speaker, addressee, text, heardBy: [...conv.members] };
     this.lines.push(line);
     for (const m of conv.members) this.char(m).lines.push(line);
-    if (this.player && line.heardBy.includes(this.human!)) this.toPlayer(line);
+    if (this.player && line.heardBy.includes(this.human!)) this.toPlayer(line, about);
     return line;
   }
 
@@ -1626,7 +1643,7 @@ export class MiniGame {
    * before it both were empty, so older games replay byte-identical.
    */
   private notaio(conv: Conversation, text: string, about: CharacterName[]): void {
-    const line = this.addLine(conv, "notaio", null, text);
+    const line = this.addLine(conv, "notaio", null, text, null, [...new Set(about)]);
     // Code writes Il Notaio's events to the memory of everyone who heard them.
     const named = this.namesNotaio ? { speaker: inWorldNames().narrator.name, about: [...new Set(about)] } : { speaker: null, about: [] };
     this.memory.addEntry({ turn: this.turn, conversation: conv.id, where: line.where, type: "event", ...named, toward: null, summary: text, quote: null, lines: [line.id], audience: line.heardBy, source: "code" });
@@ -1638,7 +1655,7 @@ export class MiniGame {
     this.lines.push(line);
     this.char(actor).lines.push(line);
     this.memory.addEntry({ turn: this.turn, conversation: conv.id, where: line.where, type, speaker: actor, toward: null, about: [actor], summary: text, quote: null, lines: [line.id], audience: [actor], source: "code" });
-    if (this.player && actor === this.human) this.toPlayer(line);
+    if (this.player && actor === this.human) this.toPlayer(line, [actor]);
   }
 
   private addThought(c: CharacterName, call: string, text: string, extra: Record<string, unknown> = {}, fields: Pick<Thought, "took" | "conversation" | "closing" | "took_target" | "target_line" | "target_answering" | "words" | "words_log"> = {}): void {

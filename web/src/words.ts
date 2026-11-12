@@ -6,6 +6,8 @@ export interface StartInfo {
   setting: string;
   currency: { singular: string; plural: string };
   words: Record<string, unknown>;
+  notaio: { hints: Record<string, string> };
+  factions: string[];
   max: number;
   roster: { name: string; faction: string; subtitle: string; initials: string; colour: string }[];
   playable: { name: string; intro: string }[];
@@ -28,6 +30,13 @@ export function w(key: string, values: Record<string, string | number> = {}): st
   if (typeof t !== "string") return key;
   const all: Record<string, string | number> = { currency: info?.currency.plural ?? "", ...values };
   return t.replace(/\{(\w+)\}/g, (m, k: string) => (k in all ? String(all[k]) : m));
+}
+
+/** Il Notaio's hint for a moment (notaio.json's hints), filled. */
+export function notaioHint(key: string, values: Record<string, string | number> = {}): string {
+  const t = info?.notaio?.hints[key];
+  if (typeof t !== "string") return `hints.${key}`;
+  return t.replace(/\{(\w+)\}/g, (m, k: string) => (k in values ? String(values[k]) : m));
 }
 
 /** A list from player.json (the example lines). */

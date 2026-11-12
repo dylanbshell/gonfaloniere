@@ -6,11 +6,22 @@
 import type { HumanController } from "../core/human.ts";
 import type { OutgoingBody } from "../core/protocol.ts";
 import { ALIASES, type CharacterName } from "../game/roster.ts";
-import { say, settingPack } from "../setting/pack.ts";
+import { relationships, say, settingPack } from "../setting/pack.ts";
+import { readLoreFile, type LoreEntry, type LoreSetting } from "./lore.ts";
 import type { GameLine } from "./memory.ts";
 
 /** Mechanics, Human Player Input: at most 500 characters a message. */
 export const MESSAGE_MAX = 500;
+
+/** A player's note (TD v0.40, Notes): on no guest, one, or a pair. */
+export interface PlayerNote {
+  id: string;
+  turn: number;
+  guests: string[];
+  text: string;
+}
+/** Notes are the player's own; this only keeps one from swamping the record. */
+export const NOTE_MAX = 2000;
 
 /** The commands the mini-game knows, by the game's action. `investigate` is typed by its in-world name. */
 export type CommandAction = "bribe" | "borrow" | "repay" | "kill" | "guard" | "investigate" | "conclude";
@@ -38,6 +49,25 @@ export function briefingSection(briefing: string, heading: string): string {
   if (start < 0) return "";
   const end = lines.findIndex((l, i) => i > start && isHeading(l));
   return lines.slice(start + 1, end < 0 ? undefined : end).join("\n").trim();
+}
+
+/**
+ * What the screen shows beyond the briefing and rules, sent with the player's sheet (TD v0.41–v0.43): the
+ * web's fixed lines (relationships.json: the public ones, and the player character's own, marked private),
+ * the public lore for The city and lore links (`kind: lore` only; relationship entries are for the AI
+ * guests), and with `lore: on` the character's own private lore, for Your past. Approved entries only.
+ */
+export function screenContent(me: CharacterName, lore: LoreSetting, loadable: LoreEntry[] = readLoreFile().loadable) {
+  const rel = relationships();
+  const entries = loadable.filter((e) => (e.kind ?? "lore") === "lore");
+  return {
+    connections: [
+      ...rel.public.map((c) => ({ between: c.between, type: c.type, line: c.line })),
+      ...(rel.private[me] ?? []).map((c) => ({ between: [me, c.with], type: c.type, line: c.line, private: true })),
+    ],
+    lore: entries.filter((e) => e.scope === "public").map((e) => ({ id: e.id, title: e.title, aliases: e.aliases ?? [], subject: e.subject ?? null, text: e.text })),
+    past: lore === "on" ? entries.filter((e) => e.scope === me).map((e) => ({ id: e.id, title: e.title, text: e.text })) : [],
+  };
 }
 
 /** The errand card's text (TD v0.40, The screen): the briefing's errand section. */
@@ -106,8 +136,15 @@ export function parseCommand(text: string, guests: readonly CharacterName[]): Pa
 }
 
 /** The command menu's entries for these actions, with the setting pack's names and hints. */
-export function menu(actions: readonly CommandAction[], values: Record<string, string | number>): { name: string; usage: string; hint: string }[] {
-  return actions.map((a) => ({ name: commandName(a), usage: playerSays(`commands.${a}.usage`), hint: playerSays(`commands.${a}.hint`, values) }));
+export interface MenuEntry {
+  /** The game's action, so the screen can find a command (the notes' "This is my conclusion") without its words. */
+  action: CommandAction;
+  name: string;
+  usage: string;
+  hint: string;
+}
+export function menu(actions: readonly CommandAction[], values: Record<string, string | number>): MenuEntry[] {
+  return actions.map((a) => ({ action: a, name: commandName(a), usage: playerSays(`commands.${a}.usage`), hint: playerSays(`commands.${a}.hint`, values) }));
 }
 
 /**
@@ -122,20 +159,21 @@ export class PlayerFeed {
     readonly character: CharacterName,
   ) {}
 
-  heard(l: GameLine): void {
+  /** `about`: the characters a note or action line concerns, from the event (TD v0.36's `about`). */
+  heard(l: GameLine, about?: string[]): void {
     if (!l.heardBy.includes(this.character)) throw new Error(`${l.id} wasn't heard by ${this.character}`);
     const base = { id: l.id, turn: l.turn, conversation: l.conversation };
     const ev: OutgoingBody =
       l.kind === "speech"
         ? { type: "line", ...base, speaker: l.speaker!, addressee: l.addressee, text: l.text, you: l.speaker === this.character }
         : l.kind === "notaio"
-          ? { type: "notaio", ...base, text: l.text }
-          : { type: "action", ...base, text: l.text, private: l.kind === "private" };
+          ? { type: "notaio", ...base, text: l.text, ...(about && { about }) }
+          : { type: "action", ...base, text: l.text, private: l.kind === "private", ...(about && { about }) };
     this.ctrl.send(ev);
   }
 
   /** Block 5 and the command menu, when either changes; the sheet (blocks 2 and 3) goes with the first. */
-  state(state: Record<string, unknown>, commands: { name: string; usage: string; hint: string }[], speaking: string | null, sheet: () => Record<string, string>): void {
+  state(state: Record<string, unknown>, commands: MenuEntry[], speaking: string | null, sheet: () => Record<string, unknown>): void {
     const key = JSON.stringify([state, commands, speaking]);
     if (key === this.lastState) return;
     const first = !this.lastState;

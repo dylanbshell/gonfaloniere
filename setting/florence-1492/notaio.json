@@ -25,5 +25,18 @@
     "ledger_renounced": "the pension held by {holder} was renounced",
     "embassy_ledger": "Embassy treasury: {amount} {currency}. Pensions held: {pensions}.",
     "embassy_ledger_latest": " Latest: {latest}."
+  },
+  "hints": {
+    "_comment": "Il Notaio's hint to the player (TD v0.40, Il Notaio's hint): a line or two for what the moment asks, in a box under the stream, styled apart from his announcements. Templates only, no model calls. Drafted by Claude Code for Dylan's review (CC-20261112-03). `council` and `ballot` are for the full game.",
+    "mingling": "You're among the guests. Listen, and speak when the company turns to you, or pass. Hover over anything on the screen to learn what it's for.",
+    "answering": "{name} has spoken to you directly. An answer is expected, though silence says something too.",
+    "colloquio": "You and {other} have withdrawn for a private word. No one else hears you, but everyone saw you go.",
+    "move": "The company is shifting. Stay where you are, join another group, or draw someone aside for a private word.",
+    "seat": "Your private word is over. Find a group to join.",
+    "midnight": "Midnight. Choose your act in secret. Every act lands at once, and no killer is ever named.",
+    "council": "Your faction has gathered apart. Only your own people hear what is said here.",
+    "ballot": "The ballot. Every guest casts one vote, and may buy more for the same candidate.",
+    "refused": "That couldn't be done; the reason is just above your box. The / menu shows what you can do now.",
+    "dead": "You have died. You can still read the web, what you heard and saw, and your notes, and you'll hear the city's announcements."
   }
 }
