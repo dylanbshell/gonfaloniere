@@ -1,8 +1,52 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.39
+### Version 0.43
 
 ---
+
+## Changes in v0.43
+
+*Dylan asked whether AI guests should get the player's note-taking (Nov 12).*
+
+- **No separate note-taking for AI guests.** Their beliefs (from the thought pass), their plan, and their readings already are their notes on people and pairs. A "write a note" action would add a field to most calls and a second record that mostly repeats the beliefs
+- **New open question:** do AI guests recall what they concluded about the guest in front of them? If the first full games show they don't, the fix is in retrieval: put beliefs about the guests present first
+- Prompts unchanged
+
+## Changes in v0.42
+
+*Two clarifications from Dylan (Nov 12), before v0.41 was merged. Replaces PR #82.*
+
+- **Relationship lore is for the AI guests only.** The public relationship lines carried as lore get a new field, `kind: relationship` (The lore store). The player never sees them as lore: they're left out of The city deck and never become lore links. The player already sees the same lines in the right panel's public card and in the web viewer
+- **Two ways to view public lore** (The screen): **a lore link** in a line opens the entry in the right panel; **browsing** happens only through The city deck, opened from its button on the left
+- Prompts unchanged
+
+## Changes in v0.41
+
+*Dylan's follow-ups on v0.40 (Nov 12), before it was merged. Replaces PR #79.*
+
+- **Selection** (The screen, new paragraph). In the chat view, **one thing at a time:** a guest or a lore topic. Clicking another replaces it, and clicking it again deselects it. **Only the web viewer** selects two guests. No shift-click
+- **The web viewer** (renamed from "the web and the record") opens from its own button, or from "Open in the web viewer" on the right panel, carrying the current selection. Inside it, a click selects a first and second guest, a third replaces the older, and clicking a selected guest deselects it. Notes live there
+- **Collapsing by location:** conversations from other locations stay collapsed. Selecting a guest opens the earlier sections they appeared in, with their lines highlighted, and deselecting collapses them again
+- **Parity for the AI characters** (new subsection, What the AI guests have instead). Their prompt already holds the equivalent of the screen, so nothing is rebuilt. Two changes: everyone sees the room (already in v0.40), and **the public relationship lines also become public lore entries,** so AI guests draw on them like any lore. The player's fuller recall stays a known asymmetry; a human game is kept apart from the AI-only research baseline anyway
+- Prompts unchanged
+
+## Changes in v0.40
+
+*Dylan's first playtest of the player screen (Nov 12), and his decisions on it. Player Interface's The screen is rewritten.*
+
+- **First-hand only:** the screen shows the character's briefing, public facts, what they saw and heard tonight, and the player's own notes. Nothing is summarized, inferred, or connected by a model
+- **Everyone sees the room** (new subsection; Dylan's call, waits on Mechanics). Every guest knows who stands with whom and who is off in private with whom, AI characters included, but never what's said. For the AIs, block 5 gains one line, `Around the room: {room}`, version-gated; for the player, a room of overlapping tokens on the left. It changes how the AI guests move, so Models & Research gets a small check
+- **The web and the record:** shift-clicking two guests raises a panel from the bottom. It holds a fixed relationship web shaped like the board's Web of Secrets, and a record of what the player heard and saw of one guest or between two
+- **Notes:** on one guest, on a pair (drawn on the web as the player's own dashed line), or free. There's an "all your notes" tab, and any note can become a `/conclude`
+- **The right panel** shows public, fixed information about the selected guest, or a public lore entry. Selecting a guest highlights their lines
+- **Lore links** when a line mentions a public lore entry's title or alias. Matched on the words, never on what was in a speaker's prompt
+- **Card decks** for Your briefing (with Your past, the private lore), The rules, and The city (public lore): one topic per card, click anywhere to swipe on, a back control, no auto-advance
+- **Only the current conversation is open;** earlier ones collapse into Earlier tonight
+- **The buttons differ by job:** Speak is primary and active only with something to say; Do replaces it for a command; Pass is outlined; End conversation moves to the conversation's header; @ and / are icons in the input
+- **A pinned errand card,** **hover explanations** with an off switch, and **Il Notaio's hint,** a docked box of template hints with no model calls
+- **Two first-build bugs fixed in the spec:** decks slid under the chat box, and the command menu didn't close when its slash was deleted
+- **Setting pack:** `relationships.json` added, for the public connections and lines (Characters to write)
+- Prompts unchanged, except block 5's room line once Mechanics adopts it
 
 ## Changes in v0.39
 
@@ -839,7 +883,8 @@ Every line in block 8 is one of four kinds. All non-speech lines are written by 
 | `in-world-names.json` | The in-world names table (In-World Names) | `scenarios/in-world-names.json` |
 | `notaio.json` | Il Notaio's notes, as templates: join, return, rejoin, a new group, the attendance note. Then code's private and action lines: a payment, a pension taken, renounced, or refused. For the player (v1): orientation notes and corrections | Strings in `src/minigame/engine.ts` |
 | `actions.json` | How each action is described to a character in its allowed-actions list (block 9), as templates | Strings in `src/game/actions.ts` |
-| `player.json` | The player screen's words: labels, command names and hints, example lines, refusal reasons | New (Player Interface) |
+| `player.json` | The player screen's words: labels, command names and hints, example lines, refusal reasons, hover explanations, deck titles | New (Player Interface) |
+| `relationships.json` *(v0.40)* | The web's fixed lines: the public connections between guests (type and one public line each), and each character's own connections from their briefing, marked private to them | New. Content from Characters (tracker handoff) |
 | `known-at-start.json` | Only if a scenario needs more than the facts table's "Known at start" column, as the mini-game does today | `scenarios/minigame-known-at-start.json` |
 
 - **Templates** use named placeholders: `{actor}`, `{others}`, `{amount}`, `{currency}`, `{holder}`. Code fills them, and nothing else
@@ -1872,6 +1917,7 @@ So Models & Research can compare each notebook with the transcript (Game Record 
 |---|---|
 | `id`, `title` | For the record and the dashboard |
 | `scope` | `public`, or the full name of the one character it belongs to |
+| `kind` *(v0.42)* | `lore` (the default) or `relationship`. A relationship entry is one of the public relationship lines (Characters), carried so AI guests can retrieve it. **It's never shown to the player as lore:** not in The city deck, never a lore link. The player sees the same lines in the right panel and the web viewer |
 | `text` | One fact or episode, at most ~80 words, in plain prose |
 | `source` | Where it came from: the Lore doc entry, or the Characters doc's Shared Canon |
 | `status` | `draft` or `approved`. Only approved entries are loaded |
@@ -2202,45 +2248,132 @@ Commands are actions, not speech, so they don't use the turn's message (Mechanic
 - **Never shown to anyone else,** and never in any AI character's prompt
 - **It matters for:** Piero's errand (F1), and any knowledge errand a playable character gets later. Francesco's errand is a payment, so it doesn't need it
 
-### The screen
+### The screen *(revised in v0.40 after Dylan's first playtest, Nov 12)*
 
 A single page in the style of a Slack chat. Placeholder portraits until Art's are ready: initials in a circle, coloured by faction.
 
+**The rule for everything below: first-hand only.** The screen shows what the player's character knows from their briefing, what is public, what they saw and heard tonight, and the player's own notes. **Nothing is summarized, inferred, or connected by a model.** That's the same rule the characters live under, it keeps the player and the AI guests on equal terms, and it means the screen can't show anything false.
+
 ```
-┌──────────────┬─────────────────────────────────────┬──────────────┐
-│ YOU          │ The second round of mingling, early │ [portrait]   │
-│ [portrait]   │ Capannello with Giorgia, Lupo       │ Lupo         │
-│ Francesco    │─────────────────────────────────────│ Pazzi · the  │
-│ Pazzi        │ Il Notaio: Lupo joined the company. │ family       │
-│              │ Giorgia Pazzi: …                    │ bodyguard    │
-│ Purse  11 F  │ Lupo (to you): …                    │              │
-│ Pensions 0   │ You: …                              │              │
-│ Errand: …    │ Lupo is speaking…                   │              │
-│              │─────────────────────────────────────│              │
-│ HERE         │ ┌ MOVEMENT WINDOW ────────────────┐ │              │
-│ Giorgia      │ │ Stay · Move toward… · Call aside…│ │              │
-│ Lupo         │ └─────────────────────────────────┘ │              │
-│              │─────────────────────────────────────│              │
-│ [Briefing]   │ > @Lupo …              312/500 [Pass]│              │
-│ [Rules]      │ e.g. "Sit with me. We should talk." │              │
-└──────────────┴─────────────────────────────────────┴──────────────┘
+┌─────────────────┬────────────────────────────────────┬──────────────────┐
+│ YOU             │ The second round of mingling, early│ Lupo             │
+│ portrait · name │ Capannello with Giorgia, Lupo      │ public card      │
+│ purse·pensions· │ ▸ Earlier tonight (collapsed)      │ (or a lore entry)│
+│ withdrawals     │ Il Notaio: …                       │                  │
+│ ┌ ERRAND ─────┐ │ Giorgia Pazzi: …                   │                  │
+│ └─────────────┘ │ Lupo (to you): …                   │                  │
+│ THE ROOM        │ ┌ Il Notaio's hint ───────────────┐│                  │
+│ ● ●●  ●●● ●     │ └─────────────────────────────────┘│                  │
+│ [Briefing]      │ [@][/]  > …            [Pass][Speak]│                  │
+│ [Rules] [Lore]  │ e.g. "Sit with me. We should talk." │                  │
+└─────────────────┴────────────────────────────────────┴──────────────────┘
+                   ▲ the web viewer slides up from its button
 ```
 
-- **Left, your character:** portrait, name, faction, purse, pensions held, and the errand line. Once the errand check has run, its result appears there in the same words as `{plot_status}`. Then **who's here,** and buttons for **Your briefing** (block 3, in full) and **The rules** (block 2). All of this is block 5's content and no more
-- **Centre, the conversation:** the time label (block 5's phase label) and the conversation's members at the top. Then the stream: lines, Il Notaio's notes in a distinct style, action lines, and lines addressed to the player marked as such. A "…is speaking" indicator shows while a line is generated. Earlier conversations stay above, behind a divider ("You joined Giorgia and Lupo")
-- **Decision cards** appear in the stream when the game is waiting for a choice: movement, seat, midnight, and in the full game candidate selection, the speech, the ballot, and the run-off. While a card is open, the message box is closed
-- **The input box:** a character counter (500, Mechanics), Pass, an @-mention dropdown of guests present only, and the command menu. Under it, **one example line**, plain and period-fitting, rotated from the setting pack (Off-register input, below)
-- **Right, who you're talking to:** in a Colloquio, the other guest; in a group, the last speaker. Their portrait and the same public line the briefing's subtitle gives ("Pazzi · the family bodyguard")
-- **Name tooltips** show only that public line and faction, never what the replay viewer shows. The player's character doesn't know another guest's purse or withdrawals
-- **No other conversations, no room map, no inner life.** Those are the replay viewer's, after the game
+**Left: you.**
+- **Your sheet:** portrait, name, faction, purse, pensions held, and Colloquio withdrawals. These should read as more than a list (a purse with its count, a pension seal, tally marks for withdrawals), but how they look is the theme's job, settled with the look
+- **The errand card,** pinned under the sheet, so the errand stays in front of the player. It shows the errand's text, then its result once the check has run, in the same words as `{plot_status}`
+- **The room** *(waits on Mechanics; see Everyone sees the room, below)*. Where every living guest is: each group as a cluster of tokens, a Colloquio pair as two tokens joined, and the player's own group marked. Tokens in a group overlap, and spread out on hover. Clicking a token selects that guest. Until Mechanics adopts the rule, this shows "Here with you" only
+- **Three buttons** opening card decks (below): **Your briefing**, **The rules**, and **The city** (public lore)
 
-**The look** *(undecided; Dylan, Nov 10)*. Three directions are on a [design canvas](https://claude.ai/artifact/MgVNN1NijQxXrbuy56Tof2): a "palazzo ledger" (parchment and ink, serif type), a dark modern chat, and a clean light style with period accents. **Leaning:** the palazzo ledger, with rounded corners rather than square boxes, and a movement card laid out as three choice tiles (Stay, Join, Colloquio) with a guest picker below, in the ledger's styling. Decide after the first playtest of the plain build.
+**Centre: the conversation.**
+- The time label and the conversation's members at the top
+- **Only the current conversation is open.** Conversations in other locations collapse into an **Earlier tonight** section above, one line per conversation ("Capannello with Giorgia and Lupo, second round"). Each opens in place when clicked. **Selecting a guest opens the earlier sections they appeared in,** with their lines highlighted, and deselecting collapses them again (v0.41). Nothing is lost; the current room is just never confused with the last
+- The stream: lines, Il Notaio's notes in their own style, action lines, and lines addressed to the player marked as such. A "…is speaking" indicator shows while a line is generated
+- **Selecting a guest highlights their lines** in the stream (one guest at a time; Selection, below)
+- **Lore links:** when a line mentions a term that's the title or alias of a **public** lore entry (`kind: lore` only, never a relationship entry) ("San Frediano", "1478"), the term becomes a link that opens the entry in the right panel. The match is on the words of the line, for anyone's line, the player's included. It's never based on which entries were in a speaker's prompt: that would link entries a line didn't use, and hint at what the model was given
+- **Decision cards** (movement, seat, midnight, and in the full game candidate selection, the speech, the ballot, and the run-off) appear in the stream when the game waits. While one is open, the message box is closed
+- **Il Notaio's hint,** docked under the stream (below)
+
+**The input box and its buttons.** The buttons do different jobs, so they look different:
+
+| Control | Job | Looks like |
+|---|---|---|
+| **Speak** | Send the line | The one filled, primary button. **Active only when there's something to say:** not when the box is empty or holds only `@` or `/` |
+| **Do** | Run a command | Replaces Speak when the box starts with `/`, in its own style, so a command never looks like speech |
+| **Pass** | Give up the turn's message | Secondary, outlined |
+| **End conversation** | End a Colloquio | Sits with the conversation's header, away from the box, since it acts on the conversation, not the message |
+| **@** and **/** | Open the guest and command menus | Small icon buttons inside the input, not peers of Speak |
+
+- **The menus open and close with their character.** Typing `@` opens the guest menu and `/` the command menu. Deleting the character, Escape, or clicking away closes either. *(A bug in the first build: the command menu stayed open.)*
+- The 500-character counter and **one example line** under the box, as before (Off-register input)
+
+**Selection** *(Dylan, Nov 12; v0.41)*. In the chat view, **one thing is selected at a time:** a guest (a name in the stream, a token in the room, or a name on the left) or a lore topic (a lore link in a line). Selecting something replaces the last selection, and clicking it again deselects it; Escape clears it. A selected guest shows on the right, has their lines highlighted, and opens their earlier conversations. A selected topic shows its lore entry on the right. **Two guests can be selected only in the web viewer.**
+
+**Right: whoever you're looking at.**
+- By default, **whoever you're talking to**: in a Colloquio, the other guest; in a group, the last speaker
+- **Selecting a guest** (a name in the stream, a token in the room, or a name on the left) shows that guest instead
+- **What it shows is public and fixed:** portrait, name, faction, public subtitle, and the public facts everyone knows at the start (Characters, public relationship lines). It never shows what the player has learned; that's the record's job
+- **A lore link** opens its public lore entry here, with a way back. **Public lore is seen in exactly two ways** (Dylan, Nov 12): from a lore link, in this panel; otherwise by browsing The city deck from its button on the left. The right panel never browses lore, and the deck never opens from a link
+- **"Open in the web viewer"** opens the web viewer with the selected guest
+
+**Card decks: briefing, rules, and the city.** None of them is a wall of text:
+- **One topic per card.** Your briefing: Who you are, How you speak, Your errand, Your faction, What you know, Your secrets, Relationships, and **Your past** (your private lore). The rules: one card per topic of the rules primer. The city: one card per public lore entry (`kind: lore`; relationship entries are for the AI guests only), grouped by subject, with a list to jump to any
+- **Clicking anywhere on the card** swipes it left to the next topic. A separate back control goes back, and the arrow keys work too. Tabs along the top show where you are and jump. Each deck remembers its place
+- **No auto-advance** (Dylan, Nov 12): people read at different speeds, and a moving page loses your place
+- **The deck opens over the screen, never under it.** *(A bug in the first build: the lower half slid under the chat box.)*
+
+**The web viewer** *(Dylan, Nov 12; "the web" means the web of relationships)*. A panel that slides up from the bottom over everything. It opens from its own button on the left, or from "Open in the web viewer" on the right panel, carrying the current selection. **Inside it, up to two guests can be selected:** a click selects a first and then a second guest, a third replaces the older, and clicking a selected guest deselects it.
+- **The web:** all twelve guests as a relationship diagram, in the shape of the board's **Web of Secrets** (Visualization & Sharing, The Board, slide 7). **Its lines are fixed:** public connections, plus the ones the player's own briefing gives them, marked as theirs. The game never draws a new line
+- **One guest selected:** their connections highlighted, and **what you heard and saw of them** tonight. That means their lines in your presence, payments and Colloquios you saw them in, and their death if you saw it, newest first
+- **Two guests selected:** their connection, and **what you heard pass between them**, plus the events you saw involving both
+- **Labelled honestly:** "what you heard" and "what you saw", never "everything they've said". Two guests' private talk is never in it
+- **Its source is the player's own History and code entries,** the same material the character's memory holds. No reference record, readings, or beliefs, which a model writes
+
+**Notes** *(Dylan, Nov 12)*. Notes are written in the web viewer, and attach the way its selection works:
+- **One guest selected:** a note about them. **Two selected:** a note about the pair, drawn on the web as the player's own dashed line, styled apart from known connections
+- **Nothing selected:** a free note
+- **All your notes:** a tab in the web viewer listing every note, newest first, grouped by guest and pair. You can filter by a guest, and clicking a note selects its guest or pair in the web
+- **Any note can become a conclusion:** a "This is my conclusion" action sends its text as `/conclude`. Notes themselves are never judged, and never reach any prompt
+- **Kept with the game, on the engine,** so a refresh keeps them. They're in the full game record, for research on how players reason, and left out of public replays
+
+**Hover explanations** *(Dylan, Nov 12)*. Every control and panel has a short explanation on hover or focus, its words from the setting pack. A switch in an obvious place turns them off, remembered in the browser. They're on by default.
+
+**Il Notaio's hint** *(Dylan, Nov 12; the light version of his player-facing role)*. A small docked box under the stream. Il Notaio says, in a line or two, what the moment asks of the player: the first council, the movement window, being called aside, midnight, the ballot, or a refused command. It also points to the hover explanations. Templates only, from `notaio.json`, with no model calls. It's styled clearly apart from his announcements in the stream: the announcement is the notary speaking to the room, the hint is him speaking to the player. It can be collapsed. Answering the player's questions with a model call stays in v1 (Il Notaio for the player).
+
+**The look** *(undecided; Dylan, Nov 10)*. Three directions are on a [design canvas](https://claude.ai/artifact/MgVNN1NijQxXrbuy56Tof2): a "palazzo ledger" (parchment and ink, serif type), a dark modern chat, and a clean light style with period accents. **Leaning:** the palazzo ledger, with rounded corners rather than square boxes, and a movement card laid out as three choice tiles (Stay, Join, Colloquio) with a guest picker below, in the ledger's styling. Decide after the first playtests.
 
 **Start screen:** one card per playable character, two in the full game (Piero and Francesco) and one in the mini-game (Francesco). Each shows the portrait, name, faction, and the briefing's public subtitle and first paragraph. Choosing a card starts the game; the seed is a run setting, as usual.
 
-**Death:** the box and the cards close, and a banner says the character has died. As a **spectator** the player sees only city-wide broadcasts, from Il Notaio, through to the result (Mechanics). Then the end screen.
+**Death:** the box and the cards close, and a banner says the character has died. As a **spectator** the player sees only city-wide broadcasts, from Il Notaio, through to the result (Mechanics). The web, the record, and the notes stay open to them. Then the end screen.
 
 **End screen:** the outcome as Il Notaio announces it, whether the player won (their character's win condition, alive or dead), and their errand's result. Then **Open the full replay**, which opens this game's replay-viewer export with every character's inner life. In the mini-game, which has no election, it shows who died at midnight and the errand results.
+
+### What the AI guests have instead *(v0.41)*
+
+Should the AI characters get what the player's screen gives? Their prompt already works as their screen, so mostly they have it:
+
+| On the player's screen | What an AI guest has |
+|---|---|
+| Your briefing, The rules | The same briefing (block 3) and rules primer (block 2), in every prompt |
+| Your sheet, errand card, who's here | Block 5, in the same words |
+| The web viewer's record (what you heard and saw) | Memory: recent History (block 8) and the most relevant things it witnessed, retrieved each turn (block 6) |
+| Notes and `/conclude` | Its written plan (block 4) and the beliefs recorded from its own thoughts |
+| Lore links and The city | Lore entries retrieved when relevant, once lore is on (The lore store) |
+| The room | Block 5's room line, once Mechanics adopts it (Everyone sees the room) |
+| The web's public connections | **New in v0.41:** the same public relationship lines, added as **public lore entries** with `kind: relationship` (v0.42), so they're retrieved like any lore. They're for the AI guests only; the player sees them in the right panel and the web viewer instead. No new machinery; Characters writes them, and Lore carries them (tracker handoff) |
+
+- **The gap left on purpose: recall.** A player can look back over everything they witnessed; an AI guest sees about ten retrieved lines at a time. Giving it the whole record every turn would multiply prompt size and cost. It's the memory limit already accepted (Known limit), and games with a human player are kept apart from the AI-only research baseline
+- **Not built for AI guests:** the web viewer's selection, the decks, and hover explanations. They're ways of looking things up, and an AI's retrieval already does the looking
+
+### Everyone sees the room *(Dylan, Nov 12; waits on Mechanics)*
+
+Dylan's call: every guest knows where every other guest is, the AI characters as well as the player. In a palazzo you can see across the hall. Without it, a human can't follow the evening, and the AI guests are at a disadvantage the player wouldn't share.
+
+- **It's a rules change,** so Mechanics adopts it first (tracker handoff). This section is how the software would do it
+- **What's seen:** who stands with whom, and who has slipped away in private with whom. **Never what anyone says** outside your own conversation: a Colloquio is still private, and a group's talk reaches only its members
+- **For the AI characters,** block 5 gains one line after "All living guests besides you":
+
+  ```
+  Around the room: {room}
+  ```
+
+  - `{room}`: every other group, then every Colloquio, in a fixed order (by the first member's roster order), e.g. `Giorgia Pazzi, Raffaello de' Medici and Captain Armand LeNoir together; Fra Tommaso and Sister Beatrice in private.` The character's own conversation isn't repeated, since "Present" already says it. The dead and the absent aren't listed. During councils and calls outside a conversation (midnight, the ballot), the line is left out
+  - About 40–90 tokens per call in a full game. Version-gated, so earlier games replay byte-identical
+- **For the player,** the room on the left (The screen) shows the same thing
+- **Il Notaio's withdrawal notes** still go only to those present, and still count each guest's withdrawals. Seeing a pair leave is now possible from anywhere, so his notes matter for the count and the escalation, not for the news
+- **This changes how the AI guests move** (they can now go straight to whoever they're after), so it needs a small check before the full games' baseline: Models & Research's call (tracker handoff)
+- **Closes the open question** "Should characters see where everyone is?" once Mechanics adopts it
 
 ### How it's built
 
@@ -2267,7 +2400,7 @@ Slang, very casual phrasing, or anachronisms are play, not a jailbreak (Mechanic
 ### Il Notaio for the player *(v1; not needed for the milestone)*
 
 Mechanics (Il Notaio — Player-Facing Duties) requires these for the first public release. The milestone's playtest runs without them; refusals show as plain notices from the same templates.
-- **Orientation notes:** short private notes at the first council, the first movement window, the first Colloquio, midnight, and the ballot. In the mini-game: the first movement window, the first Colloquio, and midnight. Templates in the setting pack, each shown once
+- **Orientation notes:** since v0.40, Il Notaio's hint (The screen) does this from templates, in the milestone build. Originally: short private notes at the first council, the first movement window, the first Colloquio, midnight, and the ballot. In the mini-game: the first movement window, the first Colloquio, and midnight. Templates in the setting pack, each shown once
 - **Questions:** the player can @-mention Il Notaio at any time to ask about the rules or the state of the game. This is a private aside: nothing is spoken, and the game doesn't pause for it. **One model call** on the recorder model, given only blocks 2, 3, and 5 and the character's History, so it can't answer beyond what the character could know. It answers in his voice, briefly. If it doesn't know, it says so. Prompt to draft
 - **Corrections:** every refusal explained in his voice, from templates, one per reason
 - **The jailbreak rule:** see Jailbreak Detection
@@ -2413,6 +2546,7 @@ Mechanics (Il Notaio — Player-Facing Duties) requires these for the first publ
 - ~~**The v0.19 baseline test**~~ Done (CC-20261026-05, seeds 2000–2001). Share of `took`, with v0.17 in brackets: none 30.7% (40.9), pressure 25.7% (32.2), claim 17.3% (12.1), insult 10.6% (6.5), threat 5.5% (1.3). Of `meant`: pressure 33.9% (42.7), none 29.2% (29.2). Fit 27 of 30 on both samples. 12 of 20 threats were harm to come, and the rest were warnings and taunts. All 20 pressure readings pushed someone to answer or act. Only 1 of 20 threats and 1 of 20 claims were questions. The cap held in all 798 calls (448 at exactly 3). **This mix was the research baseline** (Models & Research v0.38) until v0.28, when the register check's v0.27 games replaced it
   - **If own-line fit stays low:** drop own readings from the notebook and keep `meant` in the record for research. Characters then remember their own words only through History
 - ~~**The leak flag**~~ Resolved (CC-20261026-01): re-scored by hand, v0.14 had 6 leaks against Oct 24's 4. Whether the secrets judge should know who learned a secret in-game, not just at the start, is Models & Research's call. The fallback (drop own readings, keep `meant` in the record) is no longer needed for this flag
+- **Do characters recall their beliefs about the guests present?** *(v0.43; Dylan, Nov 12)*. AI guests have no note-taking like the player's (Player Interface, What the AI guests have instead). Their beliefs are their notes on people and pairs, but block 6 retrieves them by relevance like anything else. In the first full games, check whether a character acts against, or simply forgets, a belief it holds about a guest standing in front of it. **If it does, the fix is cheap and in retrieval:** fill block 6's first slots with the character's held beliefs that name a guest present, before the rest, within the same cap. Version-gated, and measured on a replay of saved games before it's adopted
 - **The perceived notebook in the first full games:**
   - How often do characters take the ★ lines they hear as anything (coverage)?
   - How often does a label misunderstand the words rather than read them its own way?
@@ -2429,11 +2563,11 @@ Mechanics (Il Notaio — Player-Facing Duties) requires these for the first publ
   - **Surviving an engine restart mid-game.** Reconnecting after a browser refresh is in; resuming after the engine itself stops needs the full engine's state in the database. Matters once full games take hours to play
   - **Does off-register input pull the AI characters casual?** Watch the first playtests. If it does, the previewed polish is the first lever
   - **Does the player wait too long?** A group conversation is a few seconds per line, but the whole game pauses for the player. Measure how long a played game takes
-  - **A note pad for the player:** AI characters have a written plan (block 4). A private notes box, kept in the browser, might help a human over a long evening. Add if the playtest asks for it
+  - ~~A note pad for the player~~ Specified in v0.40 (The screen, Notes), kept on the engine rather than in the browser
 - **Prompts still to draft:** candidate selection and speeches (phases E–F); Il Notaio's event templates (wording examples exist in Mechanics); for v1, Il Notaio's answers to the player and the jailbreak judge (Player Interface, Jailbreak Detection)
 - **Actions in `speak()` or in their own call?** Decide after the mini-game
 - Whether characters should see Il Notaio's tally of *other* characters' withdrawals, or only infer it from witnessed notes (currently: only witnessed notes)
-- **Should characters see where everyone is?** In a real palazzo you could see across the room. Currently they see only their own group; showing the room would make movement easier and make Il Notaio's notes less special. Since v0.23 the seat call (9h) shows the groups with room, the first glimpse past a character's own group
+- **Should characters see where everyone is?** *Decided by Dylan, Nov 12: yes, for everyone (Player Interface, Everyone sees the room); closes once Mechanics adopts it.* In a real palazzo you could see across the room. Currently they see only their own group; showing the room would make movement easier and make Il Notaio's notes less special. Since v0.23 the seat call (9h) shows the groups with room, the first glimpse past a character's own group
 - **Does a caller know they may lose their seat?** (v0.23) Block 9c doesn't say that the invitee chooses first, or that a full or dissolved Capannello sends the caller elsewhere. Left out so 9c stays as tested; add a line if the full games show callers surprised by where they land
 - ~~**Movement edge cases**~~ Settled: joining or calling someone in a Colloquio follows Seating, Edge cases (Mechanics v0.25)
 - **Seating in the full games** (v0.26): the first live check (CC-20261028-08) exercised only the invitee's wait form, since six guests filled one group of 4. Watch the join choice, the lone-guest form, and chain lengths with 12 guests, where groups with room should be common. No more mini-game spend on this
