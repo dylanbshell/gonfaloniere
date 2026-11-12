@@ -34,6 +34,8 @@ export class HumanController {
   private nextRequest = 1;
   /** Messages no request took: the game holds, queues, or refuses them. */
   onInput: (m: Incoming) => void = () => {};
+  /** A note from the player: taken at any time, whatever the game is waiting for. */
+  onNote: (m: Extract<Incoming, { type: "note" }>) => void = () => {};
 
   constructor(readonly character: string) {}
 
@@ -85,6 +87,7 @@ export class HumanController {
       return;
     }
     this.received.push(m);
+    if (m.type === "note") return this.onNote(m);
     const p = this.pending;
     if (p && !(m.type === "choice" && m.request !== p.event.id)) {
       const a = p.accept(m);

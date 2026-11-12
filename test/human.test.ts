@@ -11,9 +11,19 @@ import { serveWebSocket } from "../src/core/ws.ts";
 import { MiniGame, type CallRequest, type Caller } from "../src/minigame/engine.ts";
 import { mentions, parseCommand } from "../src/minigame/player.ts";
 import { castBriefings } from "../src/minigame/cast.ts";
+import { readLoreFile } from "../src/minigame/lore.ts";
+import { buildRecord } from "../src/minigame/record.ts";
+import { exportView } from "../src/minigame/view.ts";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { gzipSync } from "node:zlib";
 import { fakeCaller, fakeDocs, fakeSettings } from "./fixtures/fake-game.ts";
 
 const F = "Francesco Pazzi";
+const SERVED = { model: { slug: "fake" }, endpoint: { providerName: "fake", quantization: null }, servedId: null };
+/** In every note the scripted player writes, so the tests can look for notes anywhere. */
+const NOTE_MARK = "NOTE-7f3a";
 
 /** The fake caller, with two changes so the player meets every situation: guests address Francesco, and each AI guest's first window calls him to a Colloquio. */
 function callerFor(calls: CallRequest[]): Caller {
@@ -78,7 +88,13 @@ function scriptedPlayer(url: string, seen: Seen, opts: { dropAfter: number }) {
           send({ type: "command", text: "/borrow" });
           send({ type: "command", text: "/conclude Lupo killed Lucien de Valois." });
           send({ type: "command", text: "/fly" });
+          // Notes (TD v0.40): a free one, one on a guest, one on a pair, and one on nobody at the party.
+          send({ type: "note", text: `${NOTE_MARK} free`, guests: [] });
+          send({ type: "note", text: `${NOTE_MARK} on Lupo`, guests: ["Lupo"] });
+          send({ type: "note", text: `${NOTE_MARK} on a pair`, guests: ["Lupo", "Giorgia Pazzi"] });
+          send({ type: "note", text: "On a stranger", guests: ["Nobody Atall"] });
         }
+        if (ev.type === "note") seen.did.add("note kept");
         if (ev.type === "refusal") seen.did.add(`refused: ${ev.reason}`);
         if (ev.type !== "request" || ev.closed) return;
         if (first && !reconnected && seen.log.length > opts.dropAfter) {
@@ -123,6 +139,8 @@ function scriptedPlayer(url: string, seen: Seen, opts: { dropAfter: number }) {
           return reply({ type: "say", text: `@${others[0]} what do you make of the Signoria?` });
         }
         if (ev.kind === "move") {
+          // A note while the game waits for a choice: taken, and the choice still open.
+          if (moves === 0) send({ type: "note", text: `${NOTE_MARK} while choosing`, guests: [] });
           moves++;
           const guests = o.guests as string[];
           seen.did.add(moves === 1 ? "called a Colloquio" : "moved");
@@ -222,12 +240,54 @@ test("isolation: the player's whole event stream is their own History and State,
   for (const r of game.memory.readings) assert.ok(!all.includes(`"${r.id}"`), `reading ${r.id} leaked`);
   assert.doesNotMatch(all, /"took"|"meant"|"importance"/);
   assert.ok(!all.includes("Goals: be heard."), "a plan leaked");
+  // No one else's belief (TD v0.43: the screen never shows a model's reading or belief).
+  for (const b of game.memory.beliefs.filter((x) => x.character !== F)) assert.ok(!all.includes(JSON.stringify(b.statement).slice(1, -1)), `belief ${b.id} leaked`);
+  // The new panels' content (CC-20261112-03): the web's lines are the public ones and Francesco's own, and
+  // the notes are his, as he wrote them.
+  const sheet = stream.find((e) => e.type === "state" && e.sheet)! as Extract<Outgoing, { type: "state" }>;
+  const conns = sheet.sheet!.connections as { between: string[]; private?: boolean }[];
+  assert.ok(conns.length > 0 && conns.filter((c) => c.private).every((c) => c.between[0] === F));
+  assert.deepEqual(stream.filter((e) => e.type === "note").map((e) => (e as { text: string }).text), game.playerNotes.map((n) => n.text));
   for (const l of game.lines.filter((x) => !x.heardBy.includes(F))) assert.ok(!stream.some((e) => "id" in e && e.id === l.id), `${l.id} leaked`);
   // Block 5 for the player: their own purse, and no ledger (Francesco doesn't keep the treasury).
   const states = stream.filter((e) => e.type === "state");
   assert.ok(states.every((e) => !("embassyLedger" in e.state)));
   // The request options name living guests and groups, as 9c and 9h show them; never a location or an inner state.
   for (const r of stream.filter((e) => e.type === "request")) assert.doesNotMatch(JSON.stringify(r), /importance|thought|plan|reading/);
+});
+
+test("notes: kept with the game and in the full record, replayed on reconnect, never in a prompt or a public replay", async () => {
+  const { game, ctrl, seen } = await playAsFrancesco(2000);
+  assert.ok(seen.did.has("note kept"));
+  assert.deepEqual(game.playerNotes.map((n) => [n.text, n.guests]), [
+    [`${NOTE_MARK} free`, []],
+    [`${NOTE_MARK} on Lupo`, ["Lupo"]],
+    [`${NOTE_MARK} on a pair`, ["Lupo", "Giorgia Pazzi"]],
+    [`${NOTE_MARK} while choosing`, []],
+  ]);
+  assert.ok(seen.did.has("refused: A note can be about guests at this party only."));
+  // In the player's log, so a reconnect (or a refresh) gets them back; the scripted player reconnected mid-game.
+  assert.equal(ctrl.log.filter((e) => e.type === "note").length, 4);
+  // Never in a prompt: nowhere in the game but the notes themselves and the player's own connection (its
+  // event log and what it received): not in any call, prefix, thought, line, event, or memory entry.
+  const { playerNotes, ctrl: _c, player: _p, ...rest } = game as unknown as Record<string, unknown>;
+  assert.ok(playerNotes);
+  const where = Object.entries(rest)
+    .filter(([, x]) => (typeof x === "function" ? false : JSON.stringify(x ?? null).includes(NOTE_MARK)))
+    .map(([k]) => k);
+  assert.deepEqual(where, [], "a note reached the game's other state");
+  // In the full record, and not in its replay export.
+  const dir = mkdtempSync(join(tmpdir(), "notes-"));
+  try {
+    const path = join(dir, "game-notes.full.json.gz");
+    const record = buildRecord(game, { gameId: "notes", seed: 2000, docs: fakeDocs, briefings: castBriefings(fakeDocs), served: { character: SERVED, system: { ...SERVED, recorder: { model: "fake" } } }, settings: { ...fakeSettings({ turns: 12, human: F }), briefings: undefined }, ms: 0, failure: null, tree: { tracked_changes: [], untracked: [] }, retries: 0, lore: { file: readLoreFile(), loaded: [] }, embeddingModel: null, store: null });
+    assert.equal((record as { player_notes?: unknown[] }).player_notes?.length, 4);
+    writeFileSync(path, gzipSync(JSON.stringify(record)));
+    const html = readFileSync(exportView(path).path, "utf8");
+    assert.ok(html.length > 1000 && !html.includes(NOTE_MARK), "a note reached the replay export");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("all-AI games don't change: no human, no controller, and a controller without the setting is refused", async () => {

@@ -39,6 +39,19 @@ export function settingPack(name = SETTING): SettingPack {
 }
 
 /**
+ * relationships.json (TD v0.40, The web viewer): the web's fixed lines. `public`: connections everyone
+ * knows, each with its type and one public line. `private`: each character's own connections from their
+ * briefing, seen only by that character. The game never draws a new line.
+ */
+export interface Relationships {
+  public: { between: [string, string]; type: string; line: string }[];
+  private: Record<string, { with: string; type: string; line: string }[]>;
+}
+export function relationships(name = SETTING): Relationships {
+  return read<Relationships>("relationships.json", name);
+}
+
+/**
  * A template from notaio.json (`notes.join`, `lines.payment`) or actions.json (`bribe`), filled.
  * `{currency}` is the setting's plural unless given. A placeholder with no value is an error, so a
  * template can't silently keep its braces.

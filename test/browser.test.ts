@@ -81,6 +81,7 @@ class Page {
   close = () => this.ws.close();
   async shot(name: string): Promise<void> {
     if (!SHOTS) return;
+    await this.until(`document.getAnimations().length === 0`);
     const { data } = await this.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
     mkdirSync(SHOTS, { recursive: true });
     writeFileSync(join(SHOTS, `${name}.png`), Buffer.from(data, "base64"));
@@ -131,24 +132,25 @@ after(async () => {
   if (profile) rmSync(profile, { recursive: true, force: true, maxRetries: 5 });
 });
 
-test("a deck opens over the screen: where the briefing overlaps the input box, the briefing is on top", { skip }, async () => {
+test("a deck opens over the screen: the input box is under it everywhere, and the deck under nothing", { skip }, async () => {
   await page.eval(`document.querySelector('[data-hint="briefing"]').click()`);
   await page.until(`document.querySelector(".modal")`);
-  const r = await page.eval<{ hits: string[]; overlap: number; inView: boolean }>(`(() => {
+  const r = await page.eval<{ overInput: string[]; overModal: string[]; inView: boolean }>(`(() => {
+    const grid = (b, inside) => {
+      const hits = [];
+      for (let x = b.left + 2; x < b.right; x += (b.right - b.left) / 7) for (let y = b.top + 2; y < b.bottom; y += (b.bottom - b.top) / 5) {
+        const el = document.elementFromPoint(x, y);
+        hits.push(el && el.closest(inside) ? "deck" : (el ? el.className || el.tagName : "nothing"));
+      }
+      return hits;
+    };
     const m = document.querySelector(".modal").getBoundingClientRect();
-    const i = document.querySelector(".input").getBoundingClientRect();
-    const x0 = Math.max(m.left, i.left), x1 = Math.min(m.right, i.right), y0 = Math.max(m.top, i.top), y1 = Math.min(m.bottom, i.bottom);
-    const hits = [];
-    for (let x = x0 + 2; x < x1; x += (x1 - x0) / 7) for (let y = y0 + 2; y < y1; y += (y1 - y0) / 5) {
-      const el = document.elementFromPoint(x, y);
-      hits.push(el && el.closest(".modal") ? "modal" : (el ? el.className || el.tagName : "nothing"));
-    }
-    return { hits, overlap: Math.max(0, x1 - x0) * Math.max(0, y1 - y0), inView: m.top >= 0 && m.bottom <= innerHeight };
+    return { overInput: grid(document.querySelector(".input").getBoundingClientRect(), ".overlay"), overModal: grid(m, ".modal"), inView: m.top >= 0 && m.bottom <= innerHeight };
   })()`);
-  assert.ok(r.overlap > 0, "at this size the briefing reaches the input box's area, so the check means something");
-  assert.ok(r.inView, "the whole deck is in the window");
   await page.shot("deck");
-  assert.deepEqual([...new Set(r.hits)], ["modal"], "every point of the overlap shows the deck");
+  assert.deepEqual([...new Set(r.overInput)], ["deck"], "everywhere over the input box, the deck's layer is on top");
+  assert.deepEqual([...new Set(r.overModal)], ["deck"], "every point of the deck shows the deck");
+  assert.ok(r.inView, "the whole deck is in the window");
   await page.key("Escape", 27);
   await page.until(`!document.querySelector(".modal")`);
 });
@@ -197,4 +199,56 @@ test("Speak is disabled for an @ alone, and active with something to say; a comm
   await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...r });
   await page.until(`document.querySelector(".tip:not(.measuring)")`);
   await page.shot("do-and-explanation");
+});
+
+// ---- CC-20261112-03 (#81) --------------------------------------------------------------------------------
+
+test("a deck swipes to the next card on a click, goes back with the arrow key, and keeps its place when reopened", { skip }, async () => {
+  const tab = () => page.eval<string>(`document.querySelector(".tab.on")?.textContent ?? ""`);
+  await page.eval(`document.querySelector('[data-hint="rules"]').click()`);
+  await page.until(`document.querySelector(".deck-card")`);
+  const first = await tab();
+  await page.eval(`document.querySelector(".deck-card").click()`);
+  const second = await tab();
+  assert.notEqual(second, first, "a click on the card goes to the next");
+  await page.key("ArrowLeft", 37);
+  assert.equal(await tab(), first, "the left arrow goes back");
+  await page.key("ArrowRight", 39);
+  await page.shot("rules-deck");
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector(".deck-card")`);
+  await page.eval(`document.querySelector('[data-hint="rules"]').click()`);
+  await page.until(`document.querySelector(".deck-card")`);
+  assert.equal(await tab(), second, "the deck kept its place");
+  await page.key("Escape", 27);
+});
+
+test("selecting a guest shows them on the right; Escape clears it", { skip }, async () => {
+  const name = await page.eval<string>(`document.querySelector(".here .guest").textContent`);
+  await page.eval(`document.querySelector(".here .guest").click()`);
+  await page.until(`document.querySelector('.side.right [data-guest]')?.dataset.guest === ${JSON.stringify(name)} && document.querySelector('.side.right [data-hint="selected"]')`);
+  await page.eval(`document.querySelector(".input textarea").blur()`);
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector('.side.right [data-hint="selected"]')`);
+});
+
+test("a note written in the web viewer stays with the game across a refresh", { skip }, async () => {
+  await page.eval(`document.querySelector('[data-hint="web"]').click()`);
+  await page.until(`document.querySelector(".web .node") && document.querySelector(".web").getAnimations().length === 0`);
+  // Over everything: near every corner (inside the rounded ones), the panel shows.
+  const top = await page.eval<boolean>(`(() => { const r = document.querySelector(".web").getBoundingClientRect(); return [[r.left + 20, r.top + 20], [r.right - 20, r.top + 20], [r.left + 20, r.bottom - 20], [r.right - 20, r.bottom - 20]].every(([x, y]) => document.elementFromPoint(x, y)?.closest(".web")); })()`);
+  assert.equal(top, true);
+  await page.eval(`document.querySelector('.web .node').dispatchEvent(new MouseEvent("click", { bubbles: true }))`);
+  await page.eval(`document.querySelector('[data-hint="notesTab"]').click()`);
+  await page.until(`document.querySelector(".web textarea")`);
+  await page.eval(`document.querySelector(".web textarea").focus()`);
+  await page.type("Watch who leaves first.");
+  await page.eval(`document.querySelector('[data-hint="noteSave"]').click()`);
+  await page.until(`[...document.querySelectorAll(".note-text")].some((n) => n.textContent === "Watch who leaves first.")`);
+  await page.shot("web-viewer");
+  await page.send("Page.reload");
+  await page.until(`document.querySelector('[data-hint="web"]')`);
+  await page.eval(`document.querySelector('[data-hint="web"]').click()`);
+  await page.eval(`document.querySelector('[data-hint="allTab"]').click()`);
+  await page.until(`[...document.querySelectorAll(".note-text")].some((n) => n.textContent === "Watch who leaves first.")`);
 });

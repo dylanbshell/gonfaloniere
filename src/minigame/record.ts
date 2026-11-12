@@ -129,6 +129,8 @@ export function buildRecord(
     snapshots: game.snapshots,
     murder_round: game.midnight ? { resolved: true, acts: game.murderActs, deaths: game.midnight.deaths, events: game.midnight.events } : { resolved: false, acts: game.murderActs },
     knowledge_checks: game.knowledgeChecks,
+    // TD v0.40: a human player's notes, for research on how players reason. Left out of the replay variant (its fields are listed).
+    ...((x.settings as { human?: string | null }).human && { player_notes: game.playerNotes }),
     summary: {
       wall_ms: x.ms,
       calls: game.calls.length,
