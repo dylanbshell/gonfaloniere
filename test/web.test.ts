@@ -12,10 +12,12 @@ import { renderToString } from "react-dom/server";
 import { HumanController, type Connection } from "../src/core/human.ts";
 import { MiniGame } from "../src/minigame/engine.ts";
 import { castBriefings } from "../src/minigame/cast.ts";
+import { errandText } from "../src/minigame/player.ts";
 import { screenInfo } from "../src/minigame/screen-info.ts";
 import { settingPack } from "../src/setting/pack.ts";
 import { GameView, Start } from "../web/src/App.tsx";
 import type { Ev } from "../web/src/connection.ts";
+import { canDo, canSpeak, openMenu, trigger, withMention } from "../web/src/input.ts";
 import { derive } from "../web/src/model.ts";
 import { setInfo, type StartInfo } from "../web/src/words.ts";
 import { fakeCaller, fakeDocs, fakeSettings } from "./fixtures/fake-game.ts";
@@ -89,9 +91,105 @@ test("the game screen renders at every kind of wait, and the end screen at the e
   const h = html(createElement(GameView, { me: F, v: end, send: () => {}, status: "open" }));
   assert.deepEqual(missingWords(h), []);
   assert.match(h, /class="end"/);
-  // The sheet (blocks 2 and 3) arrived with the first state; the stream has dividers where the conversation changed.
-  assert.ok(end.sheet?.briefing && end.sheet.rules);
-  assert.ok(end.stream.some((x) => x.item === "divider"));
+  // The sheet (blocks 2 and 3, and the errand) arrived with the first state.
+  assert.ok(end.sheet?.briefing && end.sheet.rules && end.sheet.errand);
+});
+
+/** The log at the last speak request, by which point the player has been in several conversations. */
+async function lateView() {
+  const { at, log } = await playedLog();
+  const idx = log.findLastIndex((e) => e.type === "request" && e.kind === "speak" && !e.closed);
+  const v = derive(log.slice(0, idx + 1));
+  assert.ok(v.segments.length > 2, `several conversations by then: ${v.segments.length}`);
+  return { v, at };
+}
+
+test("only the current conversation is open: earlier ones are one line each under Earlier tonight", async () => {
+  const { v } = await lateView();
+  const h = html(createElement(GameView, { me: F, v, send: () => {}, status: "open" }));
+  assert.deepEqual(missingWords(h), []);
+  assert.match(h, /class="earlier"/);
+  assert.equal((h.match(/class="earlier-line"/g) ?? []).length, v.segments.length - 1, "one line per earlier conversation");
+  assert.ok(h.includes('aria-expanded="false"'), "collapsed until clicked");
+  const id = (l: { id: string }) => `data-line="${l.id}"`;
+  for (const seg of v.segments.slice(0, -1)) for (const l of seg.lines) assert.ok(!h.includes(id(l)), `an earlier line is folded away: ${l.id}`);
+  for (const l of v.segments.at(-1)!.lines) assert.ok(h.includes(id(l)), `a current line is shown: ${l.id}`);
+});
+
+test("the errand card: pinned under the sheet, with the briefing's errand section", async () => {
+  const errand = errandText(castBriefings(fakeDocs)[F]!);
+  assert.ok(errand.length > 40 && !errand.includes("**" + "\n"), errand);
+  const { v } = await lateView();
+  assert.equal(v.sheet!.errand, errand);
+  const h = html(createElement(GameView, { me: F, v, send: () => {}, status: "open" }));
+  const card = h.indexOf('class="errand"');
+  assert.ok(card > h.indexOf('class="facts"') && card < h.indexOf('class="here"'), "between the sheet and the room");
+});
+
+test("buttons by job: Speak is the one filled button, disabled with nothing to say; Pass is outlined; End sits in the header", async () => {
+  for (const t of ["", "  ", "@", "/", " / ", "@ ", "@@"]) assert.equal(canSpeak(t), false, JSON.stringify(t));
+  for (const t of ["Good evening.", "@Lupo stay close.", "a"]) assert.equal(canSpeak(t), true, t);
+  // A command (a `/` and a name) is Do's, never Speak's; a lone `/` is neither yet.
+  assert.equal(canSpeak("/borrow"), false);
+  assert.equal(canDo("/"), false);
+  assert.equal(canDo("/borrow"), true);
+  const { at } = await playedLog();
+  const v = derive(at["speak:colloquio"]!);
+  const h = html(createElement(GameView, { me: F, v, send: () => {}, status: "open" }));
+  assert.equal((h.match(/class="primary"/g) ?? []).length, 1, "one primary button");
+  assert.match(h, /<button class="primary" disabled=""[^>]*>Speak</, "Speak disabled while the box is empty");
+  assert.match(h, /<button class="secondary"[^>]*data-hint="pass"/);
+  const head = h.slice(h.indexOf('class="conv-head"'), h.indexOf("</header>", h.indexOf('class="conv-head"')));
+  assert.match(head, /data-hint="end"/, "End conversation is in the Colloquio's header");
+  const input = h.slice(h.indexOf('class="input"'));
+  assert.doesNotMatch(input, /data-hint="end"/);
+  assert.match(input, /class="field-icons"><button class="icon"[^>]*>@<\/button><button class="icon"[^>]*>\/<\/button>/, "@ and / are icons inside the box");
+});
+
+test("the menus open and close with their character", () => {
+  assert.equal(trigger("/")?.kind, "commands");
+  assert.equal(trigger("/bor")?.query, "bor");
+  assert.equal(trigger(""), null, "deleting the slash closes the command menu");
+  assert.equal(trigger("/borrow "), null, "a chosen command closes it");
+  assert.equal(trigger("Hello / there"), null, "a slash inside speech isn't a command");
+  assert.deepEqual(trigger("A word for @Lu"), { kind: "guests", query: "Lu", at: 11 });
+  assert.equal(trigger("A word for "), null, "deleting the @ closes the guest menu");
+  // Escape or clicking away dismisses a menu where its character is; typing it again elsewhere reopens.
+  const d = trigger("/");
+  assert.equal(openMenu("/", d), null);
+  assert.equal(openMenu("/bo", d), null, "still dismissed while that slash stays");
+  assert.deepEqual(openMenu("@", trigger("Hi @")), trigger("@"), "a new @ at another place opens again");
+  assert.equal(withMention(""), "@");
+  assert.equal(withMention("Hello"), "Hello @");
+});
+
+test("the decks open over the whole screen: after every column, and above them", async () => {
+  const { at } = await playedLog();
+  const h = html(createElement(GameView, { me: F, v: derive(at["speak:capannello"]!), send: () => {}, status: "open", deck: "briefing" }));
+  assert.ok(h.lastIndexOf('class="overlay"') > h.lastIndexOf('class="input"'), "the deck comes after the input box");
+  const css = readFileSync("web/src/app.css", "utf8");
+  const z = (sel: string) => css.match(new RegExp(`\\${sel} \\{[^}]*z-index: var\\((--z-[\\w-]+)\\)`))?.[1];
+  const theme = readFileSync("web/theme.css", "utf8");
+  const val = (t: string) => Number(theme.match(new RegExp(`${t}:\\s*(\\d+)`))![1]);
+  assert.ok(val(z(".overlay")!) > val(z(".dropdown")!), "the deck is above the menus");
+  assert.ok(val(z(".tip")!) > val(z(".overlay")!), "the explanations are above the deck");
+});
+
+test("hover explanations: every control and panel has one, in player.json's words", async () => {
+  const { at } = await playedLog();
+  const hints = new Set<string>();
+  for (const l of Object.values(at)) {
+    const h = html(createElement(GameView, { me: F, v: derive(l), send: () => {}, status: "open" }));
+    for (const m of h.matchAll(/data-hint="(\w+)"/g)) hints.add(m[1]!);
+    // Every button and textarea explains itself (the menus' items and the earlier lines say what they are already).
+    const controls = [...h.matchAll(/<(button|textarea|select)\b[^>]*>/g)].map((m) => m[0]);
+    const bare = controls.filter((c) => !c.includes("data-hint") && !/earlier-line/.test(c) && !c.startsWith("<select"));
+    assert.deepEqual(bare, [], "controls without an explanation");
+  }
+  hints.add("play");
+  const words = (info.words as { screen: { hints: Record<string, string> } }).screen.hints;
+  for (const k of hints) assert.ok(typeof words[k] === "string" && words[k].length > 10, `screen.hints.${k}`);
+  assert.match(html(createElement(GameView, { me: F, v: derive(at.move!), send: () => {}, status: "open" })), /class="switch" aria-pressed="true"/, "on by default");
 });
 
 test("one theme file: the components' CSS uses only theme.css's tokens, and every token it uses is defined", () => {

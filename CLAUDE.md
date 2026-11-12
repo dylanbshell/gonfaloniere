@@ -48,6 +48,7 @@ Work arrives as tasks from Dylan, often relayed from Technical Design (TD). The 
 - A new rule goes in `src/rules/` with a table test in `test/rules.test.ts` named for its Mechanics section; the game words its events through the setting pack.
 - The human player: the controller, protocol, and WebSocket server are in `src/core/`; the mini-game's side is `src/minigame/player.ts`, with its words in `setting/<name>/player.json`. `test/human.test.ts` plays a scripted game through the protocol and checks the player's event stream holds only their own History and State. A human game still makes model calls for the AI guests.
 - The player screen is `web/` (React, built by esbuild): `npm run play -- --as "Francesco Pazzi" --minigame` serves it on localhost and runs the runner with `--human` (under `op run`, with `PROBE_TOTAL_USD`, as for any run; runner flags after `--`). `--fake` plays it on the fake model caller, with no calls. Every look is a token in `web/theme.css`, every word is in `player.json`; `test/web.test.ts` checks both.
+- `test/browser.test.ts` plays a fake game in headless Chrome and checks the screen's layout and input (skipped without Chrome; `CHROME` sets its path). `SCREENSHOTS=<dir>` saves a picture at each check.
 
 ## Spend
 

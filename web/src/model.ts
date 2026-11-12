@@ -1,5 +1,6 @@
-// The screen's view of the player's log: the stream (their History lines, with a divider where their
-// conversation changes), the latest block 5 state and command menu, the open request, and the ending.
+// The screen's view of the player's log: the stream (their History lines, in segments, one for each
+// stretch in one conversation; TD v0.40 collapses all but the current one), the latest block 5 state and
+// command menu, the open request, and the ending.
 // Everything here comes from events the engine built from the player's own History and State.
 
 import type { Ev } from "./connection.ts";
@@ -14,7 +15,12 @@ export interface Line {
   you?: boolean;
   private?: boolean;
 }
-export type StreamItem = Line | { item: "divider"; conversation: string; state: State | null };
+/** A stretch of the evening in one conversation, with the state the player had there. */
+export interface Segment {
+  conversation: string;
+  state: State | null;
+  lines: Line[];
+}
 
 export interface State {
   phaseLabel: string;
@@ -42,7 +48,10 @@ export interface Result {
 }
 
 export interface View {
-  stream: StreamItem[];
+  /** Every line, in order. */
+  stream: Line[];
+  /** The same lines by conversation; the last is the current one. */
+  segments: Segment[];
   state: State | null;
   commands: { name: string; usage: string; hint: string }[];
   speaking: string | null;
@@ -56,20 +65,20 @@ export interface View {
 }
 
 export function derive(log: Ev[]): View {
-  const v: View = { stream: [], state: null, commands: [], speaking: null, sheet: null, pending: null, refusal: null, deaths: [], result: null, spoken: 0 };
+  const v: View = { stream: [], segments: [], state: null, commands: [], speaking: null, sheet: null, pending: null, refusal: null, deaths: [], result: null, spoken: 0 };
   const open = new Map<string, Request>();
-  let lastConversation: string | null = null;
-  let waitingDivider: { item: "divider"; conversation: string; state: State | null } | null = null;
+  let waiting: Segment | null = null;
   for (const e of log) {
     if (e.type === "line" || e.type === "notaio" || e.type === "action") {
       const l = { ...(e as unknown as Line), item: e.type } as Line;
-      if (l.conversation !== lastConversation) {
-        if (lastConversation !== null) {
-          waitingDivider = { item: "divider", conversation: l.conversation, state: null };
-          v.stream.push(waitingDivider);
-        }
-        lastConversation = l.conversation;
+      let seg = v.segments.at(-1);
+      if (!seg || seg.conversation !== l.conversation) {
+        // A segment takes the state the player has once they've arrived (the state after its first line).
+        seg = { conversation: l.conversation, state: null, lines: [] };
+        v.segments.push(seg);
+        waiting = seg;
       }
+      seg.lines.push(l);
       v.stream.push(l);
       if (l.item === "line" && l.you) v.spoken++;
     } else if (e.type === "state") {
@@ -77,8 +86,10 @@ export function derive(log: Ev[]): View {
       v.commands = e.commands as View["commands"];
       v.speaking = (e.speaking as string | null | undefined) ?? null;
       if (e.sheet) v.sheet = e.sheet as Record<string, string>;
-      // A divider takes the conversation the player is in once they've arrived.
-      if (waitingDivider && !waitingDivider.state) waitingDivider.state = v.state;
+      if (waiting) {
+        waiting.state = v.state;
+        waiting = null;
+      }
     } else if (e.type === "request") {
       if (e.closed) open.delete(e.id as string);
       else open.set(e.id as string, e as unknown as Request);

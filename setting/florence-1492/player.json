@@ -71,8 +71,12 @@
     "I'd rather speak of this somewhere quieter."
   ],
   "orientation": "Speak as your character would, plainly. The other guests react to strange talk as guests would.",
+  "briefingHeadings": {
+    "_comment": "Headings in the Characters doc's briefings that the screen looks for (the errand card shows its section). Not shown as words.",
+    "errand": "Your errand tonight"
+  },
   "screen": {
-    "_comment": "The player screen's labels (TD v0.39, The screen).",
+    "_comment": "The player screen's labels (TD v0.39–v0.43, The screen).",
     "title": "Gonfaloniere",
     "connecting": "Connecting…",
     "reconnecting": "The connection dropped. Reconnecting…",
@@ -100,9 +104,6 @@
     "capannello": "Capannello with {others}",
     "colloquio": "Colloquio with {other}",
     "alone": "On your own",
-    "joined": "You joined {others}",
-    "withdrew": "You withdrew with {other}",
-    "apart": "You stand apart",
     "talkingTo": "Talking with",
     "input": {
       "placeholder": "Say something. @ addresses a guest; / opens the commands.",
@@ -110,7 +111,6 @@
       "speak": "Speak",
       "pass": "Pass",
       "end": "End conversation",
-      "commands": "Commands",
       "example": "For example: “{line}”",
       "used": "You've spoken your piece this turn.",
       "held": "Your words will be spoken at the next pause.",
@@ -118,7 +118,8 @@
       "answering": "{name} has addressed you: answer, or pass.",
       "closing": "{name} has ended the conversation: a last word, or pass.",
       "yourTurn": "Your turn to speak.",
-      "closed": "A choice is waiting above."
+      "closed": "A choice is waiting above.",
+      "do": "Do"
     },
     "move": {
       "title": "Your movement window",
@@ -174,6 +175,48 @@
       "replay": "Open the full replay",
       "replayPending": "Preparing the replay…"
     },
-    "and": "and"
+    "and": "and",
+    "errandCard": {
+      "title": "Your errand"
+    },
+    "earlier": {
+      "title": "Earlier tonight",
+      "item": "{where} · {when}",
+      "open": "Hide",
+      "closed": "Show"
+    },
+    "hintsSwitch": {
+      "on": "Explanations: on",
+      "off": "Explanations: off"
+    },
+    "hints": {
+      "_comment": "Hover explanations (TD v0.40, The screen), on hover and keyboard focus. Plain words for someone new to the game.",
+      "switch": "Turn these explanations on or off. This browser remembers your choice.",
+      "sheet": "Your character: your purse, the French pensions you hold, and how many times tonight you've drawn someone aside for a private word.",
+      "errand": "What you came to do tonight. It stays here so you don't lose sight of it. Once it has been checked, the result appears here too.",
+      "here": "The guests in your conversation right now. Everyone here hears what you say.",
+      "briefing": "Your briefing: who you are, what you know, and what you want. Only you can see it.",
+      "rules": "The rules of the evening, as every guest has them.",
+      "header": "Where you are: the time of the evening, and who you're talking with.",
+      "earlier": "Conversations you were part of earlier tonight. Click one to read it again; click again to fold it away.",
+      "input": "Type what your character says, up to {max} characters. Start with @ to speak to one guest, or / for a command.",
+      "mention": "Speak to one guest: choose who your next line is for. Everyone present still hears it.",
+      "commands": "Commands: actions such as paying, borrowing, or repaying, instead of words.",
+      "speak": "Say your line to the conversation. You can press Enter instead.",
+      "do": "Carry out the command in the box. It's an action, not something you say.",
+      "pass": "Say nothing this time. The conversation moves on.",
+      "end": "End this private conversation. The other guest has a last word, then it closes.",
+      "talkingTo": "The guest you're talking with. Everything shown here is what anyone at the party knows about them.",
+      "move": "Your chance to move. Stay where you are, walk over to another guest's group, or call a guest aside for a private word.",
+      "stay": "Stay in this conversation.",
+      "join": "Walk over to another guest and join their group.",
+      "colloquio": "Draw a guest aside for a private conversation. Il Notaio notes it, and others may wonder why.",
+      "seat": "Your conversation is over. Choose where to go next.",
+      "midnight": "Choose what you do at midnight. No one sees your choice.",
+      "confirm": "Lock in your choice. It can't be changed afterwards.",
+      "close": "Close this and go back to the conversation.",
+      "play": "Start the evening as this guest.",
+      "wait": "Wait here until a seat opens in a group. You'll be offered one at the next chance."
+    }
   }
 }

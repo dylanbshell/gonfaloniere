@@ -5,7 +5,13 @@ body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--
 button, select, textarea { font: inherit; color: inherit; }
 button, .button { background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-md); padding: var(--space-1) var(--space-3); cursor: pointer; text-decoration: none; display: inline-block; }
 button:disabled { opacity: var(--opacity-disabled); cursor: default; }
+/* Buttons by job (TD v0.40): one filled primary (Speak), Do in its own style, the rest outlined. */
 button.primary, .button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+button.secondary { background: transparent; border-color: var(--border); }
+button.do { background: var(--do); color: var(--do-text); border-color: var(--do); font-family: var(--font-mono); }
+button.icon { border: none; background: var(--surface-2); border-radius: var(--radius-sm); padding: 0 var(--space-2); font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-muted); }
+button.switch { font-size: var(--text-xs); padding: 0 var(--space-2); background: transparent; color: var(--text-muted); }
+button.switch[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
 select, textarea { background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-md); padding: var(--space-1) var(--space-2); }
 h1 { font-size: var(--text-xl); margin: 0 0 var(--space-3); }
 h2 { font-size: var(--text-lg); margin: var(--space-4) 0 var(--space-2); }
@@ -42,9 +48,16 @@ h3 { font-size: var(--text-md); margin: 0 0 var(--space-3); }
 .here li { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); }
 .here .portrait { width: var(--portrait-size); height: var(--portrait-size); }
 .buttons { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-5); }
+.side-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-2); }
+.side-head .label { margin: 0; }
+
+/* The errand card, pinned under the sheet */
+.errand { margin-top: var(--space-4); background: var(--errand-bg); border: var(--border-width) solid var(--errand-border); border-radius: var(--radius-md); padding: var(--space-3); font-size: var(--text-sm); }
+.errand .label { margin: 0 0 var(--space-1); }
+.errand-result { margin-top: var(--space-2); font-weight: var(--weight-bold); }
 
 .centre { display: flex; flex-direction: column; min-width: 0; height: var(--screen-height); }
-.conv-head { padding: var(--space-3) var(--space-4); border-bottom: var(--border-width) solid var(--border); background: var(--surface); }
+.conv-head { padding: var(--space-3) var(--space-4); border-bottom: var(--border-width) solid var(--border); background: var(--surface); display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
 .phase { font-weight: var(--weight-bold); }
 .stream { flex: 1; overflow-y: auto; padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
 .ln { padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); }
@@ -57,8 +70,13 @@ h3 { font-size: var(--text-md); margin: 0 0 var(--space-3); }
 .ln.notaio .sp { font-style: normal; }
 .ln.action { color: var(--text-muted); font-size: var(--text-sm); }
 .ln.private { border: var(--border-width) dashed var(--border); }
-.divider { display: flex; align-items: center; gap: var(--space-3); color: var(--text-muted); font-size: var(--text-xs); margin: var(--space-3) 0; }
-.divider::before, .divider::after { content: ""; flex: 1; border-top: var(--border-width) solid var(--border); }
+/* Earlier tonight: one line per earlier conversation, opening in place */
+.earlier { border-bottom: var(--border-width) solid var(--border); padding-bottom: var(--space-3); margin-bottom: var(--space-2); display: flex; flex-direction: column; gap: var(--space-1); }
+.earlier .label { margin: 0 0 var(--space-1); }
+.earlier-line { display: flex; justify-content: space-between; gap: var(--space-3); width: 100%; text-align: left; border: none; background: transparent; padding: var(--space-1) var(--space-2); font-size: var(--text-sm); color: var(--text-muted); }
+.earlier-line:hover { background: var(--surface-2); }
+.earlier-item.open .earlier-line { color: var(--text); }
+.earlier-lines { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-2) 0 var(--space-2) var(--space-3); border-left: var(--border-width) solid var(--border); margin-left: var(--space-2); }
 .speaking { color: var(--text-muted); font-style: italic; font-size: var(--text-sm); padding: 0 var(--space-3); }
 .banner { background: var(--danger-bg); color: var(--danger); border-radius: var(--radius-md); padding: var(--space-3); font-weight: var(--weight-bold); }
 
@@ -76,19 +94,26 @@ h3 { font-size: var(--text-md); margin: 0 0 var(--space-3); }
 .prompt { font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-2); }
 .prompt.waiting { color: var(--accent); font-weight: var(--weight-bold); }
 .row { display: flex; gap: var(--space-3); align-items: stretch; }
-.row textarea { flex: 1; height: var(--input-height); resize: none; }
+.field { flex: 1; position: relative; display: flex; }
+.field textarea { flex: 1; height: var(--input-height); resize: none; padding-bottom: var(--icon-row-height); }
+.field-icons { position: absolute; left: var(--space-2); bottom: var(--space-1); display: flex; gap: var(--space-1); }
 .actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-content: flex-start; max-width: var(--side-width); }
 .count { font-size: var(--text-xs); color: var(--text-muted); width: 100%; text-align: right; }
 .count.over { color: var(--danger); }
 .example { font-size: var(--text-sm); margin-top: var(--space-2); }
-.dropdown { position: absolute; bottom: 100%; left: var(--space-4); list-style: none; margin: 0; padding: var(--space-1); background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-md); max-height: var(--menu-height); overflow-y: auto; min-width: var(--card-width); }
+.dropdown { z-index: var(--z-menu); position: absolute; bottom: 100%; left: var(--space-4); list-style: none; margin: 0; padding: var(--space-1); background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-md); max-height: var(--menu-height); overflow-y: auto; min-width: var(--card-width); }
 .dropdown button { display: flex; align-items: center; gap: var(--space-2); width: 100%; border: none; text-align: left; }
 .dropdown.menu button { flex-direction: column; align-items: flex-start; gap: 0; }
 .cmd { font-family: var(--font-mono); font-size: var(--text-sm); }
 
 /* Modals */
-.overlay { position: fixed; inset: 0; background: var(--overlay); display: flex; align-items: center; justify-content: center; padding: var(--space-4); }
+.overlay { z-index: var(--z-overlay); position: fixed; inset: 0; background: var(--overlay); display: flex; align-items: center; justify-content: center; padding: var(--space-4); }
 .modal { background: var(--surface); border-radius: var(--radius-lg); width: 100%; max-width: var(--modal-width); max-height: var(--modal-max-height); display: flex; flex-direction: column; }
 .modal header { display: flex; justify-content: space-between; align-items: center; padding: var(--space-3) var(--space-4); border-bottom: var(--border-width) solid var(--border); }
 .modal h2 { margin: 0; }
 .sheet { padding: var(--space-4); overflow-y: auto; white-space: pre-wrap; font-size: var(--text-sm); }
+
+/* Hover explanations: one tooltip, placed by the element it explains */
+.tip { position: fixed; z-index: var(--z-tip); max-width: var(--tip-width); background: var(--tip-bg); color: var(--tip-text); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--text-sm); pointer-events: none; }
+.tip.measuring { visibility: hidden; top: 0; left: 0; }
+[data-hint]:focus-visible { outline: var(--border-width) solid var(--accent); }
