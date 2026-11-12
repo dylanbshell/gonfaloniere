@@ -2,8 +2,8 @@ This repository is under two licenses.
 
 1. CODE: MIT License
 
-Applies to the source code: src/, pilot/*.py, probe.config.ts, package.json,
-tsconfig.json, and other build and configuration files.
+Applies to the source code: src/, tools/, test/, pilot/*.py, probe.config.ts,
+package.json, tsconfig.json, and other build and configuration files.
 
 Copyright (c) 2026 Dylan Shell
 
