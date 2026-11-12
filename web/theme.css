@@ -47,6 +47,13 @@
   --screen-height: 100vh;
   --modal-max-height: 90vh;
   --opacity-disabled: 0.5;
+  --tip-width: 280px;
+  --icon-row-height: 28px;
+
+  /* Stacking: menus over the stream, decks over everything, the explanations over the decks */
+  --z-menu: 10;
+  --z-overlay: 100;
+  --z-tip: 200;
 
   /* Colours: light */
   --bg: #f6f6f4;
@@ -66,6 +73,12 @@
   --to-you-bg: #eef2f9;
   --overlay: rgba(20, 20, 18, 0.45);
   --portrait-text: #ffffff;
+  --do: #5a3a8c;
+  --do-text: #ffffff;
+  --tip-bg: #2a2a27;
+  --tip-text: #f6f6f4;
+  --errand-bg: #fbf6ea;
+  --errand-border: #d8c79a;
 
   /* Faction colours, by the faction's place in setting.json (used when the setting gives no colour) */
   --faction-0: #6a4c93;
@@ -94,5 +107,11 @@
     --notaio-bg: #1f2a24;
     --to-you-bg: #1f2633;
     --overlay: rgba(0, 0, 0, 0.6);
+    --do: #c3a6ee;
+    --do-text: #1a1224;
+    --tip-bg: #ecece8;
+    --tip-text: #1d1d1b;
+    --errand-bg: #2a261b;
+    --errand-border: #6b5d38;
   }
 }

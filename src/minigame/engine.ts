@@ -54,7 +54,7 @@ import { gameAct, hasArrival, inWorldNames, inWorldTime, minglingPhase } from ".
 import type { RequestKind } from "../core/protocol.ts";
 import { actProblems } from "../rules/midnight.ts";
 import { MemoryStore, renderBelief, tookTargetLine, resolveName, whereLabel, type GameLine, type Thought, type Where } from "./memory.ts";
-import { MESSAGE_MAX, PlayerFeed, mentions, menu, parseCommand, playable, playerSays, refusal, type CommandAction } from "./player.ts";
+import { MESSAGE_MAX, PlayerFeed, errandText, mentions, menu, parseCommand, playable, playerSays, refusal, type CommandAction } from "./player.ts";
 
 // ---- Calls -----------------------------------------------------------------------------
 
@@ -1264,6 +1264,7 @@ export class MiniGame {
     this.player.state(this.stateFor(h) as unknown as Record<string, unknown>, menu([...allowed, ...extra, "conclude"], { amount: this.rules.pensionSize }), this.speaking, () => ({
       rules: rulesText(this.docs.templates, { ...this.docs.tunables, plotProtection: false, plotReward: false }),
       briefing: this.s.briefings[h]!,
+      errand: errandText(this.s.briefings[h]!),
     }));
   }
 

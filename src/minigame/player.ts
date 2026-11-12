@@ -27,6 +27,22 @@ export type ParsedCommand =
 /** The setting pack's player words. */
 export const playerSays = (key: string, values: Record<string, string | number> = {}) => say("player", key, values);
 
+/**
+ * A section of a briefing (Characters' briefing format): the paragraphs under a whole-line bold heading,
+ * up to the next one. The heading's words come from the setting pack, never from code.
+ */
+export function briefingSection(briefing: string, heading: string): string {
+  const lines = briefing.split("\n");
+  const isHeading = (l: string) => /^\*\*[^*]+\*\*$/.test(l.trim());
+  const start = lines.findIndex((l) => l.trim() === `**${heading}**`);
+  if (start < 0) return "";
+  const end = lines.findIndex((l, i) => i > start && isHeading(l));
+  return lines.slice(start + 1, end < 0 ? undefined : end).join("\n").trim();
+}
+
+/** The errand card's text (TD v0.40, The screen): the briefing's errand section. */
+export const errandText = (briefing: string) => briefingSection(briefing, playerSays("briefingHeadings.errand"));
+
 /** The playable characters (setting.json). */
 export const playable = (): string[] => settingPack().playable;
 
