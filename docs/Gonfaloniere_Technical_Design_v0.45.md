@@ -11,6 +11,7 @@
 - **The room line is in block 5** (`Around the room: {room}`), version-gated to TD ≥ 0.45, so earlier games replay byte-identical. It matches Mechanics v0.32 as written: open play only, the present moment, never what's said, and no dead. "Waits on Mechanics" is dropped throughout, and the open question "Should characters see where everyone is?" is closed
 - **Ships with Characters v0.12,** whose social awareness text tells every guest they can see the room, so a briefing never promises a view the prompt doesn't give (Characters' note)
 - **The "talking with" card looks different** from the cards that slide over it (Player Interface, Right): a live card, tinted, labelled "Talking with", with a dot that shows while that guest is speaking. A selected guest's card is a plain raised paper card, labelled "Looking at", with a close control
+- **The left column's order** (Dylan, Nov 13): your sheet (purse, pensions, withdrawals), then the three deck buttons (Your briefing, The rules, The city), then the errand card, then the room
 - Prompts change only by the room line
 
 ## Changes in v0.44
@@ -2284,12 +2285,12 @@ A single page in the style of a Slack chat. Placeholder portraits until Art's ar
 │ portrait · name │ Capannello with Giorgia, Lupo      │ Giorgia (selected│
 │ purse·pensions· │ ▸ Earlier tonight (collapsed)      │ (or a lore entry)│
 │ withdrawals     │ Il Notaio: …                       │                  │
-│ ┌ ERRAND ─────┐ │ Giorgia Pazzi: …                   │                  │
-│ └─────────────┘ │ Lupo (to you): …                   │                  │
-│ THE ROOM        │ ┌ Il Notaio's hint ───────────────┐│                  │
-│ ● ●●  ●●● ●     │ └─────────────────────────────────┘│                  │
-│ [Briefing]      │ [@][/]  > …            [Pass][Speak]│                  │
-│ [Rules] [City]  │ e.g. "Sit with me. We should talk." │      ⇔ resizable │
+│ [Briefing]      │ Giorgia Pazzi: …                   │                  │
+│ [Rules] [City]  │ Lupo (to you): …                   │                  │
+│ ┌ ERRAND ─────┐ │ ┌ Il Notaio's hint ───────────────┐│                  │
+│ └─────────────┘ │ └─────────────────────────────────┘│                  │
+│ THE ROOM        │ [@][/]  > …            [Pass][Speak]│                  │
+│ ● ●●  ●●● ●     │ e.g. "Sit with me. We should talk." │      ⇔ resizable │
 ├─────────────────┴────────────────────────────────────┴──────────────────┤
 │ ▲ THE WEB OF SECRETS (always visible; click to slide up)   ▒ shadow ▒  │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -2297,9 +2298,9 @@ A single page in the style of a Slack chat. Placeholder portraits until Art's ar
 
 **Left: you.**
 - **Your sheet:** portrait, name, faction, purse, pensions held, and Colloquio withdrawals. These should read as more than a list (a purse with its count, a pension seal, tally marks for withdrawals), but how they look is the theme's job, settled with the look
-- **The errand card,** pinned under the sheet, so the errand stays in front of the player. It shows the errand's text, then its result once the check has run, in the same words as `{plot_status}`
+- **Three buttons,** just under the sheet *(v0.45; Dylan, Nov 13)*, opening card decks (below): **Your briefing**, **The rules**, and **The city** (public lore). No button for the Web of Secrets, which is always at the bottom (v0.44)
+- **The errand card,** pinned under the three buttons, so the errand stays in front of the player. It shows the errand's text, then its result once the check has run, in the same words as `{plot_status}`
 - **The room** *(Mechanics v0.32; see Everyone sees the room, below)*. Where every living guest is: each group as a cluster of tokens, a Colloquio pair as two tokens joined, and the player's own group marked. Tokens in a group overlap, and spread out on hover. Clicking a token selects that guest. During councils and at midnight and the ballot, it shows only who's with you, as the rule says
-- **Three buttons** opening card decks (below): **Your briefing**, **The rules**, and **The city** (public lore). No button for the Web of Secrets, which is always at the bottom (v0.44)
 
 **Centre: the conversation.**
 - The time label and the conversation's members at the top
