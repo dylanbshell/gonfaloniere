@@ -93,6 +93,9 @@ function scriptedPlayer(url: string, seen: Seen, opts: { dropAfter: number }) {
           send({ type: "note", text: `${NOTE_MARK} on Lupo`, guests: ["Lupo"] });
           send({ type: "note", text: `${NOTE_MARK} on a pair`, guests: ["Lupo", "Giorgia Pazzi"] });
           send({ type: "note", text: "On a stranger", guests: ["Nobody Atall"] });
+          // The Web of Secrets open, with a guest and then a pair selected: Il Notaio's box asks for readings (TD v0.44).
+          send({ type: "reading", guests: ["Lupo"] });
+          send({ type: "reading", guests: ["Lupo", "Giorgia Pazzi"] });
         }
         if (ev.type === "note") seen.did.add("note kept");
         if (ev.type === "refusal") seen.did.add(`refused: ${ev.reason}`);
@@ -141,6 +144,7 @@ function scriptedPlayer(url: string, seen: Seen, opts: { dropAfter: number }) {
         if (ev.kind === "move") {
           // A note while the game waits for a choice: taken, and the choice still open.
           if (moves === 0) send({ type: "note", text: `${NOTE_MARK} while choosing`, guests: [] });
+          send({ type: "reading", guests: [(o.guests as string[])[0]!] });
           moves++;
           const guests = o.guests as string[];
           seen.did.add(moves === 1 ? "called a Colloquio" : "moved");
@@ -249,6 +253,11 @@ test("isolation: the player's whole event stream is their own History and State,
   assert.ok(conns.length > 0 && conns.filter((c) => c.private).every((c) => c.between[0] === F));
   assert.deepEqual(stream.filter((e) => e.type === "note").map((e) => (e as { text: string }).text), game.playerNotes.map((n) => n.text));
   for (const l of game.lines.filter((x) => !x.heardBy.includes(F))) assert.ok(!stream.some((e) => "id" in e && e.id === l.id), `${l.id} leaked`);
+  // With the Web of Secrets open and Il Notaio's box answering (CC-20261113-02): his readings are of the
+  // player's own record, so they hold only names and counts from it, and never another's line.
+  const readings = stream.filter((e) => e.type === "reading") as Extract<Outgoing, { type: "reading" }>[];
+  assert.ok(readings.length >= 3, "readings were shown");
+  for (const r of readings) assert.ok(r.upTo <= r.seq && (r.text === null || game.calls.some((c) => c.raw === r.text)), JSON.stringify(r));
   // Block 5 for the player: their own purse, and no ledger (Francesco doesn't keep the treasury).
   const states = stream.filter((e) => e.type === "state");
   assert.ok(states.every((e) => !("embassyLedger" in e.state)));

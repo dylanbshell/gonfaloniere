@@ -28,7 +28,13 @@ export type OutgoingBody =
   | { type: "death"; name: string; you: boolean }
   | { type: "result"; result: Record<string, unknown> }
   /** One of the player's own notes (TD v0.40, Notes), kept by the game; `guests`: none, one, or a pair. */
-  | { type: "note"; id: string; turn: number; guests: string[]; text: string };
+  | { type: "note"; id: string; turn: number; guests: string[]; text: string }
+  /**
+   * A reading of the player's own record for one or two guests (TD v0.44, the screen's one model summary):
+   * `upTo`, the seq of the record's newest entry it covers; `text`, the reading, or null when there is none
+   * (none possible, or dropped by the game's check), with `tally`, the plain count shown instead.
+   */
+  | { type: "reading"; guests: string[]; upTo: number; text: string | null; tally: string };
 export type Outgoing = OutgoingBody & { seq: number };
 
 /** Messages from the browser. */
@@ -40,5 +46,7 @@ export const Incoming = z.discriminatedUnion("type", [
   z.object({ type: z.literal("end") }),
   /** A note: never an answer to a request, and never a turn's input. */
   z.object({ type: z.literal("note"), text: z.string(), guests: z.array(z.string()).max(2) }),
+  /** Asks for a reading of one or two guests: never an answer to a request, and never a turn's input. */
+  z.object({ type: z.literal("reading"), guests: z.array(z.string()).min(1).max(2) }),
 ]);
 export type Incoming = z.infer<typeof Incoming>;

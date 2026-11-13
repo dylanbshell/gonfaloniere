@@ -19,7 +19,7 @@ import { settingPack } from "../src/setting/pack.ts";
 import { GameView, Start } from "../web/src/App.tsx";
 import type { Ev } from "../web/src/connection.ts";
 import { canDo, canSpeak, openMenu, trigger, withMention } from "../web/src/input.ts";
-import { appearsIn, briefingCards, cityCards, derive, heardAndSaw, hintMoment, loreParts, rulesCards, webLayout, type LoreEntry, type View } from "../web/src/model.ts";
+import { appearsIn, briefingCards, cityCards, derive, factionLabels, heardAndSaw, hintMoment, loreParts, readingFor, rulesCards, talkingWith, trackMarks, webLayout, type LoreEntry, type View } from "../web/src/model.ts";
 import { notaioHint, setInfo, type StartInfo } from "../web/src/words.ts";
 import { fakeCaller, fakeDocs, fakeSettings } from "./fixtures/fake-game.ts";
 
@@ -251,7 +251,8 @@ test("the decks: one card per briefing section and per rules topic, with Your pa
   for (const [deck, view, n] of [["briefing", past, cards.length + 1], ["rules", v, rules.length], ["city", withLore(v), 3]] as const) {
     const h = game({ v: view, deck });
     assert.deepEqual(missingWords(h), [], deck);
-    assert.equal((h.match(/class="tab( on)?"/g) ?? []).length, n, `${deck}: a tab per card`);
+    // The deck's own tabs (the Web of Secrets, always on the page, has tabs of its own).
+    assert.equal((h.slice(h.indexOf('class="overlay"')).match(/class="tab( on)?"/g) ?? []).length, n, `${deck}: a tab per card`);
     assert.match(h, /class="deck-card"[^>]*data-hint="deckCard"/, `${deck}: the card swipes on`);
     assert.match(h, /data-hint="deckBack"/);
   }
@@ -302,7 +303,8 @@ test("the web viewer: twelve guests, fixed lines, up to two selected, and only w
   const h0 = game({ v, web: [] });
   assert.deepEqual(missingWords(h0), []);
   assert.equal((h0.match(/class="node( [^"]*)?"/g) ?? []).length, 12);
-  assert.equal((h0.match(/class="edge yours/g) ?? []).length, v.sheet!.connections!.filter((c) => c.private).length, "Francesco's own lines, marked as his");
+  assert.equal((h0.match(/class="edge rel-[\w-]+ yours/g) ?? []).length, v.sheet!.connections!.filter((c) => c.private).length, "Francesco's own lines, marked as his");
+  assert.equal((h0.match(/class="edge-under"/g) ?? []).length, v.sheet!.connections!.filter((c) => c.private).length, "each with the mark beneath it");
   // One guest, and every pair: only lines from the player's own stream, and never a thought.
   const thoughts = played.thoughts.map((t) => t.text).filter((t) => t.length > 20);
   for (const sel of [...roster.map((r) => [r]), ...roster.flatMap((a, i) => roster.slice(i + 1).map((b) => [a, b]))]) {
@@ -375,7 +377,8 @@ test("the web's layout takes a missing or empty factions list (an older server's
 
 test("the web's names are drawn after every line and circle, on a halo, so no line crosses them", async () => {
   const { at } = await playedLog();
-  const h = game({ v: derive(at["speak:capannello"]!), web: [F] });
+  const page = game({ v: derive(at["speak:capannello"]!), web: [F] });
+  const h = page.slice(page.indexOf('class="web-diagram"'), page.indexOf("</svg>", page.indexOf('class="web-diagram"')));
   const names = [...h.matchAll(/class="node-name/g)].map((m) => m.index!);
   assert.equal(names.length, info.roster.length);
   const lastLine = Math.max(...[...h.matchAll(/<line /g)].map((m) => m.index!));
@@ -385,13 +388,14 @@ test("the web's names are drawn after every line and circle, on a halo, so no li
   assert.match(css, /\.node-name \{[^}]*paint-order: stroke;[^}]*stroke: var\(--surface\)/, "a halo in the panel's colour");
 });
 
-test("the left column: the sheet, then the decks and the web, then the errand, then who's here", async () => {
+test("the left column (TD v0.45): the sheet, then the three decks, then the errand, then who's here; no button for the web", async () => {
   const { at } = await playedLog();
   const h = game({ v: derive(at["speak:capannello"]!) });
   const left = h.slice(h.indexOf('class="side left"'), h.indexOf('class="centre"'));
-  const order = ['data-hint="sheet"', 'data-hint="briefing"', 'data-hint="web"', 'class="errand"', 'data-hint="here"'].map((k) => left.indexOf(k));
+  const order = ['data-hint="sheet"', 'data-hint="briefing"', 'data-hint="city"', 'class="errand"', 'data-hint="here"'].map((k) => left.indexOf(k));
   assert.ok(order.every((i) => i >= 0), String(order));
   assert.deepEqual([...order].sort((a, b) => a - b), order);
+  assert.ok(!left.includes('data-hint="web"'), "the Web of Secrets is at the bottom, not here");
 });
 
 test("steady sizes: the sheet, the prompt, and the example are laid out before the first state, from theme tokens", () => {
@@ -402,4 +406,91 @@ test("steady sizes: the sheet, the prompt, and the example are laid out before t
   const css = readFileSync("web/src/app.css", "utf8");
   for (const [sel, token] of [[".conv-head", "--head-height"], [".input", "--input-box-height"], [".hint-text", "--hint-text-height"], [".prompt", "--line-sm"], [".example", "--line-sm"]])
     assert.match(css, new RegExp(`\\${sel} \\{[^}]*min-height: var\\(${token}\\)`), sel);
+});
+
+// ---- CC-20261113-02 (#90): the Web of Secrets, the track, the right panel (TD v0.44–v0.46) -----------------
+
+/** A hand-made log in one group: `state` events and lines, numbered in order. */
+function groupLog(steps: ({ present: string[]; kind?: string; other?: string } | { speaker?: string; you?: boolean; addressee?: string | null; conv?: string })[]): Ev[] {
+  return steps.map((x, i) =>
+    "present" in x
+      ? { seq: i + 1, type: "state", state: { phaseLabel: "p", conversation: x.kind === "colloquio" ? { kind: "colloquio", other: x.other } : x.kind === "gathering" ? { kind: "gathering" } : { kind: "capannello", others: x.present }, present: x.present, livingOthers: [], florins: 0, pensionsHeld: 0, withdrawalCount: 0 }, commands: [] }
+      : { seq: i + 1, type: "line", id: `L${i}`, turn: 1, conversation: x.conv ?? "C1", speaker: x.you ? F : x.speaker, addressee: x.addressee ?? null, text: "…", you: !!x.you },
+  );
+}
+
+test("the talking-with card (TD v0.46): the other guest in a Colloquio; in a group, the last address either way, until replaced or someone leaves", () => {
+  const G = "Giorgia Pazzi";
+  const at = (steps: Parameters<typeof groupLog>[0]) => talkingWith(derive(groupLog(steps)), F);
+  const group = { present: ["Lupo", G] };
+  assert.equal(at([group, { speaker: "Lupo" }, { speaker: G }]), null, "a group's last speaker isn't it: no one has his ear");
+  assert.equal(at([group, { speaker: "Lupo", addressee: F }, { speaker: G }]), "Lupo", "Lupo addressed him; Giorgia's line to no one doesn't change it");
+  assert.equal(at([group, { speaker: "Lupo", addressee: F }, { you: true, addressee: G }]), G, "his own address replaces it");
+  assert.equal(at([group, { you: true, addressee: G }, { you: true }]), G, "his own line to no one doesn't change it");
+  assert.equal(at([group, { speaker: "Lupo", addressee: G }]), null, "an address between two others isn't his");
+  assert.equal(at([group, { speaker: "Lupo", addressee: F }, { present: [G] }]), null, "Lupo left the group");
+  assert.equal(at([group, { speaker: "Lupo", addressee: F }, { present: [G] }, group]), null, "and coming back doesn't bring it back");
+  assert.equal(at([group, { speaker: "Lupo", addressee: F }, { present: ["Lupo"] }, { conv: "C2", speaker: "Lupo" }]), null, "he left the group: a new stretch");
+  assert.equal(at([{ present: ["Lupo"], kind: "colloquio", other: "Lupo" }]), "Lupo", "a Colloquio: the other guest, always");
+  assert.equal(at([{ present: ["Lupo", G], kind: "gathering" }, { speaker: "Lupo", addressee: F }]), null, "midnight: no one");
+});
+
+test("the right panel: the live talking-with card, empty when no one has his ear; a selected guest's card over it, with a close", async () => {
+  const { at } = await playedLog();
+  const v = derive(at["speak:colloquio"]!);
+  const other = (v.state!.conversation as { other: string }).other;
+  const h = game({ v });
+  assert.match(h, new RegExp(`class="person talk" data-guest="${other.replace(/'/g, "&#x27;")}"`), "a Colloquio: the other guest");
+  assert.doesNotMatch(h, /class="person look"/);
+  const looking = game({ v, selected: { kind: "guest", name: "Lupo" } });
+  assert.match(looking, /class="person look" data-guest="Lupo"/);
+  assert.match(looking, /data-hint="deselect"/, "a close that deselects");
+  assert.match(looking, /<button class="person-head"[^>]*data-hint="backToTalk"/, "the talking card's header, one click back");
+  // A group where no one has addressed him: the card stays, empty, with its label and a quiet line.
+  const quiet = derive(groupLog([{ present: ["Lupo", "Giorgia Pazzi"] }, { speaker: "Lupo" }]));
+  const q = game({ v: { ...quiet, sheet: v.sheet } });
+  assert.match(q, /class="person talk">/);
+  assert.match(q, /No one has your ear/);
+  assert.equal((q.match(/class="tokens"/g) ?? []).length, 1, "the group's tokens, whether or not the card is filled");
+  assert.match(q, /data-hint="resize"/, "a handle to resize it");
+});
+
+test("the evening's track: past filled, now highlighted, the rest outlined, each named on hover", async () => {
+  const stages = ["A", "B", "C", "D"];
+  assert.deepEqual(trackMarks(stages, "C").map((m) => m.at), ["past", "past", "now", "next"]);
+  assert.deepEqual(trackMarks(stages, undefined).map((m) => m.at), ["next", "next", "next", "next"]);
+  const { at } = await playedLog();
+  const v = derive(at["speak:capannello"]!);
+  assert.ok(v.sheet!.track!.includes(v.state!.phaseLabel));
+  const h = game({ v });
+  assert.equal((h.match(/class="mark (past|now|next)"/g) ?? []).length, v.sheet!.track!.length);
+  assert.equal((h.match(/class="mark now"/g) ?? []).length, 1);
+  assert.match(h, /data-hint="trackNow"/);
+});
+
+test("the Web of Secrets: a bar always there, a key of the six types that highlights one, faction names, and Il Notaio's box", async () => {
+  const { at } = await playedLog();
+  const v = derive(at["speak:capannello"]!);
+  const shut = game({ v });
+  assert.match(shut, /class="web-dock"/, "always on the page");
+  assert.match(shut, /class="web-bar" aria-expanded="false"[^>]*>.*The Web of Secrets/);
+  assert.match(shut, /class="web" inert=""/, "down: nothing in it takes focus");
+  const h = game({ v, web: ["Lupo"] });
+  assert.match(h, /class="web-dock open"/);
+  assert.deepEqual([...h.matchAll(/class="key-type[^"]*"[^>]*data-type="(\w+)"/g)].map((m) => m[1]), ["romance", "kin", "service", "alliance", "rivalry", "money"]);
+  const lit = game({ v, web: [], keyType: "romance" });
+  const edges = [...lit.matchAll(/class="edge rel-(\w+)[^"]*?( key-on| key-off)"/g)];
+  assert.ok(edges.length > 0 && edges.every((m) => (m[1] === "romance") === (m[2] === " key-on")), "the type lit, the rest dimmed");
+  assert.equal(factionLabels(info.roster, info.factions, webLayout(info.roster, info.factions)).length, new Set(info.roster.map((r) => r.faction)).size);
+  assert.equal((h.match(/class="faction-label"/g) ?? []).length, new Set(info.roster.map((r) => r.faction)).size, "each faction named once");
+  assert.match(h, /data-reading="waiting"/, "a selection, and no reading yet: he's considering");
+  // A reading for this selection and record: shown; a tally in its place when there's none.
+  const withReading = (text: string | null): View => {
+    const r = derive([...at["speak:capannello"]!, { seq: 1e7, type: "reading", guests: ["Lupo"], upTo: 0, text, tally: "Tally." }]);
+    return { ...r, readings: r.readings.map((x) => ({ ...x, upTo: Math.max(0, ...heardAndSaw(r, ["Lupo"], F).heard.map((l) => l.seq), ...heardAndSaw(r, ["Lupo"], F).saw.map((s) => (s.kind === "line" ? s.line.seq : s.seq))) })) };
+  };
+  assert.ok(readingFor(withReading("He keeps the door."), ["Lupo"], F));
+  assert.match(game({ v: withReading("He keeps the door."), web: ["Lupo"] }), /data-reading="reading">He keeps the door\.</);
+  assert.match(game({ v: withReading(null), web: ["Lupo"] }), /data-reading="tally">Tally\.</);
+  assert.deepEqual(missingWords(h), []);
 });

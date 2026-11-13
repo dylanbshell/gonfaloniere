@@ -4,7 +4,7 @@
 
 import { readFileSync } from "node:fs";
 import type { CharacterName } from "../game/roster.ts";
-import { settingFile, settingPack } from "../setting/pack.ts";
+import { relationshipTypes, relationships, settingFile, settingPack } from "../setting/pack.ts";
 import { MESSAGE_MAX } from "./player.ts";
 
 /** Initials for a placeholder portrait: the last two capitalised words of the name. */
@@ -37,6 +37,8 @@ export function screenInfo(cards: CharacterName[], briefings: Partial<Record<Cha
     max: MESSAGE_MAX,
     // The web's arcs, in the setting's faction order.
     factions: pack.factions.map((f) => f.name),
+    // The Web of Secrets' key (TD v0.44): the six relationship types, with their labels.
+    relationshipTypes: relationshipTypes().map((type) => ({ type, ...relationships().types[type]! })),
     // Portraits and name tooltips: the public subtitle and faction, never anything the replay viewer shows.
     roster: pack.roster.map((r) => ({ name: r.name, faction: r.faction, subtitle: r.subtitle, initials: initials(r.name), colour: pack.factions[factionIndex(r.faction)]?.colour ?? `var(--faction-${factionIndex(r.faction)})` })),
     playable: cards.map((name) => ({ name, intro: firstParagraph(briefings[name] ?? "") })),
