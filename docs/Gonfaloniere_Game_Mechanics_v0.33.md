@@ -1,9 +1,13 @@
 # Gonfaloniere
 ## Game Mechanics — Working Document
-### Version 0.32
+### Version 0.33
 *Formerly "Plots in the Palazzo"*
 
 ---
+
+## Changes in v0.33
+
+- **Errand difficulty ranking** added to the balance watch list (Dylan, Nov 13): all twelve errands rated from easiest to hardest, with a faction view. The bigger risk is the faction skew: the Pazzi get the easiest errands on top of Lupo's kills, and the Medici the hardest plus an internal collision. The ratings are judgment, not data, and give the first full games something to measure against
 
 ## Changes in v0.32
 
@@ -587,8 +591,35 @@ The current value of every number that balancing may adjust. Each is also stated
   - **Isabella may be over-hunted:** LeNoir, Raffaello, and Beatrice all point at her. If her secret falls in the first round every game, San Frediano ends early
   - **Beatrice's clue speeds LeNoir:** she can name Lupo, one step from Isabella. Weigh against Isabella's plot point
   - **Lupo is the hub:** games where he dies or talks early will diverge
-  - **Uneven difficulty:** Emile's is now harder, Beatrice's gets another clue path from Characters, and Raffaello's stays (reachable in mini-games). Re-check all twelve once full games run
-- **How do we know an errand is done?** (Dylan, Nov 11: one of the hardest design questions in the game.) Five of the twelve errands are logged and exact (meetings, payments, the pension ledger). The other seven rest on whether a character has *learned* something, judged by a knowledge check that carries the memory known limit. Options so far, which can combine:
+  - **Uneven difficulty, and a faction skew** (ranking below): the errands run from one payment to someone who wants it, up to a secret nobody will tell. Emile's is now harder, Beatrice's has a second clue path, and Raffaello's stays (reachable in mini-games). Re-check all twelve once full games run
+
+**Errand difficulty ranking** (Nov 13, judgment from the rules and briefings; only Raffaello's and LeNoir's have been reached in games). Knowledge errands (5–12) are less certain than they look, since the knowledge check itself may misjudge them:
+
+| # | Character | Difficulty | Why |
+|---|---|---|---|
+| 1 | Francesco (Pazzi) | Very easy | One Colloquio and one payment, to someone whose own errand wants it. Logged |
+| 2 | Fra Tommaso (Dominican) | Very easy | Needs others to pay, but Francesco's errand is to pay him |
+| 3 | Lupo (Pazzi) | Easy | Isabella's errand pays him 3 of the 5; any contract or bribe covers the rest |
+| 4 | Jeanne (French) | Moderate | Someone must choose to take a pension. Briefings now state the stakes rather than forbid it; untested |
+| 5 | Clarice (Medici) | Moderate | The meeting is easy (Emile wants it too); her cousin Piero's errand is to expose her |
+| 6 | LeNoir (French) | Moderate | Holds the seal, any noble can read it, and Raffaello's errand is to tell him. Reached in both recent mini-games |
+| 7 | Isabella (Dominican) | Moderate–hard | The payment is easy; three guests hunt her secret (LeNoir, Raffaello, Beatrice) |
+| 8 | Emile (French) | Moderate–hard | Meetings are easy; both suitors guard their affairs from him, and clues are thin |
+| 9 | Giorgia (Pazzi) | Moderate–hard | The man she must meet is the one hunting her secret, and Lupo has seen her slip out |
+| 10 | Piero (Medici) | Hard | A deduction from the ribbon's ambiguous "C"; both lovers guard it. Untested |
+| 11 | Raffaello (Medici) | Hard | A four-step deduction (seal, boar, Salviati, Isabella), though reached in two mini-games |
+| 12 | Sister Beatrice (Dominican) | Hardest | Lupo never names clients, Isabella won't confess, and her one clue ("the Contessa") fits Jeanne too |
+
+| Faction | Errands | Likely extra midnight acts |
+|---|---|---|
+| Pazzi | Very easy, easy, moderate–hard | ~2, on top of Lupo's two unblockable kills |
+| Dominicans | Very easy, moderate–hard, hardest | ~1 |
+| French | Moderate, moderate, moderate–hard | 1–2 |
+| Medici | Moderate, hard, hard, and Piero's errand works against Clarice's | 0–1 |
+
+- **What to measure:** each errand's completion rate in the first full games, by character and by faction, and whether Plot Reward acts tilt midnight toward the Pazzi
+- **Levers if the skew is real:** raise the easy amounts (Francesco 5 Florins instead of 3, Lupo 7 instead of 5); ease one Medici errand (e.g. a firmer clue for Piero, a Characters change); or make each errand's threshold a Tunable Value
+- **How do we know an errand is done?** (Dylan, Nov 11: one of the hardest design questions in the game.) Four of the twelve errands are logged and exact (payments and the pension ledger). The other eight rest on whether a character has *learned* something, judged by a knowledge check that carries the memory known limit. Options so far, which can combine:
   - **Knowledge checks as built,** if Models & Research's golden set shows they cross the pass line wrongly in at most 1 of ~30 scenes
   - **The reveal action** (Deferred) for deliberate tellings, with a narrower check for deductions and slips
   - **`/conclude`** for the human player's own deductions (adopted)
