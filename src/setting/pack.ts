@@ -42,11 +42,10 @@ export function settingPack(name = SETTING): SettingPack {
  * relationships.json (TD v0.40–v0.44, The Web of Secrets): the web's fixed lines. `types`: the six fixed
  * relationship types, with their labels. `public`: connections everyone knows, each with its type and one
  * public line. `private`: each character's own connections from their briefing, seen only by that
- * character. `interim`: older type names, read as one of the six. The game never draws a new line.
+ * character. The game never draws a new line.
  */
 export interface Relationships {
   types: Record<string, { label: string; covers: string }>;
-  interim?: Record<string, string>;
   public: { between: [string, string]; type: string; line: string }[];
   private: Record<string, { with: string; type: string; line: string }[]>;
 }
@@ -57,11 +56,6 @@ export function relationships(name = SETTING): Relationships {
 /** The relationship types, in the file's order: `romance`, `kin`, … (TD v0.44's six). */
 export const relationshipTypes = (name = SETTING): string[] => Object.keys(relationships(name).types).filter((k) => !k.startsWith("_"));
 
-/** A connection's type as one of the six: an interim name (`love`) is mapped; anything else is kept as it is. */
-export function relType(type: string, name = SETTING): string {
-  const rel = relationships(name);
-  return Object.hasOwn(rel.types, type) ? type : (rel.interim && !type.startsWith("_") && Object.hasOwn(rel.interim, type) ? rel.interim[type]! : type);
-}
 
 /**
  * A template from notaio.json (`notes.join`, `lines.payment`) or actions.json (`bribe`), filled.

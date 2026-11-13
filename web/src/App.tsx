@@ -984,7 +984,7 @@ function WebDock({
   const noteKey = (n: Note) => [...n.guests].sort().join(" · ");
   const shown = [...v.notes].reverse().filter((n) => !filter || n.guests.includes(filter));
   const groups = [...new Set(shown.map(noteKey))];
-  const typeLabel = (t: string) => types.find((x) => x.type === t)?.label ?? w("screen.web.interim");
+  const typeLabel = (t: string) => types.find((x) => x.type === t)?.label ?? w("screen.web.otherType");
   const NoteItem = ({ n }: { n: Note }) => (
     <li className="note" key={n.id}>
       <button className="note-text" onClick={() => (setPicked(n.guests), setTab("record"))} {...hint("noteItem")}>

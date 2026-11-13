@@ -292,7 +292,11 @@ test("lore links: a public entry's title or alias in any line links to it on the
   const off = screenContent(F, "off", loadable);
   assert.deepEqual([off.lore.map((x) => x.id), off.past], [["pub"], []]);
   assert.deepEqual(screenContent(F, "on", loadable).past.map((x) => x.id), ["mine"]);
-  assert.ok(screenContent("Lupo", "on", loadable).connections.every((c) => !("private" in c)), "Francesco's own lines are his alone");
+  // Each character's own lines are theirs alone: Lupo's screen carries his, never Francesco's.
+  const lupo = screenContent("Lupo", "on", loadable).connections.filter((c) => c.private);
+  assert.ok(lupo.length > 0 && lupo.every((c) => c.between[0] === "Lupo"), "Lupo's own lines are his");
+  const francescos = new Set(screenContent(F, "on", loadable).connections.filter((c) => c.private).map((c) => c.line));
+  assert.ok(lupo.every((c) => !francescos.has(c.line)), "Francesco's own lines are his alone");
 });
 
 test("the web viewer: twelve guests, fixed lines, up to two selected, and only what the player heard and saw", async () => {
