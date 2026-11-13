@@ -306,7 +306,7 @@
       "key": "Key",
       "keyShow": "Show the key",
       "keyHide": "Hide the key",
-      "interim": "Other"
+      "otherType": "Other"
     },
     "more": "More below",
     "panelError": "This part of the screen ran into a problem and stopped. The rest still works; reloading the page may bring it back.",

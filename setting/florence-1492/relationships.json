@@ -1,5 +1,5 @@
 {
-  "_comment": "The web's fixed lines (TD v0.40–v0.45, The Web of Secrets). `types`: the six fixed relationship types (TD v0.44), each with its label and what it covers; every connection uses one. `public`: connections everyone knows, each with a type and one public line (Characters to write). `private`: each character's own connections, from their briefing's Relationships section, seen only by that character. Until Characters supplies this file, it holds only the playable character's own connections, copied from his briefing (Characters v0.11), with the interim types that `interim` maps to the six.",
+  "_comment": "The web's fixed lines (TD v0.40–v0.46, The Web of Secrets), transcribed from Characters v0.12, Shared Canon: Relationships (the Web of Secrets). `types`: the six fixed relationship types (TD v0.44), each with its label and what it covers; every connection uses one. `public`: the connections everyone knows, each with its type and its public line, as Characters' table writes them. `private`: each character's own connections, from their row of Characters' table, each line word for word from that character's briefing (its Relationships bullet for the guest, first letter capitalised), seen only by that character.",
   "types": {
     "romance": {
       "label": "Romance",
@@ -26,23 +26,233 @@
       "covers": "A debt, a payment owed, a purse one controls"
     }
   },
-  "interim": {
-    "_comment": "TD v0.44: the interim file's types, read as the six until Characters rewrites the connections with them.",
-    "love": "romance",
-    "family": "kin",
-    "enmity": "rivalry"
-  },
-  "public": [],
+  "public": [
+    {
+      "between": [
+        "Piero de' Medici",
+        "Raffaello de' Medici"
+      ],
+      "type": "kin",
+      "line": "Brothers, sons of the late Lorenzo. Piero is the elder and the heir"
+    },
+    {
+      "between": [
+        "Piero de' Medici",
+        "Clarice Orsini"
+      ],
+      "type": "kin",
+      "line": "Cousins of the Medici house"
+    },
+    {
+      "between": [
+        "Raffaello de' Medici",
+        "Clarice Orsini"
+      ],
+      "type": "kin",
+      "line": "Cousins of the Medici house"
+    },
+    {
+      "between": [
+        "Francesco Pazzi",
+        "Giorgia Pazzi"
+      ],
+      "type": "kin",
+      "line": "Brother and sister. Francesco heads the Pazzi house"
+    },
+    {
+      "between": [
+        "Lupo",
+        "Francesco Pazzi"
+      ],
+      "type": "service",
+      "line": "Lupo is the Pazzi bodyguard, and Francesco is the man he keeps alive"
+    },
+    {
+      "between": [
+        "Captain Armand LeNoir",
+        "Emile de Valois"
+      ],
+      "type": "service",
+      "line": "LeNoir is captain of the Prince's guard"
+    },
+    {
+      "between": [
+        "Jeanne d'Orléans",
+        "Emile de Valois"
+      ],
+      "type": "alliance",
+      "line": "France's ambassador, who is arranging the Prince's marriage"
+    },
+    {
+      "between": [
+        "Emile de Valois",
+        "Clarice Orsini"
+      ],
+      "type": "romance",
+      "line": "The Prince is choosing a Florentine bride, and Clarice is one of the two he is choosing between"
+    },
+    {
+      "between": [
+        "Emile de Valois",
+        "Giorgia Pazzi"
+      ],
+      "type": "romance",
+      "line": "The Prince is choosing a Florentine bride, and Giorgia is one of the two he is choosing between"
+    },
+    {
+      "between": [
+        "Clarice Orsini",
+        "Giorgia Pazzi"
+      ],
+      "type": "rivalry",
+      "line": "Rivals for the Prince's hand. Clarice once mocked Giorgia at a banquet as \"the Pazzi girl with nothing left\""
+    },
+    {
+      "between": [
+        "Piero de' Medici",
+        "Francesco Pazzi"
+      ],
+      "type": "rivalry",
+      "line": "Heads of the two rival houses. In 1478 a Pazzi plot killed Piero's uncle, and a Pazzi uncle hanged for it"
+    },
+    {
+      "between": [
+        "Fra Tommaso",
+        "Piero de' Medici"
+      ],
+      "type": "rivalry",
+      "line": "Fra Tommaso preaches against the Medici and everything they stand for"
+    },
+    {
+      "between": [
+        "Fra Tommaso",
+        "Sister Beatrice"
+      ],
+      "type": "alliance",
+      "line": "Fra Tommaso leads the Dominican order Sister Beatrice serves"
+    },
+    {
+      "between": [
+        "Fra Tommaso",
+        "Contessa Isabella"
+      ],
+      "type": "alliance",
+      "line": "Fra Tommaso leads the Dominican order the widowed Contessa joined"
+    }
+  ],
   "private": {
+    "Lupo": [
+      {
+        "with": "Francesco Pazzi",
+        "type": "service",
+        "line": "Your employer. Hot-headed. Keep him breathing."
+      },
+      {
+        "with": "Giorgia Pazzi",
+        "type": "service",
+        "line": "Your employer's sister, sharper than her brother. Her night walks are her business, for now."
+      },
+      {
+        "with": "Sister Beatrice",
+        "type": "kin",
+        "line": "Your sister. Her silence keeps you alive; her conscience is a blade at your throat."
+      },
+      {
+        "with": "Contessa Isabella",
+        "type": "money",
+        "line": "Your old client. She can ruin you and you can ruin her. She also has coin."
+      },
+      {
+        "with": "Raffaello de' Medici",
+        "type": "rivalry",
+        "line": "Piero's brother, a soldier with a gambler's habits. If any Medici is taking French coin, he's the sort."
+      }
+    ],
+    "Contessa Isabella": [
+      {
+        "with": "Lupo",
+        "type": "money",
+        "line": "Your old instrument. He knows what you did; you know what he is. He can be paid."
+      },
+      {
+        "with": "Captain Armand LeNoir",
+        "type": "rivalry",
+        "line": "The brother of the man you had killed. Keep him far from the truth."
+      },
+      {
+        "with": "Raffaello de' Medici",
+        "type": "money",
+        "line": "Your debtor. Forgiving the debt is something you could trade."
+      },
+      {
+        "with": "Fra Tommaso",
+        "type": "alliance",
+        "line": "Leader of your order. His public blessing would make your piety unquestionable."
+      },
+      {
+        "with": "Sister Beatrice",
+        "type": "alliance",
+        "line": "A healer of your order, widely respected. You know nothing more of her."
+      }
+    ],
+    "Captain Armand LeNoir": [
+      {
+        "with": "Emile de Valois",
+        "type": "service",
+        "line": "Your sworn charge. Keep him alive."
+      },
+      {
+        "with": "Giorgia Pazzi",
+        "type": "romance",
+        "line": "Your secret lover. She could make you happiest or destroy you."
+      },
+      {
+        "with": "Raffaello de' Medici",
+        "type": "alliance",
+        "line": "A soldier you respect and have encouraged. A Florentine noble can ask questions your uniform can't; he might help you trace the seal."
+      },
+      {
+        "with": "Jeanne d'Orléans",
+        "type": "alliance",
+        "line": "Your ambassador. Cautious, and wary of your passions. She doesn't need to know everything."
+      }
+    ],
+    "Raffaello de' Medici": [
+      {
+        "with": "Piero de' Medici",
+        "type": "kin",
+        "line": "Your brother, the heir. You love him and can't stand standing behind him."
+      },
+      {
+        "with": "Clarice Orsini",
+        "type": "kin",
+        "line": "Your cousin, sharper than both of you."
+      },
+      {
+        "with": "Captain Armand LeNoir",
+        "type": "alliance",
+        "line": "A soldier you respect, who seems to respect you. He wants his brother's killer; you'd like to be the one who finds him."
+      },
+      {
+        "with": "Contessa Isabella",
+        "type": "money",
+        "line": "Your creditor. Gracious in public; her letters are not."
+      },
+      {
+        "with": "Francesco Pazzi",
+        "type": "rivalry",
+        "line": "Your family's old enemy. You've heard he respects nerve more than money."
+      }
+    ],
     "Francesco Pazzi": [
       {
         "with": "Clarice Orsini",
-        "type": "love",
+        "type": "romance",
         "line": "Your secret love. You'd risk a great deal for her."
       },
       {
         "with": "Piero de' Medici",
-        "type": "enmity",
+        "type": "rivalry",
         "line": "Your family's enemy, and soft. He must not rule."
       },
       {
@@ -52,7 +262,7 @@
       },
       {
         "with": "Giorgia Pazzi",
-        "type": "family",
+        "type": "kin",
         "line": "Your sister. Clever, and too quick to think she should lead."
       },
       {
@@ -62,8 +272,207 @@
       },
       {
         "with": "Fra Tommaso",
-        "type": "interest",
+        "type": "alliance",
         "line": "A friar worth winning, if he can be bought without being trusted."
+      }
+    ],
+    "Giorgia Pazzi": [
+      {
+        "with": "Emile de Valois",
+        "type": "romance",
+        "line": "The prize. Polished, young, and watched by everyone."
+      },
+      {
+        "with": "Captain Armand LeNoir",
+        "type": "romance",
+        "line": "Your secret lover, and the man at Emile's shoulder."
+      },
+      {
+        "with": "Clarice Orsini",
+        "type": "rivalry",
+        "line": "Your rival for Emile. You'd enjoy seeing her lose."
+      },
+      {
+        "with": "Francesco Pazzi",
+        "type": "kin",
+        "line": "Your brother. Brave, reckless, and loud."
+      },
+      {
+        "with": "Lupo",
+        "type": "service",
+        "line": "The family's bodyguard. Loyal to Francesco, as far as you know."
+      }
+    ],
+    "Piero de' Medici": [
+      {
+        "with": "Raffaello de' Medici",
+        "type": "kin",
+        "line": "Your brother. Charming, reckless, and better liked than you."
+      },
+      {
+        "with": "Clarice Orsini",
+        "type": "kin",
+        "line": "Your cousin. Clever, and courted by the French Prince."
+      },
+      {
+        "with": "Francesco Pazzi",
+        "type": "rivalry",
+        "line": "Head of the house that killed your uncle."
+      },
+      {
+        "with": "Jeanne d'Orléans",
+        "type": "money",
+        "line": "France's ambassador. Gracious, and generous with other people's money."
+      },
+      {
+        "with": "Fra Tommaso",
+        "type": "rivalry",
+        "line": "A friar who wants your family humbled."
+      }
+    ],
+    "Clarice Orsini": [
+      {
+        "with": "Francesco Pazzi",
+        "type": "romance",
+        "line": "Your secret lover."
+      },
+      {
+        "with": "Piero de' Medici",
+        "type": "kin",
+        "line": "Your cousin, the heir. Vain, and not as foolish as he looks."
+      },
+      {
+        "with": "Raffaello de' Medici",
+        "type": "kin",
+        "line": "Your cousin. Better company than Piero, and worse with money."
+      },
+      {
+        "with": "Emile de Valois",
+        "type": "romance",
+        "line": "The French prize. Polite, young, and hard to read."
+      },
+      {
+        "with": "Giorgia Pazzi",
+        "type": "rivalry",
+        "line": "Your rival for Emile, and Francesco's sister."
+      },
+      {
+        "with": "Jeanne d'Orléans",
+        "type": "alliance",
+        "line": "The ambassador who decides whom the Prince marries."
+      }
+    ],
+    "Fra Tommaso": [
+      {
+        "with": "Francesco Pazzi",
+        "type": "alliance",
+        "line": "A sinner who may yet be God's tool."
+      },
+      {
+        "with": "Piero de' Medici",
+        "type": "rivalry",
+        "line": "The heir to everything you preach against."
+      },
+      {
+        "with": "Sister Beatrice",
+        "type": "alliance",
+        "line": "Respected, and a little too fond of books."
+      },
+      {
+        "with": "Contessa Isabella",
+        "type": "money",
+        "line": "A convert with a purse."
+      },
+      {
+        "with": "Jeanne d'Orléans",
+        "type": "rivalry",
+        "line": "France's ambassador, and no friend to the friars."
+      }
+    ],
+    "Sister Beatrice": [
+      {
+        "with": "Lupo",
+        "type": "kin",
+        "line": "Your brother. A soul to save and a secret to keep."
+      },
+      {
+        "with": "Fra Tommaso",
+        "type": "alliance",
+        "line": "Your Order's leader, and an ally if he can see that faith and learning can live together."
+      },
+      {
+        "with": "Contessa Isabella",
+        "type": "alliance",
+        "line": "A sister of your cause, as far as you know."
+      },
+      {
+        "with": "Piero de' Medici",
+        "type": "alliance",
+        "line": "Heir to a family that has paid for learning."
+      }
+    ],
+    "Jeanne d'Orléans": [
+      {
+        "with": "Emile de Valois",
+        "type": "romance",
+        "line": "Your love, and the piece you are meant to play."
+      },
+      {
+        "with": "Piero de' Medici",
+        "type": "money",
+        "line": "The favourite, and the obvious man to put on France's payroll."
+      },
+      {
+        "with": "Clarice Orsini",
+        "type": "alliance",
+        "line": "The two candidates for Emile's hand."
+      },
+      {
+        "with": "Giorgia Pazzi",
+        "type": "alliance",
+        "line": "The two candidates for Emile's hand."
+      },
+      {
+        "with": "Captain Armand LeNoir",
+        "type": "alliance",
+        "line": "Loyal to Emile, hot-tempered, and not always discreet."
+      },
+      {
+        "with": "Fra Tommaso",
+        "type": "rivalry",
+        "line": "The friars' leader. Dangerous."
+      }
+    ],
+    "Emile de Valois": [
+      {
+        "with": "Jeanne d'Orléans",
+        "type": "romance",
+        "line": "Your secret love, and the woman deciding your marriage."
+      },
+      {
+        "with": "Clarice Orsini",
+        "type": "romance",
+        "line": "A fine match, and hard to read."
+      },
+      {
+        "with": "Giorgia Pazzi",
+        "type": "romance",
+        "line": "A daring match, and sharp."
+      },
+      {
+        "with": "Captain Armand LeNoir",
+        "type": "service",
+        "line": "Your guard. Loyal, and too protective."
+      },
+      {
+        "with": "Piero de' Medici",
+        "type": "alliance",
+        "line": "The men whose families want your name."
+      },
+      {
+        "with": "Francesco Pazzi",
+        "type": "alliance",
+        "line": "The men whose families want your name."
       }
     ]
   }

@@ -20,7 +20,7 @@ import { screenContent } from "../src/minigame/player.ts";
 import { unfoundQuotes } from "../src/minigame/reading.ts";
 import { buildRecord } from "../src/minigame/record.ts";
 import { exportView } from "../src/minigame/view.ts";
-import { relType, relationshipTypes, relationships } from "../src/setting/pack.ts";
+import { relationshipTypes, relationships } from "../src/setting/pack.ts";
 import { loadDocs, type DocSources } from "../src/sources/docs.ts";
 import { fakeDocs, fakeSettings } from "./fixtures/fake-game.ts";
 
@@ -31,15 +31,13 @@ const SERVED = { model: { slug: "fake" }, endpoint: { providerName: "fake", quan
 /** What the reading caller says about Giorgia: a quote nobody spoke, so the check must drop it. */
 const INVENTED = 'She said "I will see the wine poisoned before midnight." Watch her.';
 
-test("relationship types: the six, with labels; the interim file's love, family, and enmity read as romance, kin, and rivalry", () => {
+test("relationship types: the six, with labels, and every connection the screen gets uses one", () => {
   assert.deepEqual(relationshipTypes(), ["romance", "kin", "service", "alliance", "rivalry", "money"]);
   for (const t of relationshipTypes()) assert.ok(relationships().types[t]!.label.length > 2, t);
-  assert.deepEqual(["love", "family", "enmity", "romance", "kin", "service"].map((t) => relType(t)), ["romance", "kin", "rivalry", "romance", "kin", "service"]);
-  assert.equal(relType("interest"), "interest", "anything else is kept as it is");
-  // What the screen gets: Francesco's own lines, typed as the six where the interim file maps them.
-  const types = screenContent(F, "off", []).connections.map((c) => c.type);
-  assert.ok(!types.some((t) => ["love", "family", "enmity"].includes(t)), types.join(", "));
-  assert.ok(types.includes("romance") && types.includes("kin") && types.includes("rivalry"));
+  // What the screen gets: the public lines and Francesco's own, each typed as one of the six.
+  const conns = screenContent(F, "off", []).connections;
+  assert.ok(conns.length > 0 && conns.every((c) => relationshipTypes().includes(c.type)), conns.map((c) => c.type).join(", "));
+  assert.ok(conns.some((c) => c.private) && conns.some((c) => !c.private));
 });
 
 test("the quote check: every double-quoted span must be in the material, word for word after normalizing", () => {
