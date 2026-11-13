@@ -213,6 +213,50 @@ test("TD v0.36: every prompt is v0.35's with only the changelog's changes: arriv
   console.log(`block 6: ${(linesBefore / notebooks).toFixed(2)} lines a call on v0.35, ${(linesAfter / notebooks).toFixed(2)} on v0.36 (${notebooks} calls)`);
 });
 
+test("PROBE_TD defaults to 0.45, with Characters v0.12 (CC-20261113-04, #95: the room line ships with the briefings that promise it)", () => {
+  if (process.env.PROBE_TD || process.env.PROBE_CHARACTERS) return;
+  assert.equal(fakeDocs.versions.technicalDesign, "0.45");
+  assert.equal(fakeDocs.versions.characters, "0.12");
+});
+
+test("TD v0.45 with Characters v0.12: every prompt is v0.44's with only the room line added and Characters v0.12's briefing text", async () => {
+  const v44c11 = await playFakeOn(loadDocs(docsFor("0.44", "0.11")));
+  const v44c12 = await playFakeOn(loadDocs(docsFor("0.44", "0.12")));
+  const v45 = await playFakeOn(loadDocs(docsFor("0.45", "0.12")));
+  const key = (cs: CallRequest[]) => cs.map((c) => `${c.kind}|${c.character}`);
+  assert.deepEqual(key(v44c12.calls), key(v44c11.calls), "the same calls");
+  assert.deepEqual(key(v45.calls), key(v44c11.calls), "the same calls");
+  // Characters v0.12: only the briefings change, so play and memory are unchanged.
+  const plain = (g: MiniGame) => ({ lines: g.lines, readings: g.memory.readings, beliefs: g.memory.beliefs, entries: g.memory.entries });
+  assert.deepEqual(plain(v44c12.game), plain(v44c11.game));
+  assert.deepEqual(plain(v45.game), plain(v44c11.game));
+  const briefings11 = loadDocs(docsFor("0.44", "0.11")).briefings;
+  const briefings12 = loadDocs(docsFor("0.44", "0.12")).briefings;
+  /** A prompt with each character's v0.12 briefing put back to v0.11's. */
+  const as11 = (s: string) => Object.keys(briefings12).reduce((t, n) => t.split(briefings12[n as CharacterName]!).join(briefings11[n as CharacterName]!), s);
+  let briefed = 0;
+  let rooms = 0;
+  v45.calls.forEach((c, i) => {
+    const o = v44c11.calls[i]!;
+    const m = v44c12.calls[i]!;
+    // Characters v0.12: the same prompt once its briefings are v0.11's.
+    assert.equal(as11(m.system), o.system, `${c.kind} ${i}: system, apart from the briefing`);
+    assert.equal(as11(m.user), o.user, `${c.kind} ${i}: user, apart from the briefing`);
+    if (m.system !== o.system || m.user !== o.user) briefed++;
+    // TD v0.45: v0.44's prompt with one line added to block 5, after "All living guests besides you".
+    assert.equal(c.system, m.system, `${c.kind} ${i}: system`);
+    const without = c.user.replace(/\nAround the room: [^\n]*(?=\n)/, "");
+    assert.equal(without, m.user, `${c.kind} ${i}: only the room line`);
+    if (without !== c.user) {
+      rooms++;
+      assert.match(c.user, /^All living guests besides you: .*\nAround the room: /m, `${c.kind} ${i}: in its place`);
+    }
+  });
+  assert.ok(briefed > 0 && rooms > 0, `${briefed} prompts with a v0.12 briefing, ${rooms} with the room line`);
+  // TD v0.46 and v0.47 leave prompts unchanged.
+  for (const td of ["0.46", "0.47"]) assert.equal(promptHash((await playFakeOn(loadDocs(docsFor(td, "0.12")))).calls), promptHash(v45.calls), `TD v${td}`);
+});
+
 test("lore file: only approved, canon-checked entries load; scopes are public or a full name; the hash is of the file's bytes", () => {
   const dir = mkdtempSync(join(tmpdir(), "lore-"));
   const path = join(dir, "lore.json");

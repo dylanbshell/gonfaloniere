@@ -1,4 +1,4 @@
-// Characters v0.11 by default (CC-20261111-06, #73). The default and the in-world names' minimum are
+// Characters v0.12 by default (CC-20261113-04, #95; v0.11 from CC-20261111-06, #73). The default and the in-world names' minimum are
 // separate: DEFAULT_CHARACTERS in probe.config.ts is what a run loads, `since.characters` in the setting
 // pack is the first version with in-world names. v0.11 changes one phrase in Isabella's briefing.
 
@@ -10,14 +10,14 @@ import { atLeast, inWorldNames, usesInWorldNames } from "../src/prompt/names.ts"
 import { loadDocs } from "../src/sources/docs.ts";
 import { playFakeOn } from "./fixtures/fake-game.ts";
 
-test("a default run loads Characters v0.11, so its record header names v0.11; the in-world minimum stays v0.10", () => {
-  assert.equal(DEFAULT_CHARACTERS, "0.11");
+test("a default run loads Characters v0.12, so its record header names v0.12; the in-world minimum stays v0.10", () => {
+  assert.equal(DEFAULT_CHARACTERS, "0.12");
   assert.equal(inWorldNames().since.characters, "0.10");
   assert.ok(atLeast(DEFAULT_CHARACTERS, inWorldNames().since.characters), "the default uses in-world names");
-  assert.equal(docsFor("0.34").characters, charactersPath("0.11"));
+  assert.equal(docsFor("0.34").characters, charactersPath("0.12"));
   assert.equal(docsFor("0.33").characters, charactersPath("0.4"), "before TD v0.34, game names and Characters v0.4");
   // The game record's header stores loadDocs(config.docs).versions as `docs`.
-  if (!process.env.PROBE_CHARACTERS) assert.equal(loadDocs(config.docs).versions.characters, "0.11");
+  if (!process.env.PROBE_CHARACTERS) assert.equal(loadDocs(config.docs).versions.characters, "0.12");
 });
 
 test("a run pinned to Characters 0.10 (PROBE_CHARACTERS, or a record's own version) loads it from git history", () => {

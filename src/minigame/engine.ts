@@ -42,6 +42,7 @@ import {
   type CharacterContext,
   type SeatGroup,
   type HistoryLine,
+  type Room,
 } from "../prompt/assemble.ts";
 import type { DocSources } from "../sources/docs.ts";
 import { parseJson } from "../output/json.ts";
@@ -1131,7 +1132,11 @@ export class MiniGame {
 
   // ---- End of game: Murder Round calls, knowledge checks ------------------------------------------
 
+  /** From midnight on, the evening is the gathering: the player's state says so, as the AI guests' midnight prompts do. */
+  private gathering = false;
+
   private async murderRound(): Promise<void> {
+    this.gathering = true;
     await Promise.all(
       this.s.cast.map(async (c) => {
         if (c === this.human) return this.playerMidnight(c);
@@ -1230,7 +1235,25 @@ export class MiniGame {
         ...(french && { embassyLedger: { treasury: this.econ.treasury, pensions: ledgerText, ...(this.ledgerLatest && { latest: this.ledgerLatest }) } }),
         withdrawalCount: me.withdrawals,
         ...(me.feedback && { actionFeedback: me.feedback }),
+        // TD v0.45: everyone sees the room, in open play only.
+        ...(!outside && tdMinor(this.docs.versions.technicalDesign) >= 45 && { room: this.roomFor(c) }),
     };
+  }
+
+  /**
+   * Where every other living guest is right now (TD v0.45; Mechanics, Everyone Sees the Room): the open
+   * groups and the private pairs the character isn't in, each in roster order, ordered by their first
+   * member's place in the roster. The present moment only; never what anyone says.
+   */
+  private roomFor(c: CharacterName): Room {
+    const place = (n: string) => ROSTER.findIndex((r) => r.name === n);
+    const living = new Set(this.living(c));
+    const sets = [...this.convs.values()]
+      .filter((cv) => cv.open && !cv.members.includes(c))
+      .map((cv) => ({ kind: cv.kind, members: cv.members.filter((m) => living.has(m)).sort((a, b) => place(a) - place(b)) }))
+      .filter((x) => x.members.length > 0)
+      .sort((a, b) => place(a.members[0]!) - place(b.members[0]!));
+    return { groups: sets.filter((x) => x.kind !== "colloquio").map((x) => x.members), colloquios: sets.filter((x) => x.kind === "colloquio").map((x) => x.members) };
   }
 
   /** The character's rows from the live store, ranked; rows written since the last flush are stored (and embedded) first. */
@@ -1271,7 +1294,7 @@ export class MiniGame {
     if (!this.player) return;
     const h = this.human!;
     const allowed = this.seatOf(h) ? allowedActionTypes(this.actionContext(h)) : [];
-    this.player.state(this.stateFor(h) as unknown as Record<string, unknown>, menu([...allowed, ...extra, "conclude"], { amount: this.rules.pensionSize }), this.speaking, () => ({
+    this.player.state(this.stateFor(h, { gathering: this.gathering }) as unknown as Record<string, unknown>, menu([...allowed, ...extra, "conclude"], { amount: this.rules.pensionSize }), this.speaking, () => ({
       rules: rulesText(this.docs.templates, { ...this.docs.tunables, plotProtection: false, plotReward: false }),
       briefing: this.s.briefings[h]!,
       errand: errandText(this.s.briefings[h]!),
@@ -1317,7 +1340,14 @@ export class MiniGame {
       made = this.makeReading(m);
       this.readings.set(key, made);
     }
-    this.player!.ctrl.send(await made);
+    try {
+      this.player!.ctrl.send(await made);
+    } catch {
+      // A failed call (the provider refused it): the tally now, and a fresh try on the next request. The
+      // failure itself is the runner's to log, and the game's next call meets it and stops the run.
+      this.readings.delete(key);
+      this.player!.ctrl.send({ type: "reading", guests: m.guests, upTo: m.upTo, text: null, tally: m.tally });
+    }
   }
 
   private async makeReading(m: ReadingMaterial): Promise<Extract<OutgoingBody, { type: "reading" }>> {

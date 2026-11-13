@@ -24,11 +24,6 @@ const checks = [
 const g35 = await playFakeOn(docs35, { checks });
 const g36 = await playFakeOn(docs36, { checks });
 
-test("PROBE_TD defaults to 0.36", async () => {
-  const { config } = await import("../probe.config.ts");
-  assert.equal(config.docs.technicalDesign, "docs/Gonfaloniere_Technical_Design_v0.36.md");
-});
-
 test("Il Notaio's entries: the narrator as speaker and the event's people as `about` from v0.36; both empty before", () => {
   const narrator = inWorldNames().narrator.name;
   const events36 = g36.game.memory.entries.filter((e) => e.type === "event");

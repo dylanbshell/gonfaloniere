@@ -149,8 +149,9 @@ test("Il Notaio's reading never reaches a character's prompt, the game's state, 
 });
 
 test("before TD v0.44 there is no reading: the tally, and no call", async () => {
-  assert.equal(fakeDocs.notaioReading, undefined);
-  const { game, readings } = await playWithReadings(fakeDocs);
+  const docs36 = loadDocs(docsFor("0.36"));
+  assert.equal(docs36.notaioReading, undefined);
+  const { game, readings } = await playWithReadings(docs36);
   assert.equal(game.calls.filter((c) => c.kind === "notaio-reading").length, 0);
   assert.ok(readings.length > 0 && readings.every((r) => r.text === null && r.tally.length > 10));
 });

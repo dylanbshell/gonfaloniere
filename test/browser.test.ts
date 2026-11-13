@@ -304,14 +304,28 @@ test("on a short window, every left-column control is in sight, or a hint says t
     if (height === 480) assert.ok(r.overflow, "at 480px the column has more than fits (so the hint is tested)");
     if (r.out.length === 0) continue;
     assert.ok(r.hint, `controls below the fold (${r.out.join(", ")}) and a hint in sight`);
-    // The hint scrolls on until the column's end.
-    for (let i = 0; i < 10 && (await page.eval<boolean>(`!!document.querySelector(".side.left .more-below")`)); i++) {
+    // The hint scrolls the column on, until its end, where the hint goes.
+    let step = r;
+    let top = 0;
+    for (let i = 0; i < 10 && step.hint; i++) {
       await page.eval(`document.querySelector(".side.left .more-below").click()`);
-      await new Promise((r) => setTimeout(r, 400));
+      await new Promise((ok) => setTimeout(ok, 400));
+      const now = await page.eval<number>(`document.querySelector(".side.left").scrollTop`);
+      assert.ok(now > top, "each click scrolls on");
+      top = now;
+      step = await leftColumn();
     }
-    const after = await leftColumn();
-    assert.deepEqual(r.out.filter((c) => after.out.includes(c)), [], "every control that was below the fold is reachable");
-    assert.equal(after.hint, false, "at the end the hint goes");
+    assert.equal(step.hint, false, "at the end the hint goes");
+    // Every control below the fold can be brought wholly into sight in the column.
+    const unreachable = await page.eval<string[]>(`(() => {
+      const col = document.querySelector(".side.left");
+      return [...col.querySelectorAll("button, [tabindex]")].filter((e) => !e.classList.contains("more-below")).filter((e) => {
+        e.scrollIntoView({ block: "nearest" });
+        const b = e.getBoundingClientRect(), box = col.getBoundingClientRect();
+        return !(b.top >= box.top - 1 && b.bottom <= box.bottom + 1) && b.height <= box.height;
+      }).map((e) => e.dataset.hint ?? e.textContent);
+    })()`);
+    assert.deepEqual(unreachable, [], "every control can be scrolled into sight");
   }
   await page.send("Emulation.setDeviceMetricsOverride", { ...VIEW, deviceScaleFactor: 1, mobile: false });
   await page.eval(`document.querySelector(".side.left").scrollTop = 0`);
@@ -372,11 +386,37 @@ test("the Web of Secrets: a bar along the bottom that slides up to nine-tenths a
   await page.shot("web-key");
   await page.eval(`document.querySelector(".key-type").click()`);
   assert.equal(await page.eval<number>(`document.querySelectorAll(".web-diagram .key-on, .web-diagram .key-off").length`), 0, "clicking again clears it");
-  // Il Notaio's box answers a selection: on this game's TD (no reading before v0.44), with the plain tally.
+  // Il Notaio's box answers a selection: on the default TD (v0.45), the fake caller's reading, past the quote check.
   await page.eval(`document.querySelector('.web .node').dispatchEvent(new MouseEvent("click", { bubbles: true }))`);
-  await page.until(`document.querySelector(".reading-text")?.dataset.reading === "tally"`);
+  await page.until(`document.querySelector(".reading-text")?.dataset.reading === "reading"`);
   await page.shot("web-reading");
   await page.key("Escape", 27);
   await page.until(`!document.querySelector(".web-dock.open") && document.querySelector(".web-dock").getAnimations().length === 0`);
   assert.equal(Math.round(await page.eval<number>(`document.querySelector(".web-dock").getBoundingClientRect().height`)), Math.round(bar.bottom - bar.top), "Escape slides it down to the bar");
+});
+
+// ---- CC-20261113-04 (#95) --------------------------------------------------------------------------------
+
+test("the room in the left column: your group marked, others as tokens that spread on hover; a token selects its guest", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector('.room [data-cluster="mine"]') && document.querySelector(".room .token")`);
+  const name = await page.eval<string>(`document.querySelector(".room .token").getAttribute("aria-label")`);
+  // Overlapping, then spread on hover.
+  const gap = () => page.eval<number>(`(() => { const t = [...document.querySelector(".cluster:not(.pair) .stack")?.querySelectorAll(".token") ?? []]; return t.length > 1 ? t[1].getBoundingClientRect().left - t[0].getBoundingClientRect().right : 0; })()`);
+  const multi = await page.eval<boolean>(`[...document.querySelectorAll(".cluster:not(.pair) .stack")].some((s) => s.querySelectorAll(".token").length > 1)`);
+  if (multi) {
+    await page.eval(`document.querySelector(".cluster:not(.pair) .stack").scrollIntoView({ block: "center" })`);
+    // Two frames, so the scroll reaches the browser's hit testing before the mouse moves.
+    await page.eval(`new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)))`);
+    assert.ok((await gap()) < 0, "a group's tokens overlap");
+    const r = await page.eval<{ x: number; y: number }>(`(() => { const b = document.querySelector(".cluster:not(.pair) .stack").getBoundingClientRect(); return { x: b.left + 4, y: b.top + b.height / 2 }; })()`);
+    await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...r });
+    await page.until(`document.getAnimations().length === 0`);
+    const why = await page.eval<string>(`(() => { const s = document.querySelector(".cluster:not(.pair) .stack"); const b = s.getBoundingClientRect(); return JSON.stringify({ hover: s.closest(".cluster").matches(":hover"), at: document.elementFromPoint(b.left + 4, b.top + b.height / 2)?.className, rect: [b.left, b.top, b.width, b.height] }); })()`);
+    assert.ok((await gap()) > 0, `and spread out on hover: ${why}`);
+  }
+  await page.shot("room");
+  await page.eval(`document.querySelector(".room .token").click()`);
+  await page.until(`document.querySelector('.side.right .look')?.dataset.guest === ${JSON.stringify(name)}`);
+  await page.key("Escape", 27);
 });

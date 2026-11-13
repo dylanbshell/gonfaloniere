@@ -97,6 +97,7 @@
   --resize-width: 6px;
   --peek-height: 28px;
   --token-size: 28px;
+  --token-overlap: 10px;
   --dot-size: 8px;
   --motion-pulse: 700ms;
 

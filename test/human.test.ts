@@ -32,6 +32,8 @@ function callerFor(calls: CallRequest[]): Caller {
   return async (req) => {
     if (req.character === F && !["knowledge-check", "star-pass", "claims-pass", "sweep-reask"].includes(req.kind)) throw new Error(`a model call for the player: ${req.kind}`);
     const r = (await base(req))!;
+    // Il Notaio's reading for the screen (TD v0.44) is prose, not JSON: passed through.
+    if (req.kind === "notaio-reading") return r;
     const k = (count.get(`${req.character}|${req.kind}`) ?? 0) + 1;
     count.set(`${req.character}|${req.kind}`, k);
     const v = JSON.parse(r.content);
@@ -258,8 +260,18 @@ test("isolation: the player's whole event stream is their own History and State,
   const readings = stream.filter((e) => e.type === "reading") as Extract<Outgoing, { type: "reading" }>[];
   assert.ok(readings.length >= 3, "readings were shown");
   for (const r of readings) assert.ok(r.upTo <= r.seq && (r.text === null || game.calls.some((c) => c.raw === r.text)), JSON.stringify(r));
-  // Block 5 for the player: their own purse, and no ledger (Francesco doesn't keep the treasury).
   const states = stream.filter((e) => e.type === "state");
+  // The room (TD v0.45) is public: who stands with whom among the other living guests, never Francesco's own
+  // conversation, and nothing more than names.
+  const withRoom = states.filter((e) => (e as Extract<Outgoing, { type: "state" }>).state.room);
+  assert.ok(withRoom.length > 0, "the room reaches the player in open play");
+  for (const e of withRoom) {
+    const st = (e as Extract<Outgoing, { type: "state" }>).state as { room: { groups: string[][]; colloquios: string[][] }; present: string[] };
+    const named = [...st.room.groups, ...st.room.colloquios].flat();
+    assert.ok(!named.includes(F) && !st.present.some((p) => named.includes(p)), JSON.stringify(st.room));
+    assert.deepEqual(Object.keys(st.room).sort(), ["colloquios", "groups"]);
+  }
+  // Block 5 for the player: their own purse, and no ledger (Francesco doesn't keep the treasury).
   assert.ok(states.every((e) => !("embassyLedger" in e.state)));
   // The request options name living guests and groups, as 9c and 9h show them; never a location or an inner state.
   for (const r of stream.filter((e) => e.type === "request")) assert.doesNotMatch(JSON.stringify(r), /importance|thought|plan|reading/);

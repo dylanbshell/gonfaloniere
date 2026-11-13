@@ -570,23 +570,76 @@ function Left({ me, v, onDeck }: { me: string; v: View; onDeck: (d: DeckName) =>
           {s?.plotStatus && <div className="errand-result">{s.plotStatus}</div>}
         </div>
       )}
-      <div className="label" {...hint("here", { focusable: true })}>
-        {w("screen.here")}
-      </div>
-      <ul className="here">
-        {s && s.present.length ? (
-          s.present.map((p) => (
-            <li key={p}>
-              <Portrait name={p} />
-              <Name name={p} />
-            </li>
-          ))
-        ) : (
-          <li className="muted">{w("screen.nobody")}</li>
-        )}
-      </ul>
+      <RoomView v={v} />
       <MoreBelow m={m} />
     </aside>
+  );
+}
+
+/** One cluster in the room: a group's overlapping tokens, or a private pair's two joined ones. (Top level, so a re-render keeps its elements, and with them hover and focus.) */
+function RoomStack({ names, pair }: { names: string[]; pair?: boolean }) {
+  const hint = useHint();
+  const sel = useContext(SelContext);
+  const on = (n: string) => sel.sel?.kind === "guest" && sel.sel.name === n;
+  return (
+    <li className={`cluster${pair ? " pair" : ""}`} data-cluster={pair ? "private" : "group"}>
+      <span className="stack">
+        {names.map((n, i) => (
+          <span key={n} className="stack-item">
+            {pair && i > 0 && <span className="joint" aria-hidden="true" />}
+            <button className={`token${on(n) ? " selected" : ""}`} aria-label={n} aria-pressed={on(n)} onClick={() => sel.guest(n)} {...hint(pair ? "roomPair" : "roomToken", { values: { name: n } })}>
+              <Portrait name={n} />
+            </button>
+          </span>
+        ))}
+      </span>
+    </li>
+  );
+}
+
+/**
+ * The room (TD v0.45; Mechanics, Everyone Sees the Room), under the errand card: the player's own group,
+ * marked, with its guests by name, then every other group as a cluster of overlapping tokens that spread
+ * out on hover, and each private pair as two joined tokens. Clicking a token selects that guest. From the
+ * state's `room`, the same data as the AI guests' room line; during midnight and between seats there's no
+ * room, so only who's with the player.
+ */
+function RoomView({ v }: { v: View }) {
+  const s = v.state;
+  const hint = useHint();
+  return (
+    <>
+      <div className="label" {...hint("here", { focusable: true })}>
+        {w("screen.room")}
+      </div>
+      <div className="room">
+        <div className="cluster mine" data-cluster="mine">
+          <div className="cluster-label">{w(s?.conversation.kind === "colloquio" ? "screen.withYouPrivately" : "screen.withYou")}</div>
+          <ul className="here">
+            {s && s.present.length ? (
+              s.present.map((p) => (
+                <li key={p}>
+                  <Portrait name={p} />
+                  <Name name={p} />
+                </li>
+              ))
+            ) : (
+              <li className="muted">{w("screen.nobody")}</li>
+            )}
+          </ul>
+        </div>
+        {s?.room && (s.room.groups.length > 0 || s.room.colloquios.length > 0) && (
+          <ul className="clusters">
+            {s.room.groups.map((g) => (
+              <RoomStack key={g.join("|")} names={g} />
+            ))}
+            {s.room.colloquios.map((p) => (
+              <RoomStack key={p.join("|")} names={p} pair />
+            ))}
+          </ul>
+        )}
+      </div>
+    </>
   );
 }
 

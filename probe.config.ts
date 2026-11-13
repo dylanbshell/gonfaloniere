@@ -74,7 +74,7 @@ export const charactersPath = (version: string) => `docs/Gonfaloniere_Characters
  * the in-world names' minimum stays `since.characters` in the setting pack (v0.10), so a new
  * Characters version changes just this line (#73: v0.11, Isabella's Easter Mass).
  */
-export const DEFAULT_CHARACTERS = "0.11";
+export const DEFAULT_CHARACTERS = "0.12";
 
 /**
  * The docs for one TD version. TD v0.34+ and Characters v0.10+ use in-world names and must be
@@ -96,7 +96,7 @@ export function docsFor(td: string, characters?: string) {
 }
 
 export const config = {
-  docs: docsFor(process.env.PROBE_TD ?? "0.36"),
+  docs: docsFor(process.env.PROBE_TD ?? "0.45"),
 
   /** Same for every model; 0.7 until Technical Design sets a play value. */
   temperature: 0.7,
