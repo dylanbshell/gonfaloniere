@@ -238,7 +238,8 @@
       "noteText": "Your note. No one else sees it, and no guest's mind is touched by it.",
       "noteSave": "Keep this note. It stays with the game, even if you reload the page.",
       "conclude": "Make this note your conclusion: what you've worked out. Only your latest conclusion counts.",
-      "noteItem": "Select the guest or pair this note is about."
+      "noteItem": "Select the guest or pair this note is about.",
+      "more": "This column goes on below. Click to scroll down, or scroll as usual."
     },
     "city": "The city",
     "decks": {
@@ -282,6 +283,8 @@
       "everyone": "All guests",
       "free": "Free notes",
       "none": "No notes yet."
-    }
+    },
+    "more": "More below",
+    "panelError": "This part of the screen ran into a problem and stopped. The rest still works; reloading the page may bring it back."
   }
 }

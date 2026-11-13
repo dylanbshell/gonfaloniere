@@ -80,7 +80,7 @@ function connection(socket: Duplex): Connection {
 
 /**
  * Serves WebSocket connections on `port` (0 for any free port), handing each to `onConnection`. Plain
- * HTTP requests get `onRequest` if given, else 404. Resolves once listening.
+ * HTTP requests get `onRequest` if given, else 404. Resolves once listening; rejects if the port is taken.
  */
 export function serveWebSocket(port: number, onConnection: (c: Connection, req: IncomingMessage) => void, onRequest?: Parameters<typeof createServer>[1]): Promise<{ server: Server; port: number; close: () => Promise<void> }> {
   const sockets = new Set<Duplex>();
@@ -97,8 +97,11 @@ export function serveWebSocket(port: number, onConnection: (c: Connection, req: 
     socket.on("close", () => sockets.delete(socket));
     onConnection(connection(socket), req);
   });
-  return new Promise((resolve) => {
+  // A taken port rejects (EADDRINUSE), rather than throwing from an unhandled error event.
+  return new Promise((resolve, reject) => {
+    server.once("error", reject);
     server.listen(port, "127.0.0.1", () => {
+      server.off("error", reject);
       const addr = server.address();
       resolve({
         server,

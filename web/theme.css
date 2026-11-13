@@ -60,6 +60,14 @@
   --node-initials-size: 2.6px;
   --node-name-size: 2.3px;
   --icon-row-height: 28px;
+  /* Steady sizes, so the screen doesn't jump as the first events arrive (#88) */
+  --line-sm: calc(var(--text-sm) * var(--line-height));
+  --head-height: 68px;
+  --input-box-height: 152px;
+  --hint-text-height: calc(var(--line-sm) * 2 + var(--space-2));
+  /* The web's names: a halo of the panel's colour, in the diagram's units */
+  --label-halo: 0.9;
+  --shadow-raised: 0 2px 8px rgba(20, 20, 18, 0.18);
 
   /* Stacking: menus over the stream, decks over everything, the explanations over the decks */
   --z-menu: 10;

@@ -49,7 +49,7 @@ Work arrives as tasks from Dylan, often relayed from Technical Design (TD). The 
 - The human player: the controller, protocol, and WebSocket server are in `src/core/`; the mini-game's side is `src/minigame/player.ts`, with its words in `setting/<name>/player.json`. `test/human.test.ts` plays a scripted game through the protocol and checks the player's event stream holds only their own History and State. A human game still makes model calls for the AI guests.
 - The player screen is `web/` (React, built by esbuild): `npm run play -- --as "Francesco Pazzi" --minigame` serves it on localhost and runs the runner with `--human` (under `op run`, with `PROBE_TOTAL_USD`, as for any run; runner flags after `--`). `--fake` plays it on the fake model caller, with no calls. Every look is a token in `web/theme.css`, every word is in `player.json`; `test/web.test.ts` checks both.
 - The player's notes (TD v0.40) live on the engine (`playerNotes`) and in the full record as `player_notes` (human games only); they never reach a prompt or the replay variant, which `test/human.test.ts` checks. The web's lines come from `setting/<name>/relationships.json`.
-- `test/browser.test.ts` plays a fake game in headless Chrome and checks the screen's layout and input (skipped without Chrome; `CHROME` sets its path). `SCREENSHOTS=<dir>` saves a picture at each check.
+- `test/browser.test.ts` plays a fake game in headless Chrome and checks the screen's layout and input (skipped without Chrome; `CHROME` sets its path). `SCREENSHOTS=<dir>` saves a picture at each check. Each major panel has an error boundary; `?fault=<panel>` in the screen's address makes that panel throw, for the test. `npm run play` claims its port before building, and stops if it's taken.
 
 ## Spend
 

@@ -4,7 +4,7 @@
 // from the player's sheet, their own log, and public content. Words come from the setting pack (words.ts); every look comes from theme.css's tokens
 // (app.css uses only those).
 
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Component, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { connect, type Ev } from "./connection.ts";
 import { COMMAND, MENTION, canDo, canSpeak, isCommand, matchCommands, matchGuests, openMenu, withMention, type Trigger } from "./input.ts";
 import { appearsIn, briefingCards, cityCards, derive, heardAndSaw, hintMoment, loreParts, rulesCards, webLayout, type Card, type Line, type LoreEntry, type Note, type Request, type Segment, type Sheet, type State, type View } from "./model.ts";
@@ -56,7 +56,7 @@ const HintsContext = createContext<Hints>({ on: true, toggle: () => {}, show: ()
 
 function HintLayer({ children }: { children: ReactNode }) {
   const [on, setOn] = useState(readHints);
-  const [tip, setTip] = useState<{ text: string; rect: DOMRect } | null>(null);
+  const [tip, setTip] = useState<{ text: string; el: Element; rect: DOMRect } | null>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -73,6 +73,25 @@ function HintLayer({ children }: { children: ReactNode }) {
     for (const e of ["keydown", "input"]) document.addEventListener(e, away);
     return () => ["keydown", "input"].forEach((e) => document.removeEventListener(e, away));
   }, [tip]);
+  // The explanation goes with its element: when the element is taken off the screen (the start button once
+  // the game starts), hidden, or scrolled out of the window, the explanation closes; when it moves, it follows.
+  useEffect(() => {
+    if (!tip) return;
+    const check = () => {
+      const r = tip.el.isConnected && tip.el.getClientRects().length ? tip.el.getBoundingClientRect() : null;
+      if (!r || r.bottom <= 0 || r.top >= window.innerHeight || r.right <= 0 || r.left >= window.innerWidth) setTip(null);
+      else if (r.top !== tip.rect.top || r.left !== tip.rect.left) setTip({ ...tip, rect: r });
+    };
+    const watch = new MutationObserver(check);
+    watch.observe(document.body, { childList: true, subtree: true, attributes: true });
+    document.addEventListener("scroll", check, true);
+    window.addEventListener("resize", check);
+    return () => {
+      watch.disconnect();
+      document.removeEventListener("scroll", check, true);
+      window.removeEventListener("resize", check);
+    };
+  }, [tip]);
   const hints: Hints = {
     on,
     toggle: () => {
@@ -86,7 +105,7 @@ function HintLayer({ children }: { children: ReactNode }) {
       }
     },
     show: (text, el) => {
-      if (on) setTip({ text, rect: el.getBoundingClientRect() });
+      if (on) setTip({ text, el, rect: el.getBoundingClientRect() });
     },
     hide: () => setTip(null),
   };
@@ -127,6 +146,63 @@ function HintSwitch() {
     <button className="switch" aria-pressed={h.on} onClick={h.toggle} {...hint("switch")}>
       {w(h.on ? "screen.hintsSwitch.on" : "screen.hintsSwitch.off")}
     </button>
+  );
+}
+
+// ---- Error boundaries (CC-20261113-01, #88) ------------------------------------------------------------
+//
+// Each major panel fails on its own: a panel that throws shows a short notice in its own space, and the
+// rest of the screen keeps working. `?fault=<panel>` in the address makes that panel throw, for the
+// screen tests.
+
+const FAULT = typeof location === "undefined" ? null : new URLSearchParams(location.search).get("fault");
+
+function Fault({ panel }: { panel: string }) {
+  if (FAULT === panel) throw new Error(`a test fault in the ${panel} panel`);
+  return null;
+}
+
+class Boundary extends Component<{ panel: string; fallback?: (notice: ReactNode) => ReactNode; children: ReactNode }, { failed: boolean }> {
+  override state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  override componentDidCatch(e: unknown) {
+    console.error(`The ${this.props.panel} panel failed:`, e);
+  }
+  override render() {
+    if (!this.state.failed)
+      return (
+        <>
+          <Fault panel={this.props.panel} />
+          {this.props.children}
+        </>
+      );
+    const notice = (
+      <div className="notice danger panel-error" role="alert" data-panel-error={this.props.panel}>
+        {w("screen.panelError")}
+      </div>
+    );
+    return this.props.fallback ? this.props.fallback(notice) : notice;
+  }
+}
+
+/** A failed deck or web viewer: the notice in a window that still closes. */
+function FailedOverlay({ notice, onClose }: { notice: ReactNode; onClose: () => void }) {
+  const hint = useHint();
+  useEscape(onClose);
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <header>
+          <span />
+          <button className="secondary" onClick={onClose} {...hint("close")}>
+            {w("screen.close")}
+          </button>
+        </header>
+        <div className="sheet">{notice}</div>
+      </div>
+    </div>
   );
 }
 
@@ -371,14 +447,61 @@ export function GameView({
   return (
     <SelContext.Provider value={selection}>
       <div className="layout">
-        <Left me={me} v={v} onDeck={setDeck} onWeb={() => openWeb(sel?.kind === "guest" ? [sel.name] : [])} />
+        <Boundary panel="left" fallback={(n) => <aside className="side left">{n}</aside>}>
+          <Left me={me} v={v} onDeck={setDeck} onWeb={() => openWeb(sel?.kind === "guest" ? [sel.name] : [])} />
+        </Boundary>
         <Centre me={me} v={v} send={send} dead={dead} status={status} />
-        <Right me={me} v={v} onWeb={openWeb} />
+        <Boundary panel="right" fallback={(n) => <aside className="side right">{n}</aside>}>
+          <Right me={me} v={v} onWeb={openWeb} />
+        </Boundary>
         {/* After the columns, and above them all in theme.css's order, so nothing covers them. */}
-        {deck && v.sheet && <DeckModal deck={deck} cards={deckCards(deck, v.sheet)} place={places[deck]} onPlace={(n) => setPlaces({ ...places, [deck]: n })} onClose={() => setDeck(null)} />}
-        {web && <WebViewer me={me} v={v} initial={web} initialTab={webTab} send={send} dead={dead} onClose={() => setWeb(null)} />}
+        {deck && v.sheet && (
+          <Boundary panel="deck" fallback={(n) => <FailedOverlay notice={n} onClose={() => setDeck(null)} />}>
+            <DeckModal deck={deck} cards={deckCards(deck, v.sheet)} place={places[deck]} onPlace={(n) => setPlaces({ ...places, [deck]: n })} onClose={() => setDeck(null)} />
+          </Boundary>
+        )}
+        {web && (
+          <Boundary panel="web" fallback={(n) => <FailedOverlay notice={n} onClose={() => setWeb(null)} />}>
+            <WebViewer me={me} v={v} initial={web} initialTab={webTab} send={send} dead={dead} onClose={() => setWeb(null)} />
+          </Boundary>
+        )}
       </div>
     </SelContext.Provider>
+  );
+}
+
+/**
+ * A side column that may not fit the window: while there's more below, a hint stays at the column's foot,
+ * and clicking it scrolls on (CC-20261113-01, #88: every control reachable at laptop heights).
+ */
+function useMoreBelow() {
+  const ref = useRef<HTMLElement>(null);
+  const [more, setMore] = useState(false);
+  const check = () => {
+    const el = ref.current;
+    if (el) setMore(el.scrollTop + el.clientHeight < el.scrollHeight - 2);
+  };
+  // After every render (new content), on scrolling, and on resizing the window.
+  useLayoutEffect(check);
+  useEffect(() => {
+    const el = ref.current;
+    el?.addEventListener("scroll", check);
+    window.addEventListener("resize", check);
+    return () => {
+      el?.removeEventListener("scroll", check);
+      window.removeEventListener("resize", check);
+    };
+  }, []);
+  return { ref, more, on: () => ref.current?.scrollBy({ top: ref.current.clientHeight * 0.8, behavior: "smooth" }) };
+}
+
+function MoreBelow({ m }: { m: ReturnType<typeof useMoreBelow> }) {
+  const hint = useHint();
+  if (!m.more) return null;
+  return (
+    <button className="more-below" onClick={m.on} {...hint("more")}>
+      {w("screen.more")}
+    </button>
   );
 }
 
@@ -386,8 +509,9 @@ function Left({ me, v, onDeck, onWeb }: { me: string; v: View; onDeck: (d: DeckN
   const s = v.state;
   const g = guest(me);
   const hint = useHint();
+  const m = useMoreBelow();
   return (
-    <aside className="side left">
+    <aside className="side left" ref={m.ref}>
       <div className="side-head">
         <div className="label">{w("screen.you")}</div>
         <HintSwitch />
@@ -400,16 +524,26 @@ function Left({ me, v, onDeck, onWeb }: { me: string; v: View; onDeck: (d: DeckN
             <div className="muted">{g?.faction}</div>
           </div>
         </div>
-        {s && (
-          <dl className="facts">
-            <dt>{w("screen.purse")}</dt>
-            <dd>{w("screen.purseValue", { amount: s.florins })}</dd>
-            <dt>{w("screen.pensions")}</dt>
-            <dd>{s.pensionsHeld}</dd>
-            <dt>{w("screen.withdrawals")}</dt>
-            <dd>{s.withdrawalCount}</dd>
-          </dl>
-        )}
+        {/* Laid out before the first state arrives, so nothing below moves when it does. */}
+        <dl className="facts">
+          <dt>{w("screen.purse")}</dt>
+          <dd>{s ? w("screen.purseValue", { amount: s.florins }) : ""}</dd>
+          <dt>{w("screen.pensions")}</dt>
+          <dd>{s?.pensionsHeld ?? ""}</dd>
+          <dt>{w("screen.withdrawals")}</dt>
+          <dd>{s?.withdrawalCount ?? ""}</dd>
+        </dl>
+      </div>
+      {/* The decks right under the sheet, two by two, so they're in sight on a short window. */}
+      <div className="buttons decks">
+        {(["briefing", "rules", "city"] as const).map((d) => (
+          <button key={d} className="secondary" disabled={!v.sheet} onClick={() => onDeck(d)} {...hint(d)}>
+            {w(`screen.${d}`)}
+          </button>
+        ))}
+        <button className="secondary" onClick={onWeb} {...hint("web")}>
+          {w("screen.web.title")}
+        </button>
       </div>
       {v.sheet?.errand && (
         <div className="errand" {...hint("errand", { focusable: true })}>
@@ -435,16 +569,7 @@ function Left({ me, v, onDeck, onWeb }: { me: string; v: View; onDeck: (d: DeckN
           <li className="muted">{w("screen.nobody")}</li>
         )}
       </ul>
-      <div className="buttons">
-        {(["briefing", "rules", "city"] as const).map((d) => (
-          <button key={d} className="secondary" disabled={!v.sheet} onClick={() => onDeck(d)} {...hint(d)}>
-            {w(`screen.${d}`)}
-          </button>
-        ))}
-        <button className="secondary" onClick={onWeb} {...hint("web")}>
-          {w("screen.web.title")}
-        </button>
-      </div>
+      <MoreBelow m={m} />
     </aside>
   );
 }
@@ -482,15 +607,16 @@ function Centre({ me, v, send, dead, status }: { me: string; v: View; send: Send
           <div className="phase">{v.state?.phaseLabel}</div>
           <div className="muted">{conversationLabel(v.state)}</div>
         </div>
+        {/* The connection's state in the header, so the stream doesn't move when it changes. */}
+        {status !== "open" && <div className="notice status">{w(status === "closed" ? "screen.reconnecting" : "screen.connecting")}</div>}
         {canEnd && (
           <button className="secondary" onClick={() => send({ type: "end" })} {...hint("end")}>
             {w("screen.input.end")}
           </button>
         )}
       </header>
-      {status === "closed" && <div className="notice">{w("screen.reconnecting")}</div>}
-      {status === "connecting" && <div className="notice">{w("screen.connecting")}</div>}
       <div className="stream">
+        <Boundary panel="stream">
         {earlier.length > 0 && (
           <section className="earlier">
             <div className="label" {...hint("earlier", { focusable: true })}>
@@ -521,10 +647,17 @@ function Centre({ me, v, send, dead, status }: { me: string; v: View; send: Send
         ))}
         {v.speaking && <div className="speaking">{w("screen.speaking", { name: v.speaking })}</div>}
         {card && !dead && <Card req={card} send={send} me={me} />}
+        </Boundary>
         <div ref={end} />
       </div>
-      <NotaioHint me={me} v={v} />
-      {!dead && <InputBox me={me} v={v} send={send} closed={!!card} />}
+      <Boundary panel="hint">
+        <NotaioHint me={me} v={v} />
+      </Boundary>
+      {!dead && (
+        <Boundary panel="input" fallback={(n) => <div className="input">{n}</div>}>
+          <InputBox me={me} v={v} send={send} closed={!!card} />
+        </Boundary>
+      )}
     </main>
   );
 }
@@ -607,6 +740,7 @@ function Right({ me, v, onWeb }: { me: string; v: View; onWeb: (guests: string[]
   const s = v.state;
   const hint = useHint();
   const { sel, back } = useContext(SelContext);
+  const m = useMoreBelow();
   if (sel?.kind === "lore")
     return (
       <aside className="side right">
@@ -628,7 +762,7 @@ function Right({ me, v, onWeb }: { me: string; v: View; onWeb: (guests: string[]
   const g = who ? guest(who) : undefined;
   const known = who ? (v.sheet?.connections ?? []).filter((c) => !c.private && c.between.includes(who)) : [];
   return (
-    <aside className="side right">
+    <aside className="side right" ref={m.ref}>
       <div className="label" {...hint(sel ? "selected" : "talkingTo", { focusable: true })}>
         {w(sel ? "screen.right.selected" : "screen.talkingTo")}
       </div>
@@ -657,6 +791,7 @@ function Right({ me, v, onWeb }: { me: string; v: View; onWeb: (guests: string[]
           {w("screen.right.openWeb")}
         </button>
       </div>
+      <MoreBelow m={m} />
     </aside>
   );
 }
@@ -675,7 +810,7 @@ function WebViewer({ me, v, initial, initialTab = "record", send, dead, onClose 
   useEscape(onClose);
   // Up to two: a first, then a second; a third replaces the older; selecting a selected guest clears it.
   const pick = (n: string) => setPicked((p) => (p.includes(n) ? p.filter((x) => x !== n) : p.length < 2 ? [...p, n] : [p[1]!, n]));
-  const at = webLayout(info.roster, info.factions);
+  const at = webLayout(info.roster, info.factions ?? []);
   const connections = v.sheet?.connections ?? [];
   const lit = (c: { between?: string[]; guests?: string[] }) => picked.length > 0 && picked.every((p) => (c.between ?? c.guests ?? []).includes(p));
   const same = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
@@ -724,12 +859,20 @@ function WebViewer({ me, v, initial, initialTab = "record", send, dead, onClose 
                   <text className="node-initials" dy={1.2}>
                     {r.initials}
                   </text>
-                  <text className="node-name" dy={7.6}>
-                    {r.name}
-                  </text>
                 </g>
               );
             })}
+            {/* The names last, so no line or circle crosses them, each on a halo of the panel's colour. */}
+            <g className="labels">
+              {info.roster.map((r) => {
+                const p = at.get(r.name)!;
+                return (
+                  <text key={r.name} className={`node-name${r.name === me ? " me" : ""}`} x={p.x} y={p.y} dy={7.6}>
+                    {r.name}
+                  </text>
+                );
+              })}
+            </g>
           </svg>
           <div className="web-side">
             <nav className="tabs">
@@ -913,7 +1056,8 @@ function InputBox({ me, v, send, closed }: { me: string; v: View; send: Send; cl
   const example = examples.length ? examples[v.spoken % examples.length] : null;
   return (
     <div className="input" ref={box}>
-      {prompt && <div className={`prompt${req ? " waiting" : ""}`}>{prompt}</div>}
+      {/* The prompt's and the example's lines are always laid out, so the box keeps its height as they come and go. */}
+      <div className={`prompt${req ? " waiting" : ""}`}>{prompt}</div>
       {refusal && <div className="notice">{refusal}</div>}
       {guestList.length > 0 && (
         <ul className="dropdown" data-menu="guests">
@@ -1007,7 +1151,7 @@ function InputBox({ me, v, send, closed }: { me: string; v: View; send: Send; cl
           </button>
         </div>
       </div>
-      {example && <div className="example muted">{w("screen.input.example", { line: example })}</div>}
+      <div className="example muted">{example ? w("screen.input.example", { line: example }) : ""}</div>
     </div>
   );
 }

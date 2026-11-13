@@ -19,7 +19,7 @@ import { settingPack } from "../src/setting/pack.ts";
 import { GameView, Start } from "../web/src/App.tsx";
 import type { Ev } from "../web/src/connection.ts";
 import { canDo, canSpeak, openMenu, trigger, withMention } from "../web/src/input.ts";
-import { appearsIn, briefingCards, cityCards, derive, heardAndSaw, hintMoment, loreParts, rulesCards, type LoreEntry, type View } from "../web/src/model.ts";
+import { appearsIn, briefingCards, cityCards, derive, heardAndSaw, hintMoment, loreParts, rulesCards, webLayout, type LoreEntry, type View } from "../web/src/model.ts";
 import { notaioHint, setInfo, type StartInfo } from "../web/src/words.ts";
 import { fakeCaller, fakeDocs, fakeSettings } from "./fixtures/fake-game.ts";
 
@@ -359,4 +359,47 @@ test("Il Notaio's hint: the moment's template at every wait, under the stream, s
   const dead = derive([...log.filter((e) => e.type !== "result"), { seq: 1e6, type: "death", name: F, you: true }]);
   assert.equal(hintMoment(dead, F).key, "dead");
   for (const k of ["mingling", "answering", "colloquio", "move", "seat", "midnight", "council", "ballot", "refused", "dead"]) assert.ok(!notaioHint(k, { name: "X", other: "Y" }).startsWith("hints."), k);
+});
+
+// ---- CC-20261113-01 (#88): web labels, no factions, the left column's order, steady sizes ----------------
+
+test("the web's layout takes a missing or empty factions list (an older server's start information)", () => {
+  for (const factions of [undefined, [] as string[], ["no such faction"]]) {
+    const at = webLayout(info.roster, factions);
+    assert.equal(at.size, info.roster.length);
+    for (const p of at.values()) assert.ok(Number.isFinite(p.x) && Number.isFinite(p.y));
+  }
+  // Without factions, the roster's own order around the circle.
+  assert.deepEqual([...webLayout(info.roster).keys()], info.roster.map((r) => r.name));
+});
+
+test("the web's names are drawn after every line and circle, on a halo, so no line crosses them", async () => {
+  const { at } = await playedLog();
+  const h = game({ v: derive(at["speak:capannello"]!), web: [F] });
+  const names = [...h.matchAll(/class="node-name/g)].map((m) => m.index!);
+  assert.equal(names.length, info.roster.length);
+  const lastLine = Math.max(...[...h.matchAll(/<line /g)].map((m) => m.index!));
+  const lastCircle = Math.max(...[...h.matchAll(/<circle /g)].map((m) => m.index!));
+  assert.ok(Math.min(...names) > Math.max(lastLine, lastCircle), "every name after every line and circle");
+  const css = readFileSync("web/src/app.css", "utf8");
+  assert.match(css, /\.node-name \{[^}]*paint-order: stroke;[^}]*stroke: var\(--surface\)/, "a halo in the panel's colour");
+});
+
+test("the left column: the sheet, then the decks and the web, then the errand, then who's here", async () => {
+  const { at } = await playedLog();
+  const h = game({ v: derive(at["speak:capannello"]!) });
+  const left = h.slice(h.indexOf('class="side left"'), h.indexOf('class="centre"'));
+  const order = ['data-hint="sheet"', 'data-hint="briefing"', 'data-hint="web"', 'class="errand"', 'data-hint="here"'].map((k) => left.indexOf(k));
+  assert.ok(order.every((i) => i >= 0), String(order));
+  assert.deepEqual([...order].sort((a, b) => a - b), order);
+});
+
+test("steady sizes: the sheet, the prompt, and the example are laid out before the first state, from theme tokens", () => {
+  const h = game({ v: derive([]) });
+  assert.match(h, /<dl class="facts">/, "the sheet's facts before any state");
+  assert.match(h, /class="prompt"/, "the prompt's line");
+  assert.match(h, /class="example muted"/, "the example's line");
+  const css = readFileSync("web/src/app.css", "utf8");
+  for (const [sel, token] of [[".conv-head", "--head-height"], [".input", "--input-box-height"], [".hint-text", "--hint-text-height"], [".prompt", "--line-sm"], [".example", "--line-sm"]])
+    assert.match(css, new RegExp(`\\${sel} \\{[^}]*min-height: var\\(${token}\\)`), sel);
 });
