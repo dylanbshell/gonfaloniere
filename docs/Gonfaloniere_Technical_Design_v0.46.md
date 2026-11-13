@@ -1,8 +1,15 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.45
+### Version 0.46
 
 ---
+
+## Changes in v0.46
+
+*Dylan, Nov 13: who the "talking with" card shows.*
+
+- **The "talking with" card is filled only when someone has the player's ear** (Player Interface, Right): in a Colloquio, the other guest; in a group, the guest the player last addressed or who last addressed the player. Otherwise it stays empty. v0.37–v0.45 showed a group's last speaker, which changed on nearly every line
+- Prompts unchanged
 
 ## Changes in v0.45
 
@@ -2328,9 +2335,13 @@ A single page in the style of a Slack chat. Placeholder portraits until Art's ar
 **Selection** *(Dylan, Nov 12; v0.41)*. In the chat view, **one thing is selected at a time:** a guest (a name in the stream, a token in the room, or a name on the left) or a lore topic (a lore link in a line). Selecting something replaces the last selection, and clicking it again deselects it; Escape clears it. A selected guest shows on the right, has their lines highlighted, and opens their earlier conversations. A selected topic shows its lore entry on the right. **Two guests can be selected only in the Web of Secrets.**
 
 **Right: whoever you're looking at.**
-- By default, **whoever you're talking to**: in a Colloquio, the other guest; in a group, the last speaker
+- By default, **whoever you're talking to** *(Dylan, Nov 13; v0.46)*. The card is filled only when someone has the player's ear:
+  - **In a Colloquio:** the other guest, always
+  - **In a group:** the guest the player last @-addressed, or who last addressed the player (a line marked "to you"), whichever happened most recently. It stays until another address involving the player replaces it, or until that guest or the player leaves the group. The player's own lines that address no one don't change it
+  - **Otherwise it's empty:** in a group where no one has addressed the player and the player has addressed no one, and in councils, midnight, and the ballot. The empty card keeps its tint and its "Talking with" label, with a quiet line from `player.json` ("No one has your ear"), so the space doesn't jump
+  - *Before v0.46 a group showed its last speaker, which changed on nearly every line*
 - **Two kinds of card, so they're never confused** *(Dylan, Nov 13; v0.45)*:
-  - **The "talking with" card** is live: it sits in the conversation's tint, is labelled "Talking with", and shows a small dot while that guest is speaking. In a group, a row of the other members' small tokens sits under it. When covered, its header strip keeps the tint and label, so it reads as "back to the conversation"
+  - **The "talking with" card** is live: it sits in the conversation's tint, is labelled "Talking with", and shows a small dot while that guest is speaking. In a group, a row of the other members' small tokens sits under it, whether or not the card is filled. When covered, its header strip keeps the tint and label, so it reads as "back to the conversation"
   - **A selected guest's card** is plain: paper-coloured, raised with a shadow (it's on top), labelled "Looking at", with a close control (×) that deselects
   - The differences are theme tokens (a tint, a shadow, a label style), so the chosen look restyles both
 - **Selecting a guest** (a name in the stream, a token in the room, or a name on the left) **slides their card up over** the one for whoever you're talking to (v0.44). That card's header (portrait and name) still **peeks out at the top,** so a click on it, or deselecting, returns to them
