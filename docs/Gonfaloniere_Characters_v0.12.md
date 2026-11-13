@@ -1,8 +1,19 @@
 # Gonfaloniere
 ## Characters & Briefings — Working Document
-### Version 0.11
+### Version 0.12
 
 ---
+
+## Changes in v0.12
+
+*Clears two handoffs: public connections for the Web of Secrets (Technical Design v0.44) and Everyone sees the room (Mechanics v0.32). Dylan, Nov 13.*
+
+- **New section, Shared Canon: Relationships.** It feeds the player screen's Web of Secrets (`setting/florence-1492/relationships.json`):
+  - **14 public connections**, each with one of Technical Design's six types and one line everyone at the evening knows. Checked against every secret: none states or points at one. No money line is public, since every debt and payment in the cast is private
+  - **Each character's own connections**, typed, taken word for word from their briefing's Relationships section. Only that character's player sees them
+  - **Left off on purpose:** the secret ties (the three affairs, Lupo and Beatrice, Lupo and Isabella, Raffaello's debt), and five acquaintances no type honestly fits
+- **The standard social awareness text** adds what Mechanics v0.32 made a rule: while the guests mingle, everyone can see who stands with whom and who has gone off in private with whom, but not what they say. It's in every briefing, so it waits to go live until the game shows the room (Technical Design's room line); a handoff ties the two together
+- Briefing Template: Relationships now notes that each line is also typed for the web
 
 ## Changes in v0.11
 
@@ -142,13 +153,13 @@ Each rewritten briefing follows the same structure so the models get consistent 
 4. **Other personal goals:** motivation only; no reward in the first version
 5. **What you know:** facts, including what you know about others
 6. **Your secrets:** clearly marked as private
-7. **Relationships:** one line per character you have a connection to
+7. **Relationships:** one line per character you have a connection to. Each line is also typed for the Web of Secrets (Shared Canon: Relationships, v0.12); change the table when a line changes
 8. **Resources:** described in story terms; Florin amounts come from mechanics, not the briefing
-9. **Social awareness:** how to read Il Notaio's observations, and that frequent private withdrawals invite suspicion
+9. **Social awareness:** how to read Il Notaio's observations and the room, and that frequent private withdrawals invite suspicion
 
 **Standard social awareness text** (identical in every briefing):
 
-> Il Notaio, the palazzo's notary, records who joins a conversation, who leaves, and who withdraws for a private word. Everyone present hears his notes. Treat them as evidence: if two people keep slipping away together, ask yourself why. Your own withdrawals are noted too, and the more often you are seen drawing someone aside, the more people will wonder what you are hiding.
+> Il Notaio, the palazzo's notary, records who joins a conversation, who leaves, and who withdraws for a private word. Everyone present hears his notes. While the guests mingle, you can see who stands with whom and who has gone off in private with whom, but not what they say. Treat all of it as evidence: if two people keep slipping away together, ask yourself why. Your own withdrawals are seen and noted too, and the more often you are seen drawing someone aside, the more people will wonder what you are hiding.
 
 ---
 
@@ -229,6 +240,69 @@ Checklist for adapting each original briefing:
 | Clarice once mocked Giorgia at a banquet ("the Pazzi girl with nothing left") | Giorgia, Clarice | Public gossip |
 
 **All twelve briefings agree (v0.9):** Clarice gave Francesco the ribbon and doesn't know it's lost. Piero holds it and doesn't know whose it is (a gold "C" could be Clarice, but also a Contessa or a Captain). Emile doesn't know of either affair, and since v0.10 his errand is to learn one (F1 or F3), so he hunts both. Fra Tommaso knows nothing of the affairs. Jeanne and Emile know nothing of the other two affairs
+
+---
+
+## Shared Canon: Relationships (the Web of Secrets)
+
+*New in v0.12, for the player screen's Web of Secrets (Technical Design v0.44, Player Interface; the file is `setting/florence-1492/relationships.json`). Claude Code transcribes these tables. Lore carries the public lines as public lore entries with `kind: relationship`, so the AI guests know them too (Technical Design, What the AI guests have instead).*
+
+**The six types** are Technical Design's, fixed in `relationships.json`: `romance` (lovers, courtship, a love that's hoped for), `kin` (family by blood or marriage), `service` (one serves or protects the other), `alliance` (the same side, or a friendship of use), `rivalry` (enemies, rivals, a grudge), `money` (a debt, a payment owed, a purse one controls).
+
+### Public connections
+
+What any guest knows at the start of the evening. **Rules:**
+- **Never a secret, and never a path to one.** Each line was checked against San Frediano and the Love Knot above. A public line that pointed at a secret would be a new clue, which only this section can add, on purpose
+- **Faction membership isn't drawn:** the web groups each faction under its name, and the subtitles (`setting.json`) say who serves whom inside it
+- One line per pair, in plain words, true from either side
+
+| Guest | Guest | Type | Public line |
+|---|---|---|---|
+| Piero de' Medici | Raffaello de' Medici | kin | Brothers, sons of the late Lorenzo. Piero is the elder and the heir |
+| Piero de' Medici | Clarice Orsini | kin | Cousins of the Medici house |
+| Raffaello de' Medici | Clarice Orsini | kin | Cousins of the Medici house |
+| Francesco Pazzi | Giorgia Pazzi | kin | Brother and sister. Francesco heads the Pazzi house |
+| Lupo | Francesco Pazzi | service | Lupo is the Pazzi bodyguard, and Francesco is the man he keeps alive |
+| Captain Armand LeNoir | Emile de Valois | service | LeNoir is captain of the Prince's guard |
+| Jeanne d'Orléans | Emile de Valois | alliance | France's ambassador, who is arranging the Prince's marriage |
+| Emile de Valois | Clarice Orsini | romance | The Prince is choosing a Florentine bride, and Clarice is one of the two he is choosing between |
+| Emile de Valois | Giorgia Pazzi | romance | The Prince is choosing a Florentine bride, and Giorgia is one of the two he is choosing between |
+| Clarice Orsini | Giorgia Pazzi | rivalry | Rivals for the Prince's hand. Clarice once mocked Giorgia at a banquet as "the Pazzi girl with nothing left" |
+| Piero de' Medici | Francesco Pazzi | rivalry | Heads of the two rival houses. In 1478 a Pazzi plot killed Piero's uncle, and a Pazzi uncle hanged for it |
+| Fra Tommaso | Piero de' Medici | rivalry | Fra Tommaso preaches against the Medici and everything they stand for |
+| Fra Tommaso | Sister Beatrice | alliance | Fra Tommaso leads the Dominican order Sister Beatrice serves |
+| Fra Tommaso | Contessa Isabella | alliance | Fra Tommaso leads the Dominican order the widowed Contessa joined |
+
+**Kept off the public web, because they're secrets** (Shared Canon above): Clarice and Francesco, Giorgia and LeNoir, and Jeanne and Emile as lovers; Lupo and Beatrice as brother and sister; Lupo and Isabella as killer and client; Raffaello's debt to Isabella (his thin purse is public; whom he owes isn't); LeNoir asking Raffaello for help; Jeanne's pension offer to Piero; and Lupo's trade. **No money line is public:** every debt and payment in the cast is private, which the web shows by having none.
+
+**Sources for each public line:** kin and service from the subtitles and every briefing that mentions them; the marriage from Love Knot ("public at the Embassy", and Piero's and Francesco's briefings know of it); the banquet from Love Knot ("public gossip"); 1478 from Shared Canon: Setting; Tommaso's preaching from his and Piero's briefings; his order from Isabella's, Beatrice's, and the subtitles.
+
+### Each character's own connections
+
+What only that character's player sees, from their briefing's **Relationships** section. **Rules:**
+- **The line is the bullet's text after the name, word for word,** with its first letter capitalised ("Your employer. Hot-headed. Keep him breathing."), as in today's interim file for Francesco
+- **A bullet naming two guests** ("Piero de' Medici and Francesco Pazzi: …") becomes two entries with the same line
+- **Bullets that aren't about a guest** ("Anyone with coin", "Whoever ordered Lucien's death") stay in the briefing and aren't drawn
+- A pair can have a public line and a private one of a different type (Tommaso and Isabella: public `alliance`, his own `money`); the web shows both, the private one marked as the player's
+
+| Character | Their own connections, with type |
+|---|---|
+| Lupo | Francesco Pazzi `service` · Giorgia Pazzi `service` · Sister Beatrice `kin` · Contessa Isabella `money` · Raffaello de' Medici `rivalry` |
+| Contessa Isabella | Lupo `money` · Captain Armand LeNoir `rivalry` · Raffaello de' Medici `money` · Fra Tommaso `alliance` · Sister Beatrice `alliance` |
+| Captain Armand LeNoir | Emile de Valois `service` · Giorgia Pazzi `romance` · Raffaello de' Medici `alliance` · Jeanne d'Orléans `alliance` |
+| Raffaello de' Medici | Piero de' Medici `kin` · Clarice Orsini `kin` · Captain Armand LeNoir `alliance` · Contessa Isabella `money` · Francesco Pazzi `rivalry` |
+| Francesco Pazzi | Clarice Orsini `romance` · Piero de' Medici `rivalry` · Raffaello de' Medici `rivalry` · Giorgia Pazzi `kin` · Lupo `service` · Fra Tommaso `alliance` |
+| Giorgia Pazzi | Emile de Valois `romance` · Captain Armand LeNoir `romance` · Clarice Orsini `rivalry` · Francesco Pazzi `kin` · Lupo `service` |
+| Piero de' Medici | Raffaello de' Medici `kin` · Clarice Orsini `kin` · Francesco Pazzi `rivalry` · Jeanne d'Orléans `money` · Fra Tommaso `rivalry` |
+| Clarice Orsini | Francesco Pazzi `romance` · Piero de' Medici `kin` · Raffaello de' Medici `kin` · Emile de Valois `romance` · Giorgia Pazzi `rivalry` · Jeanne d'Orléans `alliance` |
+| Fra Tommaso | Francesco Pazzi `alliance` · Piero de' Medici `rivalry` · Sister Beatrice `alliance` · Contessa Isabella `money` · Jeanne d'Orléans `rivalry` |
+| Sister Beatrice | Lupo `kin` · Fra Tommaso `alliance` · Contessa Isabella `alliance` · Piero de' Medici `alliance` |
+| Jeanne d'Orléans | Emile de Valois `romance` · Piero de' Medici `money` · Clarice Orsini `alliance` · Giorgia Pazzi `alliance` · Captain Armand LeNoir `alliance` · Fra Tommaso `rivalry` |
+| Emile de Valois | Jeanne d'Orléans `romance` · Clarice Orsini `romance` · Giorgia Pazzi `romance` · Captain Armand LeNoir `service` · Piero de' Medici `alliance` · Francesco Pazzi `alliance` |
+
+**Judgement calls:** Lupo's old client Isabella is `money` (she paid him, and "she also has coin"); Piero's line on Jeanne is `money` (her open pension offer); Tommaso's on Isabella is `money` ("a convert with a purse"); a friendship of use is `alliance` (Francesco's friar "worth winning", Beatrice's hope of Medici patronage, Jeanne's two brides for France, Emile's two families who want his name, Clarice's ambassador who decides the match).
+
+**Left off the web, since no type fits honestly** (they stay in the briefing): Lupo on LeNoir ("you know nothing more of him"), Raffaello on Lupo ("a hard man to read"), Isabella on Piero and Francesco (candidates she might bring to repent: neither ally nor rival), and LeNoir on Isabella (the widow who stared at him in the chapel). LeNoir's is the important one: it's a clue, and any colour on it would say more than his briefing does. See Open Questions for a neutral type.
 
 ---
 
@@ -992,6 +1066,8 @@ Your title. Everyone here wants something from you, which is its own kind of pow
 
 *v0.5 reorders each briefing (errand before faction) and adds one framing sentence to each section; no secret, fact, or plot point changed. Results on v0.4 and v0.5 are close but not identical inputs.*
 
+*v0.12 changes the standard social awareness text in every briefing (one sentence on seeing the room); nothing else in the tested three.*
+
 *v0.11 changes one phrase in Isabella's What you know ("Easter Mass" for "midnight Mass"); nothing else in the tested three.*
 
 *v0.10 changes the tested three only in wording: in-world names in every deadline and in Lupo's power line, and Lupo's pension line (the stakes, not a ban). No secret, fact, or errand changed.*
@@ -1038,6 +1114,8 @@ Your title. Everyone here wants something from you, which is its own kind of pow
 
 ## Open Questions
 
+- [ ] **A neutral type for the Web of Secrets?** (v0.12) Five briefing connections fit none of the six types (Shared Canon: Relationships, "Left off the web"), so they aren't drawn. A seventh, neutral type ("acquaintance") would let the web show them uncoloured. Technical Design owns the type list; only worth asking for if a player misses them
+
 - [x] ~~**Personal vs. faction goals**~~: decided (Dylan, Oct 29): errand first, faction as fallback (Briefing Template, items 2–3). Still open from it:
   - **Aligned errands are easier** (Dylan's concern): Jeanne's pension, Francesco paying Tommaso, and Tommaso receiving it serve their factions directly, while LeNoir's or Clarice's cut across them. That's the plot point table's balance, so it went to Mechanics (handoff)
   - **Clarice is the hard case:** ties to three factions (Medici family, a Pazzi lover, a French marriage). Her errand should be one thing she can finish tonight; the rest stays motivation
@@ -1067,7 +1145,7 @@ Your title. Everyone here wants something from you, which is its own kind of pow
 - [x] ~~Deduced knowledge~~: decided in Technical Design (firm, correct conclusion counts; v0.3 plot points say so)
 - [x] ~~Pazzi coup date~~: fourteen years ago, 1478, matching real history (Shared Canon: Setting; v0.5 briefly said twenty)
 - [ ] Probes found models volunteer self-incriminating clues (Isabella mentioning the silver boar or the north chapel unprompted). Should her briefing warn that the boar points to her? Weigh against making her rigid in S6
-- [ ] Re-measure briefing lengths with the play model's real tokenizer (estimates on v0.10, with voice passages: Lupo ~1,090, Isabella ~1,035, LeNoir ~985, Raffaello ~955, Francesco ~845, Beatrice ~845, Piero ~820, Giorgia ~785, Clarice ~745, Emile ~745, Fra Tommaso ~725, Jeanne ~725). All within Technical Design's ~1,150 (confirmed in v0.34)
+- [ ] Re-measure briefing lengths with the play model's real tokenizer (estimates on v0.12, with voice passages: Lupo ~1,120, Isabella ~1,065, LeNoir ~1,015, Raffaello ~985, Francesco ~875, Beatrice ~875, Piero ~850, Giorgia ~815, Clarice ~775, Emile ~775, Fra Tommaso ~755, Jeanne ~755). The v0.12 room sentence added about 30 to each; Lupo is now close to the ~1,150 budget. All within Technical Design's ~1,150 (confirmed in v0.34)
 - [ ] Is the boar seal too easy a clue? Any Florentine noble can decode it. Watch in testing; if LeNoir solves it in the first exchange, narrow who knows Salviati heraldry
 - [x] ~~Whether voice examples belong in briefings~~: yes, as a How you speak passage (v0.5)
 - [x] ~~Where shared rules text lives~~: Technical Design's rules primer (Prompt Assembly, block 2). Briefings only say what each character wants
