@@ -89,6 +89,28 @@ export interface StateValues {
   withdrawalCount: number;
   plotStatus?: string;
   actionFeedback?: string;
+  /**
+   * TD v0.45's `{room}` (Everyone Sees the Room): every other group, then every Colloquio, each in roster
+   * order, without the character's own conversation or the dead. Absent before v0.45 and outside open play.
+   */
+  room?: Room;
+}
+
+/** Where every other living guest is right now: open groups and private pairs, each a list of names. */
+export interface Room {
+  groups: string[][];
+  colloquios: string[][];
+}
+
+/**
+ * Block 5's room line text (TD v0.45): `Giorgia Pazzi, Raffaello de' Medici and Captain Armand LeNoir
+ * together; Fra Tommaso and Sister Beatrice in private.` The joining words are the setting pack's. Empty
+ * when no one else is anywhere to be seen.
+ */
+export function roomText(r: Room): string {
+  const names = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")}${say("notaio", "room.and")}${xs.at(-1)}`);
+  const parts = [...r.groups.map((g) => say("notaio", g.length === 1 ? "room.alone" : "room.together", { members: names(g) })), ...r.colloquios.map((p) => say("notaio", "room.private", { members: names(p) }))];
+  return parts.length ? parts.join(say("notaio", "room.between")) + say("notaio", "room.end") : "";
 }
 
 export interface CharacterContext {
@@ -472,7 +494,12 @@ function rulesBlock(t: PromptTemplates, r: RulesValues): string {
 }
 
 function stateBlock(t: PromptTemplates, s: StateValues): string {
-  const filled = fill(t.state, {
+  // TD v0.45: the room line is left out whole when there's no room to see (councils, calls outside a
+  // conversation) or nothing in it; a TD before v0.45 has no such line.
+  const room = s.room ? roomText(s.room) : "";
+  const template = room ? t.state : t.state.split("\n").filter((l) => !l.includes("{room}")).join("\n");
+  const filled = fill(template, {
+    room,
     phase_label: s.phaseLabel,
     conversation_label: conversationLabel(s.conversation),
     // TD v0.5: outside a conversation (Murder Round, ballot, run-off) no one is present.

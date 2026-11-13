@@ -78,7 +78,7 @@
     "errand": "Your errand tonight"
   },
   "screen": {
-    "_comment": "The player screen's labels (TD v0.39–v0.46, The screen).",
+    "_comment": "The player screen's labels (TD v0.39–v0.47, The screen).",
     "title": "Gonfaloniere",
     "connecting": "Connecting…",
     "reconnecting": "The connection dropped. Reconnecting…",
@@ -196,7 +196,7 @@
       "switch": "Turn these explanations on or off. This browser remembers your choice.",
       "sheet": "Your character: your purse, the French pensions you hold, and how many times tonight you've drawn someone aside for a private word.",
       "errand": "What you came to do tonight. It stays here so you don't lose sight of it. Once it has been checked, the result appears here too.",
-      "here": "The guests in your conversation right now. Everyone here hears what you say.",
+      "here": "The room: the guests with you, then everyone else as they stand right now. You can see who is with whom, never what they say.",
       "briefing": "Your briefing: who you are, what you know, and what you want. Only you can see it.",
       "rules": "The rules of the evening, as every guest has them.",
       "header": "Where you are: the time of the evening, and who you're talking with.",
@@ -252,7 +252,9 @@
       "deselect": "Stop looking at this guest, and go back to whoever you're talking with.",
       "backToTalk": "Back to whoever you're talking with.",
       "resize": "Drag to make this panel wider or narrower. This browser remembers the width.",
-      "loreEntry": "A lore entry you opened from a line. Back returns to what you were looking at."
+      "loreEntry": "A lore entry you opened from a line. Back returns to what you were looking at.",
+      "roomToken": "{name}, in company. Click to select them.",
+      "roomPair": "{name}, in private. Click to select them."
     },
     "city": "The city",
     "decks": {
@@ -330,6 +332,9 @@
         "n": "you saw {n} things that concern {who}"
       },
       "both": "them both"
-    }
+    },
+    "room": "The room",
+    "withYou": "With you",
+    "withYouPrivately": "With you, in private"
   }
 }

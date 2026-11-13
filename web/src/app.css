@@ -248,3 +248,17 @@ button.person-head { cursor: pointer; }
 .person.look { position: absolute; left: 0; right: 0; top: calc(var(--peek-height) + var(--space-4)); bottom: 0; overflow-y: auto; background: var(--paper); box-shadow: var(--shadow-raised); border-radius: var(--radius-lg) var(--radius-lg) 0 0; animation: slide-up var(--motion-slow) ease-out; }
 .person.look .person-head { justify-content: space-between; }
 button.icon.close { font-size: var(--text-lg); line-height: 1; padding: 0 var(--space-2); }
+
+/* The room (TD v0.45): your own group marked, other groups as overlapping tokens that spread on hover, private pairs joined */
+.room { display: flex; flex-direction: column; gap: var(--space-3); }
+.cluster.mine { border-left: var(--mark-ring) solid var(--accent); padding-left: var(--space-2); }
+.cluster-label { font-size: var(--text-xs); color: var(--text-muted); margin-bottom: var(--space-1); }
+.clusters { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); }
+.stack { display: inline-flex; align-items: center; }
+.stack-item { display: inline-flex; align-items: center; }
+.cluster:not(.pair) .stack-item + .stack-item { margin-left: calc(var(--token-overlap) * -1); transition: margin var(--motion-fast) ease-out; }
+.cluster:not(.pair):hover .stack-item + .stack-item, .cluster:not(.pair):focus-within .stack-item + .stack-item { margin-left: var(--space-1); }
+.joint { width: var(--space-2); height: var(--mark-ring); background: var(--text-muted); }
+button.token { border: var(--mark-ring) solid var(--surface); border-radius: var(--radius-round); padding: 0; background: transparent; line-height: 0; }
+button.token.selected { border-color: var(--accent); }
+button.token .portrait { width: var(--token-size); height: var(--token-size); font-size: var(--text-xs); }

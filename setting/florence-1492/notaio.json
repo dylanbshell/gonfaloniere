@@ -42,5 +42,14 @@
   "reading": {
     "_comment": "TD v0.44, Il Notaio's reading in the Web of Secrets: the prompt in TD names him and his trade in its own words; these replace them when the prompt is loaded. His name is in-world-names.json's narrator.",
     "role": "notary"
+  },
+  "room": {
+    "_comment": "TD v0.45, Block 5's {room} (Mechanics: Everyone Sees the Room): where every other living guest is right now. Each group, then each private pair, joined by `between`, ending with `end`; a group's names joined by commas and `and`. Drafted by Claude Code (CC-20261113-04); `together` and `in private` are TD's words.",
+    "together": "{members} together",
+    "alone": "{members} on their own",
+    "private": "{members} in private",
+    "and": " and ",
+    "between": "; ",
+    "end": "."
   }
 }

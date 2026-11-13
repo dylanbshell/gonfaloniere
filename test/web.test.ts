@@ -498,3 +498,28 @@ test("the Web of Secrets: a bar always there, a key of the six types that highli
   assert.match(game({ v: withReading(null), web: ["Lupo"] }), /data-reading="tally">Tally\.</);
   assert.deepEqual(missingWords(h), []);
 });
+
+// ---- CC-20261113-04 (#95): the room (TD v0.45) -----------------------------------------------------------
+
+test("the room: your own group marked, by name; every other group as overlapping tokens and each private pair joined, from the state's room", async () => {
+  const { at } = await playedLog();
+  const v = derive(at["speak:capannello"]!);
+  assert.ok(v.state!.room, "the default TD (v0.45) sends the room in open play");
+  const h = game({ v });
+  const left = h.slice(h.indexOf('class="side left"'), h.indexOf('class="centre"'));
+  assert.match(left, /class="cluster mine" data-cluster="mine"/);
+  const room = v.state!.room!;
+  assert.equal((left.match(/data-cluster="group"/g) ?? []).length, room.groups.length);
+  assert.equal((left.match(/data-cluster="private"/g) ?? []).length, room.colloquios.length);
+  assert.equal((left.match(/class="token( selected)?"/g) ?? []).length, [...room.groups, ...room.colloquios].flat().length, "a token for every other guest in the room");
+  assert.equal((left.match(/class="joint"/g) ?? []).length, room.colloquios.length, "each pair joined");
+  // A hand-made room: two groups and a pair.
+  const made = { ...v, state: { ...v.state!, room: { groups: [["Lupo", "Fra Tommaso"], ["Sister Beatrice"]], colloquios: [["Piero de' Medici", "Clarice Orsini"]] } } };
+  const m = game({ v: made, selected: { kind: "guest", name: "Lupo" } });
+  assert.equal((m.match(/data-cluster="group"/g) ?? []).length, 2);
+  assert.match(m, /class="token selected" aria-label="Lupo"/, "a selected guest's token is marked");
+  // Midnight: no room, only who's with you.
+  const mid = derive(at.midnight!);
+  assert.equal(mid.state!.room, undefined);
+  assert.doesNotMatch(game({ v: mid }), /data-cluster="(group|private)"/);
+});

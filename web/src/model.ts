@@ -39,6 +39,8 @@ export interface State {
   pensionsHeld: number;
   withdrawalCount: number;
   plotStatus?: string;
+  /** TD v0.45: where every other living guest is, in open play (the AI guests' room line); absent otherwise. */
+  room?: { groups: string[][]; colloquios: string[][] };
   [k: string]: unknown;
 }
 
