@@ -78,6 +78,17 @@ export interface Sheet {
   connections?: Connection[];
   lore?: LoreEntry[];
   past?: { id: string; title: string; text: string }[];
+  /** TD v0.44, the evening's track: this game's stages, in order, by their names. */
+  track?: string[];
+}
+
+/** Il Notaio's reading (TD v0.44) for one or two guests, up to a place in the record; `text` null: the tally instead. */
+export interface Reading {
+  seq: number;
+  guests: string[];
+  upTo: number;
+  text: string | null;
+  tally: string;
 }
 
 export interface Note {
@@ -109,6 +120,9 @@ export interface View {
   deaths: { name: string; you: boolean; seq: number }[];
   result: Result | null;
   notes: Note[];
+  readings: Reading[];
+  /** Who was present at each state update, in order: whether someone left the player's group since a moment. */
+  presence: { seq: number; present: string[] }[];
   /** The seq of the player's last own line, for rotating the example line. */
   spoken: number;
   /** The seq of the last line or request: a refusal after it is the latest thing that happened. */
@@ -116,7 +130,7 @@ export interface View {
 }
 
 export function derive(log: Ev[]): View {
-  const v: View = { stream: [], segments: [], state: null, commands: [], speaking: null, sheet: null, pending: null, refusal: null, deaths: [], result: null, notes: [], spoken: 0, activity: 0 };
+  const v: View = { stream: [], segments: [], state: null, commands: [], speaking: null, sheet: null, pending: null, refusal: null, deaths: [], result: null, notes: [], readings: [], presence: [], spoken: 0, activity: 0 };
   const open = new Map<string, Request>();
   let waiting: Segment | null = null;
   for (const e of log) {
@@ -135,6 +149,7 @@ export function derive(log: Ev[]): View {
       if (l.item === "line" && l.you) v.spoken++;
     } else if (e.type === "state") {
       v.state = e.state as State;
+      v.presence.push({ seq: e.seq, present: v.state.present ?? [] });
       v.commands = e.commands as Command[];
       v.speaking = (e.speaking as string | null | undefined) ?? null;
       if (e.sheet) v.sheet = e.sheet as unknown as Sheet;
@@ -149,6 +164,7 @@ export function derive(log: Ev[]): View {
     else if (e.type === "death") v.deaths.push({ name: e.name as string, you: !!e.you, seq: e.seq });
     else if (e.type === "result") v.result = e.result as Result;
     else if (e.type === "note") v.notes.push({ id: e.id as string, seq: e.seq, turn: e.turn as number, guests: e.guests as string[], text: e.text as string });
+    else if (e.type === "reading") v.readings.push({ seq: e.seq, guests: e.guests as string[], upTo: e.upTo as number, text: (e.text as string | null) ?? null, tally: e.tally as string });
   }
   v.pending = [...open.values()].at(-1) ?? null;
   return v;
@@ -265,6 +281,46 @@ export function heardAndSaw(v: View, guests: string[], me: string): { heard: Lin
   return { heard: [...heard].reverse(), saw: saw.sort((a, b) => seq(b) - seq(a)) };
 }
 
+/**
+ * Who the "talking with" card shows (TD v0.46, Player Interface, Right). In a Colloquio, the other guest.
+ * In a group, the guest the player last @-addressed or who last addressed the player, whichever is most
+ * recent, until another address involving the player replaces it, or that guest or the player leaves the
+ * group (the player's own lines to no one don't change it). Otherwise no one: null.
+ */
+export function talkingWith(v: View, me: string): string | null {
+  const c = v.state?.conversation;
+  if (!c) return null;
+  if (c.kind === "colloquio") return c.other;
+  if (c.kind !== "capannello") return null;
+  // This stretch in this group: leaving the group starts another.
+  const seg = v.segments.at(-1);
+  const last = [...(seg?.lines ?? [])].reverse().find((l) => l.item === "line" && !!l.addressee && (l.you ? l.addressee !== me : l.addressee === me));
+  if (!last) return null;
+  const who = last.you ? last.addressee! : last.speaker!;
+  // Still with the player, at every state since the address.
+  const since = v.presence.filter((p) => p.seq > last.seq);
+  return (since.length ? since : v.presence.slice(-1)).every((p) => p.present.includes(who)) ? who : null;
+}
+
+/** The seq of the newest entry in the record for these guests (0 for none): a reading stands until it grows. */
+export function recordUpTo(v: View, guests: string[], me: string): number {
+  const r = heardAndSaw(v, guests, me);
+  return Math.max(0, ...r.heard.map((l) => l.seq), ...r.saw.map((s) => (s.kind === "line" ? s.line.seq : s.seq)));
+}
+
+/** The latest reading for exactly these guests that covers the record as it stands, if any. */
+export function readingFor(v: View, guests: string[], me: string): Reading | null {
+  const upTo = recordUpTo(v, guests, me);
+  const same = (a: string[]) => a.length === guests.length && a.every((g) => guests.includes(g));
+  return [...v.readings].reverse().find((r) => same(r.guests) && r.upTo === upTo) ?? null;
+}
+
+/** The evening's track (TD v0.44): each stage done, now, or still to come, by the current phase's name. */
+export function trackMarks(stages: string[], now: string | undefined): { stage: string; at: "past" | "now" | "next" }[] {
+  const i = now === undefined ? -1 : stages.indexOf(now);
+  return stages.map((stage, j) => ({ stage, at: i < 0 ? "next" : j < i ? "past" : j === i ? "now" : "next" }));
+}
+
 /** Whether a guest was part of an earlier conversation: spoke in it, was present, or was named in its events. */
 export function appearsIn(seg: Segment, name: string): boolean {
   return seg.state?.present.includes(name) || seg.lines.some((l) => l.speaker === name || l.addressee === name || l.about?.includes(name)) || false;
@@ -306,4 +362,24 @@ export function webLayout(roster: { name: string; faction: string }[], factions:
     at.set(g.name, { x: 50 + 38 * Math.cos(t), y: 50 + 38 * Math.sin(t) });
   });
   return at;
+}
+
+/**
+ * Each faction's label in the web (TD v0.44): its name, in its colour, outside the circle at the middle
+ * of its guests' arc. Factions with no guest on the web are left out.
+ */
+/** How far out the faction names sit: past the guests' circle (38) and their names. */
+const FACTION_RADIUS = 56;
+
+export function factionLabels(roster: { name: string; faction: string; colour?: string }[], factions: readonly string[], at: Map<string, { x: number; y: number }>): { faction: string; colour: string | undefined; x: number; y: number }[] {
+  const names = [...new Set([...factions, ...roster.map((r) => r.faction)])];
+  return names.flatMap((f) => {
+    const members = roster.filter((r) => r.faction === f && at.has(r.name));
+    if (!members.length) return [];
+    // The mean direction of the members from the centre, pushed out past their names.
+    const dx = members.reduce((s, r) => s + at.get(r.name)!.x - 50, 0);
+    const dy = members.reduce((s, r) => s + at.get(r.name)!.y - 50, 0);
+    const len = Math.hypot(dx, dy) || 1;
+    return [{ faction: f, colour: members[0]!.colour, x: 50 + (FACTION_RADIUS * dx) / len, y: 50 + (FACTION_RADIUS * dy) / len }];
+  });
 }

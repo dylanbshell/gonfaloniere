@@ -51,17 +51,21 @@ import type { LogprobsSetting, StoredLogprobs } from "./logprobs.ts";
 import { loreLines, type LoreSetting } from "./lore.ts";
 import type { RetrievalMethod, VectorStore } from "./store.ts";
 import { gameAct, hasArrival, inWorldNames, inWorldTime, minglingPhase } from "../prompt/names.ts";
-import type { RequestKind } from "../core/protocol.ts";
+import type { OutgoingBody, RequestKind } from "../core/protocol.ts";
 import { actProblems } from "../rules/midnight.ts";
 import { MemoryStore, renderBelief, tookTargetLine, resolveName, whereLabel, type GameLine, type Thought, type Where } from "./memory.ts";
+import { READING_MAX_TOKENS, readingMaterial, readingPrompt, unfoundQuotes, type ReadingMaterial } from "./reading.ts";
 import { MESSAGE_MAX, NOTE_MAX, PlayerFeed, errandText, screenContent, type PlayerNote, mentions, menu, parseCommand, playable, playerSays, refusal, type CommandAction } from "./player.ts";
 
 // ---- Calls -----------------------------------------------------------------------------
 
 export type CallKind = "plan" | "think" | "speak" | "move" | "seat" | "murder" | "star-pass" | "claims-pass" | "sweep-reask" | "thought-pass" | "perception-pass" | "knowledge-check";
 
+/** TD v0.44: the player screen's one model call, Il Notaio's reading. Never a character's call, never in a replay. */
+export type ScreenCallKind = "notaio-reading";
+
 export interface CallRequest {
-  kind: CallKind;
+  kind: CallKind | ScreenCallKind;
   character: CharacterName | null;
   system: string;
   user: string;
@@ -89,8 +93,8 @@ export type Caller = (req: CallRequest) => Promise<CallResponse | null>;
 export interface CallRecord {
   n: number;
   turn: number;
-  /** "command": a human player's typed command (TD v0.39). */
-  kind: CallKind | "command";
+  /** "command": a human player's typed command (TD v0.39); "notaio-reading": the screen's reading (TD v0.44). */
+  kind: CallKind | "command" | ScreenCallKind;
   character: CharacterName | null;
   attempt: number;
   user: string;
@@ -108,8 +112,8 @@ export interface CallRecord {
   model: string | null;
   /** TD v0.21: the top 5 candidates at the `took` / `meant` label token (or every token's, with `all`); null where unsupported. Nothing in play reads it. */
   logprobs?: StoredLogprobs | null;
-  /** TD v0.39: a human player's input, with the text as typed in `raw`; no prompt, no model, no cost. */
-  source?: "human";
+  /** TD v0.39: a human player's input, with the text as typed in `raw`; no prompt, no model, no cost. TD v0.44: "player screen", Il Notaio's reading, with its prompt and reply. */
+  source?: "human" | "player screen";
 }
 
 /** Runner hooks: a turn-end report, for progress lines. */
@@ -303,6 +307,7 @@ export class MiniGame {
       this.player = new PlayerFeed(ctrl, this.human);
       ctrl.onInput = (m) => this.playerInput(m);
       ctrl.onNote = (m) => this.playerNote(m);
+      ctrl.onReading = (m) => void this.playerReading(m.guests);
       this.recorder.skipPerception = new Set([this.human]);
     }
     for (const c of s.cast) {
@@ -1147,9 +1152,13 @@ export class MiniGame {
 
   /** Block 5's {phase_label}: from TD v0.34 the in-world name ("The first round of mingling, early"; "Midnight"), before it the game's. */
   private phaseLabel(gathering: boolean): string {
-    const turn = Math.max(1, this.turn);
+    return this.phaseLabelAt(this.turn, gathering);
+  }
+
+  private phaseLabelAt(at: number, gathering: boolean): string {
+    const turn = Math.max(1, at);
     // TD v0.36: before the first turn (the opening), "The guests' arrival"; before v0.36 it read as the first turn.
-    if (this.docs.inWorld && !gathering && this.turn === 0 && hasArrival(this.docs.versions.technicalDesign)) return inWorldNames().arrival.phase;
+    if (this.docs.inWorld && !gathering && at === 0 && hasArrival(this.docs.versions.technicalDesign)) return inWorldNames().arrival.phase;
     if (this.docs.inWorld) return gathering ? inWorldNames().phase.midnight : minglingPhase(turn, this.s.turns);
     return gathering ? "The Murder Round" : `Capannello round 1, turn ${turn}`;
   }
@@ -1266,6 +1275,8 @@ export class MiniGame {
       rules: rulesText(this.docs.templates, { ...this.docs.tunables, plotProtection: false, plotReward: false }),
       briefing: this.s.briefings[h]!,
       errand: errandText(this.s.briefings[h]!),
+      // TD v0.44, the evening's track: the stages of this game's own schedule, by their names.
+      track: this.stages(),
       ...screenContent(h, this.s.lore ?? "off"),
     }));
   }
@@ -1282,6 +1293,57 @@ export class MiniGame {
     const note: PlayerNote = { id: `N${this.playerNotes.length + 1}`, turn: this.turn, guests, text };
     this.playerNotes.push(note);
     this.player!.ctrl.send({ type: "note", ...note });
+  }
+
+  // ---- Il Notaio's reading (TD v0.44; CC-20261113-02, #90) ------------------------------------------
+  //
+  // The screen's one model call: for one or two guests, what the player heard and saw of them, read by the
+  // recorder model at temperature 0 from first-hand material only (reading.ts). Every quote is checked;
+  // a reading that fails, a game whose TD has no reading (before v0.44), or a call the cap stops gives the
+  // plain tally instead. One per selection until its record grows. Recorded as a call with source
+  // "player screen"; nothing of it reaches a character's prompt, the game's state, or a replay.
+
+  private readings = new Map<string, Promise<Extract<OutgoingBody, { type: "reading" }>>>();
+
+  private async playerReading(asked: string[]): Promise<void> {
+    const h = this.human!;
+    const known = settingPack().roster.map((r) => r.name);
+    const guests = [...new Set(asked)];
+    if (!guests.length || guests.length > 2 || guests.some((g) => !known.includes(g))) return;
+    const m = readingMaterial(h, guests, this.player!.ctrl.log, screenContent(h, this.s.lore ?? "off").connections, this.memory.timeLabel);
+    const key = `${[...guests].sort().join("|")}@${m.upTo}`;
+    let made = this.readings.get(key);
+    if (!made) {
+      made = this.makeReading(m);
+      this.readings.set(key, made);
+    }
+    this.player!.ctrl.send(await made);
+  }
+
+  private async makeReading(m: ReadingMaterial): Promise<Extract<OutgoingBody, { type: "reading" }>> {
+    const shown = (text: string | null) => ({ type: "reading" as const, guests: m.guests, upTo: m.upTo, text, tally: m.tally });
+    const tdPrompt = this.docs.notaioReading;
+    if (!tdPrompt) return shown(null);
+    const { system, user } = readingPrompt(tdPrompt, m);
+    this.prefixes["notaio-reading"] = system;
+    const res = await this.call({ kind: "notaio-reading", character: null, system, user, maxTokens: READING_MAX_TOKENS, temperature: this.s.systemTemperature });
+    if (!res) return shown(null);
+    const reading = res.ok ? res.content.trim() : "";
+    const unfound = res.ok ? unfoundQuotes(reading, user) : [];
+    const ok = res.ok && reading.length > 0 && unfound.length === 0;
+    const error = !res.ok ? res.error : !reading ? "empty" : unfound.length ? `quotes not in the material: ${unfound.map((q) => JSON.stringify(q)).join(", ")}` : null;
+    this.calls.push({ n: this.nextCall++, turn: this.turn, kind: "notaio-reading", character: null, attempt: 1, user, raw: res.ok ? res.content : null, parsed: { guests: m.guests, shown: ok }, verdict: ok ? "valid" : "default", repairs: [], error, costUsd: res.costUsd, inputTokens: res.inputTokens, outputTokens: res.outputTokens, latencyMs: res.latencyMs, provider: res.provider, model: res.model, source: "player screen" });
+    return shown(ok ? reading : null);
+  }
+
+  /**
+   * The evening's stages for the track (TD v0.44): this game's own schedule, as block 5 names each stage
+   * (the arrival, the round of mingling by its thirds, midnight), in order, each once.
+   */
+  stages(): string[] {
+    const first = this.docs.inWorld && hasArrival(this.docs.versions.technicalDesign) ? 0 : 1;
+    const labels = [...Array.from({ length: this.s.turns - first + 1 }, (_, i) => this.phaseLabelAt(first + i, false)), this.phaseLabelAt(this.s.turns, true)];
+    return labels.filter((l, i) => labels.indexOf(l) === i);
   }
 
   private recordHuman(kind: CallRecord["kind"], raw: string, parsed: unknown, refused: string | null): void {

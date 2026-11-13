@@ -75,6 +75,12 @@ export interface DocSources {
   socialAwareness: string;
   /** TD v0.6's system prompts (★ pass, claims pass, thought pass, knowledge check), and from v0.8 the perception pass; absent before v0.6. */
   systemPrompts?: { starPass: SystemPrompt; claimsPass: SystemPrompt; thoughtPass: SystemPrompt; knowledgeCheck: SystemPrompt; perceptionPass?: SystemPrompt };
+  /**
+   * TD v0.44's Il Notaio's reading (Player Interface, The screen): its system and user messages, as TD
+   * writes them, and the two words TD says the setting pack replaces ("The words … and … come from the
+   * setting pack"). Absent before v0.44.
+   */
+  notaioReading?: SystemPrompt & { names: [string, string] };
   /** TD v0.6's checks on memory writing (Output Validation & Repair); absent before v0.6. */
   memoryRules?: MemoryRules;
   /** TD v0.5's plot-point facts (F1–F4, and the optional F5); empty before v0.5. */
@@ -181,6 +187,7 @@ export function loadDocs(paths: DocPaths): DocSources {
     socialAwareness,
     ...(systemPrompts(td) && { systemPrompts: systemPrompts(td)! }),
     ...(memoryRules(td) && { memoryRules: memoryRules(td)! }),
+    ...(notaioReading(td) && { notaioReading: notaioReading(td)! }),
     plotFacts: plotFacts(td),
     inWorld,
   };
@@ -210,6 +217,28 @@ function systemPrompts(td: string): DocSources["systemPrompts"] | null {
   // TD v0.8: the perception pass (block 10e); absent before v0.8.
   const perceptionPass = pair("### Block 10e — Perception pass");
   return { starPass, claimsPass: { system: claimsSystem, user: starPass.user }, thoughtPass, knowledgeCheck, ...(perceptionPass && { perceptionPass }) };
+}
+
+/**
+ * TD v0.44: the reading's prompt is the pair of code blocks in The screen's paragraph on Il Notaio's
+ * reading (nested in its list, so indented), up to the next paragraph. Null before v0.44.
+ */
+function notaioReading(td: string): DocSources["notaioReading"] | null {
+  let lines: string[];
+  try {
+    lines = section(td, "### The screen");
+  } catch {
+    return null;
+  }
+  // "**<narrator>'s reading** *(…)*": the narrator's name is the setting's, so it isn't spelled here.
+  const start = lines.findIndex((l) => /^\*\*[^*]+'s reading\*\* \*\(/.test(l));
+  if (start < 0) return null;
+  const end = lines.findIndex((l, i) => i > start && /^\*\*[^*]+\*\*/.test(l));
+  const part = lines.slice(start, end < 0 ? undefined : end).join("\n");
+  const [system, user] = fencesUnder(`### Reading\n${part}`, "### Reading", { indented: true });
+  const names = part.match(/The words "([^"]+)" and "([^"]+)" come from the setting pack/);
+  if (!system || !user || !names) throw new Error("TD: Il Notaio's reading needs its system and user messages, and the words the setting pack replaces");
+  return { system, user, names: [names[1]!, names[2]!] };
 }
 
 /** Terms each recorder prompt defines in its DEFINITIONS section (TD v0.7's definitions contract). */

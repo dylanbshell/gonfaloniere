@@ -36,6 +36,8 @@ export class HumanController {
   onInput: (m: Incoming) => void = () => {};
   /** A note from the player: taken at any time, whatever the game is waiting for. */
   onNote: (m: Extract<Incoming, { type: "note" }>) => void = () => {};
+  /** A request for a reading: taken at any time, like a note. */
+  onReading: (m: Extract<Incoming, { type: "reading" }>) => void = () => {};
 
   constructor(readonly character: string) {}
 
@@ -88,6 +90,7 @@ export class HumanController {
     }
     this.received.push(m);
     if (m.type === "note") return this.onNote(m);
+    if (m.type === "reading") return this.onReading(m);
     const p = this.pending;
     if (p && !(m.type === "choice" && m.request !== p.event.id)) {
       const a = p.accept(m);

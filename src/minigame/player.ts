@@ -6,7 +6,7 @@
 import type { HumanController } from "../core/human.ts";
 import type { OutgoingBody } from "../core/protocol.ts";
 import { ALIASES, type CharacterName } from "../game/roster.ts";
-import { relationships, say, settingPack } from "../setting/pack.ts";
+import { relType, relationships, say, settingPack } from "../setting/pack.ts";
 import { readLoreFile, type LoreEntry, type LoreSetting } from "./lore.ts";
 import type { GameLine } from "./memory.ts";
 
@@ -62,8 +62,9 @@ export function screenContent(me: CharacterName, lore: LoreSetting, loadable: Lo
   const entries = loadable.filter((e) => (e.kind ?? "lore") === "lore");
   return {
     connections: [
-      ...rel.public.map((c) => ({ between: c.between, type: c.type, line: c.line })),
-      ...(rel.private[me] ?? []).map((c) => ({ between: [me, c.with], type: c.type, line: c.line, private: true })),
+      // Types as the six (TD v0.44): an interim name (`love`) is read as its type (`romance`).
+      ...rel.public.map((c) => ({ between: c.between, type: relType(c.type), line: c.line })),
+      ...(rel.private[me] ?? []).map((c) => ({ between: [me, c.with], type: relType(c.type), line: c.line, private: true })),
     ],
     lore: entries.filter((e) => e.scope === "public").map((e) => ({ id: e.id, title: e.title, aliases: e.aliases ?? [], subject: e.subject ?? null, text: e.text })),
     past: lore === "on" ? entries.filter((e) => e.scope === me).map((e) => ({ id: e.id, title: e.title, text: e.text })) : [],

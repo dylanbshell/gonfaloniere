@@ -220,7 +220,7 @@ test("Speak is disabled for an @ alone, and active with something to say; a comm
 // ---- CC-20261112-03 (#81) --------------------------------------------------------------------------------
 
 test("a deck swipes to the next card on a click, goes back with the arrow key, and keeps its place when reopened", { skip }, async () => {
-  const tab = () => page.eval<string>(`document.querySelector(".tab.on")?.textContent ?? ""`);
+  const tab = () => page.eval<string>(`document.querySelector(".deck .tab.on")?.textContent ?? ""`);
   await page.eval(`document.querySelector('[data-hint="rules"]').click()`);
   await page.until(`document.querySelector(".deck-card")`);
   const first = await tab();
@@ -242,17 +242,18 @@ test("a deck swipes to the next card on a click, goes back with the arrow key, a
 test("selecting a guest shows them on the right; Escape clears it", { skip }, async () => {
   const name = await page.eval<string>(`document.querySelector(".here .guest").textContent`);
   await page.eval(`document.querySelector(".here .guest").click()`);
-  await page.until(`document.querySelector('.side.right [data-guest]')?.dataset.guest === ${JSON.stringify(name)} && document.querySelector('.side.right [data-hint="selected"]')`);
+  await page.until(`document.querySelector('.side.right .look')?.dataset.guest === ${JSON.stringify(name)} && document.querySelector('.side.right [data-hint="lookingAt"]')`);
+  await page.shot("looking-at");
   await page.eval(`document.querySelector(".input textarea").blur()`);
   await page.key("Escape", 27);
-  await page.until(`!document.querySelector('.side.right [data-hint="selected"]')`);
+  await page.until(`!document.querySelector('.side.right .look')`);
 });
 
-test("a note written in the web viewer stays with the game across a refresh", { skip }, async () => {
+test("a note written in the Web of Secrets stays with the game across a refresh", { skip }, async () => {
   await page.eval(`document.querySelector('[data-hint="web"]').click()`);
-  await page.until(`document.querySelector(".web .node") && document.querySelector(".web").getAnimations().length === 0`);
+  await page.until(`document.querySelector(".web-dock.open .node") && document.querySelector(".web-dock").getAnimations().length === 0`);
   // Over everything: near every corner (inside the rounded ones), the panel shows.
-  const top = await page.eval<boolean>(`(() => { const r = document.querySelector(".web").getBoundingClientRect(); return [[r.left + 20, r.top + 20], [r.right - 20, r.top + 20], [r.left + 20, r.bottom - 20], [r.right - 20, r.bottom - 20]].every(([x, y]) => document.elementFromPoint(x, y)?.closest(".web")); })()`);
+  const top = await page.eval<boolean>(`(() => { const r = document.querySelector(".web-dock").getBoundingClientRect(); return [[r.left + 20, r.top + 20], [r.right - 20, r.top + 20], [r.left + 20, r.bottom - 20], [r.right - 20, r.bottom - 20]].every(([x, y]) => document.elementFromPoint(x, y)?.closest(".web-dock")); })()`);
   assert.equal(top, true);
   await page.eval(`document.querySelector('.web .node').dispatchEvent(new MouseEvent("click", { bubbles: true }))`);
   await page.eval(`document.querySelector('[data-hint="notesTab"]').click()`);
@@ -291,7 +292,7 @@ const leftColumn = () =>
 test("on a short window, every left-column control is in sight, or a hint says there's more below and scrolls to it", { skip }, async () => {
   // Nothing open over the columns (the notes test leaves the web viewer open).
   await page.key("Escape", 27);
-  await page.until(`!document.querySelector(".web, .overlay")`);
+  await page.until(`!document.querySelector(".web-dock.open, .overlay")`);
   for (const height of [680, 480]) {
     await page.send("Emulation.setDeviceMetricsOverride", { width: VIEW.width, height, deviceScaleFactor: 1, mobile: false });
     await page.until(`innerHeight === ${height}`);
@@ -330,13 +331,10 @@ test("one panel's failure stays in its panel: the rest of the screen keeps worki
     for (const [other, sel] of Object.entries(parts)) if (other !== panel) assert.ok(await page.eval<boolean>(`!!document.querySelector(${JSON.stringify(sel)})`), `with the ${panel} failed, the ${other} still shows`);
     await page.shot(`fault-${panel}`);
   }
-  // The web viewer fails in its own window, which still closes.
+  // The Web of Secrets fails in its own bar at the bottom, and the rest keeps working.
   await reopen(`?fault=web`);
-  await page.eval(`document.querySelector('[data-hint="web"]').click()`);
-  await page.until(`document.querySelector('[data-panel-error="web"]')`);
-  assert.ok(await page.eval<boolean>(`!!document.querySelector(".input textarea") && !!document.querySelector(".stream .ln")`));
-  await page.key("Escape", 27);
-  await page.until(`!document.querySelector('[data-panel-error="web"]')`);
+  await page.until(`document.querySelector('.web-dock [data-panel-error="web"]')`);
+  assert.ok(await page.eval<boolean>(`!!document.querySelector(".input textarea") && !!document.querySelector(".stream .ln") && !!document.querySelector(".side.right")`));
   await reopen();
 });
 
@@ -352,4 +350,33 @@ test("the screen holds still while the first events arrive (layout shift under 0
   const cls = shifts.reduce((a, s) => a + s.value, 0);
   t.diagnostic(`cumulative layout shift ${cls.toFixed(3)}`);
   assert.ok(cls < 0.1, `cumulative layout shift ${cls.toFixed(3)}: ${JSON.stringify(shifts)}`);
+});
+
+// ---- CC-20261113-02 (#90) --------------------------------------------------------------------------------
+
+test("the Web of Secrets: a bar along the bottom that slides up to nine-tenths and down again; its key highlights a type", { skip }, async () => {
+  await reopen();
+  const bar = await page.eval<{ top: number; bottom: number; layoutBottom: number }>(`(() => { const b = document.querySelector(".web-bar").getBoundingClientRect(); return { top: b.top, bottom: b.bottom, layoutBottom: document.querySelector(".layout").getBoundingClientRect().bottom }; })()`);
+  assert.equal(Math.round(bar.bottom), VIEW.height, "the bar sits on the window's bottom edge");
+  assert.ok(bar.layoutBottom <= bar.top + 1, "the columns stand above it, so it covers nothing");
+  await page.eval(`document.querySelector(".web-bar").click()`);
+  await page.until(`document.querySelector(".web-dock.open") && document.querySelector(".web-dock").getAnimations().length === 0`);
+  const h = await page.eval<number>(`document.querySelector(".web-dock").getBoundingClientRect().height`);
+  assert.ok(Math.abs(h - 0.9 * VIEW.height) < 2, `open to nine-tenths of the window (${h}px)`);
+  // The key: a type lights its lines and dims the rest; again clears it.
+  const type = await page.eval<string>(`document.querySelector(".key-type").dataset.type`);
+  await page.eval(`document.querySelector(".key-type").click()`);
+  const lit = await page.eval<{ on: number; off: number; ofType: number }>(`({ on: document.querySelectorAll(".web-diagram .edge.key-on").length, off: document.querySelectorAll(".web-diagram .edge.key-off").length, ofType: document.querySelectorAll(".web-diagram .edge.rel-${type}").length })`);
+  assert.equal(lit.on, lit.ofType, "every line of the type is lit");
+  assert.ok(lit.off > 0, "the others are dimmed");
+  await page.shot("web-key");
+  await page.eval(`document.querySelector(".key-type").click()`);
+  assert.equal(await page.eval<number>(`document.querySelectorAll(".web-diagram .key-on, .web-diagram .key-off").length`), 0, "clicking again clears it");
+  // Il Notaio's box answers a selection: on this game's TD (no reading before v0.44), with the plain tally.
+  await page.eval(`document.querySelector('.web .node').dispatchEvent(new MouseEvent("click", { bubbles: true }))`);
+  await page.until(`document.querySelector(".reading-text")?.dataset.reading === "tally"`);
+  await page.shot("web-reading");
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector(".web-dock.open") && document.querySelector(".web-dock").getAnimations().length === 0`);
+  assert.equal(Math.round(await page.eval<number>(`document.querySelector(".web-dock").getBoundingClientRect().height`)), Math.round(bar.bottom - bar.top), "Escape slides it down to the bar");
 });

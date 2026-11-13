@@ -8,6 +8,8 @@ export interface StartInfo {
   words: Record<string, unknown>;
   notaio: { hints: Record<string, string> };
   factions: string[];
+  /** TD v0.44: the six relationship types, in relationships.json's order, with their labels, for the web's key. */
+  relationshipTypes?: { type: string; label: string; covers: string }[];
   max: number;
   roster: { name: string; faction: string; subtitle: string; initials: string; colour: string }[];
   playable: { name: string; intro: string }[];

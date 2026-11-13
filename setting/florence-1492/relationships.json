@@ -1,5 +1,37 @@
 {
-  "_comment": "The web's fixed lines (TD v0.40–v0.43, The web viewer). `public`: connections everyone knows, each with a type and one public line (Characters to write). `private`: each character's own connections, from their briefing's Relationships section, seen only by that character. Until Characters supplies this file, it holds only the playable character's own connections, copied from his briefing (Characters v0.11).",
+  "_comment": "The web's fixed lines (TD v0.40–v0.45, The Web of Secrets). `types`: the six fixed relationship types (TD v0.44), each with its label and what it covers; every connection uses one. `public`: connections everyone knows, each with a type and one public line (Characters to write). `private`: each character's own connections, from their briefing's Relationships section, seen only by that character. Until Characters supplies this file, it holds only the playable character's own connections, copied from his briefing (Characters v0.11), with the interim types that `interim` maps to the six.",
+  "types": {
+    "romance": {
+      "label": "Romance",
+      "covers": "Lovers, courtship, a love that's hoped for"
+    },
+    "kin": {
+      "label": "Kin",
+      "covers": "Family by blood or marriage"
+    },
+    "service": {
+      "label": "Service",
+      "covers": "One serves or protects the other (a bodyguard, a guard, a confessor)"
+    },
+    "alliance": {
+      "label": "Alliance",
+      "covers": "The same side, or a friendship of use"
+    },
+    "rivalry": {
+      "label": "Rivalry",
+      "covers": "Enemies, rivals, a grudge"
+    },
+    "money": {
+      "label": "Money",
+      "covers": "A debt, a payment owed, a purse one controls"
+    }
+  },
+  "interim": {
+    "_comment": "TD v0.44: the interim file's types, read as the six until Characters rewrites the connections with them.",
+    "love": "romance",
+    "family": "kin",
+    "enmity": "rivalry"
+  },
   "public": [],
   "private": {
     "Francesco Pazzi": [

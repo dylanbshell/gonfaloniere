@@ -38,5 +38,9 @@
     "ballot": "The ballot. Every guest casts one vote, and may buy more for the same candidate.",
     "refused": "That couldn't be done; the reason is just above your box. The / menu shows what you can do now.",
     "dead": "You have died. You can still read the web, what you heard and saw, and your notes, and you'll hear the city's announcements."
+  },
+  "reading": {
+    "_comment": "TD v0.44, Il Notaio's reading in the Web of Secrets: the prompt in TD names him and his trade in its own words; these replace them when the prompt is loaded. His name is in-world-names.json's narrator.",
+    "role": "notary"
   }
 }

@@ -48,7 +48,7 @@ import { MINIGAME_TOTAL_USD } from "./ledger.ts";
 import { CAST, STANDIN_FILE, castBriefings, standinsFor } from "./cast.ts";
 import { HumanController } from "../core/human.ts";
 import { serveWebSocket } from "../core/ws.ts";
-import { MiniGame, formatLine, type CallKind, type Caller, type GameSettings } from "./engine.ts";
+import { MiniGame, formatLine, type CallKind, type Caller, type GameSettings, type ScreenCallKind } from "./engine.ts";
 import { buildRecord } from "./record.ts";
 import { memoryCounts, renderBelief, renderEntry, whereLabel } from "./memory.ts";
 import { describeRoute, messages, playRoute, recorderRoute, type ModelRoute } from "./recorder.ts";
@@ -89,7 +89,8 @@ const { values: opts } = parseArgs({
 });
 
 const OUT = process.env.PROBE_RESULTS_DIR ?? "results/minigame";
-const SYSTEM_KINDS: CallKind[] = ["star-pass", "claims-pass", "sweep-reask", "thought-pass", "perception-pass", "knowledge-check"];
+// The recorder's calls, and from TD v0.44 the player screen's reading (Il Notaio's), which TD puts on the recorder model.
+const SYSTEM_KINDS: (CallKind | ScreenCallKind)[] = ["star-pass", "claims-pass", "sweep-reask", "thought-pass", "perception-pass", "knowledge-check", "notaio-reading"];
 const RETRY: Omit<RetryPolicy, "onRetry"> = { maxAttempts: 5, retryable: (status) => status === 429 || status === null };
 const WINDOW_MS = 10 * 60_000;
 const WINDOW_MIN_CALLS = 30;
@@ -303,7 +304,7 @@ async function main(): Promise<void> {
       // TD v0.21: think() and speak() ask for log probabilities (per the setting); system calls never do.
       const { res, logprobs } = SYSTEM_KINDS.includes(req.kind)
         ? { res: await send({}), logprobs: undefined }
-        : await callWithLogprobs(send, settingsBase.logprobs, req.kind, logprobsState, noteLogprobs);
+        : await callWithLogprobs(send, settingsBase.logprobs, req.kind as CallKind, logprobsState, noteLogprobs);
       const cost = res.ok ? (res.usage.costUsd ?? res.usage.inputTokens * sv.endpoint.price.input + res.usage.outputTokens * sv.endpoint.price.output) : 0;
       budget.settle(worst, cost);
       noteCall(retried);

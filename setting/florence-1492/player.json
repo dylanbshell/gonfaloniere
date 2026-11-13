@@ -78,7 +78,7 @@
     "errand": "Your errand tonight"
   },
   "screen": {
-    "_comment": "The player screen's labels (TD v0.39–v0.43, The screen).",
+    "_comment": "The player screen's labels (TD v0.39–v0.46, The screen).",
     "title": "Gonfaloniere",
     "connecting": "Connecting…",
     "reconnecting": "The connection dropped. Reconnecting…",
@@ -220,7 +220,7 @@
       "play": "Start the evening as this guest.",
       "wait": "Wait here until a seat opens in a group. You'll be offered one at the next chance.",
       "city": "The city: what everyone in Florence knows, one topic per card.",
-      "web": "The web: who is tied to whom, what you heard and saw of each guest, and your notes.",
+      "web": "The Web of Secrets: who is tied to whom, what you heard and saw of each guest, and your notes. Click the bar to slide it up or down.",
       "select": "Select this guest: their public card shows on the right, their lines are highlighted, and earlier conversations they were in open up. Select again, or press Escape, to clear.",
       "loreLink": "Something everyone in the city knows about. Opens it on the right.",
       "earlierLine": "Open or fold this earlier conversation.",
@@ -229,7 +229,7 @@
       "deckBack": "Back to the previous topic. The left arrow works too.",
       "selected": "The guest you selected. Everything shown is what anyone at the party knows about them.",
       "back": "Back to what you were looking at before.",
-      "openWeb": "Open the web with this guest selected.",
+      "openWeb": "Open the Web of Secrets with this guest selected.",
       "notaioHint": "Il Notaio's advice for the moment. Click to fold it away or bring it back.",
       "webNode": "Select a guest. Select a second to see what passed between the two; a third replaces the older.",
       "recordTab": "What you heard the selected guests say, and what you saw of them, newest first. Only what you were there for.",
@@ -239,7 +239,20 @@
       "noteSave": "Keep this note. It stays with the game, even if you reload the page.",
       "conclude": "Make this note your conclusion: what you've worked out. Only your latest conclusion counts.",
       "noteItem": "Select the guest or pair this note is about.",
-      "more": "This column goes on below. Click to scroll down, or scroll as usual."
+      "more": "This column goes on below. Click to scroll down, or scroll as usual.",
+      "key": "The key to the lines: each kind of tie has its own colour and line style.",
+      "keyType": "Highlight every line of this kind across the web. Click again to clear.",
+      "reading": "Il Notaio's short reading of what you've heard and seen of the selected guests. It's one model's summary of your own record, and every quote is checked against it. He may still be wrong.",
+      "faction": "A faction: its guests sit together under its name.",
+      "track": "The evening's stages: filled ones are done, the highlighted one is now, outlined ones are still to come.",
+      "trackPast": "{stage}: done.",
+      "trackNow": "{stage}: now.",
+      "trackNext": "{stage}: still to come.",
+      "lookingAt": "The guest you selected, over the one you're talking with. Everything shown is what anyone at the party knows about them.",
+      "deselect": "Stop looking at this guest, and go back to whoever you're talking with.",
+      "backToTalk": "Back to whoever you're talking with.",
+      "resize": "Drag to make this panel wider or narrower. This browser remembers the width.",
+      "loreEntry": "A lore entry you opened from a line. Back returns to what you were looking at."
     },
     "city": "The city",
     "decks": {
@@ -255,7 +268,11 @@
       "back": "Back",
       "known": "Known to all",
       "with": "With {name}:",
-      "openWeb": "Open in the web viewer"
+      "openWeb": "Open in the Web of Secrets",
+      "lookingAt": "Looking at",
+      "deselect": "×",
+      "speakingNow": "speaking",
+      "noEar": "No one has your ear"
     },
     "notaioHint": {
       "title": "Il Notaio, to you",
@@ -263,7 +280,7 @@
       "show": "Show"
     },
     "web": {
-      "title": "The web",
+      "title": "The Web of Secrets",
       "record": "What you heard and saw",
       "notes": "Notes",
       "all": "All your notes",
@@ -282,9 +299,37 @@
       "filter": "Show notes on",
       "everyone": "All guests",
       "free": "Free notes",
-      "none": "No notes yet."
+      "none": "No notes yet.",
+      "barNone": "No one selected",
+      "open": "Open",
+      "shut": "Close",
+      "key": "Key",
+      "keyShow": "Show the key",
+      "keyHide": "Hide the key",
+      "interim": "Other"
     },
     "more": "More below",
-    "panelError": "This part of the screen ran into a problem and stopped. The rest still works; reloading the page may bring it back."
+    "panelError": "This part of the screen ran into a problem and stopped. The rest still works; reloading the page may bring it back.",
+    "reading": {
+      "title": "Il Notaio's reading. He may be wrong.",
+      "waiting": "Il Notaio is considering…",
+      "tally": "{heard}; {saw}.",
+      "heard": {
+        "0": "You haven't heard {who} speak",
+        "1": "You've heard {who} speak once",
+        "n": "You've heard {who} speak {n} times"
+      },
+      "heardPair": {
+        "0": "You haven't heard them speak to each other",
+        "1": "You've heard them speak to each other once",
+        "n": "You've heard them speak to each other {n} times"
+      },
+      "saw": {
+        "0": "you've seen nothing that concerns {who}",
+        "1": "you saw one thing that concerns {who}",
+        "n": "you saw {n} things that concern {who}"
+      },
+      "both": "them both"
+    }
   }
 }
