@@ -1,8 +1,18 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.46
+### Version 0.47
 
 ---
+
+## Changes in v0.47
+
+*Dylan, Nov 13: make it clear to the player that finishing the errand earns an extra act at midnight.*
+
+- **The errand card says what the errand earns** (Player Interface, Left). With `plot_reward` on, a reward line under the errand: finish it before the last council before midnight for one secret extra act. With it off, as in the mini-game, a line saying errands earn no extra act tonight, so the player isn't left guessing. After the check, `{plot_status}` replaces the line, as before
+- **The evening's track marks the errand's deadline** (the last council before midnight) when `plot_reward` is on, with a hover that says what it is
+- **Il Notaio's hint** reminds the player at the start of the last round before that deadline, whether or not the errand is done, so the hint never gives away a check's result early
+- **The midnight card labels the extra act** as its own optional row, "Your extra act (for your errand)", when it was earned
+- Prompts unchanged. The words go in `player.json` and `notaio.json`
 
 ## Changes in v0.46
 
@@ -2252,7 +2262,7 @@ The engine runs one game at a time and **pauses the whole game** whenever it nee
 **At the player's own decision points** the game pauses and shows a card (see The screen):
 - **Movement window:** stay, move toward a guest, or call a Colloquio with a guest. The list is every living guest, with no locations, like block 9c. A move toward a guest in a Colloquio waits under the usual rule (Seating, edge case c)
 - **Seat choices:** as an invitee when a Colloquio ends, join a group with room or call a free Colloquio (or wait, only when no group has room). As a lone guest, join one of the groups with room. The groups offered are the ones block 9h shows, with their guests named
-- **Midnight:** one act (kill, guard, or watch, and a living guest), plus the extra act if they finished their errand. The same validation as block 9e applies: different targets, no guarding yourself
+- **Midnight:** one act (kill, guard, or watch, and a living guest), plus the extra act if they finished their errand. The same validation as block 9e applies: different targets, no guarding yourself. **The extra act is its own row on the card,** labelled "Your extra act (for your errand)", and optional, like block 9e's `extra` *(v0.47)*
 - **Full game only:** candidate selection, a speech if they're the candidate, the ballot (`/vote` and `/buy`), and the run-off. Their cards follow the full game loop's spec of those phases, which is still to draft
 
 **Calls the player doesn't make:** `think()`, strategy plans, and every system call. The engine skips them for the player's character. So the player's character has no readings, no thoughts, and no plan in the record, and its notebook holds only code entries and `/conclude` beliefs (below). The recorder passes still read the player's lines, like anyone's.
@@ -2307,11 +2317,13 @@ A single page in the style of a Slack chat. Placeholder portraits until Art's ar
 - **Your sheet:** portrait, name, faction, purse, pensions held, and Colloquio withdrawals. These should read as more than a list (a purse with its count, a pension seal, tally marks for withdrawals), but how they look is the theme's job, settled with the look
 - **Three buttons,** just under the sheet *(v0.45; Dylan, Nov 13)*, opening card decks (below): **Your briefing**, **The rules**, and **The city** (public lore). No button for the Web of Secrets, which is always at the bottom (v0.44)
 - **The errand card,** pinned under the three buttons, so the errand stays in front of the player. It shows the errand's text, then its result once the check has run, in the same words as `{plot_status}`
+  - **What it earns** *(v0.47; Dylan, Nov 13)*: under the errand's text, one line in the card's accent. With `plot_reward` on, the reward in the rules primer's terms: finish it before the last council before midnight, and you get one extra act at midnight (a second kill, guard, or watch, on a different guest) that no one else is told about. With `plot_reward` off, as in the mini-game: errands earn no extra act tonight. The card's hover explanation says the same
+  - **After the check,** `{plot_status}` replaces the line, so the card then says plainly whether the extra act is the player's
 - **The room** *(Mechanics v0.32; see Everyone sees the room, below)*. Where every living guest is: each group as a cluster of tokens, a Colloquio pair as two tokens joined, and the player's own group marked. Tokens in a group overlap, and spread out on hover. Clicking a token selects that guest. During councils and at midnight and the ballot, it shows only who's with you, as the rule says
 
 **Centre: the conversation.**
 - The time label and the conversation's members at the top
-- **The evening's track** *(v0.44)*, to the right of the time label: the evening's stages as a row of marks, past ones filled, the current one highlighted, the rest outlined. For the full game: the arrival, each council and round of mingling, midnight, the candidates, the speeches, the last council, and the ballot. Hovering a mark names the stage (the in-world names). The mini-game shows its own shorter schedule. On a narrow window it wraps below the label. The stages come from the game's schedule and their names from the setting pack, never from code
+- **The evening's track** *(v0.44)*, to the right of the time label: the evening's stages as a row of marks, past ones filled, the current one highlighted, the rest outlined. For the full game: the arrival, each council and round of mingling, midnight, the candidates, the speeches, the last council, and the ballot. Hovering a mark names the stage (the in-world names). The mini-game shows its own shorter schedule. **With `plot_reward` on, the errand's deadline** (the last council before midnight) carries a small errand mark, whose hover says "Your errand's deadline: finish it before this for an extra act at midnight" *(v0.47)*. On a narrow window it wraps below the label. The stages come from the game's schedule and their names from the setting pack, never from code
 - **Only the current conversation is open.** Conversations in other locations collapse into an **Earlier tonight** section above, one line per conversation ("Capannello with Giorgia and Lupo, second round"). Each opens in place when clicked. **Selecting a guest opens the earlier sections they appeared in,** with their lines highlighted, and deselecting collapses them again (v0.41). Nothing is lost; the current room is just never confused with the last
 - The stream: lines, Il Notaio's notes in their own style, action lines, and lines addressed to the player marked as such. A "…is speaking" indicator shows while a line is generated
 - **Selecting a guest highlights their lines** in the stream (one guest at a time; Selection, below)
@@ -2432,7 +2444,7 @@ A single page in the style of a Slack chat. Placeholder portraits until Art's ar
 
 **Hover explanations** *(Dylan, Nov 12)*. Every control and panel has a short explanation on hover or focus, its words from the setting pack. A switch in an obvious place turns them off, remembered in the browser. They're on by default.
 
-**Il Notaio's hint** *(Dylan, Nov 12; the light version of his player-facing role)*. A small docked box under the stream. Il Notaio says, in a line or two, what the moment asks of the player: the first council, the movement window, being called aside, midnight, the ballot, or a refused command. It also points to the hover explanations. Templates only, from `notaio.json`, with no model calls. It's styled clearly apart from his announcements in the stream: the announcement is the notary speaking to the room, the hint is him speaking to the player. It can be collapsed. Answering the player's questions with a model call stays in v1 (Il Notaio for the player).
+**Il Notaio's hint** *(Dylan, Nov 12; the light version of his player-facing role)*. A small docked box under the stream. Il Notaio says, in a line or two, what the moment asks of the player: the first council, the movement window, being called aside, midnight, the ballot, or a refused command. **With `plot_reward` on, also the start of the last round before the errand's deadline** *(v0.47)*: this is the last round to finish your errand for its extra act. It shows whether or not the errand is done, so it never gives a check's result away early. It also points to the hover explanations. Templates only, from `notaio.json`, with no model calls. It's styled clearly apart from his announcements in the stream: the announcement is the notary speaking to the room, the hint is him speaking to the player. It can be collapsed. Answering the player's questions with a model call stays in v1 (Il Notaio for the player).
 
 **The look** *(undecided; Dylan, Nov 10)*. Three directions are on a [design canvas](https://claude.ai/artifact/MgVNN1NijQxXrbuy56Tof2): a "palazzo ledger" (parchment and ink, serif type), a dark modern chat, and a clean light style with period accents. **Leaning:** the palazzo ledger, with rounded corners rather than square boxes, and a movement card laid out as three choice tiles (Stay, Join, Colloquio) with a guest picker below, in the ledger's styling. Decide after the first playtests.
 
@@ -2703,3 +2715,4 @@ Mechanics (Il Notaio — Player-Facing Duties) requires these for the first publ
 - **The claim-line echo** (v0.28): thoughts often restate "my story stays straight" or "I have told no untruth tonight". Rewording 9a's claim line could cut the filler, but it's a tested gate result (S5d), so Models & Research decides whether to test a variant
 - Does the real-history line in block 1 dull useful period knowledge? (Watch voice and play in the mini-game; Models & Research may probe leakage)
 - Does the tightened addressee instruction bring false positives down on non-DeepSeek bases? (Models & Research to re-measure)
+
