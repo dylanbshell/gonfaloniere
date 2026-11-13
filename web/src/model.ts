@@ -296,8 +296,10 @@ export function hintMoment(v: View, me: string): { key: string; values: Record<s
  * Where each guest sits in the web: around a circle, each faction together in its own arc, in the
  * setting's faction order. Coordinates are in the diagram's own units (0–100 each way).
  */
-export function webLayout(roster: { name: string; faction: string }[], factions: string[]): Map<string, { x: number; y: number }> {
-  const order = [...roster].sort((a, b) => factions.indexOf(a.faction) - factions.indexOf(b.faction));
+export function webLayout(roster: { name: string; faction: string }[], factions: readonly string[] = []): Map<string, { x: number; y: number }> {
+  // An unknown faction (or no factions list at all: an older server's start information) sorts after the known ones, in roster order.
+  const place = (f: string) => (factions.indexOf(f) + factions.length + 1) % (factions.length + 1);
+  const order = [...roster].sort((a, b) => place(a.faction) - place(b.faction));
   const at = new Map<string, { x: number; y: number }>();
   order.forEach((g, i) => {
     const t = (i / order.length) * 2 * Math.PI - Math.PI / 2;

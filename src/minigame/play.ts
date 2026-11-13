@@ -13,6 +13,7 @@
 import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { createServer as createNetServer } from "node:net";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { gzipSync } from "node:zlib";
@@ -186,8 +187,18 @@ async function onRequest(req: IncomingMessage, res: ServerResponse): Promise<voi
   }
 }
 
-// ---- Build the screen, serve it, open it ------------------------------------------------------
-await build({ entryPoints: [join(WEB, "src/main.tsx")], bundle: true, outfile: join(WEB, "dist/app.js"), format: "esm", jsx: "automatic", sourcemap: true, target: "es2022", logLevel: "warning" });
+// ---- Claim the port, build the screen, serve it, open it -----------------------------------------
+//
+// The port first, so nothing is built while an older play server still holds it: that server would serve
+// the new screen against its own, older /api/start (CC-20261113-01, #88).
+
+/** Refuses to go on when a port is taken, naming it and how to free it. */
+function portTaken(p: number, flag: string): never {
+  console.error(`Port ${p} is already in use, probably by an earlier play server that's still running.\nStop that one (Ctrl-C in its terminal, or: lsof -ti tcp:${p} | xargs kill), or choose another port with ${flag}. Nothing was built.`);
+  process.exit(1);
+}
+const inUse = (e: unknown) => (e as NodeJS.ErrnoException).code === "EADDRINUSE";
+
 const server = await serveWebSocket(
   Number(opts.port),
   (conn) => {
@@ -195,7 +206,18 @@ const server = await serveWebSocket(
     if (ctrl) ctrl.attach(conn);
   },
   (req, res) => void onRequest(req, res),
-);
+).catch((e: unknown) => (inUse(e) ? portTaken(Number(opts.port), "--port") : Promise.reject(e)));
+// A real game's runner opens its own WebSocket port later: check it now too, while nothing has started.
+if (!opts.fake) {
+  const wsPort = Number(opts["ws-port"]);
+  await new Promise<void>((ok, fail) => {
+    const probe = createNetServer();
+    probe.once("error", (e) => (inUse(e) ? portTaken(wsPort, "--ws-port") : fail(e)));
+    probe.listen(wsPort, "127.0.0.1", () => probe.close(() => ok()));
+  });
+}
+console.log("Building the screen…");
+await build({ entryPoints: [join(WEB, "src/main.tsx")], bundle: true, outfile: join(WEB, "dist/app.js"), format: "esm", jsx: "automatic", sourcemap: true, target: "es2022", logLevel: "warning" });
 const port = server.port;
 const url = `http://127.0.0.1:${port}/`;
 console.log(`The player screen: ${url}${opts.fake ? " (fake game: no model calls)" : ""}`);

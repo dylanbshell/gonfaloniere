@@ -5,6 +5,9 @@
 //
 // - A deck opens over the screen: wherever the briefing overlaps the input box, the briefing is on top.
 // - The command menu closes when its slash is deleted, and on Escape; Speak is disabled for "", "@", "/".
+// - #88: the start button's explanation closes when the game starts; on a short window every left-column
+//   control is in sight or behind a "more below" hint; a failing panel leaves the rest working (`?fault=`);
+//   and the screen holds still as the first events arrive.
 
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -92,6 +95,10 @@ let play: ChildProcess | null = null;
 let chrome: ChildProcess | null = null;
 let profile = "";
 let page: Page;
+/** The screen's address, and what the start button's explanation said before and after the game started. */
+let base = "";
+let startTip: string | null = null;
+let tipAfterStart: string | null = null;
 
 const VIEW = { width: 1200, height: 700 };
 
@@ -99,6 +106,7 @@ before(async () => {
   if (skip) return;
   play = spawn("npx", ["tsx", "src/minigame/play.ts", "--minigame", "--fake", "--no-open", "--port", "0", "--fake-delay", "0", "--turns", "4"], { stdio: ["ignore", "pipe", "pipe"], detached: true });
   const [, url] = await waitFor(play, "stdout", /The player screen: (http:\S+)/);
+  base = url!;
   profile = mkdtempSync(join(tmpdir(), "screen-chrome-"));
   chrome = spawn(CHROME, ["--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check", `--user-data-dir=${profile}`, "--remote-debugging-port=0", `--window-size=${VIEW.width},${VIEW.height}`, "about:blank"], { stdio: ["ignore", "ignore", "pipe"], detached: true });
   const [, devtools] = await waitFor(chrome, "stderr", /DevTools listening on (ws:\/\/\S+)/);
@@ -107,10 +115,18 @@ before(async () => {
   await page.send("Emulation.setDeviceMetricsOverride", { ...VIEW, deviceScaleFactor: 1, mobile: false });
   await page.send("Runtime.enable");
   await page.send("Page.navigate", { url });
-  // Choose the card; the game starts and waits for the player, with the sheet (the decks) in hand.
+  // Choose the card as a player would: hover (its explanation shows), then click. The game
+  // starts and waits for the player, with the sheet (the decks) in hand.
   await page.until(`document.querySelector(".start-card button")`);
+  const b = await page.eval<{ x: number; y: number }>(`(() => { const r = document.querySelector(".start-card button").getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+  await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...b });
+  await page.until(`document.querySelector(".tip:not(.measuring)")`);
+  startTip = await page.eval<string>(`document.querySelector(".tip").textContent`);
+  // A click that doesn't move focus to the button, as in Safari and Firefox on a Mac (Chrome's focus would
+  // hide the explanation by a blur when the button is disabled, so headless Chrome alone never saw this).
   await page.eval(`document.querySelector(".start-card button").click()`);
   await page.until(`document.querySelector(".input textarea") && !document.querySelector('[data-hint="briefing"]').disabled`);
+  tipAfterStart = await page.eval<string | null>(`document.querySelector(".tip")?.textContent ?? null`);
 });
 
 /** Stops a process and its children (npx starts tsx, which starts node), and waits for it to go. */
@@ -251,4 +267,89 @@ test("a note written in the web viewer stays with the game across a refresh", { 
   await page.eval(`document.querySelector('[data-hint="web"]').click()`);
   await page.eval(`document.querySelector('[data-hint="allTab"]').click()`);
   await page.until(`[...document.querySelectorAll(".note-text")].some((n) => n.textContent === "Watch who leaves first.")`);
+});
+
+// ---- CC-20261113-01 (#88) --------------------------------------------------------------------------------
+
+test("the start button's explanation closes once the game starts", { skip }, () => {
+  assert.ok(startTip && startTip.length > 10, "hovering the start button showed its explanation");
+  assert.notEqual(tipAfterStart, startTip, "and it went when the button did");
+  assert.equal(tipAfterStart, null, "no explanation is left on the game screen");
+});
+
+/** The left column's controls outside the column's visible part, and whether the "more below" hint is in sight. */
+const leftColumn = () =>
+  page.eval<{ out: string[]; overflow: boolean; hint: boolean; decks: boolean }>(`(() => {
+    const col = document.querySelector(".side.left");
+    const box = col.getBoundingClientRect();
+    const inside = (e) => { const b = e.getBoundingClientRect(); return b.top >= box.top - 1 && b.bottom <= box.bottom + 1; };
+    const controls = [...col.querySelectorAll("button, [tabindex]")].filter((e) => !e.classList.contains("more-below"));
+    const hint = col.querySelector(".more-below");
+    return { out: controls.filter((e) => !inside(e)).map((e) => e.dataset.hint ?? e.textContent), overflow: col.scrollHeight > col.clientHeight + 2, hint: !!hint && inside(hint), decks: [...col.querySelectorAll(".decks button")].every(inside) };
+  })()`);
+
+test("on a short window, every left-column control is in sight, or a hint says there's more below and scrolls to it", { skip }, async () => {
+  // Nothing open over the columns (the notes test leaves the web viewer open).
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector(".web, .overlay")`);
+  for (const height of [680, 480]) {
+    await page.send("Emulation.setDeviceMetricsOverride", { width: VIEW.width, height, deviceScaleFactor: 1, mobile: false });
+    await page.until(`innerHeight === ${height}`);
+    await page.eval(`document.querySelector(".side.left").scrollTop = 0`);
+    await new Promise((r) => setTimeout(r, 100));
+    const r = await leftColumn();
+    await page.shot(`left-${height}`);
+    if (height === 680) assert.ok(r.decks, "at 680px the decks and the web are in sight without scrolling");
+    if (height === 480) assert.ok(r.overflow, "at 480px the column has more than fits (so the hint is tested)");
+    if (r.out.length === 0) continue;
+    assert.ok(r.hint, `controls below the fold (${r.out.join(", ")}) and a hint in sight`);
+    // The hint scrolls on until the column's end.
+    for (let i = 0; i < 10 && (await page.eval<boolean>(`!!document.querySelector(".side.left .more-below")`)); i++) {
+      await page.eval(`document.querySelector(".side.left .more-below").click()`);
+      await new Promise((r) => setTimeout(r, 400));
+    }
+    const after = await leftColumn();
+    assert.deepEqual(r.out.filter((c) => after.out.includes(c)), [], "every control that was below the fold is reachable");
+    assert.equal(after.hint, false, "at the end the hint goes");
+  }
+  await page.send("Emulation.setDeviceMetricsOverride", { ...VIEW, deviceScaleFactor: 1, mobile: false });
+  await page.eval(`document.querySelector(".side.left").scrollTop = 0`);
+});
+
+/** Opens the screen afresh, at `query`, once the game screen is up. */
+async function reopen(query = ""): Promise<void> {
+  await page.send("Page.navigate", { url: `${base}${query}` });
+  await page.until(`document.querySelector(".layout") && document.querySelector(".stream .ln, [data-panel-error='stream']")`);
+}
+
+test("one panel's failure stays in its panel: the rest of the screen keeps working", { skip }, async () => {
+  const parts: Record<string, string> = { left: `.side.left [data-hint="briefing"]`, stream: `.stream .ln`, right: `.side.right [data-hint="openWeb"]`, input: `.input textarea` };
+  for (const panel of ["stream", "left", "right"]) {
+    await reopen(`?fault=${panel}`);
+    await page.until(`document.querySelector('[data-panel-error="${panel}"]')`);
+    for (const [other, sel] of Object.entries(parts)) if (other !== panel) assert.ok(await page.eval<boolean>(`!!document.querySelector(${JSON.stringify(sel)})`), `with the ${panel} failed, the ${other} still shows`);
+    await page.shot(`fault-${panel}`);
+  }
+  // The web viewer fails in its own window, which still closes.
+  await reopen(`?fault=web`);
+  await page.eval(`document.querySelector('[data-hint="web"]').click()`);
+  await page.until(`document.querySelector('[data-panel-error="web"]')`);
+  assert.ok(await page.eval<boolean>(`!!document.querySelector(".input textarea") && !!document.querySelector(".stream .ln")`));
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector('[data-panel-error="web"]')`);
+  await reopen();
+});
+
+test("the screen holds still while the first events arrive (layout shift under 0.1)", { skip }, async (t) => {
+  await reopen();
+  await page.until(`document.querySelector(".hint-text") && document.querySelector(".input .prompt")`);
+  await new Promise((r) => setTimeout(r, 500));
+  const shifts = await page.eval<{ value: number; sources: string[] }[]>(`new Promise((ok) => {
+    const all = [];
+    new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) all.push({ value: e.value, sources: e.sources.map((s) => s.node?.className ?? s.node?.nodeName ?? "?") }); }).observe({ type: "layout-shift", buffered: true });
+    setTimeout(() => ok(all), 200);
+  })`);
+  const cls = shifts.reduce((a, s) => a + s.value, 0);
+  t.diagnostic(`cumulative layout shift ${cls.toFixed(3)}`);
+  assert.ok(cls < 0.1, `cumulative layout shift ${cls.toFixed(3)}: ${JSON.stringify(shifts)}`);
 });

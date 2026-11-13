@@ -61,7 +61,7 @@ button.small { font-size: var(--text-xs); padding: 0 var(--space-2); }
 .errand-result { margin-top: var(--space-2); font-weight: var(--weight-bold); }
 
 .centre { display: flex; flex-direction: column; min-width: 0; height: var(--screen-height); }
-.conv-head { padding: var(--space-3) var(--space-4); border-bottom: var(--border-width) solid var(--border); background: var(--surface); display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
+.conv-head { min-height: var(--head-height); padding: var(--space-3) var(--space-4); border-bottom: var(--border-width) solid var(--border); background: var(--surface); display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
 .phase { font-weight: var(--weight-bold); }
 .stream { flex: 1; overflow-y: auto; padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
 .ln { padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); }
@@ -93,9 +93,9 @@ button.small { font-size: var(--text-xs); padding: 0 var(--space-2); }
 .act { display: flex; gap: var(--space-2); }
 
 /* The input box */
-.input { border-top: var(--border-width) solid var(--border); background: var(--surface); padding: var(--space-3) var(--space-4); position: relative; }
+.input { min-height: var(--input-box-height); border-top: var(--border-width) solid var(--border); background: var(--surface); padding: var(--space-3) var(--space-4); position: relative; }
 .input.closed { color: var(--text-muted); }
-.prompt { font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-2); }
+.prompt { min-height: var(--line-sm); font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-2); }
 .prompt.waiting { color: var(--accent); font-weight: var(--weight-bold); }
 .row { display: flex; gap: var(--space-3); align-items: stretch; }
 .field { flex: 1; position: relative; display: flex; }
@@ -104,7 +104,7 @@ button.small { font-size: var(--text-xs); padding: 0 var(--space-2); }
 .actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-content: flex-start; max-width: var(--side-width); }
 .count { font-size: var(--text-xs); color: var(--text-muted); width: 100%; text-align: right; }
 .count.over { color: var(--danger); }
-.example { font-size: var(--text-sm); margin-top: var(--space-2); }
+.example { min-height: var(--line-sm); font-size: var(--text-sm); margin-top: var(--space-2); }
 .dropdown { z-index: var(--z-menu); position: absolute; bottom: 100%; left: var(--space-4); list-style: none; margin: 0; padding: var(--space-1); background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-md); max-height: var(--menu-height); overflow-y: auto; min-width: var(--card-width); }
 .dropdown button { display: flex; align-items: center; gap: var(--space-2); width: 100%; border: none; text-align: left; }
 .dropdown.menu button { flex-direction: column; align-items: flex-start; gap: 0; }
@@ -133,7 +133,7 @@ button.lore-link.selected { background: var(--select-bg); }
 /* Il Notaio's hint: docked under the stream, apart from his announcements */
 .notaio-hint { margin: 0 var(--space-4) var(--space-2); background: var(--hint-bg); border: var(--border-width) solid var(--hint-border); border-radius: var(--radius-md); color: var(--hint-text); font-size: var(--text-sm); }
 .hint-head { display: flex; justify-content: space-between; width: 100%; border: none; background: transparent; color: inherit; font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-label); padding: var(--space-1) var(--space-3); }
-.hint-text { margin: 0; padding: 0 var(--space-3) var(--space-2); }
+.hint-text { min-height: var(--hint-text-height); margin: 0; padding: 0 var(--space-3) var(--space-2); }
 
 /* Card decks: tabs along the top, one topic per card, a swipe to the next */
 .deck { max-width: var(--modal-width); }
@@ -167,9 +167,10 @@ button.tab.on { border-color: var(--accent); color: var(--accent); }
 .node { cursor: pointer; }
 .node circle { stroke: var(--surface); stroke-width: var(--edge-width); }
 .node.picked circle { stroke: var(--accent); stroke-width: var(--edge-width-on); }
-.node.me .node-name { font-weight: var(--weight-bold); }
+.node-name.me { font-weight: var(--weight-bold); }
 .node-initials { fill: var(--portrait-text); font-size: var(--node-initials-size); text-anchor: middle; font-weight: var(--weight-bold); pointer-events: none; }
-.node-name { fill: var(--text); font-size: var(--node-name-size); text-anchor: middle; pointer-events: none; }
+/* Names over every line, on a halo of the panel's colour so a line passing behind never cuts them. */
+.node-name { fill: var(--text); font-size: var(--node-name-size); text-anchor: middle; pointer-events: none; paint-order: stroke; stroke: var(--surface); stroke-width: var(--label-halo); stroke-linejoin: round; }
 .connection { font-size: var(--text-sm); margin: 0 0 var(--space-2); }
 .heard, .saw, .note-list { list-style: none; padding: 0; margin: 0 0 var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); font-size: var(--text-sm); }
 .heard .sp { font-weight: var(--weight-bold); }
@@ -179,3 +180,11 @@ button.tab.on { border-color: var(--accent); color: var(--accent); }
 button.note-text { border: none; background: transparent; padding: 0; text-align: left; white-space: pre-wrap; }
 @keyframes slide-up { from { transform: translateY(100%); } to { transform: none; } }
 .deck-text::first-letter { text-transform: uppercase; }
+
+/* Short windows, failed panels, and a steady layout (CC-20261113-01, #88) */
+.buttons.decks { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); margin-top: var(--space-3); }
+.buttons.decks button { font-size: var(--text-sm); padding: var(--space-1) var(--space-2); }
+.more-below { position: sticky; bottom: 0; display: block; margin: var(--space-3) auto 0; font-size: var(--text-xs); background: var(--surface); box-shadow: var(--shadow-raised); border-radius: var(--radius-round); }
+.notice.status { margin: 0; }
+.panel-error { margin: var(--space-2) 0; }
+.facts dd { min-height: var(--line-sm); }
