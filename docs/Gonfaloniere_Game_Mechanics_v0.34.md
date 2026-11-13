@@ -1,9 +1,13 @@
 # Gonfaloniere
 ## Game Mechanics — Working Document
-### Version 0.33
+### Version 0.34
 *Formerly "Plots in the Palazzo"*
 
 ---
+
+## Changes in v0.34
+
+- **Errand rework planned** (Dylan, Nov 13): once the first full games report each errand's completion rate, rework the easiest and hardest errands toward the middle of the range. Recorded under the balance watch list, with the trigger, owners, and target
 
 ## Changes in v0.33
 
@@ -618,6 +622,11 @@ The current value of every number that balancing may adjust. Each is also stated
 | Medici | Moderate, hard, hard, and Piero's errand works against Clarice's | 0–1 |
 
 - **What to measure:** each errand's completion rate in the first full games, by character and by faction, and whether Plot Reward acts tilt midnight toward the Pazzi
+- **Planned: an errand rework** (Dylan, Nov 13), after the first full games, not before:
+  - **Trigger:** Models & Research's completion rates by character and faction from the first full games. Rework from data, not the ranking above
+  - **Target:** every errand near the middle of the range (moderate), so no faction is handed or denied the Plot Reward by its errands
+  - **Owners:** Mechanics changes the plot point table (amounts, conditions, deadlines); Characters changes briefings and clues (e.g. a firmer clue for Piero or Beatrice). Each errand change that touches both goes through a handoff
+  - **Hard design work:** suggest switching to Fable for the session that does it
 - **Levers if the skew is real:** raise the easy amounts (Francesco 5 Florins instead of 3, Lupo 7 instead of 5); ease one Medici errand (e.g. a firmer clue for Piero, a Characters change); or make each errand's threshold a Tunable Value
 - **How do we know an errand is done?** (Dylan, Nov 11: one of the hardest design questions in the game.) Four of the twelve errands are logged and exact (payments and the pension ledger). The other eight rest on whether a character has *learned* something, judged by a knowledge check that carries the memory known limit. Options so far, which can combine:
   - **Knowledge checks as built,** if Models & Research's golden set shows they cross the pass line wrongly in at most 1 of ~30 scenes
