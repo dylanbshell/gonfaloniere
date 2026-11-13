@@ -1,9 +1,13 @@
 # Gonfaloniere
 ## Game Mechanics — Working Document
-### Version 0.31
+### Version 0.32
 *Formerly "Plots in the Palazzo"*
 
 ---
+
+## Changes in v0.32
+
+- **Everyone sees the room** (Dylan, Nov 12, after his first playtest; from Technical Design v0.44): every guest, AI or human, knows who stands with whom and who has slipped away in private with whom, but never what's said outside their own conversation. A human can't follow the evening otherwise, and in a palazzo hall you can see across the room. New section under Movement; The Social Cost of Privacy updated, since a private withdrawal is now seen by everyone, not only those present. Added to the balance watch list
 
 ## Changes in v0.31
 
@@ -313,6 +317,16 @@ A Capannello needs at least two guests. Whenever one drops to a single guest dur
 - Applies to open play only: faction meetings can't merge across factions
 - There's no geography in the palazzo, so "nearest" means nothing; the guest moves toward a person, like any other move
 
+### Everyone Sees the Room
+
+*Dylan, Nov 12.* The palazzo is one hall: you can see across it, even when you can't hear.
+
+- **Every guest knows where everyone is:** who stands with whom, and who has slipped away in private with whom. AI guests and the human player see the same thing
+- **Never what's said:** a Colloquio is still private, and a group's talk reaches only its members
+- **Only the present moment:** the room shows where people are now, not where they've been. The record of who keeps slipping away still comes from Il Notaio's notes (below)
+- **Open play only:** councils are held apart by faction, and midnight and the ballot are private choices, so there's no room to see then
+- The dead aren't shown
+
 ---
 
 ## Il Notaio
@@ -336,7 +350,11 @@ The in-fiction narrator who records everything that happens in the palazzo. He b
 
 ## The Social Cost of Privacy
 
-There's no reputation score. The cost of frequent Colloquii comes entirely from Il Notaio's observations: other characters see who keeps slipping away and draw their own conclusions.
+There's no reputation score. The cost of frequent Colloquii comes from being seen:
+
+- **Everyone sees a withdrawal as it happens** (Everyone Sees the Room): the whole hall knows who is off in private with whom, right now
+- **Il Notaio's notes keep the count:** those present when a guest withdraws hear his note, with escalating implication for repeat withdrawals, so the pattern ("once again… more than once this evening") reaches them through him
+- Other characters draw their own conclusions
 
 ---
 
@@ -564,7 +582,8 @@ The current value of every number that balancing may adjust. Each is also stated
 - **Balance watch list** (from Characters' review of the full cast, Characters v0.9, Open Questions: Reservations). Check each in the first full games before changing rules:
   - **France may be strong:** Jeanne's plot point is half of France's win, and the Plot Reward adds an extra act on top
   - **Jeanne may be stuck instead:** Medici and Pazzi briefings forbid French money; Characters is softening that to the real stakes
-  - **The Medici collide:** Piero's plot point spoils Clarice's. Kept as intended drama; watch whether the Medici tear themselves apart
+  - **The room is visible to all:** every Colloquio is now seen by the whole hall, so private meetings cost more. Watch whether guests stop calling them, and whether secret pairs (Clarice and Francesco, Giorgia and LeNoir) avoid each other to stay hidden, which would slow the errands that need private meetings (Clarice's, Giorgia's, Emile's). Models & Research checks how AI guests move with the room in view before the full games' baseline
+- **The Medici collide:** Piero's plot point spoils Clarice's. Kept as intended drama; watch whether the Medici tear themselves apart
   - **Isabella may be over-hunted:** LeNoir, Raffaello, and Beatrice all point at her. If her secret falls in the first round every game, San Frediano ends early
   - **Beatrice's clue speeds LeNoir:** she can name Lupo, one step from Isabella. Weigh against Isabella's plot point
   - **Lupo is the hub:** games where he dies or talks early will diverge
