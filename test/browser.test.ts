@@ -248,7 +248,7 @@ test("selecting a guest shows them on the right; Escape clears it", { skip }, as
   await page.shot("looking-at");
   await page.eval(`document.querySelector(".input textarea").blur()`);
   await page.key("Escape", 27);
-  await page.until(`!document.querySelector('.side.right .look')`);
+  await page.until(`!document.querySelector('.side.right .look:not(.leaving)')`);
 });
 
 test("a note written in the Web of Secrets stays with the game across a refresh", { skip }, async () => {
@@ -268,7 +268,7 @@ test("a note written in the Web of Secrets stays with the game across a refresh"
   await page.send("Page.reload");
   await page.until(`document.querySelector('[data-hint="web"]')`);
   await page.eval(`document.querySelector('[data-hint="web"]').click()`);
-  await page.eval(`document.querySelector('[data-hint="allTab"]').click()`);
+  await page.eval(`document.querySelector('[data-hint="notesTab"]').click()`);
   await page.until(`[...document.querySelectorAll(".note-text")].some((n) => n.textContent === "Watch who leaves first.")`);
 });
 
@@ -340,7 +340,7 @@ async function reopen(query = ""): Promise<void> {
 }
 
 test("one panel's failure stays in its panel: the rest of the screen keeps working", { skip }, async () => {
-  const parts: Record<string, string> = { left: `.side.left [data-hint="briefing"]`, stream: `.stream .ln`, right: `.side.right [data-hint="openWeb"]`, input: `.input textarea` };
+  const parts: Record<string, string> = { left: `.side.left [data-hint="briefing"]`, stream: `.stream .ln`, right: `.side.right .person.talk`, input: `.input textarea` };
   for (const panel of ["stream", "left", "right"]) {
     await reopen(`?fault=${panel}`);
     await page.until(`document.querySelector('[data-panel-error="${panel}"]')`);
@@ -597,8 +597,8 @@ test("the stage bar: hovering expands a past or a future stage; a past stage ope
     await click(`[data-hint="return"]`);
     await page.eval(`document.querySelector(".here .guest").click()`);
   }
-  await page.until(`document.querySelector(".side.right .look")`);
-  const picked = await page.eval<string>(`document.querySelector(".side.right .look").dataset.guest`);
+  await page.until(`document.querySelector(".side.right .look:not(.leaving)")`);
+  const picked = await page.eval<string>(`document.querySelector(".side.right .look:not(.leaving)").dataset.guest`);
   if (name) await page.until(`document.querySelector(${JSON.stringify(`.stage-bar .mark.past[aria-label="${stage.replace(/"/g, '\\"')}"] .stage-dot`)})`);
   const dots = await page.eval<number>(`document.querySelectorAll(".stage-bar .stage-dot").length`);
   if (name) assert.ok(dots > 0, `${picked} has a dot on the stage they appear in`);
@@ -641,14 +641,14 @@ const webDown = async () => {
 };
 const pickNode = (name: string) => page.eval(`document.querySelector(${JSON.stringify(`.web .node[data-guest="${name.replace(/"/g, '\\"')}"]`)}).dispatchEvent(new MouseEvent("click", { bubbles: true }))`);
 const webPicked = () => page.eval<string[]>(`[...document.querySelectorAll(".web .node.picked")].map((n) => n.dataset.guest)`);
-const barSel = () => page.eval<string>(`document.querySelector(".web-bar-sel").textContent`);
-const looking = () => page.eval<string | null>(`document.querySelector(".side.right .look")?.dataset.guest ?? null`);
+const barSel = () => page.eval<string>(`document.querySelector(".web-bar-sel")?.textContent ?? ""`);
+const looking = () => page.eval<string | null>(`document.querySelector(".side.right .look:not(.leaving)")?.dataset.guest ?? null`);
 
 test("one selection, shared with the Web of Secrets: chat to web, web to chat, a pair, clearing, and Open in the Web of Secrets", { skip }, async () => {
   await reopen();
   await page.until(`document.querySelector(".here .guest")`);
-  const words = JSON.parse(readFileSync("setting/florence-1492/player.json", "utf8")) as { screen: { web: { barNone: string } } };
-  const none = words.screen.web.barNone;
+  // Interface v0.7: with no one selected the bar shows no names at all.
+  const none = "";
   const me = await page.eval<string>(`document.querySelector(".web .node.me").dataset.guest`);
   // Chat to web: a guest selected in the chat shows on the web's bar while it's down, and is selected when it opens.
   const name = await page.eval<string>(`document.querySelector(".here .guest").textContent`);
@@ -675,7 +675,7 @@ test("one selection, shared with the Web of Secrets: chat to web, web to chat, a
   // Clearing in the chat clears both.
   await page.eval(`document.activeElement?.blur()`);
   await page.key("Escape", 27);
-  await page.until(`!document.querySelector(".side.right .look")`);
+  await page.until(`!document.querySelector(".side.right .look:not(.leaving)")`);
   assert.equal(await barSel(), none, "cleared on the bar");
   await webUp();
   assert.deepEqual(await webPicked(), [], "and in the web");
@@ -822,7 +822,7 @@ test("the rules: a button per section filling the modal; one grows to fill it, i
   await page.until(`document.querySelector(".city-entry")`);
   assert.equal(await page.eval<string>(`document.querySelector(".city-entry").dataset.lore`), entry.id);
   assert.equal(await page.eval<string>(`document.querySelector(".city-entry h3").textContent`), entry.title);
-  assert.equal(await page.eval<boolean>(`!!document.querySelector(".side.right .look")`), false, "not on the right: the city opens here");
+  assert.equal(await page.eval<boolean>(`!!document.querySelector(".side.right .look:not(.leaving)")`), false, "not on the right: the city opens here");
   await page.shot("city-entry");
   await page.eval(`document.querySelector('[data-hint="cityBack"]').click()`);
   await page.until(`document.querySelector(".city-row") && !document.querySelector(".city-entry")`);
@@ -851,4 +851,209 @@ test("the placeholder carries the example, with an @ and a /; no example line un
   if (named) assert.ok(menu.includes(named), `${named} is allowed now (${menu.join(", ")})`);
   await page.key("Backspace", 8);
   await page.shot("placeholder");
+});
+
+// ---- CC-20261114-08 (#117, part 1 of 3) ------------------------------------------------------------------
+
+test("the midnight line in the sheet: one act, and with plot_reward off (the mini-game) no second line, before the check or after", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".sheet-panel .midnight-line")`);
+  const words = JSON.parse(readFileSync("setting/florence-1492/player.json", "utf8")) as { screen: { midnightLine: { acts: string } } };
+  const r = await page.eval<{ text: string; extra: boolean; inside: boolean }>(`(() => {
+    const l = document.querySelector(".sheet-panel .midnight-line"), p = document.querySelector(".sheet-panel").getBoundingClientRect(), b = l.getBoundingClientRect();
+    return { text: l.firstElementChild.textContent, extra: !!l.querySelector(".midnight-extra"), inside: b.top >= p.top && b.bottom <= p.bottom && b.height > 0 };
+  })()`);
+  assert.equal(r.text, words.screen.midnightLine.acts);
+  assert.equal(r.extra, false, "the mini-game runs with plot_reward off, so there's no +1 line");
+  assert.ok(r.inside, "in the sheet");
+  await page.shot("midnight-line");
+});
+
+test("the web's bar is one centered group; with someone selected, a dot and their small portraits and names", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".here .guest")`);
+  const centred = () =>
+    page.eval<{ off: number; names: boolean; arrow: string }>(`(() => {
+      const bar = document.querySelector(".web-bar").getBoundingClientRect(), g = document.querySelector(".web-bar-group").getBoundingClientRect();
+      return { off: Math.abs((g.left + g.right) / 2 - (bar.left + bar.right) / 2), names: !!document.querySelector(".web-bar-sel"), arrow: document.querySelector(".web-bar-arrow").textContent };
+    })()`);
+  let c = await centred();
+  assert.ok(c.off < 2, `centered (${c.off}px off)`);
+  assert.equal(c.names, false, "no one selected: just the arrow and the title");
+  assert.equal(c.arrow, "▲");
+  const name = await page.eval<string>(`document.querySelector(".here .guest").textContent`);
+  await page.eval(`document.querySelector(".here .guest").click()`);
+  await page.until(`document.querySelector(".web-bar-sel")`);
+  c = await centred();
+  assert.ok(c.off < 2, `still centered with a selection (${c.off}px off)`);
+  assert.equal(await barSel(), name);
+  assert.equal(await page.eval<number>(`document.querySelectorAll(".web-bar-portraits .portrait").length`), 1, "their small portrait");
+  await page.shot("web-bar-selected");
+  await webUp();
+  assert.equal((await centred()).arrow, "▼", "▼ when open");
+  await webDown();
+  await page.eval(`document.activeElement?.blur()`);
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector(".web-bar-sel")`);
+});
+
+test("one Notes tab: the writing box on top, and one list filtered by the selection, for none, one, and a pair; a note's pair selects them", { skip }, async () => {
+  await reopen();
+  await webUp();
+  await page.eval(`document.querySelector('[data-hint="notesTab"]').click()`);
+  await page.until(`document.querySelector(".web textarea")`);
+  assert.equal(await page.eval<number>(`document.querySelectorAll(".web-side .tabs .tab").length`), 2, "two tabs, no All your notes");
+  assert.equal(await page.eval<boolean>(`!!document.querySelector(".web-side select")`), false, "no filter");
+  const others = await page.eval<string[]>(`[...document.querySelectorAll(".web .node:not(.me)")].map((n) => n.dataset.guest)`);
+  const [a, b, c] = [others[0]!, others[1]!, others[2]!];
+  const write = async (text: string) => {
+    await page.eval(`document.querySelector(".web textarea").focus()`);
+    await page.type(text);
+    await page.eval(`document.querySelector('[data-hint="noteSave"]').click()`);
+    await page.until(`[...document.querySelectorAll(".note-text")].some((n) => n.textContent === ${JSON.stringify(text)})`);
+  };
+  const clearPicks = async () => {
+    for (const g of await webPicked()) await pickNode(g);
+  };
+  await clearPicks();
+  await pickNode(a);
+  await write("On A alone.");
+  await pickNode(b);
+  await write("On A and B.");
+  await clearPicks();
+  await pickNode(b);
+  await write("On B alone.");
+  await pickNode(c);
+  await write("On B and C.");
+  const list = () => page.eval<{ texts: string[]; headings: string[]; boxOnTop: boolean }>(`(() => {
+    const ours = new Set(["On A alone.", "On A and B.", "On B alone.", "On B and C."]);
+    const box = document.querySelector(".web textarea").getBoundingClientRect(), first = document.querySelector(".note-list")?.getBoundingClientRect();
+    return { texts: [...document.querySelectorAll(".note-text")].map((n) => n.textContent).filter((t) => ours.has(t)), headings: [...document.querySelectorAll(".note-heading")].map((h) => h.textContent), boxOnTop: !first || first.top >= box.bottom };
+  })()`);
+  // None selected: every note, newest first, grouped by guest and pair.
+  await clearPicks();
+  let l = await list();
+  assert.deepEqual(l.texts, ["On B and C.", "On B alone.", "On A and B.", "On A alone."], "none: every note, by group, newest group first");
+  assert.ok(l.headings.length >= 4, `grouped: ${l.headings.join(" | ")}`);
+  assert.ok(l.boxOnTop, "the writing box on top");
+  await page.shot("notes-none");
+  // One guest: theirs and any pair with them.
+  await pickNode(b);
+  l = await list();
+  assert.deepEqual(l.texts, ["On B and C.", "On B alone.", "On A and B."], "one: their notes and every pair with them, newest first");
+  assert.deepEqual(l.headings, [], "one list");
+  await page.shot("notes-one");
+  // A pair: the pair's notes first, then each of the two's, under small headings.
+  await pickNode(a);
+  l = await list();
+  assert.deepEqual(l.texts, ["On A and B.", "On B alone.", "On A alone."]);
+  assert.equal(l.headings.length, 3, `under small headings: ${l.headings.join(" | ")}`);
+  await page.shot("notes-pair");
+  // Clicking a note's pair selects them.
+  await clearPicks();
+  await page.eval(`[...document.querySelectorAll(".note")].find((n) => n.querySelector(".note-text").textContent === "On B and C.").closest(".note-group").querySelector(".note-heading .note-about").click()`);
+  await page.until(`document.querySelectorAll(".web .node.picked").length === 2`);
+  assert.deepEqual((await webPicked()).sort(), [b, c].sort(), "the pair is selected, in the web and on its bar");
+  await clearPicks();
+  await webDown();
+});
+
+test("portraits select like names; the player's own name or portrait opens Your briefing, with the hover \"Your briefing\"", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".here button.token")`);
+  const name = await page.eval<string>(`document.querySelector(".here button.token").dataset.guest`);
+  await page.eval(`document.querySelector(".here button.token").click()`);
+  await page.until(`document.querySelector(".side.right .look:not(.leaving)")?.dataset.guest === ${JSON.stringify(name)}`);
+  assert.equal(await page.eval<boolean>(`document.querySelector(".here button.token").getAttribute("aria-pressed") === "true"`), true, "marked as selected");
+  // Again: deselects.
+  await page.eval(`document.querySelector(".here button.token").click()`);
+  await page.until(`!document.querySelector(".side.right .look:not(.leaving)")`);
+  // The tokens under the "talking with" card, where there are any.
+  if (await page.eval<boolean>(`!!document.querySelector(".side.right .tokens button.token")`)) {
+    const t = await page.eval<string>(`document.querySelector(".side.right .tokens button.token").dataset.guest`);
+    await page.eval(`document.querySelector(".side.right .tokens button.token").click()`);
+    await page.until(`document.querySelector(".side.right .look:not(.leaving)")?.dataset.guest === ${JSON.stringify(t)}`);
+    await page.eval(`document.activeElement?.blur()`);
+    await page.key("Escape", 27);
+    await page.until(`!document.querySelector(".side.right .look:not(.leaving)")`);
+  }
+  // The player's own: opens the briefing, and selects no one.
+  const at = await page.eval<{ x: number; y: number }>(`(() => { const b = document.querySelector(".me-briefing .portrait").getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; })()`);
+  await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
+  await page.until(`document.querySelector(".tip:not(.measuring)")`);
+  assert.equal(await page.eval<string>(`document.querySelector(".tip").textContent`), "Your briefing");
+  await clickAt(at);
+  await page.until(`document.querySelector(".deck-briefing .deck-card")`);
+  assert.equal(await page.eval<boolean>(`!!document.querySelector(".side.right .look:not(.leaving)")`), false, "no one selected");
+  await page.shot("own-portrait-briefing");
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector(".overlay")`);
+});
+
+test("the right panel's card slides down when deselected, and clicking empty background in the stream or the panel deselects; names, buttons, and the box don't", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".here .guest") && document.querySelector(".stream .ln")`);
+  const select = async () => {
+    await page.eval(`document.querySelector(".here .guest").click()`);
+    await page.until(`document.querySelector(".side.right .look:not(.leaving)") && document.querySelector(".side.right .look").getAnimations().every((a) => a.playState === "finished")`);
+  };
+  const isSelected = () => page.eval<boolean>(`!!document.querySelector(".side.right .look:not(.leaving)")`);
+  // The ×: the card slides down (a leaving card for a moment), then it's gone.
+  await select();
+  await page.eval(`document.querySelector('.side.right .look [data-hint="deselect"]').click()`);
+  await page.until(`document.querySelector(".side.right .look.leaving")`);
+  await page.until(`!document.querySelector(".side.right .look")`);
+  // Clicking a name, a link, a button, or the message box keeps the selection.
+  await select();
+  await clickAt(".input textarea");
+  assert.equal(await isSelected(), true, "the message box doesn't deselect");
+  // A line's words are the stream's background: they deselect, but not a name in the stream.
+  const words = await page.eval<{ x: number; y: number } | null>(`(() => {
+    const s = document.querySelector(".stream").getBoundingClientRect();
+    for (const tx of [...document.querySelectorAll(".stream .ln .tx")].reverse()) {
+      const r = tx.getClientRects()[0];
+      if (!r || r.top < s.top || r.bottom > s.bottom) continue;
+      const at = { x: r.left + 2, y: r.top + r.height / 2 };
+      if (!document.elementFromPoint(at.x, at.y)?.closest("button, a")) return at;
+    }
+    return null;
+  })()`);
+  assert.ok(words, "a line's words in sight");
+  await clickAt(words!);
+  await page.until(`!document.querySelector(".side.right .look:not(.leaving)")`);
+  await select();
+  // A name in the stream (another guest's) selects them; its click never counts as the background's.
+  const now = await looking();
+  const g = await page.eval<string | null>(`[...document.querySelectorAll(".stream .guest")].map((b) => b.textContent).find((t) => t !== ${JSON.stringify(now)}) ?? null`);
+  if (g) {
+    await page.eval(`[...document.querySelectorAll(".stream .guest")].find((b) => b.textContent === ${JSON.stringify(g)}).click()`);
+    await page.until(`document.querySelector(".side.right .look:not(.leaving)")?.dataset.guest === ${JSON.stringify(g)}`);
+  }
+  // The card's own buttons don't deselect (Open in the Web of Secrets opens the web, keeping the selection).
+  await page.eval(`document.querySelector('.side.right .look [data-hint="openWeb"]').click()`);
+  await page.until(`document.querySelector(".web-dock.open") && ${settled}`);
+  await webDown();
+  assert.equal(await isSelected(), true, "a button isn't background");
+  // The stream's empty background deselects.
+  const empty = await page.eval<{ x: number; y: number }>(`(() => { const s = document.querySelector(".stream").getBoundingClientRect(); const end = document.querySelector(".stream > :last-child").getBoundingClientRect(); return { x: s.left + 10, y: Math.min(s.bottom - 4, Math.max(end.bottom + 2, s.top + 4)) }; })()`);
+  await clickAt(empty);
+  await page.until(`!document.querySelector(".side.right .look:not(.leaving)")`);
+  // The right panel's empty background deselects too: the blank space at the foot of the card that fills it.
+  await select();
+  const blank = await page.eval<{ x: number; y: number }>(`(() => { const c = document.querySelector(".side.right .look:not(.leaving)").getBoundingClientRect(); return { x: c.left + c.width / 2, y: c.bottom - 8 }; })()`);
+  assert.equal(await page.eval<boolean>(`!document.elementFromPoint(${blank.x}, ${blank.y})?.closest("button, a, [tabindex]")`), true, "blank space");
+  await clickAt(blank);
+  await page.until(`!document.querySelector(".side.right .look:not(.leaving)")`);
+  // Switching: the current card slides down and the new one comes up right behind it.
+  await select();
+  const current = await looking();
+  const other = await page.eval<string | null>(`[...document.querySelectorAll(".room button.token")].map((b) => b.dataset.guest).find((g) => g !== ${JSON.stringify(current)}) ?? null`);
+  if (other) {
+    await page.eval(`[...document.querySelectorAll(".room button.token")].find((b) => b.dataset.guest === ${JSON.stringify(other)}).click()`);
+    await page.until(`document.querySelector(".side.right .look.leaving") && document.querySelector(".side.right .look.follows")?.dataset.guest === ${JSON.stringify(other)}`);
+    await page.until(`!document.querySelector(".side.right .look.leaving")`);
+  }
+  await page.eval(`document.activeElement?.blur()`);
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector(".side.right .look")`);
 });
