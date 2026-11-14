@@ -91,6 +91,9 @@
   --mark-size: 10px;
   --mark-ring: 2px;
   --errand-mark-size: 6px;
+  /* Do, highlighted when a note's conclusion fills the box (Interface v0.4): a ring and a glow in the accent */
+  --do-lit-ring: 3px;
+  --do-lit-glow: 12px;
   /* The right panel: its width (dragged, within these), the peeking header, tokens, and the speaking dot */
   --right-width: 280px;
   --right-min: 220px;
@@ -129,6 +132,7 @@
   --portrait-text: #ffffff;
   --do: #5a3a8c;
   --do-text: #ffffff;
+  --do-lit: var(--accent);
   --tip-bg: #2a2a27;
   --tip-text: #f6f6f4;
   --errand-bg: #fbf6ea;

@@ -335,7 +335,7 @@ test("the web viewer: twelve guests, fixed lines, up to two selected, and only w
   void at;
 });
 
-test("notes in the web viewer: on a guest, on a pair (drawn dashed), or free; all of them grouped, each can become a conclusion", async () => {
+test("notes in the web viewer: on a guest, on a pair (drawn dashed), or free; all of them grouped; a guest's or a pair's can become a conclusion", async () => {
   const { at } = await playedLog();
   const base = at["speak:colloquio"]!;
   const notes: Ev[] = [
@@ -352,8 +352,33 @@ test("notes in the web viewer: on a guest, on a pair (drawn dashed), or free; al
   const all = game({ v, web: [], webTab: "all" });
   assert.deepEqual(missingWords(all), []);
   assert.deepEqual([...all.matchAll(/class="note-text"[^>]*>([^<]+)</g)].map((m) => m[1]), ["Those two talk too often.", "Lupo watches the door.", "Something is off tonight."], "newest first");
-  assert.equal((all.match(/data-hint="conclude"/g) ?? []).length, 3);
+  // Interface v0.3: only notes on a guest or a pair get "This is my conclusion"; the free note has none.
+  const buttons = [...all.matchAll(/<li class="note">(.*?)<\/li>/g)].map((m) => [m[1]!.match(/class="note-text"[^>]*>([^<]+)</)![1], /data-hint="conclude"/.test(m[1]!)]);
+  assert.deepEqual(buttons, [["Those two talk too often.", true], ["Lupo watches the door.", true], ["Something is off tonight.", false]]);
   assert.ok(v.commands.some((c) => c.action === "conclude"), "the conclusion's command, found by its action");
+});
+
+test("the conclusion button (Interface v0.4): disabled while a decision card waits, with a hover saying why; disabled for a dead player", async () => {
+  const { at } = await playedLog();
+  const note: Ev = { seq: 1e6, type: "note", id: "N1", turn: 1, guests: ["Lupo"], text: "Lupo watches the door." };
+  const button = (h: string) => h.match(/<button class="secondary small conclude"[^>]*>/)?.[0] ?? "";
+  // Speaking: the box is open, so the button is live, with its usual hover.
+  const speaking = button(game({ v: derive([...at["speak:colloquio"]!, note]), web: ["Lupo"], webTab: "notes" }));
+  assert.match(speaking, /data-hint="conclude"/);
+  assert.doesNotMatch(speaking, /disabled/);
+  // A decision card waiting: disabled, and the hover says to finish the choice first.
+  for (const k of ["move", "seat", "midnight"]) {
+    const h = game({ v: derive([...at[k]!, note]), web: ["Lupo"], webTab: "notes" });
+    assert.deepEqual(missingWords(h), [], k);
+    assert.match(button(h), /disabled=""/, `${k}: disabled`);
+    assert.match(button(h), /data-hint="concludeWaiting"/, `${k}: the hover says why`);
+  }
+  const words = (info.words as { screen: { hints: Record<string, string> } }).screen.hints;
+  assert.ok(words.concludeWaiting!.length > 10, "its words are in player.json");
+  // A dead player: disabled, as before.
+  const dead = derive([...at["speak:colloquio"]!, note]);
+  dead.deaths.push({ name: F, you: true, seq: 1e6 + 1 });
+  assert.match(button(game({ v: dead, web: ["Lupo"], webTab: "notes" })), /disabled=""/);
 });
 
 test("Il Notaio's hint: the moment's template at every wait, under the stream, styled apart from his notes", async () => {
