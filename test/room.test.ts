@@ -21,8 +21,8 @@ const present = (user: string) => (user.match(/^Present: (.*)$/m)?.[1] ?? "").sp
 
 test("the room line's words: TD's example, with the setting pack's joining words", () => {
   assert.equal(
-    roomText({ groups: [["Giorgia Pazzi", "Raffaello de' Medici", "Captain Armand LeNoir"]], colloquios: [["Fra Tommaso", "Sister Beatrice"]] }),
-    "Giorgia Pazzi, Raffaello de' Medici and Captain Armand LeNoir together; Fra Tommaso and Sister Beatrice in private.",
+    roomText({ groups: [["Giorgia Pazzi", "Raffaello de' Medici", "Captain Armand LeNoir"]], colloquios: [["Friar Tommaso", "Sister Beatrice"]] }),
+    "Giorgia Pazzi, Raffaello de' Medici and Captain Armand LeNoir together; Friar Tommaso and Sister Beatrice in private.",
   );
   assert.equal(roomText({ groups: [], colloquios: [] }), "", "nothing to see: no line");
   assert.equal(roomText({ groups: [["Lupo"]], colloquios: [] }), "Lupo on their own.");

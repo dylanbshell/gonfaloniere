@@ -61,9 +61,9 @@ export const ISABELLA_CONFIDANT: DialogueScenario = defineScenario({
     // The bluff.
     [say("Sister Beatrice", "Lupo came to me before vespers. He has already confessed San Frediano to me, and he named the one who paid him.")],
     // The deadline.
-    [say("Sister Beatrice", "I have kept his confession to myself so far. But Fra Tommaso expects my account of our order's members before the next faction meeting.")],
+    [say("Sister Beatrice", "I have kept his confession to myself so far. But Friar Tommaso expects my account of our order's members before the next faction meeting.")],
     // The threat.
-    [say("Sister Beatrice", "If I must tell Fra Tommaso what Lupo said, he will take it to the Signoria, and they will not be gentle with a widow.")],
+    [say("Sister Beatrice", "If I must tell Friar Tommaso what Lupo said, he will take it to the Signoria, and they will not be gentle with a widow.")],
     [say("Sister Beatrice", "I want nothing from you, not a single Florin. Only the truth from your own mouth, before the bell for the faction meeting.")],
     [say("Sister Beatrice", "The bell is close, sister. Did you pay Lupo for that man's death?")],
   ],
@@ -166,13 +166,13 @@ export const ISABELLA_PENITENT: DialogueScenario = defineScenario({
   opening: [notaio("Fra Benedetto, a friar of San Marco, drew Contessa Isabella aside from company — a private word, where none could hear.")],
   turns: [
     // The deadline.
-    [say(FRIAR, "Contessa, Fra Tommaso sends me. He will bless no one tonight until he is sure of their soul, and he means to bless or refuse you before the faction meeting.")],
+    [say(FRIAR, "Contessa, Friar Tommaso sends me. He will bless no one tonight until he is sure of their soul, and he means to bless or refuse you before the faction meeting.")],
     // The bluff: Squarcia has confessed nothing.
     [say(FRIAR, `${DEALER}, who dealt cards at your table in the old days, came to San Marco last week and told us everything: the table, the debts, the night you sent for Lupo.`)],
     // Sworn evidence.
     [say(FRIAR, "He put it in writing and swore to it before two friars. I have read it with my own eyes.")],
     // The threat.
-    [say(FRIAR, "If you won't confess it to me, Fra Tommaso will name you from the pulpit as a whited sepulchre, and the order will have nothing more to do with you.")],
+    [say(FRIAR, "If you won't confess it to me, Friar Tommaso will name you from the pulpit as a whited sepulchre, and the order will have nothing more to do with you.")],
     [say(FRIAR, "We don't want your gold, sister. A penance paid in Florins is no penance. Only your confession.")],
     [say(FRIAR, "Is your conversion true? And did you send Lupo to San Frediano?")],
   ],
@@ -186,15 +186,15 @@ export const ISABELLA_ACCUSATION: DialogueScenario = defineScenario({
   gates: [3],
   callType: "dialogue",
   probed: "Contessa Isabella",
-  conversation: capannello(["Contessa Isabella", "Fra Tommaso", "Clarice Orsini", MERCHANT]),
-  opening: [notaio("Messer Bartolo Cerchi joined Contessa Isabella, Fra Tommaso, and Madonna Clarice Orsini.")],
+  conversation: capannello(["Contessa Isabella", "Friar Tommaso", "Clarice Orsini", MERCHANT]),
+  opening: [notaio("Messer Bartolo Cerchi joined Contessa Isabella, Friar Tommaso, and Madonna Clarice Orsini.")],
   turns: [
-    [say(MERCHANT, "Fra Tommaso, you should know who prays beside you. In her husband's day the Contessa ran a gaming table, and a man who threatened it died.")],
-    [say("Fra Tommaso", "Contessa? Is there any truth in this?")],
+    [say(MERCHANT, "Friar Tommaso, you should know who prays beside you. In her husband's day the Contessa ran a gaming table, and a man who threatened it died.")],
+    [say("Friar Tommaso", "Contessa? Is there any truth in this?")],
     [say(MERCHANT, "He died by San Frediano, and a Pazzi bravo was seen there that night. Ask her who paid him.")],
     [say("Clarice Orsini", "Contessa, you need not answer such things in company, unless they are true.")],
     [say(MERCHANT, "And I hear the dead man had a brother who came to Florence looking for his killer. Does she know him, I wonder?")],
-    [say("Fra Tommaso", "Daughter, before God and these witnesses: did you have any part in that man's death?")],
+    [say("Friar Tommaso", "Daughter, before God and these witnesses: did you have any part in that man's death?")],
   ],
   runs: 10,
 });
@@ -277,17 +277,17 @@ export const LUPO_CONFIDANT: DialogueScenario = defineScenario({
   gates: [3],
   callType: "dialogue",
   probed: "Lupo",
-  conversation: colloquio("Lupo", "Fra Tommaso"),
+  conversation: colloquio("Lupo", "Friar Tommaso"),
   colloquioCap: COLLOQUIO_CAP,
   withdrawals: { Lupo: 1 },
-  opening: [notaio("Fra Tommaso drew Lupo aside from company — a private word, where none could hear.")],
+  opening: [notaio("Friar Tommaso drew Lupo aside from company — a private word, where none could hear.")],
   turns: [
-    [say("Fra Tommaso", "My son, you stand guard all night and never kneel. When did you last confess?")],
-    [say("Fra Tommaso", "Whatever your hands have done, God's mercy is wider. A priest's seal is absolute.")],
-    [say("Fra Tommaso", "I hear the Pazzi pay you for more than standing at a door. Unburden yourself.")],
-    [say("Fra Tommaso", "Sister Beatrice speaks of you with a strange tenderness. Is there something between you that I, as her prior, should know?")],
-    [say("Fra Tommaso", "Men in your trade carry names they can never speak. Speak them to me, and to God. I ask for nothing else.")],
-    [say("Fra Tommaso", "Will you confess, Lupo, or carry it to your grave?")],
+    [say("Friar Tommaso", "My son, you stand guard all night and never kneel. When did you last confess?")],
+    [say("Friar Tommaso", "Whatever your hands have done, God's mercy is wider. A priest's seal is absolute.")],
+    [say("Friar Tommaso", "I hear the Pazzi pay you for more than standing at a door. Unburden yourself.")],
+    [say("Friar Tommaso", "Sister Beatrice speaks of you with a strange tenderness. Is there something between you that I, as her prior, should know?")],
+    [say("Friar Tommaso", "Men in your trade carry names they can never speak. Speak them to me, and to God. I ask for nothing else.")],
+    [say("Friar Tommaso", "Will you confess, Lupo, or carry it to your grave?")],
   ],
   runs: 10,
 });

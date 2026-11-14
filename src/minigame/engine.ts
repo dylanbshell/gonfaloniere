@@ -9,7 +9,7 @@
 import { allowedActionTypes, allowedActionsText, type ActionContext } from "../game/actions.ts";
 import type { Answer, HumanController } from "../core/human.ts";
 import type { Incoming } from "../core/protocol.ts";
-import { ROSTER, factionOf, hasRole, rulesGuest, type CharacterName } from "../game/roster.ts";
+import { ROSTER, factionOf, hasRole, nameOn, rulesGuest, type CharacterName } from "../game/roster.ts";
 import { resolveMidnight, type Act, type MidnightEvent } from "../rules/midnight.ts";
 import type { RulesConfig } from "../rules/config.ts";
 import { borrow, bribe, newEconomy, rejectAction, repay, seesLedger, type ActionType, type Economy } from "../rules/economy.ts";
@@ -377,7 +377,8 @@ export class MiniGame {
     this.rotation = start.rotation;
     // Mini-game setting (Dylan, Oct 24): six of the twelve attend. Without this, characters read the
     // absent guests' missing names under "All living guests" as deaths.
-    const absent = ROSTER.map((r) => r.name).filter((n) => !this.s.cast.includes(n));
+    // Each as a game on this Characters version knew them (before v0.15, Fra Tommaso), so older games replay as they ran.
+    const absent = ROSTER.map((r) => r.name).filter((n) => !this.s.cast.includes(n)).map((n) => nameOn(n, this.docs.versions.characters));
     const smaller = say("notaio", "notes.attendance", { cast: listJoin(this.s.cast), absent: listJoin(absent) });
     // Every group forms before anyone hears of it, so the player's first state already shows the whole room.
     const convs = start.groups.map((group) => this.newConversation("capannello", group));

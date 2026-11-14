@@ -4,7 +4,7 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { ROSTER, resolveAlias, type CharacterName } from "../game/roster.ts";
+import { ALIASES, ROSTER, resolveAlias, type CharacterName } from "../game/roster.ts";
 import type { MurderTable, PromptTemplates } from "../prompt/assemble.ts";
 import { usesInWorldNames } from "../prompt/names.ts";
 
@@ -97,12 +97,16 @@ export interface DocSources {
 /**
  * Each roster character's briefing heading in the Characters doc: the `### ` heading under
  * "## Briefings" that contains their name ("### Contessa Isabella di Salviati"). Characters v0.2–v0.4
- * have three; v0.9 on has all twelve.
+ * have three; v0.9 on has all twelve. A version written before a rename heads the briefing with the
+ * old name, which the roster keeps as an alias (Characters v0.15: "### Fra Tommaso" before it), so a
+ * heading that is exactly one of the character's aliases, and isn't another character's, counts too.
  */
 function briefingHeadings(chars: string): [CharacterName, string][] {
   const headings = section(chars, "## Briefings").filter((l) => l.startsWith("### "));
+  const byName = (name: string) => headings.find((l) => l.slice(4).includes(name));
+  const named = new Set(ROSTER.map((r) => byName(r.name)));
   return ROSTER.flatMap((r) => {
-    const h = headings.find((l) => l.slice(4).includes(r.name));
+    const h = byName(r.name) ?? headings.find((l) => !named.has(l) && ALIASES[r.name]!.includes(l.slice(4).trim()));
     return h ? [[r.name, h] as [CharacterName, string]] : [];
   });
 }

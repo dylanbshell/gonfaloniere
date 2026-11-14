@@ -6,7 +6,7 @@
 // recorder (extract.ts) makes the model calls.
 
 import { z } from "zod";
-import { ALIASES, ROSTER, resolveAlias, type CharacterName } from "../game/roster.ts";
+import { ALIASES, ROSTER, nameOn, resolveAlias, type CharacterName } from "../game/roster.ts";
 import { inWorldNames } from "../prompt/names.ts";
 import { settingPack } from "../setting/pack.ts";
 import type { MemoryRules } from "../sources/docs.ts";
@@ -1010,9 +1010,12 @@ export function renderBelief(b: Belief, when: TimeLabel = gameTime): string {
   return `${when(b.firstTurn)} · your belief (${b.kind}): ${b.statement}`;
 }
 
-/** The roster as 10a–10b show it: `Full Name — Faction`, the dead marked. */
-export function rosterText(dead: CharacterName[] = []): string {
-  return ROSTER.map((r) => `${r.name} — ${r.faction}${dead.includes(r.name) ? " (dead)" : ""}`).join("\n");
+/**
+ * The roster as 10a–10b show it: `Full Name — Faction`, the dead marked. Each name as a game on this
+ * Characters version knew it (`nameOn`: before v0.15, Fra Tommaso), so older games replay as they ran.
+ */
+export function rosterText(charactersVersion: string, dead: CharacterName[] = []): string {
+  return ROSTER.map((r) => `${nameOn(r.name, charactersVersion)} — ${r.faction}${dead.includes(r.name) ? " (dead)" : ""}`).join("\n");
 }
 
 /** A name as written, a known alias, or a near miss (TD's Names rule); null if none matches. */

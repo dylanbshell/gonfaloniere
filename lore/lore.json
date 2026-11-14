@@ -114,7 +114,7 @@
     "title": "Tommaso and Piero",
     "scope": "public",
     "kind": "relationship",
-    "text": "Fra Tommaso and Piero de' Medici: Fra Tommaso preaches against the Medici and everything they stand for.",
+    "text": "Friar Tommaso and Piero de' Medici: Friar Tommaso preaches against the Medici and everything they stand for.",
     "source": "Characters v0.12, Shared Canon: Relationships (Lore v0.6)",
     "status": "approved",
     "canon_checked": true
@@ -124,7 +124,7 @@
     "title": "Tommaso and Beatrice",
     "scope": "public",
     "kind": "relationship",
-    "text": "Fra Tommaso and Sister Beatrice: Fra Tommaso leads the Dominican order Sister Beatrice serves.",
+    "text": "Friar Tommaso and Sister Beatrice: Friar Tommaso leads the Dominicans at tonight's gathering, and Sister Beatrice is one of them.",
     "source": "Characters v0.12, Shared Canon: Relationships (Lore v0.6)",
     "status": "approved",
     "canon_checked": true
@@ -134,7 +134,7 @@
     "title": "Tommaso and Isabella",
     "scope": "public",
     "kind": "relationship",
-    "text": "Fra Tommaso and Contessa Isabella: Fra Tommaso leads the Dominican order the widowed Contessa joined.",
+    "text": "Friar Tommaso and Contessa Isabella: Friar Tommaso leads the Dominicans at tonight's gathering, and the widowed Contessa is one of them.",
     "source": "Characters v0.12, Shared Canon: Relationships (Lore v0.6)",
     "status": "approved",
     "canon_checked": true
@@ -234,7 +234,7 @@
     "title": "The friar of San Marco",
     "scope": "public",
     "kind": "lore",
-    "text": "At the convent of San Marco, the Dominican prior Girolamo Savonarola preaches that Florence has grown rich and rotten, and that a scourge will come unless she repents. Crowds pack his sermons, and the rich and the Church's princes fear them. It is said Lorenzo sent for him as he lay dying; what passed between them, each side tells its own way. His followers in the city, Fra Tommaso among them, have grown louder since.",
+    "text": "At the convent of San Marco, the Dominican prior Girolamo Savonarola preaches that Florence has grown rich and rotten, and that a scourge will come unless she repents. Crowds pack his sermons, and the rich and the Church's princes fear them. It is said Lorenzo sent for him as he lay dying; what passed between them, each side tells its own way. His followers in the city, Friar Tommaso among them, have grown louder since.",
     "gloss": "Girolamo Savonarola, who leads the Dominican friars at the convent of San Marco, preaches that Florence must repent or suffer a scourge. Friar Tommaso is among his followers.",
     "source": "Lore v0.4 (Lore v0.9; canon-checked in Characters v0.13)",
     "status": "approved",

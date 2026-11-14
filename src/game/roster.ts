@@ -1,6 +1,7 @@
 // The roster (Characters, Roster), read from the setting pack (TD v0.38): setting/<name>/setting.json.
 // Names are the exact spellings models must use in contact lists and addressees.
 
+import { atLeast } from "../prompt/names.ts";
 import type { Guest } from "../rules/config.ts";
 import { settingPack, type PensionRole } from "../setting/pack.ts";
 
@@ -19,6 +20,20 @@ export const ROSTER: readonly { name: CharacterName; faction: Faction }[] = pack
  * (contact repairs now; detectDesignation's "known alias" check later).
  */
 export const ALIASES: Record<CharacterName, string[]> = Object.fromEntries(pack.roster.map((r) => [r.name, r.aliases]));
+
+/**
+ * The name a game on this Characters version calls a roster character: the roster's own, or, when a later
+ * Characters version renamed them, the name they had then (the setting pack's `earlier`; Characters v0.15
+ * renamed Fra Tommaso to Friar Tommaso). For the places code writes the roster into a prompt, so a game on
+ * an older version replays byte-identical.
+ */
+export function nameOn(name: CharacterName, charactersVersion: string): string {
+  const earlier = pack.roster.find((r) => r.name === name)?.earlier ?? [];
+  const then = earlier.filter((e) => !atLeast(charactersVersion, e.before_characters));
+  // The earliest rename still ahead of this version: the name it had at the time.
+  then.sort((a, b) => (atLeast(a.before_characters, b.before_characters) ? 1 : -1));
+  return then[0]?.name ?? name;
+}
 
 /** The roster name an alias refers to, ignoring case; null if none or ambiguous. */
 export function resolveAlias(name: string): CharacterName | null {

@@ -116,8 +116,8 @@ export interface RoomPlace {
 
 /**
  * Block 5's room line text (TD v0.45): `Giorgia Pazzi, Raffaello de' Medici and Captain Armand LeNoir
- * together; Fra Tommaso and Sister Beatrice in private.` From TD v0.49, place by place: `the great hall:
- * Giorgia Pazzi, Raffaello de' Medici and Captain Armand LeNoir; the window bay: Fra Tommaso and Sister
+ * together; Friar Tommaso and Sister Beatrice in private.` From TD v0.49, place by place: `the great hall:
+ * Giorgia Pazzi, Raffaello de' Medici and Captain Armand LeNoir; the window bay: Friar Tommaso and Sister
  * Beatrice, in private.` The joining words are the setting pack's. Empty when no one else is anywhere to be seen.
  */
 export function roomText(r: Room): string {
