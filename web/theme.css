@@ -63,7 +63,7 @@
   --icon-row-height: 28px;
   /* Steady sizes, so the screen doesn't jump as the first events arrive (#88) */
   --line-sm: calc(var(--text-sm) * var(--line-height));
-  --head-height: 68px;
+  --head-height: 76px;
   --input-box-height: 152px;
   --hint-text-height: calc(var(--line-sm) * 2 + var(--space-2));
   /* The web's names: a halo of the panel's colour, in the diagram's units */
@@ -87,9 +87,15 @@
   --rel-rivalry-dash: 0.8 0.6;
   --rel-money-dash: 2 0.6 0.3 0.6 0.3 0.6;
   --note-dash: 1.2 1;
-  /* The evening's track */
-  --mark-size: 10px;
+  /* The evening's track: the stage bar (Interface v0.5) */
   --mark-ring: 2px;
+  --stage-size: 22px;
+  --stage-stroke: 2px;
+  --stage-stroke-length: 14px;
+  --stage-bar-height: 30px;
+  --stage-desc-width: 240px;
+  --stage-dot-size: 8px;
+  --members-height: 26px;
   --errand-mark-size: 6px;
   /* Do, highlighted when a note's conclusion fills the box (Interface v0.4): a ring and a glow in the accent */
   --do-lit-ring: 3px;

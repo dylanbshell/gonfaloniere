@@ -21,6 +21,8 @@ export interface Line {
   private?: boolean;
   /** Il Notaio's notes and action lines: who the event concerns, from the event itself. */
   about?: string[];
+  /** The stage of the evening the line belongs to (Interface v0.5, Past stages): see `lineStages`. */
+  stage?: string;
 }
 
 /** A stretch of the evening in one conversation, with the state the player had there. */
@@ -28,6 +30,11 @@ export interface Segment {
   conversation: string;
   state: State | null;
   lines: Line[];
+}
+
+/** A stretch in one conversation within one stage of the evening (Interface v0.5): the stage bar's unit. */
+export interface Run extends Segment {
+  stage: string;
 }
 
 export interface State {
@@ -118,6 +125,8 @@ export interface View {
   stream: Line[];
   /** The same lines by conversation; the last is the current one. */
   segments: Segment[];
+  /** The same lines by conversation and stage, in order (Interface v0.5, the stage bar). */
+  runs: Run[];
   state: State | null;
   commands: Command[];
   speaking: string | null;
@@ -136,22 +145,62 @@ export interface View {
   activity: number;
 }
 
+const isLine = (e: Ev) => e.type === "line" || e.type === "notaio" || e.type === "action";
+
+/**
+ * Each line's stage (Interface v0.5), by its seq, from what the screen already receives: block 5's phase
+ * label, which comes with every state, and the turn each line carries. A line belongs to the stage in force
+ * when it arrived, except a line that opens a new turn ahead of that turn's first state: the engine sends a
+ * line's state right after it whenever the state changed, so when such a line is followed at once by a state
+ * with another phase label, that label is the line's. Lines before the first state take its label.
+ */
+export function lineStages(log: Ev[]): Map<number, string> {
+  const out = new Map<number, string>();
+  let label: string | undefined;
+  let turn = -Infinity;
+  const early: number[] = [];
+  log.forEach((e, i) => {
+    if (e.type === "state") {
+      label = (e.state as State).phaseLabel;
+      for (const seq of early.splice(0)) out.set(seq, label);
+    } else if (isLine(e)) {
+      const t = typeof e.turn === "number" ? e.turn : turn;
+      const next = log[i + 1];
+      const after = next?.type === "state" ? (next.state as State).phaseLabel : undefined;
+      if (label === undefined) early.push(e.seq);
+      else out.set(e.seq, t > turn && after !== undefined && after !== label ? after : label);
+      turn = Math.max(turn, t);
+    }
+  });
+  return out;
+}
+
 export function derive(log: Ev[]): View {
-  const v: View = { stream: [], segments: [], state: null, commands: [], speaking: null, sheet: null, pending: null, refusal: null, deaths: [], result: null, notes: [], readings: [], presence: [], spoken: 0, activity: 0 };
+  const v: View = { stream: [], segments: [], runs: [], state: null, commands: [], speaking: null, sheet: null, pending: null, refusal: null, deaths: [], result: null, notes: [], readings: [], presence: [], spoken: 0, activity: 0 };
   const open = new Map<string, Request>();
-  let waiting: Segment | null = null;
+  let waiting: Segment[] = [];
+  const stages = lineStages(log);
   for (const e of log) {
     if (e.type === "line" || e.type === "notaio" || e.type === "action" || e.type === "request") v.activity = e.seq;
     if (e.type === "line" || e.type === "notaio" || e.type === "action") {
       const l = { ...(e as unknown as Line), item: e.type, seq: e.seq } as Line;
+      l.stage = stages.get(e.seq);
       let seg = v.segments.at(-1);
       if (!seg || seg.conversation !== l.conversation) {
         // A segment takes the state the player has once they've arrived (the state after its first line).
         seg = { conversation: l.conversation, state: null, lines: [] };
         v.segments.push(seg);
-        waiting = seg;
+        waiting.push(seg);
       }
       seg.lines.push(l);
+      let run = v.runs.at(-1);
+      if (!run || run.conversation !== l.conversation || run.stage !== (l.stage ?? "")) {
+        // A run starts with each new conversation, and with each new stage within one.
+        run = { conversation: l.conversation, stage: l.stage ?? "", state: null, lines: [] };
+        v.runs.push(run);
+        waiting.push(run);
+      }
+      run.lines.push(l);
       v.stream.push(l);
       if (l.item === "line" && l.you) v.spoken++;
     } else if (e.type === "state") {
@@ -160,10 +209,8 @@ export function derive(log: Ev[]): View {
       v.commands = e.commands as Command[];
       v.speaking = (e.speaking as string | null | undefined) ?? null;
       if (e.sheet) v.sheet = e.sheet as unknown as Sheet;
-      if (waiting) {
-        waiting.state = v.state;
-        waiting = null;
-      }
+      for (const seg of waiting) seg.state = v.state;
+      waiting = [];
     } else if (e.type === "request") {
       if (e.closed) open.delete(e.id as string);
       else open.set(e.id as string, e as unknown as Request);
@@ -329,6 +376,29 @@ export function readingFor(v: View, guests: string[], me: string): Reading | nul
 export function trackMarks(stages: string[], now: string | undefined, deadline: string | null = null): { stage: string; at: "past" | "now" | "next"; deadline: boolean }[] {
   const i = now === undefined ? -1 : stages.indexOf(now);
   return stages.map((stage, j) => ({ stage, at: i < 0 ? "next" : j < i ? "past" : j === i ? "now" : "next", deadline: stage === deadline }));
+}
+
+// ---- The stage bar and past stages (Interface v0.5) -------------------------------------------------------
+
+/** The conversations the player was in during one stage, in order: what a past stage shows, read-only. */
+export function stageRuns(v: View, stage: string): Run[] {
+  return v.runs.filter((r) => r.stage === stage);
+}
+
+/**
+ * Earlier this stage: the current stage's conversations before the current one. The current conversation
+ * (the last segment) shows whole, even where it began in an earlier stage, so it never empties as a stage turns.
+ */
+export function earlierThisStage(v: View): Run[] {
+  const now = v.state?.phaseLabel;
+  const from = v.segments.at(-1)?.lines[0]?.seq ?? Infinity;
+  return v.runs.filter((r) => r.stage === now && r.lines[0]!.seq < from);
+}
+
+/** The past stages a guest appears in (spoke, was present, or was named in an event): the bar's dots for a selected guest. */
+export function stagesWith(v: View, name: string): Set<string> {
+  const now = v.state?.phaseLabel;
+  return new Set(v.runs.filter((r) => r.stage !== now && appearsIn(r, name)).map((r) => r.stage));
 }
 
 // ---- The errand's extra act (TD v0.47) -------------------------------------------------------------------

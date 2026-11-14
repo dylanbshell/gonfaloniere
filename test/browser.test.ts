@@ -84,7 +84,8 @@ class Page {
   close = () => this.ws.close();
   async shot(name: string): Promise<void> {
     if (!SHOTS) return;
-    await this.until(`document.getAnimations().length === 0`);
+    // Every animation that ends has ended (a beckoning or pulsing one never does).
+    await this.until(`document.getAnimations().every((a) => a.effect?.getComputedTiming().iterations === Infinity)`);
     const { data } = await this.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
     mkdirSync(SHOTS, { recursive: true });
     writeFileSync(join(SHOTS, `${name}.png`), Buffer.from(data, "base64"));
@@ -512,4 +513,111 @@ test("a note's conclusion fills the input box and highlights Do, sending nothing
   await page.key("Backspace", 8);
   await page.until(`document.querySelector(".input textarea").value === ${JSON.stringify(DRAFT)}`);
   assert.deepEqual(await commandsSent(), [conclusion], "clearing it sent nothing");
+});
+
+// ---- CC-20261114-06 (#113) -------------------------------------------------------------------------------
+
+test("the stage bar: hovering expands a past or a future stage; a past stage opens read-only with Return; a draft survives; nothing is sent from it; a future stage can't be opened; a selected guest's dots", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".stage-bar .mark.past") && document.querySelector(".stage-bar .mark.next") && document.querySelector(".input textarea")`);
+  await page.eval(`(() => { window.__sent = []; const send = WebSocket.prototype.send; WebSocket.prototype.send = function (d) { window.__sent.push(JSON.parse(d)); return send.call(this, d); }; })()`);
+  const sent = () => page.eval<string[]>(`window.__sent.filter((m) => m.type === "say" || m.type === "command" || m.type === "pass" || m.type === "end").map((m) => m.type)`);
+  const words = JSON.parse(readFileSync("setting/florence-1492/player.json", "utf8")) as { screen: { stageBar: { descriptions: Record<string, string> } } };
+  const centre = (sel: string) => page.eval<{ x: number; y: number }>(`(() => { const b = document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect(); return { x: b.left + Math.min(8, b.width / 2), y: b.top + b.height / 2 }; })()`);
+  const move = async (at: { x: number; y: number }) => page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
+  const click = async (sel: string) => {
+    const at = await centre(sel);
+    for (const type of ["mousePressed", "mouseReleased"]) await page.send("Input.dispatchMouseEvent", { type, ...at, button: "left", clickCount: 1 });
+  };
+  const nowName = () => page.eval<boolean>(`!!document.querySelector(".stage-bar .mark.now .stage-name")`);
+  assert.equal(await nowName(), true, "the current stage is an oval with its name");
+  // Hovering a past stage, then a future one, expands it with its name and description; the current one shrinks back.
+  for (const kind of ["past", "next"]) {
+    await move(await centre(`.stage-bar .mark.${kind} .stage`));
+    await page.until(`document.querySelector(".stage-bar .mark.${kind}.expanded .stage-desc")`);
+    const m = await page.eval<{ stage: string; name: string; desc: string }>(`(() => { const li = document.querySelector(".stage-bar .mark.${kind}.expanded"); return { stage: li.getAttribute("aria-label"), name: li.querySelector(".stage-name").textContent, desc: li.querySelector(".stage-desc").textContent }; })()`);
+    assert.equal(m.name, m.stage);
+    assert.equal(m.desc, words.screen.stageBar.descriptions[m.stage], `${kind}: its description`);
+    assert.equal(await nowName(), false, `${kind}: the current stage shrinks back`);
+    await page.shot(`stage-bar-hover-${kind}`);
+  }
+  await move({ x: VIEW.width / 2, y: VIEW.height / 2 });
+  await page.until(`document.querySelector(".stage-bar .mark.now .stage-name")`);
+  // A future stage can't be opened: it isn't a button, and clicking it changes nothing.
+  assert.equal(await page.eval<string>(`document.querySelector(".stage-bar .mark.next .stage").tagName`), "SPAN");
+  await click(".stage-bar .mark.next .stage");
+  assert.equal(await page.eval<boolean>(`!!document.querySelector(".past-stage")`), false, "no future stage opens");
+  // A draft in the box, then a past stage: read-only, its own lines, Return in Speak's and Pass's place.
+  const DRAFT = "Not a word of this until I'm back.";
+  await page.eval(`document.querySelector(".input textarea").focus()`);
+  await page.type(DRAFT);
+  const stage = await page.eval<string>(`document.querySelector(".stage-bar .mark.past").getAttribute("aria-label")`);
+  const open = async () => {
+    await click(`.stage-bar .mark.past[aria-label="${stage.replace(/"/g, '\\"')}"] .stage`);
+    await page.until(`document.querySelector(".past-stage") && document.querySelector('[data-hint="return"]')`);
+  };
+  await open();
+  const view = await page.eval<{ stage: string; lines: number; buttons: string[]; box: string; open: boolean }>(`({
+    stage: document.querySelector(".past-stage").dataset.stage,
+    lines: document.querySelectorAll(".past-stage .ln").length,
+    buttons: [...document.querySelectorAll(".input .actions button")].map((b) => b.dataset.hint),
+    box: document.querySelector(".input textarea").value,
+    open: document.querySelector(".stage-bar .mark.open")?.getAttribute("aria-label") === document.querySelector(".past-stage").dataset.stage,
+  })`);
+  assert.equal(view.stage, stage);
+  assert.ok(view.lines > 0, "the stage's lines");
+  assert.deepEqual(view.buttons, ["return"], "Return alone, in Speak's and Pass's place");
+  assert.equal(view.box, DRAFT, "the draft stays in the box");
+  assert.ok(view.open, "the bar marks the open stage");
+  // While the game waits for the player, Return and the current stage beckon.
+  if (await page.eval<boolean>(`!!document.querySelector(".prompt.waiting")`)) assert.equal(await page.eval<boolean>(`!!document.querySelector("button.return.beckon") && !!document.querySelector(".stage-bar .mark.now.beckon")`), true, "Return and the current stage beckon");
+  await page.shot("past-stage");
+  // Enter returns, sending nothing; the draft survives.
+  await page.eval(`document.querySelector(".input textarea").focus()`);
+  await page.key("Enter", 13);
+  await page.until(`!document.querySelector(".past-stage") && document.querySelector('[data-hint="speak"]')`);
+  assert.equal(await page.eval<string>(`document.querySelector(".input textarea").value`), DRAFT, "the draft survives the return");
+  // Return, and clicking the current stage, return too.
+  await open();
+  await click(`[data-hint="return"]`);
+  await page.until(`!document.querySelector(".past-stage")`);
+  await open();
+  await click(".stage-bar .mark.now .stage");
+  await page.until(`!document.querySelector(".past-stage")`);
+  assert.equal(await page.eval<string>(`document.querySelector(".input textarea").value`), DRAFT);
+  assert.deepEqual(await sent(), [], "nothing was sent from the past stage");
+  // A selected guest's dots: on each past stage they appear in.
+  await open();
+  await page.until(`document.querySelector(".past-stage .guest, .past-stage .ln")`);
+  const name = await page.eval<string | null>(`document.querySelector(".past-stage .guest")?.textContent ?? null`);
+  if (name) {
+    await page.eval(`document.querySelector(".past-stage .guest").click()`);
+  } else {
+    await click(`[data-hint="return"]`);
+    await page.eval(`document.querySelector(".here .guest").click()`);
+  }
+  await page.until(`document.querySelector(".side.right .look")`);
+  const picked = await page.eval<string>(`document.querySelector(".side.right .look").dataset.guest`);
+  if (name) await page.until(`document.querySelector(${JSON.stringify(`.stage-bar .mark.past[aria-label="${stage.replace(/"/g, '\\"')}"] .stage-dot`)})`);
+  const dots = await page.eval<number>(`document.querySelectorAll(".stage-bar .stage-dot").length`);
+  if (name) assert.ok(dots > 0, `${picked} has a dot on the stage they appear in`);
+  await page.shot("stage-dots");
+  await page.eval(`document.querySelector(".input textarea").blur()`);
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector(".stage-bar .stage-dot")`);
+  if (await page.eval<boolean>(`!!document.querySelector(".past-stage")`)) await click(`[data-hint="return"]`);
+  await page.until(`!document.querySelector(".past-stage")`);
+  assert.deepEqual(await sent(), [], "still nothing sent");
+  // On a narrow window the bar scrolls sideways, keeping the current stage in view.
+  await page.send("Emulation.setDeviceMetricsOverride", { width: 900, height: VIEW.height, deviceScaleFactor: 1, mobile: false });
+  await page.until(`innerWidth === 900`);
+  await new Promise((r) => setTimeout(r, 100));
+  const narrow = await page.eval<{ scrolls: boolean; inView: boolean }>(`(() => {
+    const ol = document.querySelector(".stage-bar"), bar = ol.getBoundingClientRect(), now = document.querySelector(".stage-bar .mark.now .stage").getBoundingClientRect();
+    return { scrolls: ol.scrollWidth > ol.clientWidth, inView: now.left >= bar.left - 1 && now.right <= bar.right + 1 };
+  })()`);
+  await page.shot("stage-bar-narrow");
+  assert.ok(narrow.scrolls, "the bar is wider than its column, so it scrolls sideways");
+  assert.ok(narrow.inView, "with the current stage in view");
+  await page.send("Emulation.setDeviceMetricsOverride", { ...VIEW, deviceScaleFactor: 1, mobile: false });
 });

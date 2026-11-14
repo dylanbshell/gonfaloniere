@@ -67,7 +67,6 @@ button.small { font-size: var(--text-xs); padding: 0 var(--space-2); }
 
 .centre { display: flex; flex-direction: column; min-width: 0; height: calc(var(--screen-height) - var(--web-bar-height)); }
 .conv-head { min-height: var(--head-height); padding: var(--space-3) var(--space-4); border-bottom: var(--border-width) solid var(--border); background: var(--surface); display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
-.phase { font-weight: var(--weight-bold); }
 .stream { flex: 1; overflow-y: auto; padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
 .ln { padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); }
 .ln .sp { font-weight: var(--weight-bold); font-size: var(--text-sm); margin-right: var(--space-2); }
@@ -79,7 +78,7 @@ button.small { font-size: var(--text-xs); padding: 0 var(--space-2); }
 .ln.notaio .sp { font-style: normal; }
 .ln.action { color: var(--text-muted); font-size: var(--text-sm); }
 .ln.private { border: var(--border-width) dashed var(--border); }
-/* Earlier tonight: one line per earlier conversation, opening in place */
+/* Earlier this stage: one line per earlier conversation in the current stage, opening in place */
 .earlier { border-bottom: var(--border-width) solid var(--border); padding-bottom: var(--space-3); margin-bottom: var(--space-2); display: flex; flex-direction: column; gap: var(--space-1); }
 .earlier .label { margin: 0 0 var(--space-1); }
 .earlier-line { display: flex; justify-content: space-between; gap: var(--space-3); width: 100%; text-align: left; border: none; background: transparent; padding: var(--space-1) var(--space-2); font-size: var(--text-sm); color: var(--text-muted); }
@@ -229,16 +228,43 @@ button.key-type.on { border-color: var(--accent); background: var(--select-bg); 
 .reading-text { margin: 0; }
 .reading-text.tally { font-style: italic; }
 
-/* The evening's track (TD v0.44): beside the time label, wrapping below it on a narrow window */
-.conv-where { min-width: 0; }
-.phase-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); }
-.track { display: flex; gap: var(--space-1); list-style: none; margin: 0; padding: 0; }
-.track .mark { width: var(--mark-size); height: var(--mark-size); border-radius: var(--radius-round); border: var(--border-width) solid var(--track); }
-.track .mark.past { background: var(--track); }
-.track .mark.now { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 var(--mark-ring) var(--select-bg); }
-/* TD v0.47: the errand's deadline carries a small errand mark, a diamond on its stage mark's corner */
-.track .mark.deadline { position: relative; }
-.track .errand-mark { position: absolute; top: calc(var(--errand-mark-size) / -2); right: calc(var(--errand-mark-size) / -2); width: var(--errand-mark-size); height: var(--errand-mark-size); transform: rotate(45deg); background: var(--errand-accent); border: var(--border-width) solid var(--surface); }
+/* The stage bar (Interface v0.5): a circle per stage joined by a stroke, past filled, future outlined, the
+   current one an oval with its name; a hovered or focused stage expands instead. It scrolls sideways on a
+   narrow window. */
+.conv-where { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: var(--space-1); }
+.phase { font-weight: var(--weight-bold); min-height: var(--stage-bar-height); display: flex; align-items: center; }
+.stage-bar { display: flex; align-items: center; list-style: none; margin: 0; padding: 0 var(--space-1); min-height: var(--stage-bar-height); overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+.stage-bar .mark { position: relative; display: flex; align-items: center; flex: none; }
+.stage-bar .mark + .mark::before { content: ""; width: var(--stage-stroke-length); height: var(--stage-stroke); background: var(--track); }
+.stage { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-width: var(--stage-size); height: var(--stage-size); padding: 0; border: var(--stage-stroke) solid var(--track); border-radius: var(--radius-round); background: var(--surface); color: var(--text-muted); font-size: var(--text-xs); white-space: nowrap; }
+.mark.past .stage { background: var(--track); color: var(--text); }
+.mark.now .stage { border-color: var(--accent); color: var(--accent); }
+.mark.now.expanded .stage { background: var(--accent); color: var(--accent-text); }
+.mark.next .stage { cursor: default; }
+.mark.expanded .stage { justify-content: flex-start; padding: 0 var(--space-3) 0 var(--space-2); }
+.mark.open .stage { box-shadow: 0 0 0 var(--mark-ring) var(--select-bg); }
+.stage-name { font-size: var(--text-sm); font-weight: var(--weight-bold); }
+.stage-desc { max-width: var(--stage-desc-width); overflow: hidden; text-overflow: ellipsis; }
+/* A selected guest's dot on each past stage they appear in, under its circle */
+.stage-dot { position: absolute; left: calc(var(--stage-size) / 2); bottom: 0; width: var(--stage-dot-size); height: var(--stage-dot-size); transform: translate(-50%, 25%); border-radius: var(--radius-round); background: var(--accent); border: var(--border-width) solid var(--surface); }
+.mark + .mark .stage-dot { left: calc(var(--stage-stroke-length) + var(--stage-size) / 2); }
+/* TD v0.47: the errand's deadline carries a small errand mark, a diamond on its stage's corner */
+.track .errand-mark { position: absolute; z-index: 1; top: 0; right: calc(var(--errand-mark-size) / -2); width: var(--errand-mark-size); height: var(--errand-mark-size); transform: rotate(45deg); background: var(--errand-accent); border: var(--border-width) solid var(--surface); }
+/* From a past stage while the game waits for the player: the current stage and Return beckon */
+.mark.beckon .stage, button.return.beckon { animation: beckon var(--motion-pulse) ease-in-out infinite alternate; }
+@keyframes beckon { from { box-shadow: 0 0 0 0 var(--accent); } to { box-shadow: 0 0 0 var(--do-lit-ring) var(--accent); } }
+@media (prefers-reduced-motion: reduce) {
+  .mark.beckon .stage, button.return.beckon { animation: none; box-shadow: 0 0 0 var(--do-lit-ring) var(--accent); }
+}
+/* The members line under the bar, with End conversation in a Colloquio */
+.members { display: flex; align-items: center; gap: var(--space-3); min-height: var(--members-height); font-size: var(--text-sm); }
+.members button { padding: 0 var(--space-2); font-size: var(--text-sm); }
+
+/* A past stage, read-only: each conversation under its line */
+.past-stage { display: flex; flex-direction: column; gap: var(--space-3); }
+.past-stage > .label { margin: 0; }
+.past-where { font-size: var(--text-sm); padding: 0 var(--space-2); }
+.past-lines { display: flex; flex-direction: column; gap: var(--space-2); padding-left: var(--space-3); border-left: var(--border-width) solid var(--border); margin-left: var(--space-2); }
 
 /* The right panel (TD v0.44–v0.46): the live "talking with" card, a selected guest's card over it, a resize handle */
 /* The conversation's tint fills the panel, under the talking-with card */

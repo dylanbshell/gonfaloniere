@@ -41,6 +41,12 @@ export function notaioHint(key: string, values: Record<string, string | number> 
   return t.replace(/\{(\w+)\}/g, (m, k: string) => (k in values ? String(values[k]) : m));
 }
 
+/** A stage's one-line description for the stage bar (player.json's screen.stageBar), by its name; "" if it has none. */
+export function stageDescription(stage: string): string {
+  const d = (info?.words as { screen?: { stageBar?: { descriptions?: Record<string, unknown> } } } | undefined)?.screen?.stageBar?.descriptions?.[stage];
+  return typeof d === "string" ? d : "";
+}
+
 /** A list from player.json (the example lines). */
 export function list(key: string): string[] {
   const t = key.split(".").reduce<unknown>((o, k) => (o && typeof o === "object" ? (o as Record<string, unknown>)[k] : undefined), info?.words);

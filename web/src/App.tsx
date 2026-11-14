@@ -7,8 +7,8 @@
 import { Component, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { connect, type Ev } from "./connection.ts";
 import { COMMAND, MENTION, canDo, canSpeak, isCommand, matchCommands, matchGuests, openMenu, withMention, type Trigger } from "./input.ts";
-import { appearsIn, briefingCards, cityCards, derive, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, loreParts, readingFor, recordUpTo, rulesCards, talkingWith, trackMarks, webLayout, type Card, type Line, type LoreEntry, type Note, type Request, type Segment, type Sheet, type State, type View } from "./model.ts";
-import { getInfo, guest, list, names, notaioHint, setInfo, w, type StartInfo } from "./words.ts";
+import { appearsIn, briefingCards, cityCards, derive, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, loreParts, readingFor, recordUpTo, rulesCards, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, type Card, type Line, type LoreEntry, type Note, type Request, type Run, type Segment, type Sheet, type State, type View } from "./model.ts";
+import { getInfo, guest, list, names, notaioHint, setInfo, stageDescription, w, type StartInfo } from "./words.ts";
 
 type Send = (m: unknown) => void;
 
@@ -410,8 +410,8 @@ function Game({ me, url }: { me: string; url: string }) {
 }
 
 /**
- * The game screen for a view of the player's log. The tests render it with a deck, a selection, or the
- * Web of Secrets open from the start.
+ * The game screen for a view of the player's log. The tests render it with a deck, a selection, the
+ * Web of Secrets, or a past stage open from the start.
  */
 export function GameView({
   me,
@@ -423,6 +423,7 @@ export function GameView({
   web: initialWeb = null,
   webTab,
   keyType,
+  pastStage = null,
 }: {
   me: string;
   v: View;
@@ -435,6 +436,8 @@ export function GameView({
   webTab?: WebTab;
   /** A relationship type highlighted from the start, in the Web of Secrets' key. */
   keyType?: string | null;
+  /** A past stage open from the start (Interface v0.5). */
+  pastStage?: string | null;
 }) {
   const [deck, setDeck] = useState<DeckName | null>(initialDeck);
   const [places, setPlaces] = useState<Record<DeckName, number>>({ briefing: 0, rules: 0, city: 0 });
@@ -479,7 +482,7 @@ export function GameView({
         <Boundary panel="left" fallback={(n) => <aside className="side left">{n}</aside>}>
           <Left me={me} v={v} onDeck={setDeck} />
         </Boundary>
-        <Centre me={me} v={v} send={send} dead={dead} status={status} boxFill={boxFill} />
+        <Centre me={me} v={v} send={send} dead={dead} status={status} boxFill={boxFill} initialPast={pastStage} />
         <Boundary panel="right" fallback={(n) => <aside className="side right">{n}</aside>}>
           <Right me={me} v={v} onWeb={openWeb} layout={layout} />
         </Boundary>
@@ -673,81 +676,99 @@ function RoomView({ v }: { v: View }) {
 const conversationLabel = (s: State | null) =>
   !s ? "" : s.conversation.kind === "capannello" ? (s.present.length ? w("screen.capannello", { others: names(s.present) }) : w("screen.alone")) : s.conversation.kind === "colloquio" ? w("screen.colloquio", { other: s.conversation.other }) : w("screen.alone");
 
-/** One line for an earlier conversation: where, and when. */
-const earlierLabel = (seg: Segment) => w("screen.earlier.item", { where: conversationLabel(seg.state), when: seg.state?.phaseLabel ?? "" });
+/** One line for an earlier conversation in this stage: where. */
+const earlierLabel = (seg: Segment) => w("screen.earlier.item", { where: conversationLabel(seg.state) });
 
-function Centre({ me, v, send, dead, status, boxFill }: { me: string; v: View; send: Send; dead: boolean; status: string; boxFill: BoxFill | null }) {
+function Centre({ me, v, send, dead, status, boxFill, initialPast = null }: { me: string; v: View; send: Send; dead: boolean; status: string; boxFill: BoxFill | null; initialPast?: string | null }) {
   const end = useRef<HTMLDivElement>(null);
+  const stream = useRef<HTMLDivElement>(null);
   const hint = useHint();
   const { sel } = useContext(SelContext);
-  /** Earlier conversations the player opened or closed by hand; the rest follow the selected guest. */
-  const [manual, setManual] = useState<Map<number, boolean>>(() => new Map());
-  // A block body: scrollIntoView returns a promise in newer browsers, and an effect may return only its clean-up.
+  /** The past stage open in the chat window (Interface v0.5, Past stages), read-only; null for the current stage. */
+  const [past, setPast] = useState<string | null>(initialPast);
+  /** Earlier conversations the player opened or closed by hand, by their first line; the rest follow the selected guest. */
+  const [manual, setManual] = useState<Map<string, boolean>>(() => new Map());
+  // The current stage keeps its newest line in view; a past stage holds still while the player reads, and
+  // coming back goes to the newest line. (A block body: scrollIntoView returns a promise in newer browsers.)
   useEffect(() => {
-    end.current?.scrollIntoView({ block: "end" });
-  }, [v.stream.length, v.pending?.id, v.speaking]);
+    if (!past) end.current?.scrollIntoView({ block: "end" });
+  }, [v.stream.length, v.pending?.id, v.speaking, past]);
+  useLayoutEffect(() => {
+    if (past && stream.current) stream.current.scrollTop = 0;
+  }, [past]);
   const card = v.pending && v.pending.kind !== "speak" ? v.pending : null;
   const o = (v.pending?.kind === "speak" ? v.pending.options : {}) as { canEnd?: boolean; closing?: string | null };
-  // End conversation acts on the conversation, so it sits with the conversation's header (TD v0.40).
-  const canEnd = !dead && !card && (v.state?.conversation.kind === "colloquio" || !!o.canEnd) && !o.closing;
-  // Only the current conversation is open; earlier ones fold into "Earlier tonight", each opening in place.
-  // Selecting a guest opens the ones they appeared in, and deselecting folds them again (TD v0.41).
-  const earlier = v.segments.slice(0, -1);
+  // End conversation acts on the conversation, so it sits on the members line (Interface v0.5); never from a past stage.
+  const canEnd = !past && !dead && !card && (v.state?.conversation.kind === "colloquio" || !!o.canEnd) && !o.closing;
+  // Only the current conversation is open; this stage's earlier ones fold into "Earlier this stage", each
+  // opening in place, and earlier stages live in the bar. Selecting a guest opens the ones they appeared in,
+  // and deselecting folds them again (TD v0.41; Interface v0.5).
+  const earlier = earlierThisStage(v);
   const current = v.segments.at(-1);
-  const isOpen = (i: number) => manual.get(i) ?? (sel?.kind === "guest" && appearsIn(earlier[i]!, sel.name));
-  const toggle = (i: number) => setManual(new Map(manual).set(i, !isOpen(i)));
+  const keyOf = (r: Run) => r.lines[0]!.id;
+  const isOpen = (r: Run) => manual.get(keyOf(r)) ?? (sel?.kind === "guest" && appearsIn(r, sel.name));
+  const toggle = (r: Run) => setManual(new Map(manual).set(keyOf(r), !isOpen(r)));
+  const lore = v.sheet?.lore ?? [];
+  /** The game is waiting for the player: from a past stage, the Return button and the current stage beckon. */
+  const waiting = !dead && !!v.pending;
   return (
-    <main className="centre">
+    <main className={`centre${past ? " reading-past" : ""}`}>
       <header className="conv-head">
         <div className="conv-where">
-          <div className="phase-row">
-            <div className="phase" {...hint("header", { focusable: true })}>
-              {v.state?.phaseLabel}
-            </div>
-            <Track stages={v.sheet?.track ?? []} now={v.state?.phaseLabel} deadline={errandDeadline(v)} />
+          <StageBar stages={v.sheet?.track ?? []} now={v.state?.phaseLabel} deadline={errandDeadline(v)} open={past} beckon={!!past && waiting} dots={sel?.kind === "guest" ? stagesWith(v, sel.name) : null} onOpen={setPast} />
+          {/* The members line (Interface v0.5), with End conversation in a Colloquio. */}
+          <div className="members">
+            <span className="muted" {...hint("header", { focusable: true })}>
+              {conversationLabel(v.state)}
+            </span>
+            {canEnd && (
+              <button className="secondary" onClick={() => send({ type: "end" })} {...hint("end")}>
+                {w("screen.input.end")}
+              </button>
+            )}
           </div>
-          <div className="muted">{conversationLabel(v.state)}</div>
         </div>
         {/* The connection's state in the header, so the stream doesn't move when it changes. */}
         {status !== "open" && <div className="notice status">{w(status === "closed" ? "screen.reconnecting" : "screen.connecting")}</div>}
-        {canEnd && (
-          <button className="secondary" onClick={() => send({ type: "end" })} {...hint("end")}>
-            {w("screen.input.end")}
-          </button>
-        )}
       </header>
-      <div className="stream">
+      <div className="stream" ref={stream}>
         <Boundary panel="stream">
-        {earlier.length > 0 && (
-          <section className="earlier">
-            <div className="label" {...hint("earlier", { focusable: true })}>
-              {w("screen.earlier.title")}
-            </div>
-            {earlier.map((seg, i) => (
-              <div className={`earlier-item${isOpen(i) ? " open" : ""}`} key={i}>
-                <button className="earlier-line" aria-expanded={isOpen(i)} onClick={() => toggle(i)} {...hint("earlierLine")}>
-                  <span>{earlierLabel(seg)}</span>
-                  <span className="muted">{w(isOpen(i) ? "screen.earlier.open" : "screen.earlier.closed")}</span>
-                </button>
-                {isOpen(i) && (
-                  <div className="earlier-lines">
-                    {seg.lines.map((l) => (
-                      <StreamLine key={l.id} l={l} me={me} lore={v.sheet?.lore ?? []} />
-                    ))}
+          {past ? (
+            <PastStage stage={past} v={v} me={me} />
+          ) : (
+            <>
+              {earlier.length > 0 && (
+                <section className="earlier">
+                  <div className="label" {...hint("earlier", { focusable: true })}>
+                    {w("screen.earlier.title")}
                   </div>
-                )}
-              </div>
-            ))}
-          </section>
-        )}
-        {current?.lines.map((l) => <StreamLine key={l.id} l={l} me={me} lore={v.sheet?.lore ?? []} />)}
-        {v.deaths.map((d) => (
-          <div className={`banner${d.you ? " you" : ""}`} key={d.name}>
-            {d.you ? w("screen.death.you") : w("screen.death.banner", { name: d.name })}
-          </div>
-        ))}
-        {v.speaking && <div className="speaking">{w("screen.speaking", { name: v.speaking })}</div>}
-        {card && !dead && <Card req={card} send={send} me={me} />}
+                  {earlier.map((r) => (
+                    <div className={`earlier-item${isOpen(r) ? " open" : ""}`} key={keyOf(r)}>
+                      <button className="earlier-line" aria-expanded={isOpen(r)} onClick={() => toggle(r)} {...hint("earlierLine")}>
+                        <span>{earlierLabel(r)}</span>
+                        <span className="muted">{w(isOpen(r) ? "screen.earlier.open" : "screen.earlier.closed")}</span>
+                      </button>
+                      {isOpen(r) && (
+                        <div className="earlier-lines">
+                          {r.lines.map((l) => (
+                            <StreamLine key={l.id} l={l} me={me} lore={lore} />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </section>
+              )}
+              {current?.lines.map((l) => <StreamLine key={l.id} l={l} me={me} lore={lore} />)}
+              {v.deaths.map((d) => (
+                <div className={`banner${d.you ? " you" : ""}`} key={d.name}>
+                  {d.you ? w("screen.death.you") : w("screen.death.banner", { name: d.name })}
+                </div>
+              ))}
+              {v.speaking && <div className="speaking">{w("screen.speaking", { name: v.speaking })}</div>}
+              {card && !dead && <Card req={card} send={send} me={me} />}
+            </>
+          )}
         </Boundary>
         <div ref={end} />
       </div>
@@ -756,7 +777,7 @@ function Centre({ me, v, send, dead, status, boxFill }: { me: string; v: View; s
       </Boundary>
       {!dead && (
         <Boundary panel="input" fallback={(n) => <div className="input">{n}</div>}>
-          <InputBox me={me} v={v} send={send} closed={!!card} fill={boxFill} />
+          <InputBox me={me} v={v} send={send} closed={!!card} fill={boxFill} past={!!past} onReturn={() => setPast(null)} />
         </Boundary>
       )}
     </main>
@@ -764,21 +785,130 @@ function Centre({ me, v, send, dead, status, boxFill }: { me: string; v: View; s
 }
 
 /**
- * The evening's track (TD v0.44): the game's stages as a row of marks beside the time label, done ones
- * filled, the current one highlighted, the rest outlined; each names its stage on hover. It wraps below
- * the label on a narrow window.
+ * A past stage, opened from the bar (Interface v0.5, Past stages): every conversation the player was in
+ * during it, in order, read-only, with lore links and highlighting as in the current stage.
  */
-function Track({ stages, now, deadline }: { stages: string[]; now: string | undefined; deadline: string | null }) {
+function PastStage({ stage, v, me }: { stage: string; v: View; me: string }) {
   const hint = useHint();
-  if (!stages.length) return null;
+  const runs = stageRuns(v, stage);
+  const lore = v.sheet?.lore ?? [];
   return (
-    <ol className="track" aria-label={w("screen.hints.track")}>
-      {trackMarks(stages, now, deadline).map((m) => (
-        <li key={m.stage} className={`mark ${m.at}${m.deadline ? " deadline" : ""}`} aria-label={m.stage} aria-current={m.at === "now" ? "step" : undefined} {...hint(m.at === "past" ? "trackPast" : m.at === "now" ? "trackNow" : "trackNext", { values: { stage: m.stage }, focusable: true })}>
-          {/* TD v0.47: with `plot_reward` on, the errand's deadline carries a small errand mark with its own explanation. */}
-          {m.deadline && <span className="errand-mark" role="img" aria-label={w("screen.errandDeadline")} {...hint("trackDeadline", { focusable: true })} />}
-        </li>
-      ))}
+    <section className="past-stage" data-stage={stage} aria-label={stage}>
+      <PastSummary stage={stage} v={v} />
+      <div className="label" {...hint("pastStage", { focusable: true })}>
+        {w("screen.pastStage.heading", { stage })}
+      </div>
+      {runs.length ? (
+        runs.map((r) => (
+          <div className="past-conv" key={r.lines[0]!.id}>
+            <div className="past-where muted">{conversationLabel(r.state)}</div>
+            <div className="past-lines">
+              {r.lines.map((l) => (
+                <StreamLine key={l.id} l={l} me={me} lore={lore} />
+              ))}
+            </div>
+          </div>
+        ))
+      ) : (
+        <p className="muted">{w("screen.pastStage.empty")}</p>
+      )}
+    </section>
+  );
+}
+
+/**
+ * The place for Il Notaio's summary of a past stage (Interface v0.13, Past stages; Technical Design v0.51,
+ * Past-stage summaries): his box goes here, first in the past stage's window, covering the dialogue from
+ * just under the bar down to the input box. It's a model call, built in #146; until then a past stage opens
+ * on its dialogue alone, so this renders nothing.
+ */
+function PastSummary(_props: { stage: string; v: View }) {
+  return null;
+}
+
+/**
+ * The stage bar (Interface v0.5): a circle per stage, joined by a stroke, each with its numeral; past ones
+ * filled, future ones outlined, the current one stretched into an oval with its name. Hovering (or focusing)
+ * another stage expands that one instead, with its name and description, and the current one shrinks back
+ * meanwhile. Past stages open read-only when clicked, the current one returns, and future ones can't be
+ * opened. With a guest selected, a dot marks each past stage they appear in; from a past stage while the
+ * game waits for the player, the current stage beckons. The errand's deadline mark stays on its stage
+ * (TD v0.47). On a narrow window the bar scrolls sideways, keeping the current (or open) stage in view.
+ */
+function StageBar({ stages, now, deadline, open, beckon, dots, onOpen }: { stages: string[]; now: string | undefined; deadline: string | null; open: string | null; beckon: boolean; dots: Set<string> | null; onOpen: (stage: string | null) => void }) {
+  const hint = useHint();
+  const [hover, setHover] = useState<string | null>(null);
+  const bar = useRef<HTMLOListElement>(null);
+  const shown = open ?? now;
+  // Keep the shown stage in view: when it changes, and when the window is resized (not on hover, so
+  // nothing moves under the pointer).
+  useLayoutEffect(() => {
+    const keep = () => {
+      const ol = bar.current;
+      const el = ol?.querySelector<HTMLElement>(".mark.shown");
+      if (!ol || !el) return;
+      const left = el.offsetLeft - ol.offsetLeft;
+      // Wider than the bar, it shows from its start (its numeral and the start of its name).
+      if (left < ol.scrollLeft || el.offsetWidth > ol.clientWidth) ol.scrollLeft = left;
+      else if (left + el.offsetWidth > ol.scrollLeft + ol.clientWidth) ol.scrollLeft = left + el.offsetWidth - ol.clientWidth;
+    };
+    keep();
+    window.addEventListener("resize", keep);
+    return () => window.removeEventListener("resize", keep);
+  }, [shown, stages.length]);
+  if (!stages.length)
+    return (
+      <div className="phase" {...hint("track", { focusable: true })}>
+        {now}
+      </div>
+    );
+  // Hover is cleared only on leaving the bar, so a neighbour shifting as the oval moves never flickers it.
+  const expanded = hover ?? shown;
+  return (
+    <ol className="track stage-bar" ref={bar} aria-label={w("screen.hints.track")} onMouseLeave={() => setHover(null)}>
+      {trackMarks(stages, now, deadline).map((m, i) => {
+        const h = hint(m.at === "past" ? "trackPast" : m.at === "now" ? "trackNow" : "trackNext", { values: { stage: m.stage } });
+        const on = {
+          ...h,
+          onMouseEnter: (e: { currentTarget: Element }) => {
+            h.onMouseEnter(e);
+            setHover(m.stage);
+          },
+          onFocus: (e: { currentTarget: Element }) => {
+            h.onFocus(e);
+            setHover(m.stage);
+          },
+          onBlur: () => {
+            h.onBlur();
+            setHover(null);
+          },
+        };
+        const description = m.stage === hover ? stageDescription(m.stage) : "";
+        const inner = (
+          <>
+            <span className="num">{i + 1}</span>
+            {m.stage === expanded && <span className="stage-name">{m.stage}</span>}
+            {description && <span className="stage-desc">{description}</span>}
+          </>
+        );
+        const classes = ["mark", m.at, m.deadline && "deadline", m.stage === expanded && "expanded", m.stage === shown && "shown", m.stage === open && "open", m.at === "now" && beckon && "beckon"].filter(Boolean).join(" ");
+        return (
+          <li key={m.stage} className={classes} aria-label={m.stage} aria-current={m.at === "now" ? "step" : undefined}>
+            {/* TD v0.47: with `plot_reward` on, the errand's deadline carries a small errand mark with its own explanation. */}
+            {m.deadline && <span className="errand-mark" role="img" aria-label={w("screen.errandDeadline")} {...hint("trackDeadline", { focusable: true })} />}
+            {m.at === "next" ? (
+              <span className="stage" tabIndex={0} aria-disabled="true" {...on}>
+                {inner}
+              </span>
+            ) : (
+              <button className="stage" aria-pressed={m.at === "past" ? m.stage === open : undefined} onClick={() => onOpen(m.at === "past" ? m.stage : null)} {...on}>
+                {inner}
+              </button>
+            )}
+            {m.at === "past" && dots?.has(m.stage) && <span className="stage-dot" aria-hidden="true" />}
+          </li>
+        );
+      })}
     </ol>
   );
 }
@@ -1312,7 +1442,12 @@ function ReadingBox({ me, v, picked, open, send }: { me: string; v: View; picked
 // its place for a command; Pass is outlined; @ and / are small icons inside the box. The menus open and
 // close with their character (input.ts).
 
-function InputBox({ me, v, send, closed, fill }: { me: string; v: View; send: Send; closed: boolean; fill: BoxFill | null }) {
+/**
+ * The input box. While a past stage is open (`past`, Interface v0.5), Speak/Do and Pass give way to one
+ * Return to current stage button in the same spot, and Enter does the same: the draft, a handed conclusion,
+ * and Do's highlight all stay as they were, and nothing is sent until Speak or Do back in the current stage.
+ */
+function InputBox({ me, v, send, closed, fill, past = false, onReturn = () => {} }: { me: string; v: View; send: Send; closed: boolean; fill: BoxFill | null; past?: boolean; onReturn?: () => void }) {
   const info = getInfo();
   const hint = useHint();
   const [text, setText] = useState("");
@@ -1414,17 +1549,20 @@ function InputBox({ me, v, send, closed, fill }: { me: string; v: View; send: Se
     change("");
   };
   const focus = () => area.current?.focus();
-  if (closed)
+  // From a past stage the box stays open, with the draft, even while a decision card waits in the current one.
+  if (closed && !past)
     return (
       <div className="input closed">
         <span className="muted">{w("screen.input.closed")}</span>
       </div>
     );
   const refusal = v.refusal && v.refusal.seq > actedAt ? v.refusal.reason : null;
+  /** The game waits for the player (a request is open): from a past stage, Return beckons and the placeholder says so. */
+  const beckon = past && !!v.pending;
   const examples = list("examples");
   const example = examples.length ? examples[v.spoken % examples.length] : null;
   return (
-    <div className="input" ref={box}>
+    <div className={`input${past ? " past" : ""}`} ref={box}>
       {/* The prompt's and the example's lines are always laid out, so the box keeps its height as they come and go. */}
       <div className={`prompt${req ? " waiting" : ""}`}>{prompt}</div>
       {refusal && <div className="notice">{refusal}</div>}
@@ -1467,7 +1605,7 @@ function InputBox({ me, v, send, closed, fill }: { me: string; v: View; send: Se
           <textarea
             ref={area}
             value={text}
-            placeholder={w("screen.input.placeholder")}
+            placeholder={w(past ? (beckon ? "screen.input.pastWaiting" : "screen.input.pastPlaceholder") : "screen.input.placeholder")}
             onChange={(e) => change(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Escape" && menuOpen) {
@@ -1475,7 +1613,8 @@ function InputBox({ me, v, send, closed, fill }: { me: string; v: View; send: Se
                 dismiss();
               } else if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                submit();
+                if (past) onReturn();
+                else submit();
               }
             }}
             {...hint("input", { values: { max: info.max } })}
@@ -1506,18 +1645,26 @@ function InputBox({ me, v, send, closed, fill }: { me: string; v: View; send: Se
         </div>
         <div className="actions">
           <span className={`count${!command && text.length > info.max ? " over" : ""}`}>{command ? "" : w("screen.input.count", { count: text.length, max: info.max })}</span>
-          {command ? (
-            <button className={`do${doLit ? " lit" : ""}`} onClick={submit} disabled={!canDo(text)} {...hint("do")}>
-              {w("screen.input.do")}
+          {past ? (
+            <button className={`primary return${beckon ? " beckon" : ""}`} onClick={onReturn} {...hint("return")}>
+              {w("screen.input.return")}
             </button>
           ) : (
-            <button className="primary" onClick={submit} disabled={!canSpeak(text)} {...hint("speak")}>
-              {w("screen.input.speak")}
-            </button>
+            <>
+              {command ? (
+                <button className={`do${doLit ? " lit" : ""}`} onClick={submit} disabled={!canDo(text)} {...hint("do")}>
+                  {w("screen.input.do")}
+                </button>
+              ) : (
+                <button className="primary" onClick={submit} disabled={!canSpeak(text)} {...hint("speak")}>
+                  {w("screen.input.speak")}
+                </button>
+              )}
+              <button className="secondary" onClick={() => act({ type: "pass" })} {...hint("pass")}>
+                {w("screen.input.pass")}
+              </button>
+            </>
           )}
-          <button className="secondary" onClick={() => act({ type: "pass" })} {...hint("pass")}>
-            {w("screen.input.pass")}
-          </button>
         </div>
       </div>
       <div className="example muted">{example ? w("screen.input.example", { line: example }) : ""}</div>

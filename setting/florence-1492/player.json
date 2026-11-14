@@ -121,7 +121,10 @@
       "closing": "{name} has ended the conversation: a last word, or pass.",
       "yourTurn": "Your turn to speak.",
       "closed": "A choice is waiting above.",
-      "do": "Do"
+      "do": "Do",
+      "return": "Return to current stage",
+      "pastPlaceholder": "You're reading an earlier stage. Write here if you like: nothing is sent until you're back in the current stage.",
+      "pastWaiting": "The current stage is waiting for you. Return when you're ready."
     },
     "move": {
       "title": "Your movement window",
@@ -188,9 +191,23 @@
       "noReward": "Errands earn no extra act tonight."
     },
     "errandDeadline": "Your errand's deadline",
+    "stageBar": {
+      "_comment": "Interface v0.5, the stage bar: one line for each stage, keyed by the stage's name as block 5 gives it (in-world-names.json's phase labels). A stage without a line here shows its name alone.",
+      "descriptions": {
+        "The guests' arrival": "The guests come in and form their first groups.",
+        "The first round of mingling, early": "Talk in small groups; move, or call someone aside.",
+        "The first round of mingling, midway": "The round goes on, and the groups shift.",
+        "The first round of mingling, late": "The round's last stretch before midnight.",
+        "Midnight": "Each guest acts alone, in secret."
+      }
+    },
+    "pastStage": {
+      "heading": "Earlier: {stage}",
+      "empty": "Nothing reached you in this stage."
+    },
     "earlier": {
-      "title": "Earlier tonight",
-      "item": "{where} · {when}",
+      "title": "Earlier this stage",
+      "item": "{where}",
       "open": "Hide",
       "closed": "Show"
     },
@@ -210,8 +227,8 @@
       "here": "The room: the guests with you, then everyone else as they stand right now. You can see who is with whom, never what they say.",
       "briefing": "Your briefing: who you are, what you know, and what you want. Only you can see it.",
       "rules": "The rules of the evening, as every guest has them.",
-      "header": "Where you are: the time of the evening, and who you're talking with.",
-      "earlier": "Conversations you were part of earlier tonight. Click one to read it again; click again to fold it away.",
+      "header": "Who you're with now, in the current stage.",
+      "earlier": "Conversations you were part of earlier in this stage. Click one to read it again; click again to fold it away. Earlier stages are in the bar above.",
       "input": "Type what your character says, up to {max} characters. Start with @ to speak to one guest, or / for a command.",
       "mention": "Speak to one guest: choose who your next line is for. Everyone present still hears it.",
       "commands": "Commands: actions such as paying, borrowing, or repaying, instead of words.",
@@ -256,10 +273,12 @@
       "keyType": "Highlight every line of this kind across the web. Click again to clear.",
       "reading": "Il Notaio's short reading of what you've heard and seen of the selected guests. It's one model's summary of your own record, and every quote is checked against it. He may still be wrong.",
       "faction": "A faction: its guests sit together under its name.",
-      "track": "The evening's stages: filled ones are done, the highlighted one is now, outlined ones are still to come.",
-      "trackPast": "{stage}: done.",
-      "trackNow": "{stage}: now.",
-      "trackNext": "{stage}: still to come.",
+      "track": "The evening's stages: filled ones are done, the long one is now, outlined ones are still to come.",
+      "trackPast": "{stage}: done. Click to read its conversations again. Nothing can be sent from there.",
+      "trackNow": "{stage}: now. Click to come back here from an earlier stage.",
+      "trackNext": "{stage}: still to come. It opens once it has happened.",
+      "return": "Back to the current stage. Your words stay in the box; nothing is sent until you press Speak or Do there. Enter does the same.",
+      "pastStage": "An earlier stage, read-only: every conversation you were in during it, in order.",
       "lookingAt": "The guest you selected, over the one you're talking with. Everything shown is what anyone at the party knows about them.",
       "deselect": "Stop looking at this guest, and go back to whoever you're talking with.",
       "backToTalk": "Back to whoever you're talking with.",
