@@ -1,6 +1,14 @@
 # Gonfaloniere
 ## Models & Research — Working Document
-### Version 0.53
+### Version 0.54
+
+---
+
+## Changes in v0.54
+
+*Drops the room view check (Dylan, Nov 14). The room line stays whatever the check found, because the human player sees the room and the AI guests should too.*
+
+- **The room view check** (Open Questions): dropped, not run, nothing spent. The full games' baseline starts with the room line on. Two parts that cost nothing move into the full games as watch items: knowledge checks on the two affairs (F1, F3) and input tokens per call
 
 ---
 
@@ -1071,13 +1079,7 @@ Decided in Technical Design (Model Routing): batched `think()` rejected in favor
   - **Knowledge errands carry the known limit.** Eight of twelve rest on knowledge checks. Report their rates only once the golden set has passed (above), and hand-read every *told* and *conclusion* verdict behind a completion, as Technical Design asks. Logged errands are exact
   - **When the numbers count:** with fewer than 20 games, per-character rates move by ±20 points or more by chance, so I'll report them as provisional. From 20 games, I'll flag any errand completed in under 15% or over 85% of games, and any faction averaging two or more extra acts than another. Mechanics decides the rework from there
   - **No extra spend:** these come from the game records and plot checks the engine already writes
-- [ ] **The room view check, before the full games' baseline** (from Technical Design v0.45, Nov 12). Everyone sees the room since Mechanics v0.32, built in #95 (PR #104). It will change how AI guests move, and the full games' baseline should start knowing how much. A measurement, not a gate: the rule is Mechanics', so this only flags
-  - **Design:** 4 DeepSeek mini-games, seeds 2000–2001 for each arm. **Room off:** the last Technical Design and Characters versions before the room line. **Room on:** the first versions with it. Claude Code confirms, as its version tests do, that the prompts differ only by the room line and the briefings' sentence about seeing the room. Saved games on the room-off versions may stand in for that arm if they match exactly
-  - **Movement:** per game, movement windows used, and stay, join, and Colloquio counts; Colloquio calls and chains; joins toward a guest in private; seat calls; repairs and invalid targets
-  - **What the room reveals:** knowledge checks on F1 and F3 (the two affairs) and the beliefs behind them, since everyone now sees who slips away with whom; thoughts that mention seeing someone go private; Il Notaio's withdrawal escalation reached
-  - **Prompt size:** input tokens per call with the room line, and per game
-  - **Flags, set now** (to Technical Design and Mechanics, not reversals): movement or Colloquio calls per game change by half or more in either direction; repairs or invalid targets rise by more than 2 per game; suspicions or conclusions on F1 or F3 at least double. Each flag comes with examples from the games
-  - **Cost:** about $0.50 on the mini-game ledger (two new games, if the room-off arm can reuse saved ones)
+- [x] **The room view check: dropped** (Dylan, Nov 14; planned in v0.53 from Technical Design v0.45). Everyone sees the room regardless of what the check found: the human player sees it, it makes the evening easier to follow, and the AI guests should see what the player sees. A check that can't change the decision isn't worth running, so the full games' baseline starts with the room line on. Two parts of it cost nothing in the full games, so they move there as watch items, not flags: knowledge checks on F1 and F3 (the two affairs), since everyone now sees who slips away with whom, and input tokens per call. Anything odd goes to Mechanics or Technical Design with examples
 - [ ] **First full games: belief recall** (from Technical Design v0.43–v0.45, Dylan Nov 12). AI guests keep no notes, so a belief about a guest is their note on that guest. Block 6 already gives held beliefs about guests present up to 3 slots after the ★ entries; the question is whether that's enough. Technical Design has a fix ready (beliefs about guests present first, within the same cap), measured on a replay before it's adopted
   - **Coverage, from code:** for every call with a guest present about whom the character holds a belief, was that belief in block 6? Count separately for conclusions and suspicions, and why one was left out (the 3-belief limit, the token budget, or the ★ entries ahead of it)
   - **Behaviour, by blind judge:** a sample of 40 moments where a character speaks with, or about, a guest it holds a conclusion about, drawn before judging and split evenly between moments where the belief was in block 6 and moments where it wasn't. The judge sees the belief, the character's thought and line, and the conversation, but not whether the belief was in memory, and marks each **consistent**, **acts against it** (trusts, confides in, or pays someone it has concluded is lying or dangerous, with no stated reason), or **forgot** (the belief would plainly matter, and the thought shows no sign of it). Claude Code hand-checks every "acts against" and "forgot"
