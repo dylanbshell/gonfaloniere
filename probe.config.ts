@@ -89,8 +89,10 @@ export function docsFor(td: string, characters?: string) {
     technicalDesign: technicalDesignPath(td),
     characters: charactersPath(characters),
     // Only the Tunable Values table is read; v0.30's values are v0.20's, so prompts are unchanged. From TD
-    // v0.49, v0.35, whose table adds only the Named places row (read outside Tunables), so no value moves.
-    mechanics: mechanicsPath(atLeast(td, "0.49") ? "0.35" : "0.30"),
+    // v0.49, v0.36: v0.35's table added only the Named places row (read outside Tunables), and v0.36 only
+    // renames "Pension size" to "Payroll payment" (same value, read under either name), so no value moves.
+    // Before TD v0.49 the pin stays v0.30, so a game on an older TD records the Mechanics it always has.
+    mechanics: mechanicsPath(atLeast(td, "0.49") ? "0.36" : "0.30"),
     // Read only for its version and the secrets judge's rubric, which v0.52 carries unchanged from v0.38 (#59).
     modelsResearch: "docs/Gonfaloniere_Models_Research_v0.52.md",
   };
