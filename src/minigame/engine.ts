@@ -53,7 +53,7 @@ import { loreLines, type LoreSetting } from "./lore.ts";
 import type { RetrievalMethod, VectorStore } from "./store.ts";
 import { gameAct, hasArrival, inWorldNames, inWorldTime, minglingPhase } from "../prompt/names.ts";
 import type { OutgoingBody, RequestKind } from "../core/protocol.ts";
-import { actProblems } from "../rules/midnight.ts";
+import { actProblems, extraActProblems, type CheckedAct } from "../rules/midnight.ts";
 import { MemoryStore, renderBelief, tookTargetLine, resolveName, whereLabel, type GameLine, type Thought, type Where } from "./memory.ts";
 import { READING_MAX_TOKENS, readingMaterial, readingPrompt, unfoundQuotes, type ReadingMaterial } from "./reading.ts";
 import { MESSAGE_MAX, NOTE_MAX, PlayerFeed, errandText, screenContent, type PlayerNote, mentions, menu, parseCommand, playable, playerSays, refusal, type CommandAction } from "./player.ts";
@@ -1294,12 +1294,18 @@ export class MiniGame {
     if (!this.player) return;
     const h = this.human!;
     const allowed = this.seatOf(h) ? allowedActionTypes(this.actionContext(h)) : [];
-    this.player.state(this.stateFor(h, { gathering: this.gathering }) as unknown as Record<string, unknown>, menu([...allowed, ...extra, "conclude"], { amount: this.rules.pensionSize }), this.speaking, () => ({
+    // TD v0.47: the run's `plot_reward` flag reaches the screen with block 5 (a run setting, not a secret).
+    // The mini-game runs with it off, so there's never a `{plot_status}` to send.
+    const state = { ...(this.stateFor(h, { gathering: this.gathering }) as unknown as Record<string, unknown>), plotReward: false };
+    this.player.state(state, menu([...allowed, ...extra, "conclude"], { amount: this.rules.pensionSize }), this.speaking, () => ({
       rules: rulesText(this.docs.templates, { ...this.docs.tunables, plotProtection: false, plotReward: false }),
       briefing: this.s.briefings[h]!,
       errand: errandText(this.s.briefings[h]!),
       // TD v0.44, the evening's track: the stages of this game's own schedule, by their names.
       track: this.stages(),
+      // TD v0.47: the track's stage that is the errand's deadline (the last council before midnight). The
+      // mini-game's schedule has no council, and its errands are checked at the end of the game, so none.
+      errandDeadline: null,
       ...screenContent(h, this.s.lore ?? "off"),
     }));
   }
@@ -1587,35 +1593,59 @@ export class MiniGame {
     const living = this.living(c);
     const twoKills = hasRole(c, "two kills");
     const words = this.docs.inWorld ? Object.fromEntries(Object.entries(inWorldNames().acts).filter(([k]) => !k.startsWith("_"))) : { kill: "kill", guard: "guard", investigate: "investigate" };
-    const acts = await this.ask<Act[]>("midnight", { guests: living, acts: words, count: twoKills ? [1, 2] : [1] }, "murder", (m) => {
+    // TD v0.47: the request says whether the extra act was earned; if so, it's a separate, optional answer.
+    const earned = this.extraActEarned(c);
+    const check = (a: { type?: unknown; target?: unknown }) => {
+      const type = gameAct(String(a?.type ?? "")) as Act["type"] | null;
+      const target = String(a?.target ?? "");
+      const known = living.find((x) => x === target) ?? resolveName(target);
+      return { type, target: known && living.includes(known as CharacterName) ? known : target, self: target === c || known === c, living: !!known && living.includes(known as CharacterName) };
+    };
+    // The answer is the acts, as before v0.47, or with an extra act used, the acts and the extra apart (so a
+    // game without one records the same answer as ever).
+    const answer = await this.ask<Act[] | { acts: Act[]; extra: Act }>("midnight", { guests: living, acts: words, count: twoKills ? [1, 2] : [1], extra: earned }, "murder", (m) => {
       let list: unknown;
-      if (m.type === "choice") list = (m.value as { acts?: unknown } | null)?.acts;
-      else if (m.type === "command") {
+      let extra: unknown = null;
+      if (m.type === "choice") {
+        const v = m.value as { acts?: unknown; extra?: unknown } | null;
+        list = v?.acts;
+        extra = v?.extra ?? null;
+      } else if (m.type === "command") {
         const p = parseCommand(m.text, living);
         if (p.action !== "kill" && p.action !== "guard" && p.action !== "investigate") return null;
         list = [{ type: p.action, target: p.target ?? "" }];
       } else return null;
-      if (!Array.isArray(list)) return { refusal: refusal("choice") };
-      const checked = list.map((a: { type?: unknown; target?: unknown }) => {
-        const type = gameAct(String(a?.type ?? "")) as Act["type"] | null;
-        const target = String(a?.target ?? "");
-        const known = living.find((x) => x === target) ?? resolveName(target);
-        return { type, target: known && living.includes(known as CharacterName) ? known : target, self: target === c || known === c, living: !!known && living.includes(known as CharacterName) };
-      });
-      if (checked.some((a) => !a.type)) return { refusal: refusal("choice") };
-      const problem = actProblems(twoKills, checked as (Act & { self: boolean; living: boolean })[])[0];
+      if (!Array.isArray(list) || (extra !== null && (!earned || typeof extra !== "object"))) return { refusal: refusal("choice") };
+      const checked = list.map(check);
+      const extraChecked = extra === null ? null : check(extra as { type?: unknown; target?: unknown });
+      if (checked.some((a) => !a.type) || (extraChecked && !extraChecked.type)) return { refusal: refusal("choice") };
+      const problem = actProblems(twoKills, checked as CheckedAct[])[0] ?? (extraChecked && extraActProblems(checked as CheckedAct[], extraChecked as CheckedAct)[0]);
       if (problem) return { refusal: refusal(`acts.${problem.why.replace(/ /g, "_")}`) };
-      return { value: checked.map((a) => ({ type: a.type!, target: a.target })) };
+      const standard = checked.map((a) => ({ type: a.type!, target: a.target }));
+      return { value: extraChecked ? { acts: standard, extra: { type: extraChecked.type!, target: extraChecked.target } } : standard };
     });
-    this.murderActs.push({ character: c, acts, thought: null, failed: false });
-    this.events.push({ turn: this.turn, type: "murder-act", character: c, acts, resolved: false, source: "human" });
+    // The extra act is kept apart from the standard ones, as block 9e reports it, and only when used.
+    const acts = Array.isArray(answer) ? answer : answer.acts;
+    const extra = Array.isArray(answer) ? {} : { extra: answer.extra };
+    this.murderActs.push({ character: c, acts, ...extra, thought: null, failed: false });
+    this.events.push({ turn: this.turn, type: "murder-act", character: c, acts, ...extra, resolved: false, source: "human" });
+  }
+
+  /**
+   * Whether this guest earned the Plot Reward's extra act (TD v0.47; Mechanics, Plot Reward): the run's
+   * `plot_reward` on and their errand's check passed. The mini-game runs with `plot_reward` off (Player
+   * Interface, Build order), so never here; a test can say otherwise to play the midnight card's extra row.
+   */
+  protected extraActEarned(_c: CharacterName): boolean {
+    return false;
   }
 
   /** With a player, midnight resolves (src/rules/midnight.ts) and the deaths are announced to them. */
   private resolveMidnightForPlayer(): void {
     const order = (x: { character: CharacterName }) => this.s.cast.indexOf(x.character);
-    const submitted = (this.murderActs as { character: CharacterName; acts: { type: Act["type"]; target: string }[] | null }[]).filter((a) => a.acts).sort((a, b) => order(a) - order(b));
-    const subs = submitted.map((a) => ({ by: a.character, acts: a.acts!.map((x) => ({ type: x.type, target: (resolveName(x.target) as CharacterName | null) ?? x.target })) }));
+    const submitted = (this.murderActs as { character: CharacterName; acts: { type: Act["type"]; target: string }[] | null; extra?: Act }[]).filter((a) => a.acts).sort((a, b) => order(a) - order(b));
+    const named = (x: Act): Act => ({ type: x.type, target: (resolveName(x.target) as CharacterName | null) ?? x.target });
+    const subs = submitted.map((a) => ({ by: a.character, acts: a.acts!.map(named), ...(a.extra && { extra: named(a.extra) }) }));
     const r = resolveMidnight(subs, (n) => hasRole(n, "two kills"), this.docs.midnight);
     this.midnight = { deaths: r.deaths as CharacterName[], events: r.events };
     this.events.push({ turn: this.turn, type: "midnight", deaths: r.deaths, events: r.events });

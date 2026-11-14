@@ -7,7 +7,7 @@
 import { Component, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { connect, type Ev } from "./connection.ts";
 import { COMMAND, MENTION, canDo, canSpeak, isCommand, matchCommands, matchGuests, openMenu, withMention, type Trigger } from "./input.ts";
-import { appearsIn, briefingCards, cityCards, derive, factionLabels, heardAndSaw, hintMoment, loreParts, readingFor, recordUpTo, rulesCards, talkingWith, trackMarks, webLayout, type Card, type Line, type LoreEntry, type Note, type Request, type Segment, type Sheet, type State, type View } from "./model.ts";
+import { appearsIn, briefingCards, cityCards, derive, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, loreParts, readingFor, recordUpTo, rulesCards, talkingWith, trackMarks, webLayout, type Card, type Line, type LoreEntry, type Note, type Request, type Segment, type Sheet, type State, type View } from "./model.ts";
 import { getInfo, guest, list, names, notaioHint, setInfo, w, type StartInfo } from "./words.ts";
 
 type Send = (m: unknown) => void;
@@ -497,7 +497,11 @@ function useMoreBelow() {
   const [more, setMore] = useState(false);
   const check = () => {
     const el = ref.current;
-    if (el) setMore(el.scrollTop + el.clientHeight < el.scrollHeight - 2);
+    if (!el) return;
+    // Not counting the hint's own room at the end: once only that is left below, there's nothing more to see.
+    const hint = el.querySelector<HTMLElement>(":scope > .more-below");
+    const own = hint ? hint.offsetHeight + parseFloat(getComputedStyle(hint).marginTop) : 0;
+    setMore(el.scrollTop + el.clientHeight < el.scrollHeight - own - 2);
   };
   // After every render (new content), on scrolling, and on resizing the window.
   useLayoutEffect(check);
@@ -525,6 +529,7 @@ function MoreBelow({ m }: { m: ReturnType<typeof useMoreBelow> }) {
 
 function Left({ me, v, onDeck }: { me: string; v: View; onDeck: (d: DeckName) => void }) {
   const s = v.state;
+  const line = errandLine(s);
   const g = guest(me);
   const hint = useHint();
   const m = useMoreBelow();
@@ -562,12 +567,18 @@ function Left({ me, v, onDeck }: { me: string; v: View; onDeck: (d: DeckName) =>
         ))}
       </div>
       {v.sheet?.errand && (
-        <div className="errand" {...hint("errand", { focusable: true })}>
+        <div className="errand" {...hint(line?.kind === "reward" ? "errandReward" : line?.kind === "noReward" ? "errandNoReward" : "errand", { focusable: true })}>
           <div className="label">{w("screen.errandCard.title")}</div>
           <div className="errand-text">
             <Rich text={v.sheet.errand} />
           </div>
-          {s?.plotStatus && <div className="errand-result">{s.plotStatus}</div>}
+          {/* TD v0.47: what the errand earns, in the card's accent; after the check, {plot_status} replaces it. */}
+          {line?.kind === "status" && <div className="errand-result">{line.text}</div>}
+          {line && line.kind !== "status" && (
+            <div className="errand-reward" data-reward={line.kind}>
+              {w(`screen.errandCard.${line.kind}`)}
+            </div>
+          )}
         </div>
       )}
       <RoomView v={v} />
@@ -677,7 +688,7 @@ function Centre({ me, v, send, dead, status }: { me: string; v: View; send: Send
             <div className="phase" {...hint("header", { focusable: true })}>
               {v.state?.phaseLabel}
             </div>
-            <Track stages={v.sheet?.track ?? []} now={v.state?.phaseLabel} />
+            <Track stages={v.sheet?.track ?? []} now={v.state?.phaseLabel} deadline={errandDeadline(v)} />
           </div>
           <div className="muted">{conversationLabel(v.state)}</div>
         </div>
@@ -741,13 +752,16 @@ function Centre({ me, v, send, dead, status }: { me: string; v: View; send: Send
  * filled, the current one highlighted, the rest outlined; each names its stage on hover. It wraps below
  * the label on a narrow window.
  */
-function Track({ stages, now }: { stages: string[]; now: string | undefined }) {
+function Track({ stages, now, deadline }: { stages: string[]; now: string | undefined; deadline: string | null }) {
   const hint = useHint();
   if (!stages.length) return null;
   return (
     <ol className="track" aria-label={w("screen.hints.track")}>
-      {trackMarks(stages, now).map((m) => (
-        <li key={m.stage} className={`mark ${m.at}`} aria-label={m.stage} aria-current={m.at === "now" ? "step" : undefined} {...hint(m.at === "past" ? "trackPast" : m.at === "now" ? "trackNow" : "trackNext", { values: { stage: m.stage }, focusable: true })} />
+      {trackMarks(stages, now, deadline).map((m) => (
+        <li key={m.stage} className={`mark ${m.at}${m.deadline ? " deadline" : ""}`} aria-label={m.stage} aria-current={m.at === "now" ? "step" : undefined} {...hint(m.at === "past" ? "trackPast" : m.at === "now" ? "trackNow" : "trackNext", { values: { stage: m.stage }, focusable: true })}>
+          {/* TD v0.47: with `plot_reward` on, the errand's deadline carries a small errand mark with its own explanation. */}
+          {m.deadline && <span className="errand-mark" role="img" aria-label={w("screen.errandDeadline")} {...hint("trackDeadline", { focusable: true })} />}
+        </li>
       ))}
     </ol>
   );
@@ -1534,32 +1548,56 @@ function SeatCard({ req, send }: { req: Request; send: Send }) {
   );
 }
 
+/** One act's row on the midnight card: its kind, and a living guest other than the player. */
+function ActRow({ a, words, guests, onChange }: { a: { type: string; target: string }; words: string[]; guests: string[]; onChange: (a: Partial<{ type: string; target: string }>) => void }) {
+  return (
+    <>
+      <select value={a.type} onChange={(e) => onChange({ type: e.target.value })}>
+        {words.map((x) => (
+          <option key={x} value={x}>
+            {w(`screen.midnight.acts.${x}`)}
+          </option>
+        ))}
+      </select>
+      <GuestPicker guests={guests} value={a.target} onChange={(t) => onChange({ target: t })} label={w("screen.midnight.pick")} />
+    </>
+  );
+}
+
 function MidnightCard({ req, send, me }: { req: Request; send: Send; me: string }) {
-  const o = req.options as { guests: string[]; acts: Record<string, string>; count: number[] };
+  const o = req.options as { guests: string[]; acts: Record<string, string>; count: number[]; extra?: boolean };
   const hint = useHint();
   const most = Math.max(...o.count);
   const words = Object.keys(o.acts);
+  const guests = o.guests.filter((g) => g !== me);
   const [acts, setActs] = useState<{ type: string; target: string }[]>(() => Array.from({ length: most }, () => ({ type: words[0]!, target: "" })));
+  // TD v0.47: the extra act the errand earned, its own optional row. Block 9e's checks: a different guest
+  // from every other act, and never the player (so no guarding yourself); the game checks them again.
+  const [extra, setExtra] = useState<{ type: string; target: string }>(() => ({ type: words[0]!, target: "" }));
   const chosen = acts.filter((a) => a.target);
-  const ok = o.count.includes(chosen.length);
+  const extraOk = !o.extra || !extra.target || !chosen.some((a) => a.target === extra.target);
+  const ok = o.count.includes(chosen.length) && extraOk;
   const set = (i: number, a: Partial<{ type: string; target: string }>) => setActs(acts.map((x, j) => (j === i ? { ...x, ...a } : x)));
+  const value = o.extra ? { acts: chosen, extra: extra.target ? extra : null } : { acts: chosen };
   return (
     <div className="card">
       <h3 {...hint("midnight", { focusable: true })}>{w("screen.midnight.title")}</h3>
       <p className="muted">{most > 1 ? w("screen.midnight.introTwo") : w("screen.midnight.intro")}</p>
       {acts.map((a, i) => (
         <div className="act" key={i}>
-          <select value={a.type} onChange={(e) => set(i, { type: e.target.value })}>
-            {words.map((x) => (
-              <option key={x} value={x}>
-                {w(`screen.midnight.acts.${x}`)}
-              </option>
-            ))}
-          </select>
-          <GuestPicker guests={o.guests.filter((g) => g !== me)} value={a.target} onChange={(t) => set(i, { target: t })} label={w("screen.midnight.pick")} />
+          <ActRow a={a} words={words} guests={guests} onChange={(x) => set(i, x)} />
         </div>
       ))}
-      <button className="primary" disabled={!ok} onClick={() => send({ type: "choice", request: req.id, value: { acts: chosen } })} {...hint("confirm")}>
+      {o.extra && (
+        <div className="act-extra" {...hint("midnightExtra", { focusable: true })}>
+          <div className="label">{w("screen.midnight.extra")}</div>
+          <div className="act">
+            <ActRow a={extra} words={words} guests={guests} onChange={(x) => setExtra({ ...extra, ...x })} />
+          </div>
+          <p className={extraOk ? "muted" : "notice"}>{w(extraOk ? "screen.midnight.extraNote" : "screen.midnight.extraSame")}</p>
+        </div>
+      )}
+      <button className="primary" disabled={!ok} onClick={() => send({ type: "choice", request: req.id, value })} {...hint("confirm")}>
         {w("screen.midnight.submit")}
       </button>
     </div>

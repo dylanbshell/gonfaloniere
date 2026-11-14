@@ -11,7 +11,7 @@
 
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -419,4 +419,29 @@ test("the room in the left column: your group marked, others as tokens that spre
   await page.eval(`document.querySelector(".room .token").click()`);
   await page.until(`document.querySelector('.side.right .look')?.dataset.guest === ${JSON.stringify(name)}`);
   await page.key("Escape", 27);
+});
+
+// ---- CC-20261114-04 (#102) -------------------------------------------------------------------------------
+
+test("the errand card with plot_reward off (the mini-game): the no-extra-act line in the card's accent, and no deadline mark", { skip }, async () => {
+  await page.until(`document.querySelector(".errand .errand-reward")`);
+  const card = await page.eval<{ line: string; kind: string; hover: string | null; colour: string; accent: string; inside: boolean }>(`(() => {
+    const card = document.querySelector(".errand");
+    const line = card.querySelector(".errand-reward");
+    const probe = document.createElement("span");
+    probe.style.color = "var(--errand-accent)";
+    card.appendChild(probe);
+    const accent = getComputedStyle(probe).color;
+    probe.remove();
+    const c = card.getBoundingClientRect(), l = line.getBoundingClientRect();
+    return { line: line.textContent, kind: line.dataset.reward, hover: card.getAttribute("aria-description"), colour: getComputedStyle(line).color, accent, inside: l.top >= c.top && l.bottom <= c.bottom && l.height > 0 };
+  })()`);
+  const words = JSON.parse(readFileSync("setting/florence-1492/player.json", "utf8")) as { screen: { errandCard: { noReward: string }; hints: { errandNoReward: string } } };
+  assert.equal(card.kind, "noReward");
+  assert.equal(card.line, words.screen.errandCard.noReward);
+  assert.equal(card.hover, words.screen.hints.errandNoReward, "the card's hover says the same");
+  assert.equal(card.colour, card.accent, "in the card's accent (theme.css)");
+  assert.ok(card.inside, "laid out inside the card");
+  assert.equal(await page.eval<number>(`document.querySelectorAll(".track .errand-mark").length`), 0, "no deadline mark with the flag off");
+  await page.shot("errand-card");
 });

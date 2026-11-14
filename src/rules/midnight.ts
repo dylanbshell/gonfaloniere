@@ -43,10 +43,25 @@ export function actProblems(twoKills: boolean, acts: readonly CheckedAct[]): Act
   return out;
 }
 
+/**
+ * The Plot Reward's extra act (Mechanics, Plot Reward; block 9e's `extra`), checked beside the guest's
+ * standard acts: a Kill, Guard, or Investigate (Lupo's too), on a living guest other than themselves (so
+ * no guarding yourself), and a different guest from every standard act. Problems in actProblems' order.
+ */
+export function extraActProblems(acts: readonly CheckedAct[], extra: CheckedAct): ActProblem[] {
+  const out: ActProblem[] = [];
+  if (extra.self) out.push({ why: "self", type: extra.type });
+  else if (!extra.living) out.push({ why: "not living", target: extra.target });
+  if (acts.some((a) => a.target === extra.target)) out.push({ why: "same guest" });
+  return out;
+}
+
 /** One guest's submitted acts. A guest who submitted nothing has no entry: nothing submitted, nothing done. */
 export interface Submission {
   by: string;
   acts: readonly Act[];
+  /** The Plot Reward's extra act, if earned and used. It follows the usual rules: Lupo's extra Kill can be stopped. */
+  extra?: Act;
 }
 
 export type MidnightEvent =
@@ -57,17 +72,19 @@ export type MidnightEvent =
 /**
  * Resolution order: investigations (a guest investigated by `blockAt`+ others can't carry out a Kill),
  * then guards (a guest guarded by `blockAt`+ survives), then the remaining Kills. The two-kills guest's
- * Kills can't be blocked by either. All at once: a guest killed tonight still has their acts carried
+ * Kills can't be blocked by either; a Plot Reward extra act counts like anyone's, and an extra Kill can
+ * always be blocked (Mechanics, Plot Reward: Lupo's third Kill follows normal rules). All at once: a guest killed tonight still has their acts carried
  * out, and several Kills on one guest are one death. Killers are in the events for the record; the
  * announcement names only who died and whether attempts were foiled.
  */
 export function resolveMidnight(subs: readonly Submission[], twoKills: (name: string) => boolean, c: MidnightConfig): { deaths: string[]; events: MidnightEvent[] } {
-  const count = (type: ActType, target: string) => subs.reduce((n, s) => n + s.acts.filter((a) => a.type === type && a.target === target).length, 0);
+  const all = (s: Submission) => (s.extra ? [...s.acts, s.extra] : s.acts);
+  const count = (type: ActType, target: string) => subs.reduce((n, s) => n + all(s).filter((a) => a.type === type && a.target === target).length, 0);
   const events: MidnightEvent[] = [];
   const deaths: string[] = [];
   for (const s of subs) {
-    const unblockable = twoKills(s.by);
-    for (const a of s.acts.filter((x) => x.type === "kill")) {
+    const kills = [...s.acts.filter((x) => x.type === "kill").map((a) => ({ a, unblockable: twoKills(s.by) })), ...(s.extra?.type === "kill" ? [{ a: s.extra, unblockable: false }] : [])];
+    for (const { a, unblockable } of kills) {
       const investigations = count("investigate", s.by);
       const guards = count("guard", a.target);
       if (!unblockable && investigations >= c.blockAt) events.push({ type: "kill blocked", killer: s.by, target: a.target, investigations });
