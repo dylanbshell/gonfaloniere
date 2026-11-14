@@ -20,6 +20,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { fakeCaller, fakeDocs, fakeSettings } from "./fixtures/fake-game.ts";
+import { docsFor } from "../probe.config.ts";
+import { loadDocs } from "../src/sources/docs.ts";
+
+const docs51 = loadDocs(docsFor("0.51"));
 
 const F = "Francesco Pazzi";
 const SERVED = { model: { slug: "fake" }, endpoint: { providerName: "fake", quantization: null }, servedId: null };
@@ -33,8 +37,8 @@ function callerFor(calls: CallRequest[]): Caller {
   return async (req) => {
     if (req.character === F && !["knowledge-check", "star-pass", "claims-pass", "sweep-reask"].includes(req.kind)) throw new Error(`a model call for the player: ${req.kind}`);
     const r = (await base(req))!;
-    // Il Notaio's reading for the screen (TD v0.44) is prose, not JSON: passed through.
-    if (req.kind === "notaio-reading") return r;
+    // Il Notaio's reading for the screen (TD v0.44) is prose, not JSON, and from TD v0.51 his sentences: passed through.
+    if (req.kind === "notaio-reading" || req.kind === "notaio-summary") return r;
     const k = (count.get(`${req.character}|${req.kind}`) ?? 0) + 1;
     count.set(`${req.character}|${req.kind}`, k);
     const v = JSON.parse(r.content);
@@ -86,6 +90,8 @@ function scriptedPlayer(url: string, seen: Seen, opts: { dropAfter: number }) {
           return;
         }
         if (first && seen.log.length === 1) {
+          // TD v0.51, the tour's hold: the screen begins (a game before v0.51 doesn't wait for it).
+          send({ type: "begin" });
           // Unasked, at the start: a held message, a pension, a conclusion, and a command that doesn't exist.
           send({ type: "say", text: "Good evening to you all." });
           send({ type: "command", text: "/borrow" });
@@ -102,6 +108,9 @@ function scriptedPlayer(url: string, seen: Seen, opts: { dropAfter: number }) {
           // The Web of Secrets open, with a guest and then a pair selected: Il Notaio's box asks for readings (TD v0.44).
           send({ type: "reading", guests: ["Lupo"] });
           send({ type: "reading", guests: ["Lupo", "Giorgia Pazzi"] });
+          // TD v0.51: the selection itself asks, and a cleared one asks nothing.
+          send({ type: "select", guests: ["Giorgia Pazzi"] });
+          send({ type: "select", guests: [] });
         }
         if (ev.type === "note") seen.did.add("note kept");
         if (ev.type === "refusal") seen.did.add(`refused: ${ev.reason}`);
@@ -150,7 +159,7 @@ function scriptedPlayer(url: string, seen: Seen, opts: { dropAfter: number }) {
         if (ev.kind === "move") {
           // A note while the game waits for a choice: taken, and the choice still open.
           if (moves === 0) send({ type: "note", text: `${NOTE_MARK} while choosing`, guests: [] });
-          send({ type: "reading", guests: [(o.guests as string[])[0]!] });
+          send({ type: "select", guests: [(o.guests as string[])[0]!] });
           moves++;
           const guests = o.guests as string[];
           seen.did.add(moves === 1 ? "called a Colloquio" : "moved");
@@ -176,11 +185,11 @@ function scriptedPlayer(url: string, seen: Seen, opts: { dropAfter: number }) {
   });
 }
 
-async function playAsFrancesco(seed: number) {
+async function playAsFrancesco(seed: number, docs = fakeDocs) {
   const calls: CallRequest[] = [];
   const ctrl = new HumanController(F);
   const server = await serveWebSocket(0, (conn) => ctrl.attach(conn));
-  const game = new MiniGame(fakeDocs, fakeSettings({ briefings: castBriefings(fakeDocs), seed, turns: 12, human: F }), callerFor(calls), {}, null, ctrl);
+  const game = new MiniGame(docs, fakeSettings({ briefings: castBriefings(docs), seed, turns: 12, human: F }), callerFor(calls), {}, null, ctrl);
   const seen: Seen = { log: [], did: new Set() };
   const played = game.play();
   await scriptedPlayer(`ws://127.0.0.1:${server.port}`, seen, { dropAfter: 40 });
@@ -254,8 +263,9 @@ test("/borrow and /repay in the player's words (Interface v0.12, The Player's Wo
   for (const words of ["France's payroll: take one payment", "Pay back one payroll payment, your own", "You have no payroll payment"]) assert.ok(!prompts.includes(words), words);
 });
 
-test("isolation: the player's whole event stream is their own History and State, nothing else", async () => {
-  const { game, ctrl } = await playAsFrancesco(7);
+for (const [td, docs] of [["", fakeDocs], [" (TD v0.51: with Il Notaio's guarded readings and stage summaries in it)", docs51]] as const)
+test(`isolation: the player's whole event stream is their own History and State, nothing else${td}`, async () => {
+  const { game, ctrl } = await playAsFrancesco(7, docs);
   const heard = new Map(game.lines.filter((l) => l.heardBy.includes(F)).map((l) => [l.id, l]));
   const theirConversations = new Set([...heard.values()].map((l) => l.conversation));
   const stream = ctrl.log;
@@ -292,6 +302,23 @@ test("isolation: the player's whole event stream is their own History and State,
   const readings = stream.filter((e) => e.type === "reading") as Extract<Outgoing, { type: "reading" }>[];
   assert.ok(readings.length >= 3, "readings were shown");
   for (const r of readings) assert.ok(r.upTo <= r.seq && (r.text === null || game.calls.some((c) => c.raw === r.text)), JSON.stringify(r));
+  // TD v0.51: every item of a guarded reading or a stage summary is of the player's own record. A sentence
+  // quotes a line he heard (the model's, or code's plain version); an event is one of his own lines; a note
+  // is a public lore entry's; the background is his sheet's connections.
+  const summaries = stream.filter((e) => e.type === "stage-summary") as Extract<Outgoing, { type: "stage-summary" }>[];
+  assert.equal(summaries.length > 0, docs === docs51, "stage summaries from TD v0.51 only");
+  assert.equal(readings.every((r) => r.guarded), docs === docs51);
+  const publicLore = new Set(readLoreFile().loadable.filter((e) => e.scope === "public" && (e.kind ?? "lore") === "lore").map((e) => e.id));
+  const items = [...readings.flatMap((r) => r.guarded?.stages.flatMap((s) => s.items) ?? []), ...summaries.flatMap((s) => s.groups.flatMap((g) => g.items))];
+  for (const i of items) {
+    if (i.kind === "note") assert.ok(publicLore.has(i.entry), i.entry);
+    else if (i.kind === "event") assert.ok(i.item === "death" ? game.midnight?.deaths.includes(i.text as never) : [...heard.values()].some((l) => l.text === i.text), i.text);
+    else {
+      const l = stream.find((e) => e.seq === i.seq) as { id?: string; text?: string };
+      assert.ok(l?.id && heard.has(l.id) && i.text.includes(l.text!.split(/[.!?]/)[0]!), `${i.text} quotes ${l?.id}, which he heard`);
+    }
+  }
+  for (const r of readings) for (const c of r.guarded?.background.connections ?? []) assert.ok(conns.some((x) => x.between.join() === c.between.join() && (x as { line?: string }).line === c.line));
   const states = stream.filter((e) => e.type === "state");
   // The places (TD v0.49, from the room of v0.45) are public: every place in the setting's order, who stands
   // in each among the living guests, whether it holds a Colloquio, and which is Francesco's own; nothing more
@@ -361,6 +388,86 @@ test("notes: kept with the game and in the full record, replayed on reconnect, n
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("TD v0.51, the tour's hold: the sheet, errand, briefing, and room are sent, then nothing until the screen's first begin; a later begin changes nothing", async () => {
+  const ctrl = new HumanController(F);
+  const game = new MiniGame(docs51, fakeSettings({ briefings: castBriefings(docs51), seed: 2000, turns: 6, human: F }), fakeCaller(), {}, null, ctrl);
+  const log: Outgoing[] = [];
+  let reply: (d: string) => void = () => {};
+  ctrl.attach({
+    send: (d) => {
+      const ev = JSON.parse(d) as Outgoing;
+      log.push(ev);
+      if (ev.type !== "request" || ev.closed) return;
+      const o = ev.options as Record<string, unknown>;
+      queueMicrotask(() => {
+        // A reconnect's second begin, mid-game: nothing holds again.
+        reply(JSON.stringify({ type: "begin" }));
+        if (ev.kind === "speak") reply(JSON.stringify({ type: "pass" }));
+        else if (ev.kind === "move") reply(JSON.stringify({ type: "choice", request: ev.id, value: { choice: "stay" } }));
+        else if (ev.kind === "seat") {
+          const g = o.groups as { members: string[] }[];
+          reply(JSON.stringify({ type: "choice", request: ev.id, value: g.length ? { choice: "join", target: g[0]!.members[0] } : { choice: "wait", target: null } }));
+        } else reply(JSON.stringify({ type: "choice", request: ev.id, value: { acts: [{ type: "watch", target: (o.guests as string[])[0] }] } }));
+      });
+    },
+    onMessage: (cb) => void (reply = cb),
+    onClose: () => {},
+  });
+  const played = game.play();
+  await new Promise((r) => setTimeout(r, 50));
+  // Held: the player's sheet and state (the room's places, his errand and briefing), and not one line; no call made.
+  assert.equal(log.length, 1);
+  const first = log[0] as Extract<Outgoing, { type: "state" }>;
+  assert.equal(first.type, "state");
+  assert.ok(first.sheet && (first.sheet as { errand: string }).errand && (first.sheet as { briefing: string }).briefing);
+  assert.ok((first.state as { places?: unknown[] }).places?.length, "the room, place by place");
+  assert.equal(game.calls.length, 0);
+  assert.equal(game.lines.length, 0, "no line yet, in the game or the player's log");
+  // TD v0.51's flag: Francesco's errand is a payment, so it can't be finished by /conclude.
+  assert.equal((first.state as { knowledgeErrand?: boolean }).knowledgeErrand, false);
+  reply(JSON.stringify({ type: "begin" }));
+  await played;
+  assert.ok(log.some((e) => e.type === "notaio") && log.some((e) => e.type === "result"), "begun, the evening played to its end");
+  assert.ok(log.filter((e) => e.type === "state").every((e) => (e as Extract<Outgoing, { type: "state" }>).state.knowledgeErrand === false));
+  assert.ok(ctrl.received.filter((m) => m.type === "begin").length > 1);
+  // The hold isn't a game event: the game's record is the one an unheld game writes.
+  const unheld = new HumanController(F);
+  const again = new MiniGame(docs51, fakeSettings({ briefings: castBriefings(docs51), seed: 2000, turns: 6, human: F }), fakeCaller(), {}, null, unheld);
+  unheld.receive(JSON.stringify({ type: "begin" }));
+  let r2: (d: string) => void = () => {};
+  unheld.attach({
+    send: (d) => {
+      const ev = JSON.parse(d) as Outgoing;
+      if (ev.type !== "request" || ev.closed) return;
+      const o = ev.options as Record<string, unknown>;
+      queueMicrotask(() => {
+        if (ev.kind === "speak") r2(JSON.stringify({ type: "pass" }));
+        else if (ev.kind === "move") r2(JSON.stringify({ type: "choice", request: ev.id, value: { choice: "stay" } }));
+        else if (ev.kind === "seat") {
+          const g = o.groups as { members: string[] }[];
+          r2(JSON.stringify({ type: "choice", request: ev.id, value: g.length ? { choice: "join", target: g[0]!.members[0] } : { choice: "wait", target: null } }));
+        } else r2(JSON.stringify({ type: "choice", request: ev.id, value: { acts: [{ type: "watch", target: (o.guests as string[])[0] }] } }));
+      });
+    },
+    onMessage: (cb) => void (r2 = cb),
+    onClose: () => {},
+  });
+  await again.play();
+  const timeless = (es: unknown[]) => es.map((e) => ({ ...(e as object), ms: undefined }));
+  assert.deepEqual(timeless(again.events), timeless(game.events), "the same events, wall-clock times aside");
+  assert.deepEqual(again.lines, game.lines);
+});
+
+test("TD v0.51: a game with no human never waits; the flag is true only for a character whose errand a conclusion can finish", async () => {
+  const docs = docs51;
+  const solo = new MiniGame(docs, fakeSettings({ briefings: castBriefings(docs), seed: 3, turns: 2 }), fakeCaller());
+  await solo.play();
+  assert.ok(solo.lines.length > 0);
+  // Plot Point Checks' "Passes when": a conclusion settles Piero's, Beatrice's, and LeNoir's (the parse is TD's table).
+  for (const c of ["Piero de' Medici", "Sister Beatrice", "Captain Armand LeNoir"]) assert.ok(docs.conclusionErrands.includes(c as never), c);
+  for (const c of [F, "Lupo", "Contessa Isabella", "Raffaello de' Medici"]) assert.ok(!docs.conclusionErrands.includes(c as never), c);
 });
 
 test("all-AI games don't change: no human, no controller, and a controller without the setting is refused", async () => {

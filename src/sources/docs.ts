@@ -85,11 +85,16 @@ export interface DocSources {
    * writes them, and the two words TD says the setting pack replaces ("The words … and … come from the
    * setting pack"). Absent before v0.44.
    */
-  notaioReading?: SystemPrompt & { names: [string, string] };
+  notaioReading?: SystemPrompt & { names: [string, string]; guarded?: true };
   /** TD v0.6's checks on memory writing (Output Validation & Repair); absent before v0.6. */
   memoryRules?: MemoryRules;
   /** TD v0.5's plot-point facts (F1–F4, and the optional F5); empty before v0.5. */
   plotFacts: PlotFact[];
+  /**
+   * The characters whose plot point can pass on a *conclusion* (Plot Point Checks, "Which checks settle which
+   * plot points", its "Passes when" column): TD v0.51's knowledge-errand flag. Empty where TD has no table.
+   */
+  conclusionErrands: CharacterName[];
   /** TD v0.34's In-World Names: true when this TD and Characters both use them (loadDocs refuses a mix). */
   inWorld: boolean;
   /**
@@ -207,6 +212,7 @@ export function loadDocs(paths: DocPaths): DocSources {
     ...(memoryRules(td) && { memoryRules: memoryRules(td)! }),
     ...(notaioReading(td) && { notaioReading: notaioReading(td)! }),
     plotFacts: plotFacts(td),
+    conclusionErrands: conclusionErrands(td),
     inWorld,
     retitled,
   };
@@ -241,6 +247,10 @@ function systemPrompts(td: string): DocSources["systemPrompts"] | null {
 /**
  * TD v0.44: the reading's prompt is the pair of code blocks in The screen's paragraph on Il Notaio's
  * reading (nested in its list, so indented), up to the next paragraph. Null before v0.44.
+ *
+ * TD v0.51 rebuilt the reading around a guard: its paragraph is followed by the design, what it holds, the
+ * notes, and which lines, in their own bold paragraphs, and the prompt is the first two indented code
+ * blocks after its explanation and before **The guard** (`guarded` set). v0.44–v0.50 keep the old layout.
  */
 function notaioReading(td: string): DocSources["notaioReading"] | null {
   let lines: string[];
@@ -252,12 +262,13 @@ function notaioReading(td: string): DocSources["notaioReading"] | null {
   // "**<narrator>'s reading** *(…)*": the narrator's name is the setting's, so it isn't spelled here.
   const start = lines.findIndex((l) => /^\*\*[^*]+'s reading\*\* \*\(/.test(l));
   if (start < 0) return null;
-  const end = lines.findIndex((l, i) => i > start && /^\*\*[^*]+\*\*/.test(l));
+  const guarded = Number(docVersion(td, "TD").split(".")[1]) >= 51;
+  const end = lines.findIndex((l, i) => i > start && (guarded ? /^\*\*The guard\b/.test(l) : /^\*\*[^*]+\*\*/.test(l)));
   const part = lines.slice(start, end < 0 ? undefined : end).join("\n");
   const [system, user] = fencesUnder(`### Reading\n${part}`, "### Reading", { indented: true });
   const names = part.match(/The words "([^"]+)" and "([^"]+)" come from the setting pack/);
   if (!system || !user || !names) throw new Error("TD: Il Notaio's reading needs its system and user messages, and the words the setting pack replaces");
-  return { system, user, names: [names[1]!, names[2]!] };
+  return { system, user, names: [names[1]!, names[2]!], ...(guarded && { guarded: true as const }) };
 }
 
 /** Terms each recorder prompt defines in its DEFINITIONS section (TD v0.7's definitions contract). */
@@ -354,6 +365,34 @@ function plotFacts(td: string): PlotFact[] {
   const f5Known = text.match(/F5 is known at start by ([^.(]+)/);
   if (f5) facts.push({ id: "F5", fact: `${f5[1]}.`, mustInclude: f5[2]!.trim(), doesNotCount: f5[3]!.trim(), ...(f5Known && { knownAtStart: knowerNames(f5Known[1]!) }) });
   return facts;
+}
+
+/**
+ * "Which checks settle which plot points" (Plot-point facts): each row whose "Passes when" cell names a
+ * *conclusion*, by the character its "Plot point" cell opens with ("Piero: learn of the affair").
+ */
+function conclusionErrands(td: string): CharacterName[] {
+  let lines: string[];
+  try {
+    lines = section(td, "### Plot-point facts");
+  } catch {
+    return [];
+  }
+  const cells = (l: string) => l.split("|").slice(1, -1).map((c) => c.trim());
+  const header = lines.findIndex((l) => /^\| Plot point \|/.test(l));
+  if (header < 0) return [];
+  const passes = cells(lines[header]!).findIndex((c) => c.startsWith("Passes when"));
+  const out: CharacterName[] = [];
+  for (const l of lines.slice(header + 2)) {
+    if (!l.startsWith("|")) break;
+    const row = cells(l);
+    if (!/\*conclusion\*/.test(row[passes] ?? "")) continue;
+    const who = row[0]!.split(":")[0]!.trim();
+    const name = ROSTER.find((r) => r.name === who)?.name ?? resolveAlias(who);
+    if (!name) throw new Error(`Plot Point Checks: "${who}" is not a roster name or alias`);
+    out.push(name);
+  }
+  return out;
 }
 
 /** A "Known at start" cell as roster names: "Isabella, Lupo (she paid him; …)" → Contessa Isabella, Lupo. */

@@ -59,7 +59,16 @@
   },
   "reading": {
     "_comment": "TD v0.44, Il Notaio's reading in the Web of Secrets: the prompt in TD names him and his trade in its own words; these replace them when the prompt is loaded. His name is in-world-names.json's narrator.",
-    "role": "notary"
+    "role": "notary",
+    "_guarded_comment": "TD v0.51, Il Notaio's reading rebuilt around the guard (and his past-stage summaries). `line` and `lineTo` are the prompt's {lines}, one per chosen line, in TD's format; `you` names the player as an addressee, there and in his sentences; `fallback` and `fallbackTo` are G9's plain versions of a line, TD's words. `stage` opens a stage's paragraph (\"In the second round of mingling:\") with the stage's name as block 5 gives it, its first letter lowered. `empty`: the box's line when the player has heard and seen nothing of the selection; `emptyStage`: a past stage's, when nothing reached them. `stage`, `empty`, and `emptyStage` drafted by Claude Code (CC-20261114-19).",
+    "line": "{n}. {speaker}: \"{words}\"",
+    "lineTo": "{n}. {speaker}, to {addressee}: \"{words}\"",
+    "you": "you",
+    "fallback": "{speaker} said: \"{words}\"",
+    "fallbackTo": "{speaker} told {addressee}: \"{words}\"",
+    "stage": "In {stage}:",
+    "empty": "You have heard and seen nothing of them tonight.",
+    "emptyStage": "Nothing reached you in this stage."
   },
   "room": {
     "_comment": "TD v0.45, Block 5's {room} (Mechanics: Everyone Sees the Room): where every other living guest is right now. Each group, then each private pair, joined by `between`, ending with `end`; a group's names joined by commas and `and`. Drafted by Claude Code (CC-20261113-04); `together` and `in private` are TD's words.",

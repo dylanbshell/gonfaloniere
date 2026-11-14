@@ -1,0 +1,14 @@
+{
+  "_comment": "Technical Design v0.51, Player Interface › The screen › Il Notaio's reading, The guard (G3, G5, G6): the only words code lets him use outside his quotes, checked sentence by sentence against that sentence's own line. English, not code, so a translation can change them. TD's words, except `linking`.",
+  "verbs": {
+    "_comment": "G3: exactly one speech verb. `told` only when the line has an addressee, followed by them; `asked` only when the last quote ends in a question mark.",
+    "said": "said",
+    "told": "told",
+    "asked": "asked"
+  },
+  "small": ["to", "you"],
+  "betweenQuotes": ["and"],
+  "negating": ["not", "no", "never", "unless", "nor"],
+  "_linking_comment": "G5's negation rule (and G9's cut): the words a clause may open with before its negating word, so that \"I will kill\" can't be cut from \"I will kill, but not tonight\", as TD's example has it. Drafted by Claude Code (CC-20261114-19).",
+  "linking": ["but", "and", "or", "yet"]
+}

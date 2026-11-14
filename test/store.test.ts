@@ -311,11 +311,19 @@ test("lore file: only approved, canon-checked entries load; scopes are public or
   assert.equal(f.hash, createHash("sha256").update(JSON.stringify(entries)).digest("hex"));
   assert.deepEqual(loreHeader(f, "on"), { lore: "on", lore_file: { path, hash: f.hash, entries_in_file: 4, entries_loaded: 2 } });
   assert.deepEqual(loreHeader(f, "off").lore_file.entries_loaded, 0);
+  // TD v0.51: an optional `gloss`, kept as written; an empty one is refused.
+  writeFileSync(path, JSON.stringify([{ ...entries[0], gloss: "Florence's governing council." }]));
+  assert.equal(readLoreFile(path).loadable[0]!.gloss, "Florence's governing council.");
+  writeFileSync(path, JSON.stringify([{ ...entries[0], gloss: "" }]));
+  assert.throws(() => readLoreFile(path), /gloss/);
   writeFileSync(path, JSON.stringify([{ ...entries[0], scope: "Lupo the Elder" }]));
   assert.throws(() => readLoreFile(path), /neither public nor a character's full name/);
   // The repo's own file loads (the shape, the scopes, unique ids). Its content comes from the Lore chat,
   // in its own PRs; code writes no lore.
   assert.doesNotThrow(() => readLoreFile());
+  // Lore's glosses (PR #153) load, on public lore entries only.
+  const glossed = readLoreFile().all.filter((e) => e.gloss);
+  assert.ok(glossed.length > 0 && glossed.every((e) => e.scope === "public" && (e.kind ?? "lore") === "lore"));
 });
 
 /**

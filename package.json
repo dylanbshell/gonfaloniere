@@ -29,6 +29,7 @@
     "minigame:labels": "tsx src/minigame/labels.ts",
     "minigame:voice": "tsx src/minigame/voice.ts",
     "minigame:score": "tsx src/minigame/blindread.ts",
+    "minigame:golden": "tsx src/minigame/golden.ts",
     "test": "tsx --test test/*.test.ts",
     "play": "tsx src/minigame/play.ts"
   },

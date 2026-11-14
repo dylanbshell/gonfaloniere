@@ -55,18 +55,39 @@ import type { LogprobsSetting, StoredLogprobs } from "./logprobs.ts";
 import { loreLines, type LoreSetting } from "./lore.ts";
 import type { RetrievalMethod, VectorStore } from "./store.ts";
 import { conversationWords, gameAct, hasArrival, inWorldNames, inWorldTime, minglingPhase } from "../prompt/names.ts";
-import type { OutgoingBody, RequestKind } from "../core/protocol.ts";
+import type { GuardedReading, OutgoingBody, RequestKind } from "../core/protocol.ts";
 import { actProblems, extraActProblems, type CheckedAct } from "../rules/midnight.ts";
 import { MemoryStore, renderBelief, tookTargetLine, resolveName, whereLabel, type GameLine, type Thought, type Where } from "./memory.ts";
-import { READING_MAX_TOKENS, readingMaterial, readingPrompt, unfoundQuotes, type ReadingMaterial } from "./reading.ts";
+import {
+  GUARDED_MAX_TOKENS,
+  READING_MAX_TOKENS,
+  assembleReading,
+  assembleSummary,
+  guardLines,
+  guardedPrompt,
+  readingBackground,
+  readingEvents,
+  readingLines,
+  readingMaterial,
+  readingPrompt,
+  summaryLines,
+  unfoundQuotes,
+  type ChosenLine,
+  type ReadingMaterial,
+} from "./reading.ts";
+import { guard, sentencesOf, type GuardVerdict } from "./guard.ts";
+import { derive, recordUpTo } from "../../web/src/model.ts";
 import { MESSAGE_MAX, NOTE_MAX, PlayerFeed, errandText, screenContent, type PlayerNote, type PlayerPlace, mentions, menu, parseCommand, playable, playerSays, refusal, type CommandAction } from "./player.ts";
 
 // ---- Calls -----------------------------------------------------------------------------
 
 export type CallKind = "plan" | "think" | "speak" | "move" | "seat" | "murder" | "star-pass" | "claims-pass" | "sweep-reask" | "thought-pass" | "perception-pass" | "knowledge-check";
 
-/** TD v0.44: the player screen's one model call, Il Notaio's reading. Never a character's call, never in a replay. */
-export type ScreenCallKind = "notaio-reading";
+/**
+ * TD v0.44: the player screen's one model call, Il Notaio's reading; TD v0.51 adds his past-stage summary on
+ * the same prompt. Never a character's call, never in a replay.
+ */
+export type ScreenCallKind = "notaio-reading" | "notaio-summary";
 
 export interface CallRequest {
   kind: CallKind | ScreenCallKind;
@@ -273,6 +294,8 @@ export class MiniGame {
 
   /** TD v0.39's human player, if any: their character, their feed, and what they've sent between line boundaries. */
   private human: CharacterName | null;
+  /** TD v0.51's guarded reading and stage summaries (and the tour's hold), on a TD whose reading has the guard. */
+  private guarded = false;
   private player: PlayerFeed | null = null;
   /** A message held for the next line boundary in the player's conversation. */
   private heldSay: string | null = null;
@@ -307,6 +330,8 @@ export class MiniGame {
     // TD v0.36: block 6's cap rises from ~450 to ~490 tokens, time labels included (they always were, as built).
     this.memory.notebookBudget = tdMinor(docs.versions.technicalDesign) >= 36 ? 490 : 450;
     this.namesNotaio = tdMinor(docs.versions.technicalDesign) >= 36;
+    // TD v0.51: Il Notaio's guarded reading, his past-stage summaries, and the tour's hold.
+    this.guarded = !!docs.notaioReading?.guarded;
     if (tdMinor(docs.versions.technicalDesign) >= 49) {
       // TD v0.49: the pack's places must agree with Mechanics' Named places, or the game doesn't start.
       const names = settingPack().places ?? [];
@@ -348,7 +373,9 @@ export class MiniGame {
   // ---- Running ------------------------------------------------------------------------
 
   async play(): Promise<void> {
-    this.openCapannelli();
+    const announce = this.formCapannelli();
+    await this.tourHold();
+    announce();
     await this.opening();
     for (this.turn = 1; this.turn <= this.s.turns && !this.stopped; this.turn++) {
       const started = Date.now();
@@ -372,10 +399,31 @@ export class MiniGame {
     if (!this.stopped) await this.murderRound();
     if (!this.stopped && this.player) this.resolveMidnightForPlayer();
     if (!this.stopped) await this.knowledge();
+    // TD v0.51: the past-stage summaries written in the background are finished before the game is.
+    await Promise.all(this.summaryJobs);
+  }
+
+  /**
+   * TD v0.51, the tour's hold (Player Interface, How it's built): with a human player, the player's sheet,
+   * errand, briefing, and the room are sent, then the game waits for the screen's first `begin` before its
+   * first line. A game with no human never waits, and the hold is no game event: nothing is recorded.
+   */
+  private async tourHold(): Promise<void> {
+    if (!this.player || !this.guarded) return;
+    this.sendState();
+    await this.player.ctrl.begun;
   }
 
   /** Mechanics: all living characters split at random into groups of 3; movement order randomized. */
   private openCapannelli(): void {
+    this.formCapannelli()();
+  }
+
+  /**
+   * The groups formed, and the room with them; returns their announcement (Il Notaio's notes), the evening's
+   * first lines, which the tour's hold keeps back (TD v0.51).
+   */
+  private formCapannelli(): () => void {
     const start = capannelloStart(this.s.cast, this.rng);
     this.rotation = start.rotation;
     // Mini-game setting (Dylan, Oct 24): six of the twelve attend. Without this, characters read the
@@ -387,12 +435,14 @@ export class MiniGame {
     const convs = start.groups.map((group) => this.newConversation("capannello", group));
     // TD v0.49: each random group gets a random place, all different.
     if (this.placeNames) this.applyPlaces(roundStart(convs.map((c) => c.id), this.placeNames.length, this.placeRng!));
-    for (const conv of convs) {
-      // The attendance note announces the guests here tonight; the groups note names the group formed.
-      this.notaio(conv, smaller, this.s.cast);
-      this.notaio(conv, say("notaio", "notes.groups", { others: listJoin(conv.members) }), conv.members);
-    }
-    this.events.push({ turn: 0, type: "capannelli", groups: convs.map((c) => [...c.members]), ...(this.placeNames && { places: convs.map((c) => this.placeOf(c)) }), rotation: this.rotation });
+    return () => {
+      for (const conv of convs) {
+        // The attendance note announces the guests here tonight; the groups note names the group formed.
+        this.notaio(conv, smaller, this.s.cast);
+        this.notaio(conv, say("notaio", "notes.groups", { others: listJoin(conv.members) }), conv.members);
+      }
+      this.events.push({ turn: 0, type: "capannelli", groups: convs.map((c) => [...c.members]), ...(this.placeNames && { places: convs.map((c) => this.placeOf(c)) }), rotation: this.rotation });
+    };
   }
 
   /** No faction meeting in the mini-game: one strategy call (9d) per character to open. */
@@ -1383,7 +1433,8 @@ export class MiniGame {
     // TD v0.47: the run's `plot_reward` flag reaches the screen with block 5 (a run setting, not a secret).
     // The mini-game runs with it off, so there's never a `{plot_status}` to send.
     const block5 = this.stateFor(h, { gathering: this.gathering });
-    const state = { ...((this.placeNames ? this.withPlaces(h, block5) : block5) as unknown as Record<string, unknown>), plotReward: false };
+    // TD v0.51: whether the player's errand can be finished by /conclude (their own plot point only).
+    const state = { ...((this.placeNames ? this.withPlaces(h, block5) : block5) as unknown as Record<string, unknown>), plotReward: false, knowledgeErrand: this.docs.conclusionErrands.includes(h) };
     this.player.state(state, menu([...allowed, ...extra, "conclude"], { amount: this.rules.pensionSize }), this.speaking, () => ({
       rules: rulesText(this.docs.templates, { ...this.docs.tunables, plotProtection: false, plotReward: false }),
       briefing: this.s.briefings[h]!,
@@ -1395,6 +1446,15 @@ export class MiniGame {
       errandDeadline: null,
       ...screenContent(h, this.s.lore ?? "off"),
     }));
+    // TD v0.51: a stage ends when the player's state moves on to the next; its summary is written then, in the background.
+    if (this.guarded) {
+      const stage = block5.phaseLabel;
+      if (this.playerStage !== null && stage !== this.playerStage && !this.summarized.has(this.playerStage)) {
+        this.summarized.add(this.playerStage);
+        this.summaryJobs.push(this.stageSummary(this.playerStage));
+      }
+      this.playerStage = stage;
+    }
   }
 
   /**
@@ -1438,6 +1498,7 @@ export class MiniGame {
     const known = settingPack().roster.map((r) => r.name);
     const guests = [...new Set(asked)];
     if (!guests.length || guests.length > 2 || guests.some((g) => !known.includes(g))) return;
+    if (this.guarded) return this.guardedReading(guests);
     const m = readingMaterial(h, guests, this.player!.ctrl.log, screenContent(h, this.s.lore ?? "off").connections, this.memory.timeLabel);
     const key = `${[...guests].sort().join("|")}@${m.upTo}`;
     let made = this.readings.get(key);
@@ -1469,6 +1530,94 @@ export class MiniGame {
     const error = !res.ok ? res.error : !reading ? "empty" : unfound.length ? `quotes not in the material: ${unfound.map((q) => JSON.stringify(q)).join(", ")}` : null;
     this.calls.push({ n: this.nextCall++, turn: this.turn, kind: "notaio-reading", character: null, attempt: 1, user, raw: res.ok ? res.content : null, parsed: { guests: m.guests, shown: ok }, verdict: ok ? "valid" : "default", repairs: [], error, costUsd: res.costUsd, inputTokens: res.inputTokens, outputTokens: res.outputTokens, latencyMs: res.latencyMs, provider: res.provider, model: res.model, source: "player screen" });
     return shown(ok ? reading : null);
+  }
+
+  // ---- TD v0.51: Il Notaio's guarded reading and past-stage summaries (CC-20261114-19, #146) ---------------
+  //
+  // Code chooses the lines (reading.ts, content-blind), the model only puts each in reported speech, and the
+  // guard (guard.ts) checks every sentence against its own line, putting code's plain version of the line in
+  // the place of one that fails. The background, the events, and the lore notes are code's. Each call is
+  // recorded with source "player screen" and every sentence's verdict; nothing reaches a character's prompt,
+  // the game's state, or a replay.
+
+  /** Each selection's background, worked out once and kept for the game. */
+  private backgrounds = new Map<string, GuardedReading["background"]>();
+  /** The guard's verdicts for each set of chosen lines: one call until a new chosen line or event enters the record. */
+  private sentences = new Map<string, Promise<GuardVerdict[]>>();
+  /** The stage the player's state is in, and the stages already summarized (once each, when they end). */
+  private playerStage: string | null = null;
+  private summarized = new Set<string>();
+  private summaryJobs: Promise<void>[] = [];
+
+  /** The public lore the screen links (kind: lore), with its glosses. */
+  private publicLore() {
+    return screenContent(this.human!, this.s.lore ?? "off").lore;
+  }
+
+  private async guardedReading(guests: string[]): Promise<void> {
+    const h = this.human!;
+    const log = this.player!.ctrl.log;
+    const v = derive(log as unknown as Parameters<typeof derive>[0]);
+    const lore = this.publicLore();
+    const sel = [...guests].sort().join("|");
+    let background = this.backgrounds.get(sel);
+    if (!background) {
+      background = readingBackground(guests, screenContent(h, this.s.lore ?? "off").connections, lore);
+      this.backgrounds.set(sel, background);
+    }
+    const chosen = readingLines(v, h, guests);
+    const events = readingEvents(v, log, h, guests, this.s.cast);
+    const tally = readingMaterial(h, guests, log, [], this.memory.timeLabel).tally;
+    const upTo = recordUpTo(v, guests, h);
+    const verdicts = await this.sentencesFor("notaio-reading", `${sel}@${chosen.map((c) => c.seq).join(",")}|${events.map((e) => e.seq).join(",")}`, chosen, { guests });
+    this.player!.ctrl.send({ type: "reading", guests, upTo, text: null, tally, guarded: assembleReading(background, chosen, verdicts, events, lore, this.stages()) });
+  }
+
+  /** TD v0.51: a finished stage's summary, written once and kept in the player's log (so a reconnect gets it). */
+  private async stageSummary(stage: string): Promise<void> {
+    const h = this.human!;
+    const v = derive(this.player!.ctrl.log as unknown as Parameters<typeof derive>[0]);
+    const chosen = summaryLines(v, h, stage);
+    const verdicts = await this.sentencesFor("notaio-summary", `stage:${stage}`, chosen, { stage });
+    this.player!.ctrl.send(assembleSummary(v, stage, chosen, verdicts, this.publicLore()));
+  }
+
+  /** The guard's verdicts for these lines, from one call (cached by `key`); none chosen, no call. */
+  private sentencesFor(kind: "notaio-reading" | "notaio-summary", key: string, chosen: ChosenLine[], about: Record<string, unknown>): Promise<GuardVerdict[]> {
+    if (!chosen.length) return Promise.resolve([]);
+    let made = this.sentences.get(key);
+    if (!made) {
+      made = this.guardedCall(kind, chosen, about).catch(() => {
+        // A failed call (the provider refused it): every line in its plain form now, and a fresh try next time.
+        this.sentences.delete(key);
+        return guard(null, guardLines(chosen));
+      });
+      this.sentences.set(key, made);
+    }
+    return made;
+  }
+
+  /**
+   * One guarded call: TD's prompt with the chosen lines only, on the recorder model at temperature 0. A reply
+   * that isn't JSON is repaired once (G1), then every line falls back (G9); the cap stopping the call does too.
+   */
+  private async guardedCall(kind: "notaio-reading" | "notaio-summary", chosen: ChosenLine[], about: Record<string, unknown>): Promise<GuardVerdict[]> {
+    const lines = guardLines(chosen);
+    const { system, user } = guardedPrompt(this.docs.notaioReading!, lines);
+    this.prefixes[kind] = system;
+    let u = user;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const res = await this.call({ kind, character: null, system, user: u, maxTokens: GUARDED_MAX_TOKENS, temperature: this.s.systemTemperature });
+      if (!res) break;
+      const parses = res.ok && sentencesOf(res.content, lines.length) !== null;
+      const verdicts = parses ? guard(res.content, lines) : null;
+      const failed = verdicts?.filter((x) => !x.model) ?? [];
+      const error = !res.ok ? res.error : !parses ? "not JSON" : failed.length ? `G9 fallback: ${failed.map((x) => `line ${x.line} (${x.failed.join(", ")})`).join("; ")}` : null;
+      this.calls.push({ n: this.nextCall++, turn: this.turn, kind, character: null, attempt, user: u, raw: res.ok ? res.content : null, parsed: { ...about, sentences: verdicts?.map((x) => ({ line: x.line, shown: x.model ? "model" : "fallback", failed: x.failed })) ?? null }, verdict: parses ? "valid" : attempt === 2 ? "default" : "failed", repairs: [], error, costUsd: res.costUsd, inputTokens: res.inputTokens, outputTokens: res.outputTokens, latencyMs: res.latencyMs, provider: res.provider, model: res.model, source: "player screen" });
+      if (verdicts) return verdicts;
+      u = `${user}\n\nYour last reply could not be used (${error}). Reply again with only the JSON asked for.`;
+    }
+    return guard(null, lines);
   }
 
   /**

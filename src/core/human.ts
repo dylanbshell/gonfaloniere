@@ -36,10 +36,15 @@ export class HumanController {
   onInput: (m: Incoming) => void = () => {};
   /** A note from the player: taken at any time, whatever the game is waiting for. */
   onNote: (m: Extract<Incoming, { type: "note" }>) => void = () => {};
-  /** A request for a reading: taken at any time, like a note. */
-  onReading: (m: Extract<Incoming, { type: "reading" }>) => void = () => {};
+  /** A request for a reading (or, from TD v0.51, the selection that asks for one): taken at any time, like a note. */
+  onReading: (m: { guests: string[] }) => void = () => {};
+  /** TD v0.51, the tour's hold: resolved by the first `begin`, which a game may wait on before its first line. */
+  readonly begun: Promise<void>;
+  private began: () => void = () => {};
 
-  constructor(readonly character: string) {}
+  constructor(readonly character: string) {
+    this.begun = new Promise<void>((resolve) => (this.began = resolve));
+  }
 
   /** Appends an event to the player's log and sends it to every connection. */
   send(body: OutgoingBody): Outgoing {
@@ -91,6 +96,9 @@ export class HumanController {
     this.received.push(m);
     if (m.type === "note") return this.onNote(m);
     if (m.type === "reading") return this.onReading(m);
+    if (m.type === "select") return m.guests.length ? this.onReading(m) : undefined;
+    // Only the first counts; a later one (a reconnect's) changes nothing.
+    if (m.type === "begin") return this.began();
     const p = this.pending;
     if (p && !(m.type === "choice" && m.request !== p.event.id)) {
       const a = p.accept(m);

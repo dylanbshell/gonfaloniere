@@ -5,9 +5,20 @@
 
 import { CAST } from "./cast.ts";
 import type { CallRequest, Caller } from "./engine.ts";
+import { notaioGuard } from "../setting/pack.ts";
 
 /** The fake caller's reading (TD v0.44, Il Notaio's reading): fixed, and plain enough to pass the quote check. */
 export const FAKE_READING = "Little to go on yet. You have heard them speak, and seen nothing that settles anything.";
+
+/**
+ * The fake caller's guarded sentences (TD v0.51): for each numbered line, its speaker, the verb the line
+ * allows, and the whole line quoted, as the guard passes them (a line over 40 words fails G7, so falls back).
+ */
+export function fakeSentences(user: string): { sentences: { line: number; text: string }[] } {
+  const v = notaioGuard().verbs;
+  const lines = user.split("\n").slice(1).map((l) => l.match(/^(\d+)\. (.+?)(?:, to (.+?))?: "(.*)"$/));
+  return { sentences: lines.filter((m) => m).map((m) => ({ line: Number(m![1]), text: `${m![2]} ${m![3] ? `${v.told} ${m![3]}` : v.said}: "${m![4]}"` })) };
+}
 
 export function fakeCaller(calls: CallRequest[] = []): Caller {
   const count = new Map<string, number>();
@@ -38,6 +49,8 @@ export function fakeCaller(calls: CallRequest[] = []): Caller {
       "perception-pass": () => ({ notes: [] }),
       "knowledge-check": () => ({ reasoning: "x", verdict: "none", evidence: [], told_by: [] }),
     };
+    // TD v0.51: his guarded reading and summaries are JSON, one sentence per line, each quoting its line whole.
+    if ((req.kind === "notaio-reading" || req.kind === "notaio-summary") && req.user.startsWith("LINES\n")) return { ok: true, content: JSON.stringify(fakeSentences(req.user)), error: null, costUsd: 0, inputTokens: 0, outputTokens: 0, latencyMs: 0, provider: "fake", model: "fake" };
     // TD v0.44: Il Notaio's reading is prose, not JSON: a fixed reading, with no quotes to check.
     if (req.kind === "notaio-reading") return { ok: true, content: FAKE_READING, error: null, costUsd: 0, inputTokens: 0, outputTokens: 0, latencyMs: 0, provider: "fake", model: "fake" };
     return { ok: true, content: JSON.stringify(replies[req.kind]!()), error: null, costUsd: 0, inputTokens: 0, outputTokens: 0, latencyMs: 0, provider: "fake", model: "fake" };
