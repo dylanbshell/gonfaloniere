@@ -122,6 +122,13 @@
   --token-overlap: 10px;
   --dot-size: 8px;
   --motion-pulse: 700ms;
+  /* Interface v0.7: a card over the "talking with" card slides down when deselected; on a switch, the new
+     one comes up this far behind the old one's slide down, so the two feel like one motion */
+  --motion-card: 220ms;
+  --card-follow: 80ms;
+  --cover-shadow-room: 12px;
+  /* The Web of Secrets' bar: the selected guests' small portraits */
+  --bar-portrait-size: 22px;
 
   /* Stacking: menus over the stream, decks over everything, the explanations over the decks */
   --z-menu: 10;

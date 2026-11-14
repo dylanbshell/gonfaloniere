@@ -49,6 +49,12 @@ export interface State {
   plotReward?: boolean;
   /** Once the errand's check has run (with `plot_reward` on): whether the player has the extra act, in block 5's words. */
   plotStatus?: string;
+  /**
+   * Interface v0.8, the midnight line: once the check has run, whether the extra act is the player's, as a
+   * flag beside `{plot_status}`'s words. No engine sends it yet (the mini-game runs with `plot_reward` off);
+   * without it, the line's "+1" goes once the check has run rather than claim an act the player may not have.
+   */
+  plotEarned?: boolean;
   /** TD v0.45: where every other living guest is, in open play (the AI guests' room line); absent otherwise. */
   room?: { groups: string[][]; colloquios: string[][] };
   [k: string]: unknown;
@@ -421,6 +427,19 @@ export function errandLine(s: State | null): { kind: "status"; text: string } | 
 }
 
 /**
+ * The midnight line in the sheet (Interface v0.8, Left): one act at midnight always, and with `plot_reward`
+ * on, the extra act the errand can earn, from what the errand card already uses (`errandLine`): before the
+ * check, "+1 if you finish your errand"; after it, "+1 earned" when the extra act is the player's, and
+ * nothing otherwise. Never a check's result before the check has run.
+ */
+export function midnightLine(s: State | null): { extra: "reward" | "earned" | null } {
+  const line = errandLine(s);
+  if (line?.kind === "reward") return { extra: "reward" };
+  if (line?.kind === "status" && s?.plotReward && s.plotEarned === true) return { extra: "earned" };
+  return { extra: null };
+}
+
+/**
  * Whether it's the last round before the errand's deadline (TD v0.47, Il Notaio's hint): the stage just
  * before the deadline on the track. It reads only the schedule, never the errand's check, so the hint
  * never gives a result away early.
@@ -626,3 +645,37 @@ export function cityList(lore: LoreEntry[]): { subject: string | null; entries: 
 
 /** A lore entry's one-line preview for the city's list: its first line. */
 export const preview = (e: LoreEntry): string => e.text.split("\n").find((l) => l.trim())?.trim() ?? "";
+
+// ---- One Notes tab (Interface v0.7, The Web of Secrets, Notes) ----------------------------------------------
+
+/** A section of the notes list: under a heading naming its guest or pair (`about`; [] for free notes), or none (null). */
+export interface NoteSection {
+  about: string[] | null;
+  notes: Note[];
+}
+
+export const sameGuests = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
+
+/**
+ * The one list of the player's notes, newest first, filtered by the shared selection. No one selected: every
+ * note, grouped by guest and pair (free notes too), each group where its newest note falls. One guest: their
+ * notes and any pair's that includes them, in one list. A pair: the pair's notes first, then each of the
+ * two's, under small headings. Sections with no notes are left out.
+ */
+export function notesFor(notes: Note[], picked: string[]): NoteSection[] {
+  const newest = [...notes].reverse();
+  if (picked.length === 0) {
+    const out: NoteSection[] = [];
+    for (const n of newest) {
+      const at = out.find((s) => sameGuests(s.about!, n.guests));
+      if (at) at.notes.push(n);
+      else out.push({ about: n.guests, notes: [n] });
+    }
+    return out;
+  }
+  if (picked.length === 1) {
+    const on = newest.filter((n) => n.guests.includes(picked[0]!));
+    return on.length ? [{ about: null, notes: on }] : [];
+  }
+  return [picked, [picked[0]!], [picked[1]!]].map((about) => ({ about, notes: newest.filter((n) => sameGuests(n.guests, about)) })).filter((s) => s.notes.length > 0);
+}

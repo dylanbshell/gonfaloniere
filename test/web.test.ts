@@ -20,7 +20,7 @@ import { settingPack } from "../src/setting/pack.ts";
 import { GameView, Start } from "../web/src/App.tsx";
 import type { Ev } from "../web/src/connection.ts";
 import { canDo, canSpeak, openMenu, trigger, withMention } from "../web/src/input.ts";
-import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityCards, cityList, curve, derive, factionArcs, placeholderExample, preview, selectBack, selectInChat, selectInWeb, selectLore, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, lineStages, loreParts, readingFor, rulesCards, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, type LoreEntry, type View } from "../web/src/model.ts";
+import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityCards, cityList, curve, derive, factionArcs, placeholderExample, preview, selectBack, selectInChat, selectInWeb, selectLore, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, lineStages, loreParts, readingFor, rulesCards, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, midnightLine, notesFor, type LoreEntry, type View } from "../web/src/model.ts";
 import { notaioHint, setInfo, type StartInfo } from "../web/src/words.ts";
 import { fakeCaller, fakeDocs, fakeSettings } from "./fixtures/fake-game.ts";
 
@@ -317,7 +317,7 @@ test("selection: one guest at a time, on the right, with their lines highlighted
   for (const l of v.stream.filter((x) => x.item === "line" && x.speaker === name && chat.includes(`data-line="${x.id}"`))) assert.match(chat, new RegExp(`class="ln speech[^"]* hl" data-line="${l.id}"`), `${l.id} highlighted`);
   // Interface v0.6: one selection, shared: the web's bar and its ring show the guest too.
   const esc = (x: string) => x.replace(/'/g, "&#x27;");
-  assert.match(h, new RegExp(`class="muted web-bar-sel">${esc(name)}<`), "on the web's bar");
+  assert.match(h, new RegExp(`class="web-bar-sel">${esc(name)}<`), "on the web's bar");
   assert.match(h, new RegExp(`data-guest="${esc(name)}" class="node picked`), "selected in the web");
   assert.equal((game({ v }).match(/class="earlier-line" aria-expanded="true"/g) ?? []).length, 0, "nothing selected: all folded");
   assert.match(game({ v }), /class="guest" aria-pressed="false"/, "names select");
@@ -384,12 +384,27 @@ test("notes in the web viewer: on a guest, on a pair (drawn dashed), or free; al
   const v = derive([...base, ...notes]);
   assert.deepEqual(v.notes.map((n) => n.id), ["N1", "N2", "N3"]);
   assert.equal((game({ v, web: [] }).match(/class="edge note-line/g) ?? []).length, 1, "the pair's dashed line");
+  // Interface v0.7: one Notes tab. The writing box on top, then one list, newest first, filtered by the selection.
+  const texts = (h: string) => [...h.matchAll(/class="note-text"[^>]*>([^<]+)</g)].map((m) => m[1]);
+  const headings = (h: string) => [...h.matchAll(/class="label note-heading"><(?:button|span) class="note-about"[^>]*>([^<]+)</g)].map((m) => m[1]);
   const mine = game({ v, web: ["Lupo"], webTab: "notes" });
-  assert.match(mine, /Lupo watches the door\./);
-  assert.doesNotMatch(mine, /Something is off/, "only the notes on this selection");
-  const all = game({ v, web: [], webTab: "all" });
+  assert.deepEqual(texts(mine), ["Those two talk too often.", "Lupo watches the door."], "one guest: theirs and any pair's with them, newest first");
+  assert.doesNotMatch(mine, /Something is off/, "not the free note");
+  assert.deepEqual(headings(mine), [], "one list, no headings");
+  assert.match(mine, /<button class="note-about"[^>]*data-hint="noteItem">Lupo and Giorgia Pazzi</, "the pair's note names its pair, which selects them");
+  const pairNotes = game({ v, web: ["Giorgia Pazzi", "Lupo"], webTab: "notes" });
+  assert.deepEqual(headings(pairNotes), ["Giorgia Pazzi and Lupo", "Lupo"], "a pair: the pair's notes first, then each of the two's, under small headings");
+  assert.deepEqual(texts(pairNotes), ["Those two talk too often.", "Lupo watches the door."]);
+  const all = game({ v, web: [], webTab: "notes" });
   assert.deepEqual(missingWords(all), []);
-  assert.deepEqual([...all.matchAll(/class="note-text"[^>]*>([^<]+)</g)].map((m) => m[1]), ["Those two talk too often.", "Lupo watches the door.", "Something is off tonight."], "newest first");
+  assert.deepEqual(texts(all), ["Those two talk too often.", "Lupo watches the door.", "Something is off tonight."], "no one selected: every note, newest first");
+  assert.deepEqual(headings(all), ["Lupo and Giorgia Pazzi", "Lupo", PLAYER.screen.web.free], "grouped by guest and pair, free notes too");
+  assert.ok(!all.includes("<select"), "no filter");
+  assert.equal((all.match(/class="tab( on)?"/g) ?? []).length, 2, "two tabs: What you heard and saw, and Notes");
+  assert.ok(!("all" in PLAYER.screen.web) && !("filter" in PLAYER.screen.web) && !("allTab" in PLAYER.screen.hints), "no All your notes, nor its filter");
+  assert.deepEqual(notesFor(v.notes, []).map((x) => x.about), [["Lupo", "Giorgia Pazzi"], ["Lupo"], []]);
+  assert.deepEqual(notesFor(v.notes, ["Giorgia Pazzi"]).map((x) => x.notes.map((n) => n.id)), [["N3"]]);
+  assert.deepEqual(notesFor(v.notes, ["Lupo", "Contessa Isabella"]).map((x) => x.about), [["Lupo"]], "empty sections are left out");
   // Interface v0.3: only notes on a guest or a pair get "This is my conclusion"; the free note has none.
   const buttons = [...all.matchAll(/<li class="note">(.*?)<\/li>/g)].map((m) => [m[1]!.match(/class="note-text"[^>]*>([^<]+)</)![1], /data-hint="conclude"/.test(m[1]!)]);
   assert.deepEqual(buttons, [["Those two talk too often.", true], ["Lupo watches the door.", true], ["Something is off tonight.", false]]);
@@ -585,7 +600,8 @@ test("the room: your own group marked, by name; every other group as overlapping
   const room = v.state!.room!;
   assert.equal((left.match(/data-cluster="group"/g) ?? []).length, room.groups.length);
   assert.equal((left.match(/data-cluster="private"/g) ?? []).length, room.colloquios.length);
-  assert.equal((left.match(/class="token( selected)?"/g) ?? []).length, [...room.groups, ...room.colloquios].flat().length, "a token for every other guest in the room");
+  const clusters = left.slice(left.indexOf('class="clusters"'));
+  assert.equal((clusters.match(/class="token( selected)?"/g) ?? []).length, [...room.groups, ...room.colloquios].flat().length, "a token for every other guest in the room");
   assert.equal((left.match(/class="joint"/g) ?? []).length, room.colloquios.length, "each pair joined");
   // A hand-made room: two groups and a pair.
   const made = { ...v, state: { ...v.state!, room: { groups: [["Lupo", "Fra Tommaso"], ["Sister Beatrice"]], colloquios: [["Piero de' Medici", "Clarice Orsini"]] } } };
@@ -884,7 +900,7 @@ test("the shared selection on the screen: the chat's guest on the web's bar and 
   const { at } = await playedLog();
   const v = derive(at["speak:capannello"]!);
   const esc = (x: string) => x.replace(/'/g, "&#x27;");
-  const bar = (h: string) => h.match(/class="muted web-bar-sel">([^<]*)</)![1];
+  const bar = (h: string) => h.match(/class="web-bar-sel">([^<]*)</)?.[1] ?? null;
   const nodes = (h: string) => [...h.matchAll(/data-guest="([^"]+)" class="node picked/g)].map((m) => m[1]);
   // From the chat: the web's bar and ring show them while it's down.
   const chat = game({ v, selected: { kind: "guest", name: "Lupo" } });
@@ -898,7 +914,7 @@ test("the shared selection on the screen: the chat's guest on the web's bar and 
   assert.match(pair, /class="person look" data-guest="Giorgia Pazzi"/, "the chat holds the one picked last");
   // A lore topic: the guests clear in both places.
   const topic = game({ v: withLore(v), selected: { kind: "lore", entry: LORE[0]!, back: null } });
-  assert.equal(bar(topic), esc(PLAYER.screen.web.barNone));
+  assert.equal(bar(topic), null, "the bar shows no one (Interface v0.7: no \"No one selected\")");
   assert.deepEqual(nodes(topic), []);
 });
 
@@ -1009,3 +1025,96 @@ test("the new controls' explanations are in player.json", () => {
 });
 
 const esc2 = (x: string) => x.replace(/&/g, "&amp;").replace(/'/g, "&#x27;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+
+// ---- CC-20261114-08 (#117, part 1 of 3): the midnight line, the web's bar, portraits that select, the player's
+// own name, the right panel's cards, and "Open in the Web of Secrets" (Interface v0.7–v0.8) ----------------------
+
+test("the midnight line in the sheet: one act; with plot_reward on, +1 in the errand card's terms, then +1 earned or nothing once the check has run", async () => {
+  const { at } = await playedLog();
+  const base = derive(at["speak:capannello"]!);
+  const words = PLAYER.screen.midnightLine;
+  const sheet = (v: View) => {
+    const h = game({ v });
+    return h.slice(h.indexOf('class="panel sheet-panel"'), h.indexOf('class="buttons decks"'));
+  };
+  const cases: { name: string; v: View; extra: string | null }[] = [
+    { name: "off (the mini-game)", v: base, extra: null },
+    { name: "on, before the check", v: flagged(base, { plotReward: true }), extra: "reward" },
+    { name: "on, after the check, earned", v: { ...flagged(base, { plotReward: true, plotStatus: "You finished your errand in time." }), state: { ...flagged(base, { plotReward: true, plotStatus: "You finished your errand in time." }).state!, plotEarned: true } }, extra: "earned" },
+    { name: "on, after the check, not earned", v: { ...flagged(base, { plotReward: true, plotStatus: "You did not finish your errand in time." }), state: { ...flagged(base, { plotReward: true, plotStatus: "You did not finish your errand in time." }).state!, plotEarned: false } }, extra: null },
+    { name: "on, after the check, with no flag beside it", v: flagged(base, { plotReward: true, plotStatus: "You finished your errand in time." }), extra: null },
+  ];
+  for (const c of cases) {
+    assert.equal(midnightLine(c.v.state).extra, c.extra, c.name);
+    const h = sheet(c.v);
+    assert.ok(h.includes(`<div class="midnight-line"><div>${esc(words.acts)}</div>`), `${c.name}: one act`);
+    if (c.extra) assert.ok(h.includes(`data-extra="${c.extra}">${esc(words[c.extra])}<`), `${c.name}: ${words[c.extra]}`);
+    else assert.doesNotMatch(h, /midnight-extra/, `${c.name}: no second line`);
+  }
+  // Before the check it never gives a result away: the reward line holds, whatever the errand's state.
+  assert.equal(midnightLine(flagged(base, { plotReward: true }).state).extra, "reward");
+  assert.equal(midnightLine(null).extra, null);
+  assert.equal(words.acts, "Midnight: 1 act (kill, guard, or watch)");
+  assert.equal(words.reward, "+1 if you finish your errand before the last council");
+  assert.equal(words.earned, "+1 earned");
+});
+
+test("the web's bar: one centered group, the arrow and the title, and only with someone selected, a dot and their small portraits and names", async () => {
+  const { at } = await playedLog();
+  const v = derive(at["speak:capannello"]!);
+  const bar = (h: string) => h.slice(h.indexOf('<button class="web-bar"'), h.indexOf("</button>", h.indexOf('<button class="web-bar"')));
+  const none = bar(game({ v }));
+  assert.match(none, /<span class="web-bar-group"><span class="web-bar-arrow" aria-hidden="true">▲<\/span><span class="web-bar-title">The Web of Secrets<\/span><\/span>$/, "just the arrow and the title");
+  const one = bar(game({ v, selected: { kind: "guest", name: "Lupo" } }));
+  assert.match(one, /class="web-bar-dot"[^>]*>·<\/span><span class="web-bar-portraits"><span class="portrait small"[^>]*>L<\/span><\/span><span class="web-bar-sel">Lupo<\/span>/);
+  const pair = bar(game({ v, web: ["Lupo", "Giorgia Pazzi"] }));
+  assert.match(pair, /class="web-bar-arrow" aria-hidden="true">▼</, "▼ when open");
+  assert.equal((pair.match(/class="portrait small"/g) ?? []).length, 2);
+  assert.ok(pair.includes(`class="web-bar-sel">Lupo and Giorgia Pazzi<`));
+  assert.ok(!("barNone" in PLAYER.screen.web), "no \"No one selected\"");
+  const css = readFileSync("web/src/app.css", "utf8");
+  assert.match(css, /\.web-bar \{[^}]*justify-content: center;/, "centered");
+});
+
+test("portraits select their guest wherever they appear; the player's own name or portrait opens their briefing", async () => {
+  const { at } = await playedLog();
+  const v = derive(at["speak:capannello"]!);
+  const h = game({ v });
+  const left = h.slice(h.indexOf('class="side left"'), h.indexOf('class="centre"'));
+  // Who's with you: a portrait button and the name, each selecting.
+  for (const p of v.state!.present) assert.match(left, new RegExp(`<li><button class="token" aria-label="${esc(p)}" aria-pressed="false" data-guest="${esc(p)}"[^>]*data-hint="portrait"`), `${p}'s portrait selects`);
+  // The tokens under the "talking with" card select too.
+  const right = h.slice(h.indexOf('class="side right'), h.indexOf('class="web-dock'));
+  const others = v.state!.present.filter((p) => p !== talkingWith(v, F));
+  assert.equal((right.slice(right.indexOf('class="tokens"')).match(/<button class="token"/g) ?? []).length, others.length, "a button per token");
+  // The player's own: opens the briefing, with the hover "Your briefing", never selects.
+  assert.match(left, /<button class="who me-briefing"[^>]*aria-description="Your briefing" data-hint="myBriefing"><span class="portrait large"/);
+  assert.equal(PLAYER.screen.hints.myBriefing, "Your briefing");
+  assert.doesNotMatch(left, new RegExp(`data-guest="${F}"`), "the player's own portrait doesn't select");
+  assert.match(PLAYER.screen.hints.portrait, /\{name\}/);
+});
+
+test("the right panel's cards: Open in the Web of Secrets only on a filled talking-with card and a selected guest's; the cards sit in a frame they slide down out of", async () => {
+  const { at } = await playedLog();
+  const empty = derive(at["speak:capannello"]!);
+  const right = (h: string) => h.slice(h.indexOf('class="side right'), h.indexOf('class="web-dock'));
+  const talk = (h: string) => right(h).slice(0, right(h).indexOf("</section>"));
+  if (!talkingWith(empty, F)) {
+    assert.match(talk(game({ v: empty })), /no-ear/);
+    assert.doesNotMatch(talk(game({ v: empty })), /data-hint="openWeb"/, "the empty card has no button");
+  }
+  const colloquio = derive(at["speak:colloquio"]!);
+  assert.ok(talkingWith(colloquio, F));
+  assert.match(talk(game({ v: colloquio })), /data-hint="openWeb"/, "a filled card keeps it");
+  assert.match(talk(game({ v: colloquio })), /class="who column"><button class="token large"/, "the talking-with card's portrait selects");
+  const looking = right(game({ v: empty, selected: { kind: "guest", name: "Lupo" } }));
+  assert.match(looking, /<div class="covers"><section class="person look" data-guest="Lupo">/);
+  assert.match(looking.slice(looking.indexOf('class="covers"')), /data-hint="openWeb"/, "a selected guest's card keeps it");
+  // Looks and timings are theme tokens, with a fade for reduced motion.
+  const css = readFileSync("web/src/app.css", "utf8");
+  assert.match(css, /\.person\.look\.leaving \{[^}]*animation: slide-down var\(--motion-card\)/);
+  assert.match(css, /\.person\.look\.follows \{ animation-delay: var\(--card-follow\);/);
+  assert.match(css, /prefers-reduced-motion: reduce\)[^@]*\.person\.look\.leaving \{ animation: fade-out/);
+  const theme = readFileSync("web/theme.css", "utf8");
+  for (const t of ["--motion-card", "--card-follow", "--bar-portrait-size"]) assert.match(theme, new RegExp(`${t}:`));
+});

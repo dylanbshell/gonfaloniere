@@ -157,9 +157,15 @@ button.tab.on { border-color: var(--accent); color: var(--accent); }
 /* The Web of Secrets (TD v0.44): a raised bar along the bottom, always there; clicking it slides the panel up */
 .web-dock { position: fixed; left: 0; right: 0; bottom: 0; z-index: var(--z-dock); height: var(--web-bar-height); background: var(--surface); box-shadow: var(--shadow-dock); border-radius: var(--radius-lg) var(--radius-lg) 0 0; display: flex; flex-direction: column; overflow: hidden; transition: height var(--motion-slow) ease-out; }
 .web-dock.open { height: var(--web-height); }
-.web-bar { flex: none; height: var(--web-bar-height); display: flex; align-items: center; gap: var(--space-4); width: 100%; border: none; border-radius: 0; background: transparent; padding: 0 var(--space-4); text-align: left; }
+/* Interface v0.7: the bar's contents are one centered group: the arrow, the title, and a selection's portraits and names */
+.web-bar { flex: none; height: var(--web-bar-height); display: flex; align-items: center; justify-content: center; width: 100%; border: none; border-radius: 0; background: transparent; padding: 0 var(--space-4); }
+.web-bar-group { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.web-bar-arrow { font-size: var(--text-xs); color: var(--text-muted); }
 .web-bar-title { font-weight: var(--weight-bold); }
-.web-bar-sel { flex: 1; }
+.web-bar-dot { color: var(--text-muted); }
+.web-bar-portraits { display: inline-flex; gap: var(--space-1); }
+.web-bar-sel { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.portrait.small { width: var(--bar-portrait-size); height: var(--bar-portrait-size); font-size: var(--text-xs); }
 .web-backdrop { position: fixed; inset: 0; z-index: var(--z-dock-backdrop); background: var(--overlay); }
 /* The panel keeps its open size while down, so the bar clips it rather than squashing it */
 .web { flex: none; height: calc(var(--web-height) - var(--web-bar-height)); display: flex; flex-direction: column; border-top: var(--border-width) solid var(--border); }
@@ -202,7 +208,11 @@ button.tab.on { border-color: var(--accent); color: var(--accent); }
 .notes textarea { width: 100%; height: var(--input-height); resize: vertical; margin-bottom: var(--space-2); }
 .notes select { margin-bottom: var(--space-3); }
 .note { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); border-left: var(--border-width) solid var(--edge-note); padding-left: var(--space-2); }
-button.note-text { border: none; background: transparent; padding: 0; text-align: left; white-space: pre-wrap; }
+.note-text { white-space: pre-wrap; }
+/* A note's guest or pair, as a heading or on the note itself: selects them (Interface v0.7) */
+button.note-about { border: none; background: transparent; padding: 0; font: inherit; color: inherit; text-decoration: underline dotted; text-underline-offset: var(--space-1); }
+.note > .note-about { font-size: var(--text-xs); color: var(--text-muted); }
+.note-heading { margin-top: var(--space-3); }
 @keyframes slide-up { from { transform: translateY(100%); } to { transform: none; } }
 .deck-text::first-letter { text-transform: uppercase; }
 
@@ -290,7 +300,14 @@ button.person-head { cursor: pointer; }
 .tokens { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-4); }
 .tokens .portrait { width: var(--token-size); height: var(--token-size); font-size: var(--text-xs); }
 .no-ear { font-style: italic; }
-.person.look { position: absolute; left: 0; right: 0; top: calc(var(--peek-height) + var(--space-4)); bottom: 0; overflow-y: auto; background: var(--paper); box-shadow: var(--shadow-raised); border-radius: var(--radius-lg) var(--radius-lg) 0 0; animation: slide-up var(--motion-slow) ease-out; }
+/* The cards over the "talking with" card, in a frame that hides them as they slide down out of it (Interface v0.7) */
+.covers { position: absolute; left: 0; right: 0; top: calc(var(--peek-height) + var(--space-4) - var(--cover-shadow-room)); bottom: 0; overflow: hidden; pointer-events: none; }
+.person.look { position: absolute; left: 0; right: 0; top: var(--cover-shadow-room); bottom: 0; overflow-y: auto; background: var(--paper); box-shadow: var(--shadow-raised); border-radius: var(--radius-lg) var(--radius-lg) 0 0; pointer-events: auto; animation: slide-up var(--motion-card) ease-out; }
+.person.look.follows { animation-delay: var(--card-follow); animation-fill-mode: backwards; }
+.person.look.leaving { pointer-events: none; animation: slide-down var(--motion-card) ease-in forwards; }
+@keyframes slide-down { from { transform: none; } to { transform: translateY(100%); } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
 .person.look .person-head { justify-content: space-between; }
 button.icon.close { font-size: var(--text-lg); line-height: 1; padding: 0 var(--space-2); }
 
@@ -307,6 +324,16 @@ button.icon.close { font-size: var(--text-lg); line-height: 1; padding: 0 var(--
 button.token { border: var(--mark-ring) solid var(--surface); border-radius: var(--radius-round); padding: 0; background: transparent; line-height: 0; }
 button.token.selected { border-color: var(--accent); }
 button.token .portrait { width: var(--token-size); height: var(--token-size); font-size: var(--text-xs); }
+/* Portraits that select (Interface v0.7) keep their size where they stand: who's with you, the talking-with card */
+.here button.token .portrait { width: var(--portrait-size); height: var(--portrait-size); font-size: var(--text-sm); }
+button.token.large .portrait { width: var(--portrait-size-lg); height: var(--portrait-size-lg); font-size: var(--text-lg); }
+/* The player's own name and portrait open their briefing (Interface v0.7) */
+button.me-briefing { width: 100%; border: none; background: transparent; padding: 0; text-align: left; }
+button.me-briefing:hover:not(:disabled) .name { text-decoration: underline; }
+.me-briefing .name, .me-briefing .faction { display: block; }
+/* Interface v0.8: the midnight line, and the extra act an errand can earn in the errand card's accent */
+.midnight-line { margin-top: var(--space-3); font-size: var(--text-sm); }
+.midnight-extra { color: var(--errand-accent); }
 
 /* The rules (Interface v0.5): one button per section, filling the modal; a section grows to fill it */
 .rules-body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-4); }
@@ -344,5 +371,8 @@ button.right-handle:hover { background: var(--select-bg); }
 
 @media (prefers-reduced-motion: reduce) {
   section.rules-section, .city-entry { animation: none; }
+  .person.look { animation: fade-in var(--motion-card) ease-out; }
+  .person.look.follows { animation-delay: initial; }
+  .person.look.leaving { animation: fade-out var(--motion-card) ease-in forwards; }
   .reading { transition: none; }
 }
