@@ -127,6 +127,15 @@
   --motion-card: 220ms;
   --card-follow: 80ms;
   --cover-shadow-room: 12px;
+  /* Interface v0.7: the four modals in a row. The open one, and at each side a slice of its neighbour, its
+     outer side faded out; a move slides the row along */
+  --deck-height: min(var(--modal-max-height), 640px);
+  --modal-peek-width: 150px;
+  --modal-row-gap: 16px;
+  --modal-slide: 120px;
+  --peek-opacity: 0.85;
+  --peek-fade-left: linear-gradient(to right, transparent, #000 75%);
+  --peek-fade-right: linear-gradient(to left, transparent, #000 75%);
   /* The Web of Secrets' bar: the selected guests' small portraits */
   --bar-portrait-size: 22px;
 
@@ -176,6 +185,8 @@
   --track: #9a9a92;
   --talk-bg: #eef2f9;
   --paper: #fffdf8;
+  /* A glossary word in a line (Interface v0.7): a faint dotted underline */
+  --gloss-underline: #a8a29a;
   /* Relationship types: different in lightness as well as hue (TD v0.44) */
   --rel-romance: #b0335a;
   --rel-kin: #1f5a40;
@@ -231,6 +242,7 @@
     --track: #6b6b66;
     --talk-bg: #1f2633;
     --paper: #2a2925;
+    --gloss-underline: #6e6a62;
     --rel-romance: #f08aa6;
     --rel-kin: #8fd4ae;
     --rel-service: #c9b45a;

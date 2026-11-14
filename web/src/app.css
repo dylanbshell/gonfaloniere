@@ -2,7 +2,7 @@
 
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: var(--text-md); line-height: var(--line-height); }
-button, select, textarea { font: inherit; color: inherit; }
+button, select, textarea, input { font: inherit; color: inherit; }
 button, .button { background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-md); padding: var(--space-1) var(--space-3); cursor: pointer; text-decoration: none; display: inline-block; }
 button:disabled { opacity: var(--opacity-disabled); cursor: default; }
 /* Buttons by job (TD v0.40): one filled primary (Speak), Do in its own style, the rest outlined. */
@@ -14,7 +14,7 @@ button.do.lit { box-shadow: 0 0 0 var(--do-lit-ring) var(--do-lit), 0 0 var(--do
 button.icon { border: none; background: var(--surface-2); border-radius: var(--radius-sm); padding: 0 var(--space-2); font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-muted); }
 button.switch { font-size: var(--text-xs); padding: 0 var(--space-2); background: transparent; color: var(--text-muted); }
 button.switch[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
-select, textarea { background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-md); padding: var(--space-1) var(--space-2); }
+select, textarea, input { background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-md); padding: var(--space-1) var(--space-2); }
 h1 { font-size: var(--text-xl); margin: 0 0 var(--space-3); }
 h2 { font-size: var(--text-lg); margin: var(--space-4) 0 var(--space-2); }
 h3 { font-size: var(--text-md); margin: 0 0 var(--space-3); }
@@ -375,4 +375,40 @@ button.right-handle:hover { background: var(--select-bg); }
   .person.look.follows { animation-delay: initial; }
   .person.look.leaving { animation: fade-out var(--motion-card) ease-in forwards; }
   .reading { transition: none; }
+}
+
+/* Interface v0.7: the four modals in a row, the open one between slices of its neighbours, each neighbour's
+   outer side faded out; clicking one slides the row along */
+.modal-row { display: flex; align-items: center; justify-content: center; gap: var(--modal-row-gap); width: 100%; max-height: 100%; }
+.modal-row > .modal { flex: 0 1 var(--modal-width); height: var(--deck-height); min-width: 0; }
+.modal-peek { flex: 0 1 var(--modal-peek-width); min-width: 0; align-self: center; height: var(--deck-height); position: relative; overflow: hidden; border-radius: var(--radius-lg); cursor: pointer; }
+.modal-peek.empty { cursor: default; }
+.modal-peek.left { -webkit-mask-image: var(--peek-fade-left); mask-image: var(--peek-fade-left); }
+.modal-peek.right { -webkit-mask-image: var(--peek-fade-right); mask-image: var(--peek-fade-right); }
+.peek-frame { position: absolute; top: 0; bottom: 0; width: var(--modal-width); background: var(--surface); border-radius: var(--radius-lg); opacity: var(--peek-opacity); transition: opacity var(--motion-fast) ease-out; }
+.modal-peek.left .peek-frame { right: 0; }
+.modal-peek.right .peek-frame { left: 0; }
+.modal-peek:hover .peek-frame, .modal-peek:focus-visible .peek-frame { opacity: 1; }
+.peek-frame header { padding: var(--space-3) var(--space-4); border-bottom: var(--border-width) solid var(--border); }
+.peek-frame h2 { margin: 0; }
+.peek-items { list-style: none; margin: 0; padding: var(--space-3) var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); font-size: var(--text-sm); color: var(--text-muted); }
+.modal.from-right { animation: row-from-right var(--motion-slow) ease-out; }
+.modal.from-left { animation: row-from-left var(--motion-slow) ease-out; }
+@keyframes row-from-right { from { transform: translateX(var(--modal-slide)); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes row-from-left { from { transform: translateX(calc(var(--modal-slide) * -1)); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* The glossary (Interface v0.7): a search box, then the terms from A to Z */
+.glossary { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.glossary-search { flex: none; margin: var(--space-3) var(--space-4); }
+.glossary-list { flex: 1; min-height: 0; overflow-y: auto; margin: 0; padding: 0 var(--space-4) var(--space-4); }
+.glossary-entry { padding: var(--space-2) 0; border-bottom: var(--border-width) solid var(--border); }
+.glossary-entry dt { font-weight: var(--weight-bold); }
+.glossary-entry dd { margin: 0; font-size: var(--text-sm); }
+button.glossary-rules { margin-left: var(--space-2); }
+.glossary-none { padding: 0 var(--space-4); }
+/* A glossary word in a line: a faint dotted underline, its definition on hover; not a link */
+.gloss { text-decoration: underline dotted var(--gloss-underline); text-underline-offset: var(--space-1); cursor: help; }
+
+@media (prefers-reduced-motion: reduce) {
+  .modal.from-right, .modal.from-left { animation: none; }
 }

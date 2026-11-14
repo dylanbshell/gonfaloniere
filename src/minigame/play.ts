@@ -57,7 +57,7 @@ if (!opts.minigame) throw new Error("Only the mini-game is playable so far: add 
 if (opts.as && !choices.includes(opts.as)) throw new Error(`--as must be one of ${choices.join(", ")}`);
 
 /** Everything the start screen and the game screen need that isn't in the player's own feed: public information only. */
-const startInfo = () => ({ ...screenInfo(choices.filter((n) => !opts.as || n === opts.as), briefings), started: game.started, ws: game.ws });
+const startInfo = () => ({ ...screenInfo(choices.filter((n) => !opts.as || n === opts.as), briefings, { tunables: docs.tunables, minigame: true }), started: game.started, ws: game.ws });
 
 const game: { started: string | null; ws: string | null; replay: string | null; error: string | null } = { started: null, ws: null, replay: null, error: null };
 let ctrl: HumanController | null = null;

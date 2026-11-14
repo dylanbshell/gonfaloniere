@@ -7,8 +7,8 @@
 import { Component, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { connect, type Ev } from "./connection.ts";
 import { COMMAND, MENTION, canDo, canSpeak, isCommand, matchCommands, matchGuests, openMenu, withMention, type Trigger } from "./input.ts";
-import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityList, curve, derive, earlierThisStage, errandDeadline, errandLine, factionArcs, heardAndSaw, hintMoment, loreParts, midnightLine, notesFor, placeholderExample, preview, readingFor, recordUpTo, rulesCards, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, type Card, type Line, type LoreEntry, type Note, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
-import { getInfo, guest, names, notaioHint, placeholderExamples, setInfo, stageDescription, w, type StartInfo } from "./words.ts";
+import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityList, curve, derive, earlierThisStage, errandDeadline, errandLine, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, notesFor, placeholderExample, preview, readingFor, recordUpTo, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, type Card, type Line, type LoreEntry, type Note, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
+import { getInfo, guest, names, notaioHint, placeholderExamples, setInfo, stageDescription, w, type GlossEntry, type StartInfo } from "./words.ts";
 
 type Send = (m: unknown) => void;
 
@@ -56,7 +56,8 @@ const readHints = () => {
 interface Hints {
   on: boolean;
   toggle: () => void;
-  show: (text: string, el: Element) => void;
+  /** `always`: a definition rather than a control's explanation, shown even with the explanations off (a glossary word). */
+  show: (text: string, el: Element, always?: boolean) => void;
   hide: () => void;
 }
 const HintsContext = createContext<Hints>({ on: true, toggle: () => {}, show: () => {}, hide: () => {} });
@@ -111,8 +112,8 @@ function HintLayer({ children }: { children: ReactNode }) {
         // A private window or blocked storage: the choice lasts until the page closes.
       }
     },
-    show: (text, el) => {
-      if (on) setTip({ text, el, rect: el.getBoundingClientRect() });
+    show: (text, el, always) => {
+      if (on || always) setTip({ text, el, rect: el.getBoundingClientRect() });
     },
     hide: () => setTip(null),
   };
@@ -392,49 +393,143 @@ function useEscape(onEscape: () => void, active = true) {
 
 // ---- Your briefing, the rules, and the city (TD v0.40; Interface v0.5): each a modal over the whole screen ----
 
-type DeckName = "briefing" | "rules" | "city";
+type DeckName = "briefing" | "rules" | "city" | "glossary";
 
-/** Where each modal was left: the briefing's card, the open rules section (by its place), the open city entry (by id). */
-type DeckPlaces = { briefing: number; rules: number | null; city: string | null };
-const NO_PLACES: DeckPlaces = { briefing: 0, rules: null, city: null };
+/** The four modals in a row (Interface v0.7), in this order: nothing before the briefing, nothing after the glossary. */
+const DECKS: DeckName[] = ["briefing", "rules", "city", "glossary"];
+
+/** Where each modal was left: the briefing's card, the open rules section (by its place), the open city entry (by id), the glossary's search. */
+type DeckPlaces = { briefing: number; rules: number | null; city: string | null; glossary: string };
+const NO_PLACES: DeckPlaces = { briefing: 0, rules: null, city: null, glossary: "" };
 
 function briefingDeck(sheet: Sheet): Card[] {
   const past = sheet.past ?? [];
   return [...briefingCards(sheet.briefing), ...(past.length ? [{ title: w("screen.decks.past"), text: past.map((p) => `**${p.title}**\n${p.text}`).join("\n\n") }] : [])];
 }
 
-/** The modal's frame: over the screen, its title and a close, Escape closes it. */
-function ModalFrame({ deck, onClose, children }: { deck: DeckName; onClose: () => void; children: ReactNode }) {
+/**
+ * The four modals in a row (Interface v0.7): the open one over the screen, its title and a close, and to its
+ * left the one before it, its left side faded out, and to its right the next, its right side faded out.
+ * Clicking either slides the row along to it. Escape closes; each modal keeps its place (the caller's).
+ */
+function ModalRow({ deck, sheet, places, onPlaces, onDeck, onClose }: { deck: DeckName; sheet: Sheet; places: DeckPlaces; onPlaces: (p: DeckPlaces) => void; onDeck: (d: DeckName) => void; onClose: () => void }) {
   const hint = useHint();
   useEscape(onClose);
+  const at = DECKS.indexOf(deck);
+  const prev = DECKS[at - 1];
+  const next = DECKS[at + 1];
+  // Which way the row slid, so the modal comes in from the side it was on.
+  const [from, setFrom] = useState<"left" | "right" | null>(null);
+  const go = (d: DeckName, side: "left" | "right") => {
+    setFrom(side);
+    onDeck(d);
+  };
   const title = w(`screen.${deck}`);
+  const peek = (d: DeckName | undefined, side: "left" | "right") =>
+    d ? (
+      <div
+        className={`modal-peek ${side}`}
+        data-deck={d}
+        role="button"
+        tabIndex={0}
+        aria-label={w(side === "left" ? "screen.modalRow.previous" : "screen.modalRow.next", { title: w(`screen.${d}`) })}
+        onClick={(e) => (e.stopPropagation(), go(d, side))}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            go(d, side);
+          }
+        }}
+        {...hint(side === "left" ? "modalPrevious" : "modalNext")}
+      >
+        <div className="peek-frame" inert aria-hidden="true">
+          <header>
+            <h2>{w(`screen.${d}`)}</h2>
+          </header>
+          <PeekBody deck={d} sheet={sheet} />
+        </div>
+      </div>
+    ) : (
+      <div className={`modal-peek ${side} empty`} aria-hidden="true" />
+    );
   return (
     <div className="overlay" onClick={onClose}>
-      <div className={`modal deck deck-${deck}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={title}>
-        <header>
-          <h2>{title}</h2>
-          <button className="secondary" onClick={onClose} {...hint("close")}>
-            {w("screen.close")}
-          </button>
-        </header>
-        {children}
+      <div className="modal-row">
+        {peek(prev, "left")}
+        <div key={deck} className={`modal deck deck-${deck}${from ? ` from-${from}` : ""}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={title}>
+          <header>
+            <h2>{title}</h2>
+            <button className="secondary" onClick={onClose} {...hint("close")}>
+              {w("screen.close")}
+            </button>
+          </header>
+          {deck === "briefing" ? (
+            <BriefingDeck cards={briefingDeck(sheet)} place={places.briefing} onPlace={(n) => onPlaces({ ...places, briefing: n })} />
+          ) : deck === "rules" ? (
+            <RulesSections cards={rulesCards(sheet.rules)} open={places.rules} onOpen={(n) => onPlaces({ ...places, rules: n })} />
+          ) : deck === "city" ? (
+            <CityList lore={sheet.lore ?? []} open={places.city} onOpen={(id) => onPlaces({ ...places, city: id })} />
+          ) : (
+            <Glossary
+              search={places.glossary}
+              onSearch={(q) => onPlaces({ ...places, glossary: q })}
+              rules={rulesCards(sheet.rules)}
+              onRules={(n) => {
+                onPlaces({ ...places, rules: n });
+                go("rules", "left");
+              }}
+            />
+          )}
+        </div>
+        {peek(next, "right")}
       </div>
     </div>
   );
 }
 
-/** The modal for one of the three: the briefing's deck, the rules' buttons, or the city's list. */
-function DeckModal({ deck, sheet, places, onPlaces, onClose }: { deck: DeckName; sheet: Sheet; places: DeckPlaces; onPlaces: (p: DeckPlaces) => void; onClose: () => void }) {
+/** A neighbouring modal, seen at the row's edge: its titles, still, so nothing in it listens for keys. */
+function PeekBody({ deck, sheet }: { deck: DeckName; sheet: Sheet }) {
+  const items = deck === "briefing" ? briefingDeck(sheet).map((c) => c.title) : deck === "rules" ? rulesCards(sheet.rules).map((c) => c.title) : deck === "city" ? (sheet.lore ?? []).map((e) => e.title) : glossaryList(getInfo()?.glossary ?? []).map((g) => g.term);
   return (
-    <ModalFrame deck={deck} onClose={onClose}>
-      {deck === "briefing" ? (
-        <BriefingDeck cards={briefingDeck(sheet)} place={places.briefing} onPlace={(n) => onPlaces({ ...places, briefing: n })} />
-      ) : deck === "rules" ? (
-        <RulesSections cards={rulesCards(sheet.rules)} open={places.rules} onOpen={(n) => onPlaces({ ...places, rules: n })} />
-      ) : (
-        <CityList lore={sheet.lore ?? []} open={places.city} onOpen={(id) => onPlaces({ ...places, city: id })} />
-      )}
-    </ModalFrame>
+    <ul className="peek-items">
+      {items.map((t, i) => (
+        <li key={i}>{t}</li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * The glossary (Interface v0.7): for looking up one word. Alphabetical, the term in bold and a short plain
+ * definition; a search box on top narrows it as you type; "More in the rules" under an entry with a rules
+ * section behind it opens that section in the rules modal. The search is the caller's, so it's kept.
+ */
+function Glossary({ search, onSearch, rules, onRules }: { search: string; onSearch: (q: string) => void; rules: Card[]; onRules: (n: number) => void }) {
+  const hint = useHint();
+  const list = glossaryList(getInfo()?.glossary ?? [], search);
+  return (
+    <div className="glossary">
+      <input className="glossary-search" type="search" value={search} placeholder={w("screen.glossaryModal.search")} aria-label={w("screen.glossaryModal.searchLabel")} onChange={(e) => onSearch(e.target.value)} {...hint("glossarySearch")} />
+      <dl className="glossary-list">
+        {list.map((g) => {
+          const section = rulesSectionFor(g, rules);
+          return (
+            <div className="glossary-entry" key={g.term} data-term={g.term}>
+              <dt>{g.term}</dt>
+              <dd>
+                {g.text}
+                {section !== null && (
+                  <button className="secondary small glossary-rules" onClick={() => onRules(section)} {...hint("glossaryRules")}>
+                    {w("screen.glossaryModal.more")}
+                  </button>
+                )}
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
+      {list.length === 0 && <p className="muted glossary-none">{w("screen.glossaryModal.none")}</p>}
+    </div>
   );
 }
 
@@ -687,7 +782,7 @@ export function GameView({
       {/* After everything, and above it all in theme.css's order, so nothing covers it. */}
       {deck && v.sheet && (
         <Boundary panel="deck" fallback={(n) => <FailedOverlay notice={n} onClose={() => setDeck(null)} />}>
-          <DeckModal deck={deck} sheet={v.sheet} places={places} onPlaces={setPlaces} onClose={() => setDeck(null)} />
+          <ModalRow deck={deck} sheet={v.sheet} places={places} onPlaces={setPlaces} onDeck={setDeck} onClose={() => setDeck(null)} />
         </Boundary>
       )}
     </SelContext.Provider>
@@ -774,10 +869,10 @@ function Left({ me, v, onDeck }: { me: string; v: View; onDeck: (d: DeckName) =>
           )}
         </div>
       </div>
-      {/* The three decks right under the sheet (TD v0.45), so they're in sight on a short window. The Web of
+      {/* The four modals' buttons right under the sheet (TD v0.45; Interface v0.7), so they're in sight on a short window. The Web of
           Secrets has no button here: it's always at the bottom (TD v0.44). */}
       <div className="buttons decks">
-        {(["briefing", "rules", "city"] as const).map((d) => (
+        {DECKS.map((d) => (
           <button key={d} className="secondary" disabled={!v.sheet} onClick={() => onDeck(d)} {...hint(d)}>
             {w(`screen.${d}`)}
           </button>
@@ -1106,15 +1201,21 @@ function StageBar({ stages, now, deadline, open, beckon, dots, onOpen }: { stage
   );
 }
 
-/** A line's text, with public lore entries' names as links that open the entry on the right. */
+/**
+ * A line's text, with public lore entries' names as links that open the entry on the right, and glossary words
+ * with a faint dotted underline that shows their definition on hover (Interface v0.7): not a link, and a lore
+ * link wins where a word is both.
+ */
 function Linked({ text, lore }: { text: string; lore: LoreEntry[] }) {
   const s = useContext(SelContext);
   const hint = useHint();
   return (
     <>
-      {loreParts(text, lore).map((p, i) =>
+      {lineParts(text, lore, getInfo()?.glossary ?? []).map((p, i) =>
         typeof p === "string" ? (
           p
+        ) : "gloss" in p ? (
+          <Gloss key={i} entry={p.gloss} text={p.text} />
         ) : (
           <button key={i} className={`lore-link${s.sel?.kind === "lore" && s.sel.entry.id === p.entry.id ? " selected" : ""}`} onClick={() => s.lore(p.entry)} {...hint("loreLink")}>
             {p.text}
@@ -1122,6 +1223,17 @@ function Linked({ text, lore }: { text: string; lore: LoreEntry[] }) {
         ),
       )}
     </>
+  );
+}
+
+/** A glossary word in a line: underlined, its definition on hover or focus, even with the explanations off. */
+function Gloss({ entry, text }: { entry: GlossEntry; text: string }) {
+  const h = useContext(HintsContext);
+  const def = `${entry.term}: ${entry.text}`;
+  return (
+    <span className="gloss" tabIndex={0} data-gloss={entry.term} aria-description={def} onMouseEnter={(e) => h.show(def, e.currentTarget, true)} onMouseLeave={h.hide} onFocus={(e) => h.show(def, e.currentTarget, true)} onBlur={h.hide}>
+      {text}
+    </span>
   );
 }
 
