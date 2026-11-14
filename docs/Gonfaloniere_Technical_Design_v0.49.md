@@ -1,8 +1,21 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.48
+### Version 0.49
 
 ---
+
+## Changes in v0.49
+
+*Takes Technical Design's part of the Named places handoff ([⚙️ Game Mechanics](https://claude.ai/chat/5a96e83c-edd9-4f47-83a9-256055042696) v0.35, Movement, Named Places; names from [📜 Lore](https://claude.ai/chat/fe3ef60f-d402-41a4-b997-6260b5e48aaa) v0.8, The Palazzo).*
+
+- **Named places in the engine** (Movement Implementation, Named places, new): every conversation has one of the setting's places, one conversation per place. The rules module assigns them: a random place for each group at the start of a round, a Capannello keeps its place, a Colloquio and a new group take a random empty place, and the four councils take four random places. Moves still target people
+- **The names live in the setting pack** (`setting.json`, `places`), in Lore's order and exactly as Lore writes them ("the great hall"). Their count is Mechanics' new Tunable, Named places (8, never fewer than 7); the engine checks the two agree
+- **Their own random stream:** places are drawn from a generator of their own, seeded from the game's seed, so no other draw moves, and only from TD 0.49. Older games replay byte-identical
+- **Block 5 tells the room place by place** (from TD 0.49): `{room}` names each other occupied place and who is in it, and `{conversation_label}` says where the character is ("a Capannello in the loggia with …"). Empty places aren't listed for the AI guests (below)
+- **The player's `state`** carries every place, occupied or empty, in order, with the player's own place and private Colloquios marked, for Interface's place list
+- **Cleared two stale lines:** Movement Implementation still said characters can't see the rest of the room (true before v0.45), and Everyone sees the room still waited on Models & Research's check, which v0.54 dropped
+- **New watch item** (Open Questions): do guests propose meeting in a named place, which the random draw then contradicts?
+- Prompts change only through `{room}` and `{conversation_label}`, gated to TD ≥ 0.49
 
 ## Changes in v0.48
 
@@ -928,7 +941,7 @@ Every line in block 8 is one of four kinds. All non-speech lines are written by 
 
 | File | Holds | Today in |
 |---|---|---|
-| `setting.json` | The setting's name; the currency, singular and plural ("Florin", "Florins"); the factions, each with its colour and its roles (which may take a pension, which keeps the treasury, which can't take one); the roster, each with full name, aliases, faction, and public subtitle ("Pazzi · the family bodyguard"); the playable characters; the mini-game cast | `src/game/roster.ts`, `src/minigame/cast.ts`, faction tests in `src/game/actions.ts` |
+| `setting.json` | The setting's name; the currency, singular and plural ("Florin", "Florins"); the factions, each with its colour and its roles (which may take a pension, which keeps the treasury, which can't take one); the roster, each with full name, aliases, faction, and public subtitle ("Pazzi · the family bodyguard"); the playable characters; the mini-game cast; the named places, in order (v0.49) | `src/game/roster.ts`, `src/minigame/cast.ts`, faction tests in `src/game/actions.ts` |
 | `in-world-names.json` | The in-world names table (In-World Names) | `scenarios/in-world-names.json` |
 | `notaio.json` | Il Notaio's notes, as templates: join, return, rejoin, a new group, the attendance note. Then code's private and action lines: a payment, a pension taken, renounced, or refused. For the player (v1): orientation notes and corrections | Strings in `src/minigame/engine.ts` |
 | `actions.json` | How each action is described to a character in its allowed-actions list (block 9), as templates | Strings in `src/game/actions.ts` |
@@ -1035,8 +1048,10 @@ You have withdrawn into a private Colloquio {withdrawal_count} time(s) tonight.
 
 - `{living_others}`: **every living character except this one, including those present**
 - `{room}` *(v0.45; Mechanics v0.32, Everyone Sees the Room)*: where every other living guest is right now. Every other group, then every Colloquio, in a fixed order (by the first member's roster order), e.g. `Giorgia Pazzi, Raffaello de' Medici and Captain Armand LeNoir together; Fra Tommaso and Sister Beatrice in private.` The character's own conversation isn't repeated, since "Present" says it. **The whole line is left out** during councils and for calls outside a conversation (midnight, the ballot, the run-off), and before TD v0.45. About 40–90 tokens in a full game. The word "in private" and the joining words come from the setting pack
+  - **With named places** *(v0.49; Mechanics v0.35, Named Places)*: told place by place. Every other **occupied** place, in the setting pack's order, as `{place}: {guests}`, with `, in private` after a Colloquio's pair, joined by `; `. E.g. `the great hall: Giorgia Pazzi, Raffaello de' Medici and Captain Armand LeNoir; the window bay: Fra Tommaso and Sister Beatrice, in private.` The character's own place isn't repeated, since `{conversation_label}` gives it. About 50–110 tokens in a full game
+  - **Empty places aren't listed** for the AI guests. No choice turns on them, since guests move toward people and a Colloquio's place is drawn at random, and naming free places invites a guest to propose meeting in one, which the draw would then contradict. The places' names are public lore (Lore, The palazzo), so nothing is hidden
 - `{phase_label}` *(in-world since v0.34; see In-World Names)* e.g. "The guests' arrival" (v0.36), "The second round of mingling, early", "The third Medici council", "Midnight", "The speeches", "The ballot", "The run-off". Before v0.34: "Capannello round 2, turn 4", "Faction meeting 3 (Medici)", "The Murder Round"
-- `{conversation_label}` e.g. "a Capannello with Piero de' Medici and Lupo" or "a private Colloquio with Jeanne d'Orléans (utterance 3 of 6)". For calls outside a conversation (midnight, ballot, run-off): "the gathering"
+- `{conversation_label}` e.g. "a Capannello with Piero de' Medici and Lupo" or "a private Colloquio with Jeanne d'Orléans (utterance 3 of 6)". For calls outside a conversation (midnight, ballot, run-off): "the gathering". **With named places** *(v0.49)*, the place follows the conversation's kind: "a Capannello in the loggia with Piero de' Medici and Lupo", "a private Colloquio in the study with Jeanne d'Orléans (utterance 3 of 6)", and a council's label the same way. "The gathering" has no place
 - `{present_characters}`: the other characters in this conversation. **For calls outside a conversation** (midnight, ballot, run-off): `no one; you decide alone` (v0.5; the S8–S10 probes listed everyone living, which suggested an audience that doesn't exist). Targets for those calls come from "All living guests besides you"
 - `{embassy_ledger}`: French Embassy characters only — "Embassy treasury: {n} Florins. Pensions held: {ledger}. Latest: {most_recent_change}." Empty for everyone else
 - `{plot_status}`: empty if `plot_reward` is off or before the plot check runs; then "You finished your errand in time: you have one extra act at midnight. No one else knows." or "You did not finish your errand in time; you have no extra act at midnight." (v0.34; before: "the Plot Reward", "plot point", "the Murder Round")
@@ -1660,7 +1675,7 @@ The design is adapted from *Who Speaks Next?* (Nonomura & Mori, 2025), which fou
 - **Collision resolution:**
   1. Capacity first: if one of the two Capannelli has an open seat, the character without a seat moves there
   2. Disruption fallback: if both are full, the character with the **lower current importance score** (from their latest `think()`) moves
-- Characters see only who is in their own conversation, plus what Il Notaio has noted to them. They are not shown where everyone else is (see Open Questions)
+- **Everyone sees the room** since v0.45 (Player Interface, Everyone sees the room), place by place since v0.49 (Named places, below). What's said still reaches only a conversation's members
 
 ### Seating *(new in v0.23)*
 
@@ -1710,6 +1725,32 @@ Returners enter at the end of the current cycle like any joiner, and Il Notaio n
 - **The seatless safety net** runs at the end of the turn, before the movement window. If no group has room, the guest starts a group of one, which the lone-guest rule then handles
 - **"Dissolved"** ignores the initiator and counts the invitee if they were in the snapshot, as specified
 - **Il Notaio's placement lines** are stand-ins until his templates are drafted: "…returned to company and joined/rejoined…", and "X and Y returned to company and formed a new group"
+
+### Named places *(new in v0.49)*
+
+*The rules are Mechanics' (v0.35, Named Places): 8 places, one conversation each, all known to everyone. The names are Lore's (v0.8, The Palazzo). This is how the software does it.*
+
+**Where they live:**
+- **The names** are in the setting pack, `setting.json`, as `places`: a list in Lore's order, each written exactly as Lore gives it, lower case with "the" (`"the great hall"`, `"the window bay"`, `"the anteroom"`, `"the loggia"`, `"the courtyard"`, `"the study"`, `"the painted room"`, `"the dining room"`). A reskin renames them there. The screen capitalizes a row heading itself
+- **The count** is Mechanics' Tunable, **Named places**. At load the engine checks the pack has exactly that many names, and at least 7, and refuses to start otherwise. It's read outside the record header's tunables, like midnight's block thresholds, so older headers don't change
+
+**The rules module assigns them** (`src/rules/`, pure, with a table test named for Named Places). Each open conversation has one place, and no two share one:
+- **A round of mingling starts:** each random group gets a random place, all different
+- **A Capannello keeps its place** while it lasts. A guest who joins it is in its place. When it dissolves, its place is free
+- **A Colloquio** (a called one, a waiting call that opens, or an invitee's free one): both guests go to a **random empty place**. When it ends, that place is free
+- **A new group** (two seatless guests pairing up, or the safety net's group of one): a random empty place
+- **Returning from a Colloquio** is unchanged: "the Capannello they came from" is still tracked by the group, under the dissolved rule. A Capannello keeps its place, so that's the group in the place they left
+- **Councils:** the four councils of a council phase take four random places, all different. Each council's place is drawn afresh for each council
+- **Moves target people, never places.** Block 9c and 9h are unchanged; no prompt offers a place as a choice
+- **No empty place** can't happen within the rules (at most 6 conversations, plus one lone guest's group, among 8). If it ever does, the engine logs an engine failure and stops, rather than doubling up
+
+**Randomness:** places are drawn from **their own generator,** seeded from the game's seed (the same seed always gives the same places), so seating, movement order, and every other draw are exactly as before. **Gated to TD ≥ 0.49:** before it, no places are assigned at all, and older games replay byte-identical.
+
+**What carries them:**
+- **Block 5:** `{conversation_label}` and `{room}` (Block 5)
+- **The player's `state`:** every place in the pack's order, each with its living guests (none if empty), whether it holds a Colloquio, and which is the player's own. Empty places are included, since the screen lists all of them (Interface, The places). In councils and outside a conversation the screen shows only the player's own place and who's with them, as now
+- **The game record:** each conversation's opening event records its place, and so does each council. The replay viewer may show it; nothing requires it yet
+- **Il Notaio's notes** don't name places yet. Adding a place to his join and return notes would be a template change in `notaio.json`, version-gated like a prompt
 
 ---
 
@@ -2040,7 +2081,7 @@ WHAT YOU KNOW OF FLORENCE
 - shortTermHistory: recent private thoughts from every character call, window TBD
 
 ### System-Level (Stage Manager)
-- Character locations: updated in real time as moves resolve
+- Character locations: updated in real time as moves resolve, with each open conversation's named place (v0.49)
 - Florin balances: updated immediately on each transaction
 - Transaction log: append-only, permanent
 - Embassy treasury balance and pension ledger: updated immediately on each /borrow and /repay
@@ -2309,7 +2350,7 @@ Commands are actions, not speech, so they don't use the turn's message (Mechanic
 
 **What each part is built from:**
 - **The sheet, the errand card, and who's here:** block 5's fields, in the `state` event. Since v0.47, `state` also carries the run's `plot_reward` flag and, once the plot check has run, `{plot_status}`
-- **The room:** the same data as block 5's `{room}` (Everyone sees the room), in `state`. It's public, so the isolation test allows it
+- **The room:** the same data as block 5's `{room}` (Everyone sees the room), in `state`. It's public, so the isolation test allows it. Since v0.49, place by place, with the empty places too (Movement Implementation, Named places)
 - **The evening's track:** the game's schedule, with the stages' names from the setting pack
 - **The Web of Secrets' record** (what the player heard and saw of a guest or a pair): the player's own History and code entries, the same material the character's memory holds. Never the reference record, readings, or beliefs, which a model writes, and never two other guests' private talk
 - **The web's lines are fixed:** the public connections and those the player's own briefing gives them, from `relationships.json`. The game never draws a new line
@@ -2409,7 +2450,8 @@ Dylan's call: every guest knows where every other guest is, the AI characters as
   - About 40–90 tokens per call in a full game. Version-gated, so earlier games replay byte-identical
 - **For the player,** the room on the screen's left shows the same thing, from the same data (The screen; Interface, The Screen)
 - **Il Notaio's withdrawal notes** still go only to those present, and still count each guest's withdrawals. Seeing a pair leave is now possible from anywhere, so his notes matter for the count and the escalation, not for the news
-- **This changes how the AI guests move** (they can now go straight to whoever they're after), so it needs a small check before the full games' baseline: Models & Research's call (tracker handoff)
+- **This changes how the AI guests move** (they can now go straight to whoever they're after). Models & Research dropped the planned check (v0.54; Dylan, Nov 14): the room stays because the player sees it, so the full games' baseline starts with it on
+- **Named places** *(v0.49)*: the room is told place by place (Movement Implementation, Named places)
 - **Ships with Characters v0.12,** whose social awareness text tells every guest they can see who stands with whom, so the two must load together
 - **Closed the open question** "Should characters see where everyone is?"
 
@@ -2594,6 +2636,7 @@ Mechanics (Il Notaio — Player-Facing Duties) requires these for the first publ
   - ~~A note pad for the player~~ Specified in v0.40 (The screen, Notes), kept on the engine rather than in the browser
 - **Prompts still to draft:** candidate selection and speeches (phases E–F); Il Notaio's event templates (wording examples exist in Mechanics); for v1, Il Notaio's answers to the player and the jailbreak judge (Player Interface, Jailbreak Detection)
 - **Actions in `speak()` or in their own call?** Decide after the mini-game
+- **Do guests propose meeting in a named place?** (v0.49) A Colloquio's place is drawn at random, so "meet me in the study" can land in the courtyard. Hand-read the first games with places. If it's common, the fix is a line in the rules primer (block 2) that places are where you find people, not where you send them, or letting a Colloquio's caller name an empty place, which is Mechanics' call
 - Whether characters should see Il Notaio's tally of *other* characters' withdrawals, or only infer it from witnessed notes (currently: only witnessed notes)
 - ~~**Should characters see where everyone is?**~~ *Closed: yes, for everyone (Dylan, Nov 12; Mechanics v0.32; block 5's room line, TD v0.45).* In a real palazzo you could see across the room. Currently they see only their own group; showing the room would make movement easier and make Il Notaio's notes less special. Since v0.23 the seat call (9h) shows the groups with room, the first glimpse past a character's own group
 - **Does a caller know they may lose their seat?** (v0.23) Block 9c doesn't say that the invitee chooses first, or that a full or dissolved Capannello sends the caller elsewhere. Left out so 9c stays as tested; add a line if the full games show callers surprised by where they land
