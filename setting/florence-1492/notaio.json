@@ -99,7 +99,7 @@
       "errand": "Your errand: what you came to do tonight. It stays pinned here, and once it's been judged, the result shows here too.",
       "room": "The room: who stands with whom. You see every group, and who has slipped away in private, but never what they say. Click a portrait to look at that guest.",
       "stageBar": "The evening, stage by stage. The long one is now. Click an earlier one to read it again; nothing can be said from there.",
-      "conversation": "The conversation you're in, and your box beneath it. Type what your character says, and Speak. Begin with @ to address one guest, or / for what you may do instead of speaking.",
+      "conversation": "The conversation you're in, and your box beneath it. Type what your character says, and Speak. Begin with @ to address one guest, or / for what you may do instead of speaking. Speak as your character would, plainly. The other guests are played by AI, and they hear you as guests in 1492 would: modern slang, internet talk, or talk about the game itself will confuse them, and the evening may not play as it should.",
       "right": "Whoever has your ear, or whoever you've chosen to look at: only what everyone at the party knows of them.",
       "web": "The Web of Secrets: who is tied to whom, what you heard and saw of each guest, and your own notes. Click the bar to raise it.",
       "briefing": "Start with your briefing."

@@ -1328,6 +1328,7 @@ test("the tour: a card per step in Il Notaio's voice, in the doc's order, ending
   assert.doesNotMatch(game({ v }), /class="tour"/, "it starts in the browser, after the choice");
   assert.deepEqual(Object.keys(NOTAIO_PACK.tour.steps), ["sheet", "decks", "errand", "room", "stageBar", "conversation", "right", "web", "briefing"], "the doc's eight, then Your briefing");
   assert.equal(NOTAIO_PACK.tour.steps.briefing, "Start with your briefing.");
+  assert.ok(NOTAIO_PACK.tour.steps.conversation!.endsWith(" Speak as your character would, plainly. The other guests are played by AI, and they hear you as guests in 1492 would: modern slang, internet talk, or talk about the game itself will confuse them, and the evening may not play as it should."), "Interface v0.14, The Tour, step 6: the message box's card ends with the warning, word for word");
   Object.keys(NOTAIO_PACK.tour.steps).forEach((key, i) => {
     const h = game({ v, tourStep: i });
     assert.deepEqual(missingWords(h), [], key);
