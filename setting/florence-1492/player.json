@@ -66,12 +66,6 @@
     "note_too_long": "That note is {length} characters; keep it to {max}.",
     "note_guest": "A note can be about guests at this party only."
   },
-  "examples": [
-    "I hear the Signoria meets early tomorrow.",
-    "You seem very sure of that. Who told you?",
-    "My family has long memories, and longer purses.",
-    "I'd rather speak of this somewhere quieter."
-  ],
   "orientation": "Speak as your character would, plainly. The other guests react to strange talk as guests would.",
   "briefingHeadings": {
     "_comment": "Headings in the Characters doc's briefings that the screen looks for (the errand card shows its section). Not shown as words.",
@@ -109,11 +103,29 @@
     "talkingTo": "Talking with",
     "input": {
       "placeholder": "Say something. @ addresses a guest; / opens the commands.",
+      "_examplesComment": "Interface v0.5: the placeholder carries the example, one line with an @ and a /, rotated, using only commands allowed right now. `action` is the command's action (as in commands); {command} is its name and {guest} a guest the player could address. With none allowed, `placeholder` shows.",
+      "examples": [
+        {
+          "action": "bribe",
+          "text": "Speak as your character would… “@{guest} A word, by the window?” or “{command} @{guest} 2”"
+        },
+        {
+          "action": "borrow",
+          "text": "Speak as your character would… “@{guest} My family has long memories, and longer purses.” or “{command}”"
+        },
+        {
+          "action": "repay",
+          "text": "Speak as your character would… “@{guest} I'd rather speak of this somewhere quieter.” or “{command} @{guest}”"
+        },
+        {
+          "action": "conclude",
+          "text": "Speak as your character would… “@{guest} You seem very sure of that. Who told you?” or “{command} what you've worked out”"
+        }
+      ],
       "count": "{count}/{max}",
       "speak": "Speak",
       "pass": "Pass",
       "end": "End conversation",
-      "example": "For example: “{line}”",
       "used": "You've spoken your piece this turn.",
       "held": "Your words will be spoken at the next pause.",
       "waiting": "The company waits for you: speak, or pass.",
@@ -226,7 +238,7 @@
       "midnightExtra": "The extra act your errand earned you. No one else is told of it. It's yours to use or leave: it must name a different guest from your other act, and you can't guard yourself.",
       "here": "The room: the guests with you, then everyone else as they stand right now. You can see who is with whom, never what they say.",
       "briefing": "Your briefing: who you are, what you know, and what you want. Only you can see it.",
-      "rules": "The rules of the evening, as every guest has them.",
+      "rules": "The rules of the evening, as every guest has them: one button per section.",
       "header": "Who you're with now, in the current stage.",
       "earlier": "Conversations you were part of earlier in this stage. Click one to read it again; click again to fold it away. Earlier stages are in the bar above.",
       "input": "Type what your character says, up to {max} characters. Start with @ to speak to one guest, or / for a command.",
@@ -247,9 +259,9 @@
       "close": "Close this and go back to the conversation.",
       "play": "Start the evening as this guest.",
       "wait": "Wait here until a seat opens in a group. You'll be offered one at the next chance.",
-      "city": "The city: what everyone in Florence knows, one topic per card.",
+      "city": "The city: what everyone in Florence knows, one entry per row, under its subject.",
       "web": "The Web of Secrets: who is tied to whom, what you heard and saw of each guest, and your notes. Click the bar to slide it up or down.",
-      "select": "Select this guest: their public card shows on the right, their lines are highlighted, and earlier conversations they were in open up. Select again, or press Escape, to clear.",
+      "select": "Select this guest, here and in the Web of Secrets: their public card shows on the right, their lines are highlighted, and earlier conversations they were in open up. Select again, or press Escape, to clear.",
       "loreLink": "Something everyone in the city knows about. Opens it on the right.",
       "earlierLine": "Open or fold this earlier conversation.",
       "deckTab": "Jump to this topic.",
@@ -259,7 +271,7 @@
       "back": "Back to what you were looking at before.",
       "openWeb": "Open the Web of Secrets with this guest selected.",
       "notaioHint": "Il Notaio's advice for the moment. Click to fold it away or bring it back.",
-      "webNode": "Select a guest. Select a second to see what passed between the two; a third replaces the older.",
+      "webNode": "Select a guest. Select a second to see what passed between the two; a third replaces the older. The conversation shows the one you picked last.",
       "recordTab": "What you heard the selected guests say, and what you saw of them, newest first. Only what you were there for.",
       "notesTab": "Write a note on the selected guest or pair, or with no one selected, a free note. Only you see your notes.",
       "allTab": "Every note you've written, newest first, grouped by guest and pair.",
@@ -271,7 +283,7 @@
       "more": "This column goes on below. Click to scroll down, or scroll as usual.",
       "key": "The key to the lines: each kind of tie has its own colour and line style.",
       "keyType": "Highlight every line of this kind across the web. Click again to clear.",
-      "reading": "Il Notaio's short reading of what you've heard and seen of the selected guests. It's one model's summary of your own record, and every quote is checked against it. He may still be wrong.",
+      "reading": "Il Notaio's short reading of what you've heard and seen of the selected guests. It's one model's summary of your own record, and every quote is checked against it. He may still be wrong. Click it, or the lines behind it, to fold it to the foot of the column; click again to bring it back.",
       "faction": "A faction: its guests sit together under its name.",
       "track": "The evening's stages: filled ones are done, the long one is now, outlined ones are still to come.",
       "trackPast": "{stage}: done. Click to read its conversations again. Nothing can be sent from there.",
@@ -285,9 +297,22 @@
       "resize": "Drag to make this panel wider or narrower. This browser remembers the width.",
       "loreEntry": "A lore entry you opened from a line. Back returns to what you were looking at.",
       "roomToken": "{name}, in company. Click to select them.",
-      "roomPair": "{name}, in private. Click to select them."
+      "roomPair": "{name}, in private. Click to select them.",
+      "rulesSection": "Open this section of the rules. Its × takes you back to all of them.",
+      "rulesShrink": "Back to all the sections of the rules.",
+      "cityRow": "Read this entry in full. The arrow at its top takes you back to the list.",
+      "cityBack": "Back to the list of everything the city knows.",
+      "hideRight": "Hide this panel, so the conversation has more room. A handle at the edge brings it back; this browser remembers your choice.",
+      "showRight": "Show the right panel again. While it's hidden, the guest you've selected shows here."
     },
     "city": "The city",
+    "rulesModal": {
+      "mark": "×",
+      "shrink": "Back to all the rules"
+    },
+    "cityList": {
+      "back": "← The city"
+    },
     "decks": {
       "past": "Your past",
       "back": "Back",
@@ -305,7 +330,11 @@
       "lookingAt": "Looking at",
       "deselect": "×",
       "speakingNow": "speaking",
-      "noEar": "No one has your ear"
+      "noEar": "No one has your ear",
+      "hide": "⇥",
+      "hideLabel": "Hide this panel",
+      "show": "⇤",
+      "showLabel": "Show the panel again"
     },
     "notaioHint": {
       "title": "Il Notaio, to you",

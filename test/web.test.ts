@@ -20,7 +20,7 @@ import { settingPack } from "../src/setting/pack.ts";
 import { GameView, Start } from "../web/src/App.tsx";
 import type { Ev } from "../web/src/connection.ts";
 import { canDo, canSpeak, openMenu, trigger, withMention } from "../web/src/input.ts";
-import { appearsIn, briefingCards, cityCards, derive, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, lineStages, loreParts, readingFor, rulesCards, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, type LoreEntry, type View } from "../web/src/model.ts";
+import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityCards, cityList, curve, derive, factionArcs, placeholderExample, preview, selectBack, selectInChat, selectInWeb, selectLore, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, lineStages, loreParts, readingFor, rulesCards, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, type LoreEntry, type View } from "../web/src/model.ts";
 import { notaioHint, setInfo, type StartInfo } from "../web/src/words.ts";
 import { fakeCaller, fakeDocs, fakeSettings } from "./fixtures/fake-game.ts";
 
@@ -277,18 +277,28 @@ test("the decks: one card per briefing section and per rules topic, with Your pa
   const rules = rulesCards(v.sheet!.rules);
   assert.ok(rules.length >= 6 && rules.every((c) => c.title && c.text), rules.map((c) => c.title).join(", "));
   assert.deepEqual(cityCards(LORE).map((c) => [c.group, c.title]), [["History", "1478"], ["Places", "San Frediano"], [null, "The Signoria"]]);
-  // Rendered: tabs along the top, one per card; the first card open; a back control; Your past when lore is on.
+  // Your briefing stays a deck: tabs along the top, one per card; the first card open; a back control; Your past when lore is on.
   const past = { ...v, sheet: { ...v.sheet!, past: [{ id: "P1", title: "The garden wall", text: "You climbed it once." }] } };
-  for (const [deck, view, n] of [["briefing", past, cards.length + 1], ["rules", v, rules.length], ["city", withLore(v), 3]] as const) {
-    const h = game({ v: view, deck });
-    assert.deepEqual(missingWords(h), [], deck);
-    // The deck's own tabs (the Web of Secrets, always on the page, has tabs of its own).
-    assert.equal((h.slice(h.indexOf('class="overlay"')).match(/class="tab( on)?"/g) ?? []).length, n, `${deck}: a tab per card`);
-    assert.match(h, /class="deck-card"[^>]*data-hint="deckCard"/, `${deck}: the card swipes on`);
-    assert.match(h, /data-hint="deckBack"/);
-  }
-  assert.match(game({ v: past, deck: "briefing" }), /data-hint="deckTab">Your past</, "Your past, last");
-  assert.equal((game({ v: withLore(v), deck: "city" }).match(/class="tab-group"/g) ?? []).length, 3, "The city's subjects head its list");
+  const modal = (h: string) => h.slice(h.indexOf('class="overlay"'));
+  const b = game({ v: past, deck: "briefing" });
+  assert.deepEqual(missingWords(b), []);
+  // The deck's own tabs (the Web of Secrets, always on the page, has tabs of its own).
+  assert.equal((modal(b).match(/class="tab( on)?"/g) ?? []).length, cards.length + 1, "a tab per card");
+  assert.match(b, /class="deck-card"[^>]*data-hint="deckCard"/, "the card swipes on");
+  assert.match(b, /data-hint="deckBack"/);
+  assert.match(b, /data-hint="deckTab">Your past</, "Your past, last");
+  // Interface v0.5: the rules are one button per section, and an open section fills the modal with its ×.
+  const r = modal(game({ v, deck: "rules" }));
+  assert.deepEqual(missingWords(r), []);
+  assert.deepEqual([...r.matchAll(/<button class="rules-section" data-section="\d+"[^>]*data-hint="rulesSection">([^<]*)</g)].map((m) => m[1]), rules.map((c) => c.title.replace(/'/g, "&#x27;")), "a button per section, in order");
+  assert.doesNotMatch(r, /class="tab|deck-card/, "no deck");
+  // The city is a list: a row per public entry, with its title and a one-line preview, under subject headers.
+  const c = modal(game({ v: withLore(v), deck: "city" }));
+  assert.deepEqual(missingWords(c), []);
+  assert.deepEqual([...c.matchAll(/class="city-subject">([^<]*)</g)].map((m) => m[1]), ["History", "Places", "Other"], "The city's subjects head its list");
+  assert.deepEqual([...c.matchAll(/class="city-row" data-lore="(\w+)"[^>]*data-hint="cityRow"><span class="city-title">([^<]*)<\/span><span class="city-preview muted">([^<]*)</g)].map((m) => [m[1], m[2], m[3]]), [["L2", "1478", "The year the Pazzi rose."], ["L1", "San Frediano", "A church across the river."], ["L3", "The Signoria", "The city&#x27;s government."]]);
+  assert.deepEqual(cityList(LORE).map((g) => [g.subject, g.entries.map((e) => e.id)]), [["History", ["L2"]], ["Places", ["L1"]], [null, ["L3"]]]);
+  assert.equal(preview({ ...LORE[0]!, text: "\nFirst line.\nSecond line." }), "First line.");
   // An empty city, on purpose: the repo's lore file holds public lore (#130), so this view sets its own, as withLore does.
   assert.match(game({ v: { ...v, sheet: { ...v.sheet!, lore: [] } }, deck: "city" }), /class="deck-card empty"/, "an empty city says so");
 });
@@ -302,7 +312,13 @@ test("selection: one guest at a time, on the right, with their lines highlighted
   assert.ok(h.includes(`data-guest="${name.replace(/'/g, "&#x27;")}"`), "their card on the right");
   const opened = (h.match(/class="earlier-line" aria-expanded="true"/g) ?? []).length;
   assert.equal(opened, earlier.filter((s) => appearsIn(s, name)).length, "the earlier conversations they were in, open");
-  for (const l of v.stream.filter((x) => x.item === "line" && x.speaker === name && h.includes(`data-line="${x.id}"`))) assert.match(h, new RegExp(`class="ln speech[^"]* hl" data-line="${l.id}"`), `${l.id} highlighted`);
+  // In the chat (the web's column below holds the same lines, now that the selection is shared).
+  const chat = h.slice(0, h.indexOf('class="web-dock'));
+  for (const l of v.stream.filter((x) => x.item === "line" && x.speaker === name && chat.includes(`data-line="${x.id}"`))) assert.match(chat, new RegExp(`class="ln speech[^"]* hl" data-line="${l.id}"`), `${l.id} highlighted`);
+  // Interface v0.6: one selection, shared: the web's bar and its ring show the guest too.
+  const esc = (x: string) => x.replace(/'/g, "&#x27;");
+  assert.match(h, new RegExp(`class="muted web-bar-sel">${esc(name)}<`), "on the web's bar");
+  assert.match(h, new RegExp(`data-guest="${esc(name)}" class="node picked`), "selected in the web");
   assert.equal((game({ v }).match(/class="earlier-line" aria-expanded="true"/g) ?? []).length, 0, "nothing selected: all folded");
   assert.match(game({ v }), /class="guest" aria-pressed="false"/, "names select");
 });
@@ -442,7 +458,8 @@ test("the web's names are drawn after every line and circle, on a halo, so no li
   const h = page.slice(page.indexOf('class="web-diagram"'), page.indexOf("</svg>", page.indexOf('class="web-diagram"')));
   const names = [...h.matchAll(/class="node-name/g)].map((m) => m.index!);
   assert.equal(names.length, info.roster.length);
-  const lastLine = Math.max(...[...h.matchAll(/<line /g)].map((m) => m.index!));
+  const lastLine = Math.max(...[...h.matchAll(/class="edge/g)].map((m) => m.index!));
+  assert.ok(lastLine > 0, "the web has lines");
   const lastCircle = Math.max(...[...h.matchAll(/<circle /g)].map((m) => m.index!));
   assert.ok(Math.min(...names) > Math.max(lastLine, lastCircle), "every name after every line and circle");
   const css = readFileSync("web/src/app.css", "utf8");
@@ -459,13 +476,13 @@ test("the left column (TD v0.45): the sheet, then the three decks, then the erra
   assert.ok(!left.includes('data-hint="web"'), "the Web of Secrets is at the bottom, not here");
 });
 
-test("steady sizes: the sheet, the prompt, and the example are laid out before the first state, from theme tokens", () => {
+test("steady sizes: the sheet and the prompt are laid out before the first state, from theme tokens; the example is in the placeholder", () => {
   const h = game({ v: derive([]) });
   assert.match(h, /<dl class="facts">/, "the sheet's facts before any state");
   assert.match(h, /class="prompt"/, "the prompt's line");
-  assert.match(h, /class="example muted"/, "the example's line");
+  assert.doesNotMatch(h, /class="example/, "no example line under the box (Interface v0.5)");
   const css = readFileSync("web/src/app.css", "utf8");
-  for (const [sel, token] of [[".conv-head", "--head-height"], [".input", "--input-box-height"], [".hint-text", "--hint-text-height"], [".prompt", "--line-sm"], [".example", "--line-sm"]])
+  for (const [sel, token] of [[".conv-head", "--head-height"], [".input", "--input-box-height"], [".hint-text", "--hint-text-height"], [".prompt", "--line-sm"]])
     assert.match(css, new RegExp(`\\${sel} \\{[^}]*min-height: var\\(${token}\\)`), sel);
 });
 
@@ -832,3 +849,163 @@ function w2(key: string, values: Record<string, string>): string {
   const t = key.split(".").reduce((o: any, k) => o[k], PLAYER.screen) as string;
   return t.replace(/\{(\w+)\}/g, (m, k: string) => values[k] ?? m);
 }
+
+// ---- CC-20261114-07 (#114): the web's ring, Il Notaio's box in its column, the hideable right panel, the rules'
+// buttons, the city's list, the placeholder, and one selection shared with the web (Interface v0.5–v0.7) -------
+
+test("one selection, shared with the Web of Secrets: chat to web, web to chat, a pair, clearing, and a lore topic", () => {
+  const [A, B, C] = ["Lupo", "Giorgia Pazzi", "Fra Tommaso"];
+  const topic = LORE[0]!;
+  // A guest selected in the chat is the web's selection; again, it clears both.
+  let s = selectInChat(NO_SELECTION, A);
+  assert.deepEqual([s.guests, chatGuest(s)], [[A], A]);
+  assert.deepEqual(selectInChat(s, A), NO_SELECTION, "selecting the chat's guest again clears both");
+  // The web holds a pair; the chat holds the one picked last; a third replaces the older.
+  s = selectInWeb(s, B);
+  assert.deepEqual([s.guests, chatGuest(s)], [[A, B], B], "a pair in the web; the chat holds the one picked last");
+  assert.deepEqual(selectInWeb(s, C).guests, [B, C], "a third replaces the older");
+  // The web drops one of a pair: the chat holds the other.
+  assert.deepEqual([selectInWeb(s, B).guests, chatGuest(selectInWeb(s, B))], [[A], A]);
+  assert.deepEqual([selectInWeb(s, A).guests, chatGuest(selectInWeb(s, A))], [[B], B]);
+  assert.equal(chatGuest(selectInWeb(selectInWeb(s, A), B)), null, "dropping both clears the chat too");
+  // A new selection in the chat replaces the pair; selecting the chat's guest (the last picked) clears both.
+  assert.deepEqual(selectInChat(s, C).guests, [C]);
+  assert.deepEqual(selectInChat(s, A).guests, [A], "the pair's other guest: the chat now holds just them");
+  assert.deepEqual(selectInChat(s, B), NO_SELECTION);
+  // A lore topic clears the guests in both places; back returns to the guest it replaced; the topic again goes back.
+  const l = selectLore(s, topic);
+  assert.deepEqual([l.guests, chatGuest(l), l.lore?.entry.id, l.lore?.back], [[], null, topic.id, B]);
+  assert.deepEqual(selectBack(l), { guests: [B], lore: null });
+  assert.deepEqual(selectLore(l, topic), { guests: [B], lore: null });
+  assert.deepEqual(selectBack(selectLore(NO_SELECTION, topic)), NO_SELECTION);
+});
+
+test("the shared selection on the screen: the chat's guest on the web's bar and ring; a web pair on the bar, its last guest on the right; a topic clears the web", async () => {
+  const { at } = await playedLog();
+  const v = derive(at["speak:capannello"]!);
+  const esc = (x: string) => x.replace(/'/g, "&#x27;");
+  const bar = (h: string) => h.match(/class="muted web-bar-sel">([^<]*)</)![1];
+  const nodes = (h: string) => [...h.matchAll(/data-guest="([^"]+)" class="node picked/g)].map((m) => m[1]);
+  // From the chat: the web's bar and ring show them while it's down.
+  const chat = game({ v, selected: { kind: "guest", name: "Lupo" } });
+  assert.equal(bar(chat), "Lupo");
+  assert.deepEqual(nodes(chat), ["Lupo"]);
+  assert.match(chat, /class="person look" data-guest="Lupo"/);
+  // From the web: a pair on the bar and in the ring; the chat shows the one picked last.
+  const pair = game({ v, web: ["Lupo", "Giorgia Pazzi"] });
+  assert.equal(bar(pair), esc(w2("web.between", { a: "Lupo", b: "Giorgia Pazzi" })));
+  assert.deepEqual(nodes(pair).sort(), ["Giorgia Pazzi", "Lupo"]);
+  assert.match(pair, /class="person look" data-guest="Giorgia Pazzi"/, "the chat holds the one picked last");
+  // A lore topic: the guests clear in both places.
+  const topic = game({ v: withLore(v), selected: { kind: "lore", entry: LORE[0]!, back: null } });
+  assert.equal(bar(topic), esc(PLAYER.screen.web.barNone));
+  assert.deepEqual(nodes(topic), []);
+});
+
+test("the web's ring: factions together, an arc in each faction's colour with its name at the corner, and curved lines", async () => {
+  const arcs = factionArcs(info.roster, info.factions);
+  const factions = [...new Set(info.roster.map((r) => r.faction))];
+  assert.deepEqual(arcs.map((a) => a.faction), info.factions.filter((f) => factions.includes(f)), "an arc per faction, in the setting's order");
+  for (const a of arcs) {
+    assert.equal(a.colour, info.roster.find((r) => r.faction === a.faction)!.colour, `${a.faction}: in its colour`);
+    assert.match(a.d, /^M [\d.-]+ [\d.-]+ A 48 48 0 0 1 [\d.-]+ [\d.-]+/, `${a.faction}: an arc around the ring`);
+    // The name sits at the arc's first corner: the corner's direction from the centre, further out.
+    const [x0, y0] = a.d.split(" ").slice(1, 3).map(Number);
+    const dir = (x: number, y: number) => Math.atan2(y - 50, x - 50);
+    assert.ok(Math.abs(dir(a.x, a.y) - dir(x0!, y0!)) < 1e-3, `${a.faction}: its name at the corner`);
+    assert.ok(Math.hypot(a.x - 50, a.y - 50) > 48, `${a.faction}: outside the arc`);
+  }
+  // One faction alone takes the whole ring, as two half-arcs.
+  assert.equal(factionArcs(info.roster.map((r) => ({ ...r, faction: "One" }))).length, 1);
+  assert.equal(factionArcs([]).length, 0);
+  // Each faction's guests sit together, between its arc's ends.
+  const ring = webLayout(info.roster, info.factions);
+  const order = [...ring.keys()].map((n) => info.roster.find((r) => r.name === n)!.faction);
+  assert.equal(order.filter((f, i) => i === 0 || f !== order[i - 1]).length, factions.length, "each faction together");
+  // A line curves toward the middle: its control point is nearer the centre than the line's midpoint.
+  const [a, b] = [ring.get(info.roster[0]!.name)!, ring.get(info.roster[1]!.name)!];
+  const q = curve(a, b).match(/Q ([\d.-]+) ([\d.-]+)/)!.slice(1).map(Number);
+  assert.ok(Math.hypot(q[0]! - 50, q[1]! - 50) < Math.hypot((a.x + b.x) / 2 - 50, (a.y + b.y) / 2 - 50), "bowed toward the centre");
+  // On the screen: the arcs under the lines, the lines as curves (no straight ones), names over all.
+  const page = game({ v: derive((await playedLog()).at["speak:capannello"]!), web: [] });
+  const h = page.slice(page.indexOf('class="web-diagram"'), page.indexOf("</svg>", page.indexOf('class="web-diagram"')));
+  assert.equal((h.match(/class="faction-arc"/g) ?? []).length, factions.length);
+  assert.ok(h.indexOf('class="faction-arc"') < h.indexOf('class="edge'), "the arcs under the lines");
+  assert.doesNotMatch(h, /<line /, "no straight lines");
+  assert.ok([...h.matchAll(/<path class="edge[^"]*" d="([^"]+)"/g)].every((m) => / Q /.test(m[1]!)), "every line a curve");
+  // Each faction's name, once, anchored to read away from its arc.
+  assert.equal((h.match(/class="faction-label"/g) ?? []).length, factions.length);
+  assert.match(h, /text-anchor="(start|end|middle)"/);
+});
+
+test("Il Notaio's box in the What you heard and saw column: over the dialogue, expanded; nothing selected, one line and no reading", async () => {
+  const { at } = await playedLog();
+  const v = derive(at["speak:capannello"]!);
+  const h = game({ v, web: ["Lupo"] });
+  const side = h.slice(h.indexOf('class="web-side"'));
+  // In the column, after the dialogue (so it lies over it), expanded, with its label; the column keeps its events.
+  assert.match(side, /class="record-pane covered"><div class="record-scroll"><div class="record">/);
+  assert.match(side, /<aside class="reading" data-state="expanded" role="button" aria-expanded="true"[^>]*data-hint="reading"/);
+  assert.ok(side.indexOf('class="reading"') > side.indexOf('class="record"'), "the box over the dialogue");
+  assert.ok(side.includes(`>${esc2(PLAYER.screen.web.heard)}<`) && side.includes(`>${esc2(PLAYER.screen.web.saw)}<`), "the column keeps what it showed");
+  assert.equal(h.slice(0, h.indexOf('class="web-side"')).includes('class="reading"'), false, "not on the map any more");
+  // Nothing selected: one line asking for a guest, and no reading.
+  const none = game({ v, web: [] });
+  const empty = none.slice(none.indexOf('class="web-side"'));
+  assert.match(empty, new RegExp(`class="muted record-pick">${esc2(PLAYER.screen.web.pick)}<`));
+  assert.doesNotMatch(none, /class="reading"/);
+  // Its looks are theme tokens: the peeking strip and the minimized height.
+  const css = readFileSync("web/src/app.css", "utf8");
+  assert.match(css, /\.reading \{[^}]*top: var\(--reading-peek\)/);
+  assert.match(css, /\.reading\[data-state="minimized"\] \{[^}]*max-height: var\(--reading-min-height\)/);
+});
+
+test("the right panel hides to a strip with a handle; the handle shows the selected guest's small portrait", async () => {
+  const { at } = await playedLog();
+  const v = derive(at["speak:capannello"]!);
+  const shown = game({ v, rightHidden: false });
+  assert.match(shown, /<div class="layout">/);
+  assert.match(shown, /<button class="right-hide"[^>]*data-hint="hideRight"/, "a control on its edge hides it");
+  const hidden = game({ v, rightHidden: true, selected: { kind: "guest", name: "Lupo" } });
+  assert.match(hidden, /<div class="layout right-hidden">/, "the chat widens");
+  assert.match(hidden, /<aside class="side right hidden"><button class="right-handle"[^>]*data-hint="showRight"/);
+  assert.match(hidden, /class="right-handle-guest" data-guest="Lupo"><span class="portrait"/, "the selected guest's portrait on the handle");
+  assert.doesNotMatch(hidden, /class="person /, "no cards while hidden");
+  assert.doesNotMatch(game({ v, rightHidden: true }), /right-handle-guest/, "no one selected: no portrait");
+  assert.deepEqual(missingWords(hidden), []);
+  const css = readFileSync("web/src/app.css", "utf8");
+  assert.match(css, /\.layout\.right-hidden \{ grid-template-columns: var\(--side-width\) 1fr var\(--right-strip-width\); \}/);
+});
+
+test("the placeholder carries the example: an @ and a /, rotated, using only the commands allowed now", async () => {
+  const examples = PLAYER.screen.input.examples as { action: string; text: string }[];
+  assert.ok(examples.length >= 3 && examples.every((e) => e.text.includes("@{guest}") && e.text.includes("{command}")), "each with an @ and a /");
+  const cmd = (action: string) => ({ action, name: `/${action}`, usage: "", hint: "" });
+  // Only examples whose command is allowed now, filled; rotated by the turn.
+  const one = placeholderExample(examples, [cmd("borrow")], "Lupo", 0)!;
+  assert.ok(one.includes("@Lupo") && one.includes("/borrow"), one);
+  const two = [0, 1, 2, 3].map((t) => placeholderExample(examples, [cmd("borrow"), cmd("bribe")], "Lupo", t));
+  assert.equal(new Set(two).size, 2, "rotated between the allowed ones");
+  assert.ok(two.every((x) => /\/(borrow|bribe)/.test(x!)));
+  assert.equal(placeholderExample(examples, [cmd("kill")], "Lupo", 0), null, "no example for a command not listed: the plain placeholder");
+  assert.equal(placeholderExample(examples, [cmd("borrow")], null, 0), null, "no one to address: the plain placeholder");
+  // On the screen: the box's placeholder, and no example line under it; the counter stays.
+  const { at } = await playedLog();
+  for (const k of ["speak:capannello", "speak:colloquio"]) {
+    const v = derive(at[k]!);
+    const h = game({ v });
+    const ph = h.match(/<textarea[^>]*placeholder="([^"]*)"/)![1]!;
+    assert.ok(ph.includes("@") && ph.includes("/"), `${k}: ${ph}`);
+    const allowed = v.commands.map((c) => c.name);
+    assert.ok(allowed.some((n) => ph.includes(`${n}`)), `${k}: a command allowed now`);
+    assert.doesNotMatch(h, /class="example/);
+    assert.match(h, /class="count"/, "the counter stays");
+  }
+});
+
+test("the new controls' explanations are in player.json", () => {
+  for (const k of ["hideRight", "showRight", "rulesSection", "rulesShrink", "cityRow", "cityBack", "reading"]) assert.ok(typeof PLAYER.screen.hints[k] === "string" && PLAYER.screen.hints[k].length > 10, k);
+  for (const k of ["rulesModal.mark", "rulesModal.shrink", "cityList.back", "right.hide", "right.hideLabel", "right.show", "right.showLabel"]) assert.ok(w2(k, {}).length > 0 && !w2(k, {}).includes("undefined"), k);
+});
+
+const esc2 = (x: string) => x.replace(/&/g, "&amp;").replace(/'/g, "&#x27;").replace(/"/g, "&quot;").replace(/</g, "&lt;");

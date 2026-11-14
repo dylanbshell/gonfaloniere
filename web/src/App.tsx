@@ -7,8 +7,8 @@
 import { Component, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { connect, type Ev } from "./connection.ts";
 import { COMMAND, MENTION, canDo, canSpeak, isCommand, matchCommands, matchGuests, openMenu, withMention, type Trigger } from "./input.ts";
-import { appearsIn, briefingCards, cityCards, derive, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, loreParts, readingFor, recordUpTo, rulesCards, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, type Card, type Line, type LoreEntry, type Note, type Request, type Run, type Segment, type Sheet, type State, type View } from "./model.ts";
-import { getInfo, guest, list, names, notaioHint, setInfo, stageDescription, w, type StartInfo } from "./words.ts";
+import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityList, curve, derive, earlierThisStage, errandDeadline, errandLine, factionArcs, heardAndSaw, hintMoment, loreParts, placeholderExample, preview, readingFor, recordUpTo, rulesCards, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, type Card, type Line, type LoreEntry, type Note, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
+import { getInfo, guest, names, notaioHint, placeholderExamples, setInfo, stageDescription, w, type StartInfo } from "./words.ts";
 
 type Send = (m: unknown) => void;
 
@@ -268,17 +268,58 @@ function Portrait({ name, large }: { name: string; large?: boolean }) {
   );
 }
 
-// Selection in the chat view (TD v0.41): one thing at a time, a guest or a lore topic. Selecting replaces
-// the last selection, selecting it again clears it, and Escape clears it. Two guests only in the web viewer.
+// Selection (TD v0.41; Interface v0.6, One selection, shared with the Web of Secrets). The chat shows one
+// thing at a time, a guest or a lore topic; the web holds up to two guests. There's one selection of guests,
+// not two: the chat shows the one picked last (model.ts's SharedSelection), so a guest selected anywhere is
+// selected in the web too, and what the web selects is what the chat shows.
 type ChatSel = { kind: "guest"; name: string } | { kind: "lore"; entry: LoreEntry; back: ChatSel } | null;
+
+/** The chat's view of the shared selection. */
+function chatSel(s: SharedSelection): ChatSel {
+  if (s.lore) return { kind: "lore", entry: s.lore.entry, back: s.lore.back ? { kind: "guest", name: s.lore.back } : null };
+  const g = chatGuest(s);
+  return g ? { kind: "guest", name: g } : null;
+}
+
+/** A starting selection for the tests: the chat's, or the web's guests (which win). */
+function initialSelection(selected: ChatSel, web: string[] | null): SharedSelection {
+  if (web?.length) return { guests: web.slice(-2), lore: null };
+  if (selected?.kind === "guest") return { guests: [selected.name], lore: null };
+  if (selected?.kind === "lore") return { guests: [], lore: { entry: selected.entry, back: selected.back?.kind === "guest" ? selected.back.name : null } };
+  return NO_SELECTION;
+}
+
 interface Selection {
+  /** What the chat shows. */
   sel: ChatSel;
+  /** The guests selected, up to two, oldest first: what the web shows, and its bar. */
+  picked: string[];
+  /** Select a guest from the chat: replaces the last selection (or a pair); the same guest again clears both. */
   guest: (name: string) => void;
+  /** Select a guest in the web: up to two. */
+  pick: (name: string) => void;
+  /** Select exactly these guests (a note's guest or pair); none clears. */
+  set: (guests: string[]) => void;
   lore: (entry: LoreEntry) => void;
   back: () => void;
   clear: () => void;
 }
-const SelContext = createContext<Selection>({ sel: null, guest: () => {}, lore: () => {}, back: () => {}, clear: () => {} });
+const SelContext = createContext<Selection>({ sel: null, picked: [], guest: () => {}, pick: () => {}, set: () => {}, lore: () => {}, back: () => {}, clear: () => {} });
+
+/** The one shared selection (Interface v0.6), and what the chat and the web each do with it. */
+function useSharedSelection(initial: SharedSelection): Selection {
+  const [s, setS] = useState<SharedSelection>(initial);
+  return {
+    sel: chatSel(s),
+    picked: s.guests,
+    guest: (name) => setS((x) => selectInChat(x, name)),
+    pick: (name) => setS((x) => selectInWeb(x, name)),
+    set: (guests) => setS({ guests: guests.slice(-2), lore: null }),
+    lore: (entry) => setS((x) => selectLore(x, entry)),
+    back: () => setS(selectBack),
+    clear: () => setS(NO_SELECTION),
+  };
+}
 
 /** A guest's name: selects them (in the chat view); `plain` inside another control. */
 function Name({ name, plain }: { name: string; plain?: boolean }) {
@@ -319,28 +360,64 @@ function useEscape(onEscape: () => void, active = true) {
   }, [active]);
 }
 
-// ---- Card decks (TD v0.40): one topic per card, over the whole screen ------------------------------------
+// ---- Your briefing, the rules, and the city (TD v0.40; Interface v0.5): each a modal over the whole screen ----
 
 type DeckName = "briefing" | "rules" | "city";
 
-function deckCards(deck: DeckName, sheet: Sheet): Card[] {
-  if (deck === "rules") return rulesCards(sheet.rules);
-  if (deck === "city") return cityCards(sheet.lore ?? []);
+/** Where each modal was left: the briefing's card, the open rules section (by its place), the open city entry (by id). */
+type DeckPlaces = { briefing: number; rules: number | null; city: string | null };
+const NO_PLACES: DeckPlaces = { briefing: 0, rules: null, city: null };
+
+function briefingDeck(sheet: Sheet): Card[] {
   const past = sheet.past ?? [];
   return [...briefingCards(sheet.briefing), ...(past.length ? [{ title: w("screen.decks.past"), text: past.map((p) => `**${p.title}**\n${p.text}`).join("\n\n") }] : [])];
 }
 
+/** The modal's frame: over the screen, its title and a close, Escape closes it. */
+function ModalFrame({ deck, onClose, children }: { deck: DeckName; onClose: () => void; children: ReactNode }) {
+  const hint = useHint();
+  useEscape(onClose);
+  const title = w(`screen.${deck}`);
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className={`modal deck deck-${deck}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={title}>
+        <header>
+          <h2>{title}</h2>
+          <button className="secondary" onClick={onClose} {...hint("close")}>
+            {w("screen.close")}
+          </button>
+        </header>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** The modal for one of the three: the briefing's deck, the rules' buttons, or the city's list. */
+function DeckModal({ deck, sheet, places, onPlaces, onClose }: { deck: DeckName; sheet: Sheet; places: DeckPlaces; onPlaces: (p: DeckPlaces) => void; onClose: () => void }) {
+  return (
+    <ModalFrame deck={deck} onClose={onClose}>
+      {deck === "briefing" ? (
+        <BriefingDeck cards={briefingDeck(sheet)} place={places.briefing} onPlace={(n) => onPlaces({ ...places, briefing: n })} />
+      ) : deck === "rules" ? (
+        <RulesSections cards={rulesCards(sheet.rules)} open={places.rules} onOpen={(n) => onPlaces({ ...places, rules: n })} />
+      ) : (
+        <CityList lore={sheet.lore ?? []} open={places.city} onOpen={(id) => onPlaces({ ...places, city: id })} />
+      )}
+    </ModalFrame>
+  );
+}
+
 /**
- * A deck: tabs along the top show where you are and jump; clicking anywhere on the card swipes to the
- * next; a separate back control and the arrow keys go back and forth. No auto-advance. The place is the
- * caller's, so each deck remembers it.
+ * Your briefing, a card deck: tabs along the top show where you are and jump; clicking anywhere on the card
+ * swipes to the next; a separate back control and the arrow keys go back and forth. No auto-advance. The
+ * place is the caller's, so the deck remembers it.
  */
-function DeckModal({ deck, cards, place, onPlace, onClose }: { deck: DeckName; cards: Card[]; place: number; onPlace: (n: number) => void; onClose: () => void }) {
+function BriefingDeck({ cards, place, onPlace }: { cards: Card[]; place: number; onPlace: (n: number) => void }) {
   const hint = useHint();
   const at = Math.min(place, Math.max(0, cards.length - 1));
   const card = cards[at];
   const go = (n: number) => onPlace(Math.max(0, Math.min(cards.length - 1, n)));
-  useEscape(onClose);
   // Registered once, reading the latest place through a ref, so no key falls between two renders' listeners.
   const keys = useRef((_: KeyboardEvent) => {});
   keys.current = (e) => {
@@ -352,45 +429,122 @@ function DeckModal({ deck, cards, place, onPlace, onClose }: { deck: DeckName; c
     document.addEventListener("keydown", on);
     return () => document.removeEventListener("keydown", on);
   }, []);
-  const title = w(`screen.${deck}`);
   return (
-    <div className="overlay" onClick={onClose}>
-      <div className={`modal deck deck-${deck}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={title}>
-        <header>
-          <h2>{title}</h2>
-          <button className="secondary" onClick={onClose} {...hint("close")}>
-            {w("screen.close")}
-          </button>
-        </header>
-        {cards.length > 0 && (
-          <nav className="tabs">
-            {cards.map((c, i) => (
-              <span key={i} className="tab-wrap">
-                {c.group !== undefined && c.group !== cards[i - 1]?.group && <span className="tab-group">{c.group ?? w("screen.decks.other")}</span>}
-                <button className={`tab${i === at ? " on" : ""}`} aria-current={i === at} onClick={() => go(i)} {...hint("deckTab")}>
-                  {c.title}
-                </button>
-              </span>
-            ))}
-          </nav>
-        )}
-        {card ? (
-          <div className="deck-card" key={`${deck}-${at}`} onClick={() => go(at + 1)} {...hint("deckCard", { focusable: true })}>
-            <h3>{card.title}</h3>
-            <div className="deck-text">
-              <Rich text={card.text} />
-            </div>
+    <>
+      {cards.length > 0 && (
+        <nav className="tabs">
+          {cards.map((c, i) => (
+            <button key={i} className={`tab${i === at ? " on" : ""}`} aria-current={i === at} onClick={() => go(i)} {...hint("deckTab")}>
+              {c.title}
+            </button>
+          ))}
+        </nav>
+      )}
+      {card ? (
+        <div className="deck-card" key={at} onClick={() => go(at + 1)} {...hint("deckCard", { focusable: true })}>
+          <h3>{card.title}</h3>
+          <div className="deck-text">
+            <Rich text={card.text} />
           </div>
-        ) : (
-          <div className="deck-card empty">{w("screen.decks.empty")}</div>
-        )}
-        <footer className="deck-foot">
-          <button className="secondary" disabled={at === 0} onClick={() => go(at - 1)} {...hint("deckBack")}>
-            {w("screen.decks.back")}
-          </button>
-          {cards.length > 0 && <span className="muted">{w("screen.decks.counter", { n: at + 1, total: cards.length })}</span>}
-        </footer>
-      </div>
+        </div>
+      ) : (
+        <div className="deck-card empty">{w("screen.decks.empty")}</div>
+      )}
+      <footer className="deck-foot">
+        <button className="secondary" disabled={at === 0} onClick={() => go(at - 1)} {...hint("deckBack")}>
+          {w("screen.decks.back")}
+        </button>
+        {cards.length > 0 && <span className="muted">{w("screen.decks.counter", { n: at + 1, total: cards.length })}</span>}
+      </footer>
+    </>
+  );
+}
+
+/**
+ * The rules (Interface v0.5): one button per section of the rules primer, filling the modal. Clicking one
+ * grows it to fill the modal with that section; its × shrinks it back to the buttons.
+ */
+function RulesSections({ cards, open, onOpen }: { cards: Card[]; open: number | null; onOpen: (n: number | null) => void }) {
+  const hint = useHint();
+  const card = open === null ? undefined : cards[open];
+  if (!cards.length) return <div className="deck-card empty">{w("screen.decks.empty")}</div>;
+  return (
+    <div className="rules-body">
+      {card ? (
+        <section className="rules-section open" data-section={open!} aria-label={card.title}>
+          <div className="rules-section-head">
+            <h3>{card.title}</h3>
+            <button className="icon close" aria-label={w("screen.rulesModal.shrink")} onClick={() => onOpen(null)} {...hint("rulesShrink")}>
+              {w("screen.rulesModal.mark")}
+            </button>
+          </div>
+          <div className="deck-text">
+            <Rich text={card.text} />
+          </div>
+        </section>
+      ) : (
+        <div className="rules-buttons">
+          {cards.map((c, i) => (
+            <button key={i} className="rules-section" data-section={i} onClick={() => onOpen(i)} {...hint("rulesSection")}>
+              {c.title}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The city (Interface v0.5): a list scrolled like an inbox, one row per public lore entry with its title
+ * and a one-line preview, under subject headers. Clicking a row opens the entry here, with a back arrow to
+ * the list. Lore links in the chat open on the right, never here.
+ */
+function CityList({ lore, open, onOpen }: { lore: LoreEntry[]; open: string | null; onOpen: (id: string | null) => void }) {
+  const hint = useHint();
+  const entry = open === null ? undefined : lore.find((e) => e.id === open);
+  const list = useRef<HTMLDivElement>(null);
+  // Back at the list, at the place it was left.
+  const scroll = useRef(0);
+  useLayoutEffect(() => {
+    if (!entry && list.current) list.current.scrollTop = scroll.current;
+  }, [!!entry]);
+  if (!lore.length) return <div className="deck-card empty">{w("screen.decks.empty")}</div>;
+  if (entry)
+    return (
+      <section className="city-entry" data-lore={entry.id}>
+        <button className="secondary city-back" onClick={() => onOpen(null)} {...hint("cityBack")}>
+          {w("screen.cityList.back")}
+        </button>
+        <h3>{entry.title}</h3>
+        <div className="deck-text">{entry.text}</div>
+      </section>
+    );
+  return (
+    <div className="city-list" ref={list}>
+      {cityList(lore).map((g) => (
+        <section key={g.subject ?? ""} className="city-group">
+          <div className="city-subject">{g.subject ?? w("screen.decks.other")}</div>
+          <ul>
+            {g.entries.map((e) => (
+              <li key={e.id}>
+                <button
+                  className="city-row"
+                  data-lore={e.id}
+                  onClick={() => {
+                    scroll.current = list.current?.scrollTop ?? 0;
+                    onOpen(e.id);
+                  }}
+                  {...hint("cityRow")}
+                >
+                  <span className="city-title">{e.title}</span>
+                  <span className="city-preview muted">{preview(e)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
     </div>
   );
 }
@@ -424,6 +578,7 @@ export function GameView({
   webTab,
   keyType,
   pastStage = null,
+  rightHidden: initialRightHidden,
 }: {
   me: string;
   v: View;
@@ -438,26 +593,24 @@ export function GameView({
   keyType?: string | null;
   /** A past stage open from the start (Interface v0.5). */
   pastStage?: string | null;
+  /** The right panel hidden from the start (Interface v0.5); otherwise the browser's remembered choice. */
+  rightHidden?: boolean;
 }) {
   const [deck, setDeck] = useState<DeckName | null>(initialDeck);
-  const [places, setPlaces] = useState<Record<DeckName, number>>({ briefing: 0, rules: 0, city: 0 });
-  const [sel, setSel] = useState<ChatSel>(selected);
-  // The Web of Secrets is always there (TD v0.44): its own selection (up to two), kept while it's down.
+  const [places, setPlaces] = useState<DeckPlaces>(NO_PLACES);
+  // One selection of guests, shared by the chat and the Web of Secrets (Interface v0.6).
+  const selection = useSharedSelection(initialSelection(selected, initialWeb));
+  // The Web of Secrets is always there (TD v0.44); open or down, it shows the shared selection.
   const [webOpen, setWebOpen] = useState(initialWeb !== null);
-  const [picked, setPicked] = useState<string[]>(initialWeb ?? []);
   // A note's conclusion goes to the input box, not straight to the game (Interface v0.4).
   const [boxFill, setBoxFill] = useState<BoxFill | null>(null);
-  const selection: Selection = {
-    sel,
-    guest: (name) => setSel(sel?.kind === "guest" && sel.name === name ? null : { kind: "guest", name }),
-    lore: (entry) => setSel(sel?.kind === "lore" && sel.entry.id === entry.id ? sel.back : { kind: "lore", entry, back: sel?.kind === "lore" ? sel.back : sel }),
-    back: () => setSel(sel?.kind === "lore" ? sel.back : null),
-    clear: () => setSel(null),
-  };
-  // Escape clears the selection, after any open menu, deck, or the Web of Secrets has taken it.
+  const right = useRightHidden(initialRightHidden);
+  // Escape clears the selection, in both places, after any open menu, deck, or the Web of Secrets has taken it.
+  const clear = useRef(selection.clear);
+  clear.current = selection.clear;
   useEffect(() => {
     const esc = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !e.defaultPrevented) setSel(null);
+      if (e.key === "Escape" && !e.defaultPrevented) clear.current();
     };
     document.addEventListener("keydown", esc);
     return () => document.removeEventListener("keydown", esc);
@@ -472,19 +625,23 @@ export function GameView({
     setWebOpen(false);
     setBoxFill((f) => ({ text, seq: (f?.seq ?? 0) + 1 }));
   };
-  const openWeb = (guests: string[]) => {
-    setPicked(guests);
+  /**
+   * "Open in the Web of Secrets" (Interface v0.6–v0.7): the selection is already the web's, so it just opens
+   * the web; from the "talking with" card, it also makes that guest the selection.
+   */
+  const openWeb = (guest: string | null) => {
+    if (guest && !selection.picked.includes(guest)) selection.set([guest]);
     setWebOpen(true);
   };
   return (
     <SelContext.Provider value={selection}>
-      <div className="layout" ref={layout}>
+      <div className={`layout${right.hidden ? " right-hidden" : ""}`} ref={layout}>
         <Boundary panel="left" fallback={(n) => <aside className="side left">{n}</aside>}>
           <Left me={me} v={v} onDeck={setDeck} />
         </Boundary>
         <Centre me={me} v={v} send={send} dead={dead} status={status} boxFill={boxFill} initialPast={pastStage} />
         <Boundary panel="right" fallback={(n) => <aside className="side right">{n}</aside>}>
-          <Right me={me} v={v} onWeb={openWeb} layout={layout} />
+          {right.hidden ? <RightHandle onShow={() => right.set(false)} /> : <Right me={me} v={v} onWeb={openWeb} onHide={() => right.set(true)} layout={layout} />}
         </Boundary>
       </div>
       <Boundary
@@ -495,12 +652,12 @@ export function GameView({
           </div>
         )}
       >
-        <WebDock me={me} v={v} open={webOpen} setOpen={setWebOpen} picked={picked} setPicked={setPicked} initialTab={webTab} initialKey={keyType ?? null} send={send} dead={dead} boxClosed={cardWaiting} onConclude={concludeInBox} />
+        <WebDock me={me} v={v} open={webOpen} setOpen={setWebOpen} initialTab={webTab} initialKey={keyType ?? null} send={send} dead={dead} boxClosed={cardWaiting} onConclude={concludeInBox} />
       </Boundary>
       {/* After everything, and above it all in theme.css's order, so nothing covers it. */}
       {deck && v.sheet && (
         <Boundary panel="deck" fallback={(n) => <FailedOverlay notice={n} onClose={() => setDeck(null)} />}>
-          <DeckModal deck={deck} cards={deckCards(deck, v.sheet)} place={places[deck]} onPlace={(n) => setPlaces({ ...places, [deck]: n })} onClose={() => setDeck(null)} />
+          <DeckModal deck={deck} sheet={v.sheet} places={places} onPlaces={setPlaces} onClose={() => setDeck(null)} />
         </Boundary>
       )}
     </SelContext.Provider>
@@ -1030,6 +1187,53 @@ function useRightWidth(layout: RefObject<HTMLDivElement | null>) {
   };
 }
 
+/** Whether the right panel is hidden (Interface v0.5): remembered in the browser, shown by default. */
+const RIGHT_HIDDEN_KEY = "player-screen.right-hidden";
+
+function useRightHidden(initial?: boolean) {
+  const [hidden, setHidden] = useState<boolean>(() => {
+    if (initial !== undefined) return initial;
+    try {
+      return globalThis.localStorage?.getItem(RIGHT_HIDDEN_KEY) === "hidden";
+    } catch {
+      return false;
+    }
+  });
+  return {
+    hidden,
+    set: (h: boolean) => {
+      setHidden(h);
+      try {
+        localStorage.setItem(RIGHT_HIDDEN_KEY, h ? "hidden" : "shown");
+      } catch {
+        // Blocked storage: the choice lasts until the page closes.
+      }
+    },
+  };
+}
+
+/**
+ * The right panel hidden (Interface v0.5): a thin strip with a handle that brings it back. Selecting a
+ * guest doesn't reopen it; the handle shows the selected guest's small portrait, so the player knows
+ * someone is selected.
+ */
+function RightHandle({ onShow }: { onShow: () => void }) {
+  const hint = useHint();
+  const { sel } = useContext(SelContext);
+  return (
+    <aside className="side right hidden">
+      <button className="right-handle" aria-label={w("screen.right.showLabel")} onClick={onShow} {...hint("showRight")}>
+        <span className="right-handle-mark">{w("screen.right.show")}</span>
+        {sel?.kind === "guest" && (
+          <span className="right-handle-guest" data-guest={sel.name}>
+            <Portrait name={sel.name} />
+          </span>
+        )}
+      </button>
+    </aside>
+  );
+}
+
 /** A guest's public card: portrait, name, faction, subtitle, and the public lines everyone knows. */
 function PublicCard({ who, v }: { who: string; v: View }) {
   const g = guest(who);
@@ -1064,7 +1268,7 @@ function PublicCard({ who, v }: { who: string; v: View }) {
  * and over it, a selected guest's plain raised "Looking at" card (or a lore entry), which slides up and
  * leaves the talking card's header in view, one click from going back. The panel's left edge resizes it.
  */
-function Right({ me, v, onWeb, layout }: { me: string; v: View; onWeb: (guests: string[]) => void; layout: RefObject<HTMLDivElement | null> }) {
+function Right({ me, v, onWeb, onHide, layout }: { me: string; v: View; onWeb: (guest: string | null) => void; onHide: () => void; layout: RefObject<HTMLDivElement | null> }) {
   const s = v.state;
   const hint = useHint();
   const { sel, back, clear } = useContext(SelContext);
@@ -1077,6 +1281,10 @@ function Right({ me, v, onWeb, layout }: { me: string; v: View; onWeb: (guests: 
   return (
     <aside className={`side right${over ? " covered" : ""}`}>
       <div className="resize" role="separator" aria-orientation="vertical" onPointerDown={drag} {...hint("resize", { focusable: true })} />
+      {/* Interface v0.5: hides the panel to a thin strip with a handle, and the chat widens. */}
+      <button className="right-hide" aria-label={w("screen.right.hideLabel")} onClick={onHide} {...hint("hideRight")}>
+        {w("screen.right.hide")}
+      </button>
       <section className="person talk" data-guest={talk ?? undefined}>
         {/* Covered, the header stays in view and goes back to the conversation; uncovered, it's a label. */}
         {over ? (
@@ -1100,7 +1308,7 @@ function Right({ me, v, onWeb, layout }: { me: string; v: View; onWeb: (guests: 
           </div>
         )}
         <div className="buttons">
-          <button className="secondary" onClick={() => onWeb(talk ? [talk] : [])} {...hint("openWeb")}>
+          <button className="secondary" onClick={() => onWeb(talk)} {...hint("openWeb")}>
             {w("screen.right.openWeb")}
           </button>
         </div>
@@ -1125,7 +1333,7 @@ function Right({ me, v, onWeb, layout }: { me: string; v: View; onWeb: (guests: 
             <>
               <PublicCard who={over} v={v} />
               <div className="buttons">
-                <button className="secondary" onClick={() => onWeb([over])} {...hint("openWeb")}>
+                <button className="secondary" onClick={() => onWeb(over)} {...hint("openWeb")}>
                   {w("screen.right.openWeb")}
                 </button>
               </div>
@@ -1156,8 +1364,6 @@ function WebDock({
   v,
   open,
   setOpen,
-  picked,
-  setPicked,
   initialTab = "record",
   initialKey,
   send,
@@ -1169,8 +1375,6 @@ function WebDock({
   v: View;
   open: boolean;
   setOpen: (o: boolean) => void;
-  picked: string[];
-  setPicked: (p: string[] | ((p: string[]) => string[])) => void;
   initialTab?: WebTab;
   initialKey: string | null;
   send: Send;
@@ -1193,10 +1397,13 @@ function WebDock({
   useEffect(() => {
     if (!open && dock.current) dock.current.scrollTop = 0;
   }, [open]);
-  // Up to two: a first, then a second; a third replaces the older; selecting a selected guest clears it.
-  const pick = (n: string) => setPicked((p) => (p.includes(n) ? p.filter((x) => x !== n) : p.length < 2 ? [...p, n] : [p[1]!, n]));
+  // The selection is the chat's too (Interface v0.6). In here, up to two: a first, then a second; a third
+  // replaces the older; selecting a selected guest drops them.
+  const selection = useContext(SelContext);
+  const { picked, pick } = selection;
   const at = webLayout(info.roster, info.factions ?? []);
-  const labels = factionLabels(info.roster, info.factions ?? [], at);
+  const arcs = factionArcs(info.roster, info.factions ?? []);
+  useReadingRequest(me, v, picked, open, send);
   const types = info.relationshipTypes ?? [];
   const connections = v.sheet?.connections ?? [];
   const lit = (c: { between?: string[]; guests?: string[] }) => picked.length > 0 && picked.every((p) => (c.between ?? c.guests ?? []).includes(p));
@@ -1211,7 +1418,7 @@ function WebDock({
   const typeLabel = (t: string) => types.find((x) => x.type === t)?.label ?? w("screen.web.otherType");
   const NoteItem = ({ n }: { n: Note }) => (
     <li className="note" key={n.id}>
-      <button className="note-text" onClick={() => (setPicked(n.guests), setTab("record"))} {...hint("noteItem")}>
+      <button className="note-text" onClick={() => (selection.set(n.guests), setTab("record"))} {...hint("noteItem")}>
         {n.text}
       </button>
       {/* Only a note on a guest or a pair can be a conclusion; a free note has no button (Interface v0.3). */}
@@ -1234,15 +1441,21 @@ function WebDock({
         <div className="web" inert={!open}>
           <div className="web-body">
             <div className="web-map">
-              <svg className="web-diagram" viewBox="-24 -10 148 122" role="group" aria-label={w("screen.web.title")}>
+              <svg className="web-diagram" viewBox="-34 -8 168 116" role="group" aria-label={w("screen.web.title")}>
+                {/* Interface v0.5: an arc in each faction's colour around its part of the ring. */}
+                <g className="faction-arcs">
+                  {arcs.map((f) => (
+                    <path key={f.faction} className="faction-arc" d={f.d} style={{ stroke: f.colour }} />
+                  ))}
+                </g>
                 {connections.map((c, i) => {
                   const [a, b] = c.between.map((n) => at.get(n));
                   if (!a || !b) return null;
                   return (
                     <g key={`c${i}`} data-type={c.type}>
                       {/* The player's own connections, from their briefing: marked as theirs under the type's line. */}
-                      {c.private && <line className={`edge-under${keyed(c.type)}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />}
-                      <line className={`edge rel-${c.type}${c.private ? " yours" : ""}${lit(c) ? " on" : ""}${keyed(c.type)}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
+                      {c.private && <path className={`edge-under${keyed(c.type)}`} d={curve(a, b)} />}
+                      <path className={`edge rel-${c.type}${c.private ? " yours" : ""}${lit(c) ? " on" : ""}${keyed(c.type)}`} d={curve(a, b)} />
                     </g>
                   );
                 })}
@@ -1250,12 +1463,12 @@ function WebDock({
                   .filter((n) => n.guests.length === 2)
                   .map((n) => {
                     const [a, b] = n.guests.map((g) => at.get(g));
-                    return a && b ? <line key={n.id} className={`edge note-line${lit(n) ? " on" : ""}${keyType ? " key-off" : ""}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} /> : null;
+                    return a && b ? <path key={n.id} className={`edge note-line${lit(n) ? " on" : ""}${keyType ? " key-off" : ""}`} d={curve(a, b)} /> : null;
                   })}
                 {info.roster.map((r) => {
                   const p = at.get(r.name)!;
                   return (
-                    <g key={r.name} className={`node${picked.includes(r.name) ? " picked" : ""}${r.name === me ? " me" : ""}`} transform={`translate(${p.x} ${p.y})`} onClick={() => pick(r.name)} role="button" aria-pressed={picked.includes(r.name)} {...hint("webNode", { focusable: true })}>
+                    <g key={r.name} data-guest={r.name} className={`node${picked.includes(r.name) ? " picked" : ""}${r.name === me ? " me" : ""}`} transform={`translate(${p.x} ${p.y})`} onClick={() => pick(r.name)} role="button" aria-pressed={picked.includes(r.name)} {...hint("webNode", { focusable: true })}>
                       <circle r={4.2} style={{ fill: r.colour }} />
                       <text className="node-initials" dy={1.2}>
                         {r.initials}
@@ -1274,10 +1487,10 @@ function WebDock({
                     );
                   })}
                 </g>
-                {/* Each faction's name in its colour, outside its guests' arc: apart from the key, which is about lines. */}
+                {/* Each faction's name in its colour, at its arc's corner: apart from the key, which is about lines. */}
                 <g className="factions">
-                  {labels.map((f) => (
-                    <text key={f.faction} className="faction-label" x={f.x} y={f.y} style={{ fill: f.colour }} {...hint("faction", { focusable: true })}>
+                  {arcs.map((f) => (
+                    <text key={f.faction} className="faction-label" x={f.x} y={f.y} textAnchor={f.anchor} style={{ fill: f.colour }} {...hint("faction", { focusable: true })}>
                       {f.faction}
                     </text>
                   ))}
@@ -1305,7 +1518,6 @@ function WebDock({
                   )}
                 </div>
               )}
-              <ReadingBox me={me} v={v} picked={picked} open={open} send={send} />
             </div>
             <div className="web-side">
               <nav className="tabs">
@@ -1315,39 +1527,43 @@ function WebDock({
                   </button>
                 ))}
               </nav>
+              {/* What you heard and saw (Interface v0.5): with nothing selected, one line asking for a guest and no
+                  reading; with a selection, Il Notaio's box over the column, the dialogue behind it. */}
               {tab === "record" &&
                 (picked.length === 0 ? (
-                  <p className="muted">{w("screen.web.pick")}</p>
+                  <p className="muted record-pick">{w("screen.web.pick")}</p>
                 ) : (
-                  <div className="record">
-                    <h3>{who}</h3>
-                    {connections.filter(lit).map((c, i) => (
-                      <p key={i} className={`connection${c.private ? " yours" : ""}`}>
-                        <span className={`type-chip rel-${c.type}`}>{typeLabel(c.type)}</span> {c.line} {c.private && <span className="muted">{w("screen.web.yours")}</span>}
-                      </p>
-                    ))}
-                    <div className="label">{w("screen.web.heard")}</div>
-                    {record.heard.length ? (
-                      <ul className="heard">
-                        {record.heard.map((l) => (
-                          <li key={l.id} data-line={l.id}>
-                            <span className="sp">{l.you ? w("screen.you") : l.speaker}</span>
-                            {l.addressee && <span className="muted"> {l.addressee === me ? w("screen.toYou") : w("screen.to", { name: l.addressee })}</span>} {l.text}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="muted">{w("screen.web.nothing")}</p>
-                    )}
-                    <div className="label">{w("screen.web.saw")}</div>
-                    {record.saw.length ? (
-                      <ul className="saw">
-                        {record.saw.map((s) => (s.kind === "line" ? <li key={s.line.id} data-line={s.line.id}>{s.line.text}</li> : <li key={`d${s.name}`}>{w("screen.web.died", { name: s.name })}</li>))}
-                      </ul>
-                    ) : (
-                      <p className="muted">{w("screen.web.nothing")}</p>
-                    )}
-                  </div>
+                  <RecordPane key={[...picked].sort().join("|")} box={<ReadingText me={me} v={v} picked={picked} />}>
+                    <div className="record">
+                      <h3>{who}</h3>
+                      {connections.filter(lit).map((c, i) => (
+                        <p key={i} className={`connection${c.private ? " yours" : ""}`}>
+                          <span className={`type-chip rel-${c.type}`}>{typeLabel(c.type)}</span> {c.line} {c.private && <span className="muted">{w("screen.web.yours")}</span>}
+                        </p>
+                      ))}
+                      <div className="label">{w("screen.web.heard")}</div>
+                      {record.heard.length ? (
+                        <ul className="heard">
+                          {record.heard.map((l) => (
+                            <li key={l.id} data-line={l.id}>
+                              <span className="sp">{l.you ? w("screen.you") : l.speaker}</span>
+                              {l.addressee && <span className="muted"> {l.addressee === me ? w("screen.toYou") : w("screen.to", { name: l.addressee })}</span>} {l.text}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="muted">{w("screen.web.nothing")}</p>
+                      )}
+                      <div className="label">{w("screen.web.saw")}</div>
+                      {record.saw.length ? (
+                        <ul className="saw">
+                          {record.saw.map((s) => (s.kind === "line" ? <li key={s.line.id} data-line={s.line.id}>{s.line.text}</li> : <li key={`d${s.name}`}>{w("screen.web.died", { name: s.name })}</li>))}
+                        </ul>
+                      ) : (
+                        <p className="muted">{w("screen.web.nothing")}</p>
+                      )}
+                    </div>
+                  </RecordPane>
                 ))}
               {tab === "notes" && (
                 <div className="notes">
@@ -1408,13 +1624,11 @@ function WebDock({
 }
 
 /**
- * Il Notaio's reading (TD v0.44): in the Web of Secrets' bottom right, styled like his hint. Asked for once
- * the viewer is open with a guest or two selected (after a moment, so a quick second pick asks once); the
- * game answers with a reading, or with the plain tally when there's none. It stands until the record for the
- * selection grows.
+ * Il Notaio's reading (TD v0.44): asked for once the Web of Secrets is open with a guest or two selected
+ * (after a moment, so a quick second pick asks once), whichever tab is showing; the game answers with a
+ * reading, or with the plain tally when there's none. It stands until the record for the selection grows.
  */
-function ReadingBox({ me, v, picked, open, send }: { me: string; v: View; picked: string[]; open: boolean; send: Send }) {
-  const hint = useHint();
+function useReadingRequest(me: string, v: View, picked: string[], open: boolean, send: Send) {
   const asked = useRef(new Set<string>());
   const have = picked.length ? readingFor(v, picked, me) : null;
   const key = `${[...picked].sort().join("|")}@${recordUpTo(v, picked, me)}`;
@@ -1426,13 +1640,52 @@ function ReadingBox({ me, v, picked, open, send }: { me: string; v: View; picked
     }, 400);
     return () => clearTimeout(t);
   }, [open, key, !!have]);
+}
+
+/** The reading's words: today's reading (#146 replaces it), or the tally, or that he's considering. */
+function ReadingText({ me, v, picked }: { me: string; v: View; picked: string[] }) {
+  const have = readingFor(v, picked, me);
   return (
-    <aside className="reading" aria-live="polite" {...hint("reading", { focusable: true })}>
-      <div className="reading-head">{w("screen.reading.title")}</div>
-      <p className={`reading-text${have?.text ? "" : " tally"}`} data-reading={have ? (have.text ? "reading" : "tally") : picked.length ? "waiting" : "none"}>
-        {have ? (have.text ?? have.tally) : picked.length ? w("screen.reading.waiting") : w("screen.web.pick")}
-      </p>
-    </aside>
+    <p className={`reading-text${have?.text ? "" : " tally"}`} data-reading={have ? (have.text ? "reading" : "tally") : "waiting"}>
+      {have ? (have.text ?? have.tally) : w("screen.reading.waiting")}
+    </p>
+  );
+}
+
+/**
+ * The What you heard and saw column with Il Notaio's box in it (Interface v0.5). Expanded by default, the
+ * box covers almost all the dialogue, with a strip of it peeking out at the top. Clicking the box, or the
+ * dialogue behind it, minimizes it to the column's foot, still showing its first lines; clicking the
+ * minimized box expands it again. A new selection starts it expanded (the caller keys it by selection).
+ */
+function RecordPane({ box, children }: { box: ReactNode; children: ReactNode }) {
+  const hint = useHint();
+  const [expanded, setExpanded] = useState(true);
+  return (
+    <div className={`record-pane${expanded ? " covered" : ""}`}>
+      {/* While the box covers it, a click on the dialogue (its peeking strip) minimizes the box. */}
+      <div className="record-scroll" onClickCapture={expanded ? (e) => (e.stopPropagation(), e.preventDefault(), setExpanded(false)) : undefined}>
+        {children}
+      </div>
+      <aside
+        className="reading"
+        data-state={expanded ? "expanded" : "minimized"}
+        role="button"
+        aria-expanded={expanded}
+        aria-live="polite"
+        onClick={() => setExpanded(!expanded)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setExpanded(!expanded);
+          }
+        }}
+        {...hint("reading", { focusable: true })}
+      >
+        <div className="reading-head">{w("screen.reading.title")}</div>
+        {box}
+      </aside>
+    </div>
   );
 }
 
@@ -1559,11 +1812,11 @@ function InputBox({ me, v, send, closed, fill, past = false, onReturn = () => {}
   const refusal = v.refusal && v.refusal.seq > actedAt ? v.refusal.reason : null;
   /** The game waits for the player (a request is open): from a past stage, Return beckons and the placeholder says so. */
   const beckon = past && !!v.pending;
-  const examples = list("examples");
-  const example = examples.length ? examples[v.spoken % examples.length] : null;
+  // Interface v0.5: the placeholder carries the example, with an @ and a /, using only commands allowed now.
+  const example = placeholderExample(placeholderExamples(), v.commands, talkingWith(v, me) ?? present[0] ?? null, v.spoken);
   return (
     <div className={`input${past ? " past" : ""}`} ref={box}>
-      {/* The prompt's and the example's lines are always laid out, so the box keeps its height as they come and go. */}
+      {/* The prompt's line is always laid out, so the box keeps its height as it comes and goes. */}
       <div className={`prompt${req ? " waiting" : ""}`}>{prompt}</div>
       {refusal && <div className="notice">{refusal}</div>}
       {guestList.length > 0 && (
@@ -1605,7 +1858,7 @@ function InputBox({ me, v, send, closed, fill, past = false, onReturn = () => {}
           <textarea
             ref={area}
             value={text}
-            placeholder={w(past ? (beckon ? "screen.input.pastWaiting" : "screen.input.pastPlaceholder") : "screen.input.placeholder")}
+            placeholder={past ? w(beckon ? "screen.input.pastWaiting" : "screen.input.pastPlaceholder") : (example ?? w("screen.input.placeholder"))}
             onChange={(e) => change(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Escape" && menuOpen) {
@@ -1667,7 +1920,6 @@ function InputBox({ me, v, send, closed, fill, past = false, onReturn = () => {}
           )}
         </div>
       </div>
-      <div className="example muted">{example ? w("screen.input.example", { line: example }) : ""}</div>
     </div>
   );
 }
