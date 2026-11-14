@@ -1,8 +1,19 @@
 # Gonfaloniere
 ## Characters & Briefings — Working Document
-### Version 0.13
+### Version 0.14
 
 ---
+
+## Changes in v0.14
+
+*Settles v0.13's open question, Who leads the Dominicans? (Dylan, Nov 14).*
+
+- **Fra Tommaso is Savonarola's follower, and he leads the Dominicans at tonight's gathering.** That keeps both halves of the original ("the Leader of the Florentine Dominicans", a "disciple of the great reformer Savonarola") and agrees with public lore, which names Savonarola the Dominican prior at San Marco. Every line that said he leads "the order" now says what he leads, and when:
+  - **Tommaso's own briefing** says it for the first time: "and tonight you lead the Dominicans at the gathering"
+  - **Beatrice's** What you know and Relationships, **Isabella's** Relationships, and **Jeanne's** Relationships ("the friars' leader tonight")
+  - **Two public lines** (Shared Canon: Relationships): Tommaso and Beatrice, and Tommaso and Isabella
+- **Copies elsewhere change with it:** the two public lines and three private lines in `setting/florence-1492/relationships.json`, and the two matching relationship entries in `lore/lore.json`, which a test keeps word for word the same. One `cc-task` changes all of them together, with the engine's default moving to v0.14
+- No secret, fact, or errand changed
 
 ## Changes in v0.13
 
@@ -278,8 +289,8 @@ What any guest knows at the start of the evening. **Rules:**
 | Clarice Orsini | Giorgia Pazzi | rivalry | Rivals for the Prince's hand. Clarice once mocked Giorgia at a banquet as "the Pazzi girl with nothing left" |
 | Piero de' Medici | Francesco Pazzi | rivalry | Heads of the two rival houses. In 1478 a Pazzi plot killed Piero's uncle, and a Pazzi uncle hanged for it |
 | Fra Tommaso | Piero de' Medici | rivalry | Fra Tommaso preaches against the Medici and everything they stand for |
-| Fra Tommaso | Sister Beatrice | alliance | Fra Tommaso leads the Dominican order Sister Beatrice serves |
-| Fra Tommaso | Contessa Isabella | alliance | Fra Tommaso leads the Dominican order the widowed Contessa joined |
+| Fra Tommaso | Sister Beatrice | alliance | Fra Tommaso leads the Dominicans at tonight's gathering, and Sister Beatrice is one of them |
+| Fra Tommaso | Contessa Isabella | alliance | Fra Tommaso leads the Dominicans at tonight's gathering, and the widowed Contessa is one of them |
 
 **Kept off the public web, because they're secrets** (Shared Canon above): Clarice and Francesco, Giorgia and LeNoir, and Jeanne and Emile as lovers; Lupo and Beatrice as brother and sister; Lupo and Isabella as killer and client; Raffaello's debt to Isabella (his thin purse is public; whom he owes isn't); LeNoir asking Raffaello for help; Jeanne's pension offer to Piero; and Lupo's trade. **No money line is public:** every debt and payment in the cast is private, which the web shows by having none.
 
@@ -446,7 +457,7 @@ Once your errand is done, or out of reach, your faction's win is what matters. Y
 - **Lupo:** your old instrument. He knows what you did; you know what he is. He can be paid.
 - **Captain LeNoir:** the brother of the man you had killed. Keep him far from the truth.
 - **Raffaello de' Medici:** your debtor. Forgiving the debt is something you could trade.
-- **Fra Tommaso:** leader of your order. His public blessing would make your piety unquestionable.
+- **Fra Tommaso:** leader of the Dominicans here tonight. His public blessing would make your piety unquestionable.
 - **Sister Beatrice:** a healer of your order, widely respected. You know nothing more of her.
 - **Piero de' Medici and Francesco Pazzi:** the likely candidates. Either might be brought to repent.
 
@@ -834,7 +845,7 @@ Your wit, your name, and a reputation that opens doors.
 
 **Who you are**
 
-You are Fra Tommaso, a Dominican friar and a follower of the reformer Savonarola. Florence must choose between repentance and ruin, and you've said so in every piazza. You're no fool about how the city works: power, coin, and family. To cleanse it you'll use worldly tools, even a Pazzi. The established Church calls you a heretic. The rich call you worse.
+You are Fra Tommaso, a Dominican friar and a follower of the reformer Savonarola, and tonight you lead the Dominicans at the gathering. Florence must choose between repentance and ruin, and you've said so in every piazza. You're no fool about how the city works: power, coin, and family. To cleanse it you'll use worldly tools, even a Pazzi. The established Church calls you a heretic. The rich call you worse.
 
 **How you speak:** bluntly, in short hard sentences. You preach in a line, never a sermon, and your humour is dry and a little grim. How you sound, not lines to repeat:
 - "Laugh if you like. I've been laughed at by better-dressed men."
@@ -921,7 +932,7 @@ Once your errand is done, or out of reach, your faction's win is what matters. Y
 - **San Frediano.** Seven years ago a Frenchman was stabbed by the north chapel of San Frediano, and no one was ever charged. That night Lupo came to you with a knife cut, and you stitched it. He never said who paid, and you never asked. You know he never names a client.
 - **His words that night.** Feverish, and full of the wine you gave him for the pain, Lupo muttered that "the Contessa pays well, but late." A title, not a name. He may not remember saying it.
 - **Contessa Isabella** is a rich widow who joined your Order's cause a year ago. You know nothing more of her.
-- **Fra Tommaso** leads your Order in the city. He respects you; some of his brothers don't trust your books.
+- **Fra Tommaso,** a follower of Savonarola, leads the Dominicans here tonight. He respects you; some of his brothers don't trust your books.
 - **The Medici** have long paid for learning. Their rule would be kinder to your books than a Pazzi one.
 
 **Your secrets (private)**
@@ -934,7 +945,7 @@ Once your errand is done, or out of reach, your faction's win is what matters. Y
 **Relationships**
 
 - **Lupo:** your brother. A soul to save and a secret to keep.
-- **Fra Tommaso:** your Order's leader, and an ally if he can see that faith and learning can live together.
+- **Fra Tommaso:** leader of the Dominicans here tonight, and an ally if he can see that faith and learning can live together.
 - **Contessa Isabella:** a sister of your cause, as far as you know.
 - **Piero de' Medici:** heir to a family that has paid for learning.
 
@@ -995,7 +1006,7 @@ Once your errand is done, or out of reach, your faction's win is what matters. Y
 - **Piero de' Medici:** the favourite, and the obvious man to put on France's payroll.
 - **Clarice Orsini** and **Giorgia Pazzi:** the two candidates for Emile's hand.
 - **Captain LeNoir:** loyal to Emile, hot-tempered, and not always discreet.
-- **Fra Tommaso:** the friars' leader. Dangerous.
+- **Fra Tommaso:** the friars' leader tonight. Dangerous.
 
 **Resources**
 
@@ -1074,6 +1085,8 @@ Your title. Everyone here wants something from you, which is its own kind of pow
 
 *v0.5 reorders each briefing (errand before faction) and adds one framing sentence to each section; no secret, fact, or plot point changed. Results on v0.4 and v0.5 are close but not identical inputs.*
 
+*v0.14 changes one Relationships line in Isabella's briefing (Fra Tommaso "leader of the Dominicans here tonight"); nothing else in the tested three.*
+
 *v0.12 changes the standard social awareness text in every briefing (one sentence on seeing the room); nothing else in the tested three.*
 
 *v0.11 changes one phrase in Isabella's What you know ("Easter Mass" for "midnight Mass"); nothing else in the tested three.*
@@ -1114,7 +1127,7 @@ Your title. Everyone here wants something from you, which is its own kind of pow
 | The Pazzi conspiracy (`pub-1478`) | public | Pass | Matches Shared Canon: Setting and Piero's and Francesco's briefings: Giuliano killed, Lorenzo wounded, a Pazzi uncle hanged from the palace windows. Leaving out Archbishop Salviati is right: it keeps Isabella's house clear of the plot. The Pazzi arms aren't described, so it gives no heraldry lesson |
 | The Pazzi now (`pub-pazzi`) | public | Pass | Francesco "a boy" and Giorgia beside him match their briefings ("you were young"; "you were a child"). The seized banks and barred sons are new texture that no briefing contradicts. Nothing about Lupo |
 | Lorenzo's heirs (`pub-medici`) | public | Pass | Piero at twenty-one and "the Unfortunate", Raffaello popular with soldiers, Clarice of the old Orsini line and admired for her wit: all in their briefings. "The taverns he drinks in" is drinking, not gambling, so it doesn't point at the debt to Isabella, and "everyone who matters knows" his purse is thin |
-| The friar of San Marco (`pub-savonarola`) | public | Pass | Fra Tommaso "among" Savonarola's followers matches his briefing. Savonarola appears as in-world lore with nothing of his later years. See Open Questions for the wording of Tommaso's leadership elsewhere in this doc |
+| The friar of San Marco (`pub-savonarola`) | public | Pass | Fra Tommaso "among" Savonarola's followers matches his briefing. Savonarola appears as in-world lore with nothing of his later years. The wording of Tommaso's leadership elsewhere in this doc was tidied in v0.14 |
 | France (`pub-france`) | public | Pass | Emile "the King's young cousin, sent to choose a Florentine bride" matches his, Giorgia's, and Jeanne's briefings. "Can pay for it" matches Jeanne's "every guest knows France can pay"; nothing of Fra Tommaso's letter, Jeanne's pension offer, or the affair. The match isn't promised for tonight |
 | San Frediano (`pub-san-frediano`) | public | Pass | Exactly the Shared Canon's public fact: a Frenchman killed by the north chapel seven years ago, no one charged. "Stabbed" matches Beatrice's briefing. No gambler, name, seal, sacristan, or date beyond the year, so no new path to F2 or F4 |
 | The palazzo (`pub-palazzo`) | public | Pass | A neutral host, which no briefing contradicts. Leaving out a garden and a chapel keeps Piero's ribbon, the Embassy gardens, and both chapels unblurred |
@@ -1136,7 +1149,7 @@ Your title. Everyone here wants something from you, which is its own kind of pow
 
 ## Open Questions
 
-- [ ] **Who leads the Dominicans?** (v0.13, from the lore check) Fra Tommaso's briefing makes him "a follower of the reformer Savonarola"; Beatrice's says he "leads your Order in the city", Isabella's calls him "leader of your order", and two public lines say he "leads the Dominican order". Public lore names Savonarola the Dominican prior at San Marco. It reads well enough as "leads the friars in the city, under Savonarola", so the lore check passes. A tidier version would say **"leads the city's friars tonight"** in the two public lines and Isabella's line. Changing the public lines means copying them again to `relationships.json` and the lore file, so only worth doing if Dylan wants it, or if the first full games show the AI guests confused
+- [x] ~~**Who leads the Dominicans?**~~ Settled in v0.14: Savonarola's follower, who leads the Dominicans at tonight's gathering
 
 - [ ] **A neutral type for the Web of Secrets?** (v0.12) Five briefing connections fit none of the six types (Shared Canon: Relationships, "Left off the web"), so they aren't drawn. A seventh, neutral type ("acquaintance") would let the web show them uncoloured. Technical Design owns the type list; only worth asking for if a player misses them
 
