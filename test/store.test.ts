@@ -217,12 +217,26 @@ test("TD v0.36: every prompt is v0.35's with only the changelog's changes: arriv
   console.log(`block 6: ${(linesBefore / notebooks).toFixed(2)} lines a call on v0.35, ${(linesAfter / notebooks).toFixed(2)} on v0.36 (${notebooks} calls)`);
 });
 
-test("PROBE_TD defaults to 0.50, with Characters v0.16 and Mechanics v0.36 (CC-20261114-16, #143: France's payroll and groups; #128: named places; #136: Characters v0.15; #139: Mechanics v0.36)", () => {
+test("PROBE_TD defaults to 0.51, with Characters v0.16 and Mechanics v0.36 (CC-20261114-20, #146: Il Notaio's guarded reading; #143: France's payroll and groups; #128: named places; #136: Characters v0.15; #139: Mechanics v0.36)", () => {
   if (process.env.PROBE_TD || process.env.PROBE_CHARACTERS) return;
-  assert.equal(fakeDocs.versions.technicalDesign, "0.50");
+  assert.equal(fakeDocs.versions.technicalDesign, "0.51");
   assert.equal(fakeDocs.versions.characters, "0.16");
   assert.equal(fakeDocs.retitled, true);
   assert.equal(fakeDocs.versions.mechanics, "0.36");
+});
+
+test("TD v0.51: every prompt is v0.50's, byte for byte (its changes are the player screen's: Il Notaio's guarded reading, the errand flag, the tour's hold); #143's and #128's gates still hold", async () => {
+  const v50 = loadDocs(docsFor("0.50"));
+  const v51 = loadDocs(docsFor("0.51"));
+  assert.equal(v51.versions.characters, v50.versions.characters);
+  assert.deepEqual(v51.templates, v50.templates, "every prompt template, as v0.50 loads it");
+  assert.equal(v51.retitled, true, "France's payroll and groups (TD v0.50 on)");
+  assert.equal(v51.namedPlaces, v50.namedPlaces, "named places (TD v0.49 on)");
+  const a = await playFakeOn(v50);
+  const b = await playFakeOn(v51);
+  assert.ok(b.calls.length > 100);
+  assert.equal(promptHash(b.calls), promptHash(a.calls));
+  assert.deepEqual(b.game.lines, a.game.lines, "the same game");
 });
 
 test("TD v0.49: every prompt is v0.48's with only {room} and {conversation_label} changed, to name the places", async () => {

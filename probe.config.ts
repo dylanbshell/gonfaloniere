@@ -110,7 +110,7 @@ export function docsFor(td: string, characters?: string) {
 }
 
 export const config = {
-  docs: docsFor(process.env.PROBE_TD ?? "0.50"),
+  docs: docsFor(process.env.PROBE_TD ?? "0.51"),
 
   /** Same for every model; 0.7 until Technical Design sets a play value. */
   temperature: 0.7,

@@ -104,6 +104,8 @@ let tipAfterStart: string | null = null;
 type Story = { paras: { state: string; text: string; full: string }[]; choice: boolean; gloss: string | null; name: string | null };
 const opening: Partial<Record<"beforeWriting" | "writing" | "afterClick" | "end" | "skipped" | "reduced", Story>> & { headTop?: number } = {};
 let tourAtStart: string | null = null;
+/** TD v0.51, the tour's hold: what the screen had while the tour ran, and what came once it was skipped. */
+const held: { lines?: number; places?: number; errand?: boolean; sent?: string[]; linesAfter?: number } = {};
 
 const VIEW = { width: 1200, height: 700 };
 
@@ -167,8 +169,15 @@ before(async () => {
   await page.until(`document.querySelector(".tour")`);
   tourAtStart = await page.eval<string>(`document.querySelector(".tour").dataset.step`);
   await page.shot("tour-after-choice");
+  // TD v0.51: the game holds its first line while the tour runs, with the sheet, errand, and room in hand.
+  await new Promise((r) => setTimeout(r, 300));
+  Object.assign(held, await page.eval(`({ lines: document.querySelectorAll(".stream .ln").length, places: document.querySelectorAll(".places .place").length, errand: !!document.querySelector(".side.left .errand") })`));
+  await page.eval(`(() => { window.__sent = []; const send = WebSocket.prototype.send; WebSocket.prototype.send = function (d) { window.__sent.push(JSON.parse(d)); return send.call(this, d); }; })()`);
   await page.eval(`document.querySelector(".tour-skip").click()`);
   await page.until(`!document.querySelector(".tour")`);
+  await page.until(`document.querySelector(".stream .ln")`);
+  held.sent = await page.eval<string[]>(`window.__sent.map((m) => m.type)`);
+  held.linesAfter = await page.eval<number>(`document.querySelectorAll(".stream .ln").length`);
 });
 
 /** Stops a process and its children (npx starts tsx, which starts node), and waits for it to go. */
@@ -429,9 +438,9 @@ test("the Web of Secrets: a bar along the bottom that slides up to nine-tenths a
   await page.shot("web-key");
   await page.eval(`document.querySelector(".key-type").click()`);
   assert.equal(await page.eval<number>(`document.querySelectorAll(".web-diagram .key-on, .web-diagram .key-off").length`), 0, "clicking again clears it");
-  // Il Notaio's box answers a selection: on the default TD (v0.45), the fake caller's reading, past the quote check.
-  await page.eval(`document.querySelector('.web .node').dispatchEvent(new MouseEvent("click", { bubbles: true }))`);
-  await page.until(`document.querySelector(".reading-text")?.dataset.reading === "reading"`);
+  // Il Notaio's box answers a selection: on the default TD (v0.51), his guarded reading, every sentence checked.
+  await page.eval(`document.querySelector('.web .node:not(.me)').dispatchEvent(new MouseEvent("click", { bubbles: true }))`);
+  await page.until(`document.querySelector(".reading-text")?.dataset.reading === "guarded"`);
   await page.shot("web-reading");
   await page.key("Escape", 27);
   await page.until(`!document.querySelector(".web-dock.open") && document.querySelector(".web-dock").getAnimations().length === 0`);
@@ -593,8 +602,10 @@ test("the errand card with plot_reward off (the mini-game): the no-extra-act lin
 
 // ---- CC-20261114-05 (#109) -------------------------------------------------------------------------------
 
-test("a note's conclusion fills the input box and highlights Do, sending nothing; Do runs it and the set-aside message comes back", { skip }, async () => {
-  await reopen();
+test("a note's conclusion fills the input box and highlights Do, sending nothing; Do runs it and the set-aside message comes back", { skip }, () =>
+  // Only a player with a knowledge errand sees the button (TD v0.51's flag); the fake game is Francesco's, so the
+  // states are given the flag, as the game would send it for Piero.
+  withStates("(s) => ({ ...s, knowledgeErrand: true })", async () => {
   await page.until(`document.querySelector(".input textarea")`);
   // Every message the screen sends, from here on.
   await page.eval(`(() => { window.__sent = []; const send = WebSocket.prototype.send; WebSocket.prototype.send = function (d) { window.__sent.push(JSON.parse(d)); return send.call(this, d); }; })()`);
@@ -657,6 +668,101 @@ test("a note's conclusion fills the input box and highlights Do, sending nothing
   await page.key("Backspace", 8);
   await page.until(`document.querySelector(".input textarea").value === ${JSON.stringify(DRAFT)}`);
   assert.deepEqual(await commandsSent(), [conclusion], "clearing it sent nothing");
+}));
+
+// ---- CC-20261114-20 (#146, part 2 of 2) ----------------------------------------------------------------------
+
+test("TD v0.51, the tour's hold: while the tour runs the screen has the sheet, errand, and places, and no line; skipping it sends begin and the evening starts", { skip }, () => {
+  assert.equal(held.lines, 0, "no line while the tour ran");
+  assert.ok(held.errand && held.places! > 0, "the errand and the places were there to point at");
+  assert.deepEqual(held.sent!.filter((t) => t === "begin"), ["begin"], "skipping it began the game");
+  assert.ok(held.linesAfter! > 0, "then the first lines");
+});
+
+test("TD v0.51: the conclusion button is hidden for an errand a conclusion can't finish (Francesco's), on every note", { skip }, async () => {
+  await reopen();
+  await webUp();
+  await page.eval(`document.querySelector('[data-hint="notesTab"]').click()`);
+  await page.until(`document.querySelector(".web textarea")`);
+  await pickNode(await page.eval<string>(`document.querySelector(".web .node:not(.me)").dataset.guest`));
+  await page.eval(`document.querySelector(".web textarea").focus()`);
+  await page.type("Hidden button check.");
+  await page.eval(`document.querySelector('[data-hint="noteSave"]').click()`);
+  await page.until(`[...document.querySelectorAll(".note .note-text")].some((n) => n.textContent === "Hidden button check.")`);
+  assert.equal(await page.eval<number>(`document.querySelectorAll(".note .conclude").length`), 0, "no note has the button");
+  await page.eval(`document.querySelector('[data-hint="recordTab"]').click()`);
+  await webDown();
+});
+
+test("TD v0.51 in the Web of Secrets: the column is dialogue only, and Il Notaio's box holds the background, then tonight stage by stage, then the tally", { skip }, async () => {
+  await reopen();
+  // A guest the player has heard speak.
+  await page.until(`document.querySelector(".stream .ln.speech:not(.mine) .guest")`);
+  const guest = await page.eval<string>(`document.querySelector(".stream .ln.speech:not(.mine) .guest").textContent`);
+  await webUp();
+  await pickNode(guest);
+  await page.until(`document.querySelector('.reading-text[data-reading="guarded"]')`);
+  const r = await page.eval<{ column: string[]; extra: number; bg: boolean; stages: string[]; sentences: string[]; tally: boolean; order: boolean }>(`(() => {
+    const rec = document.querySelector(".record"), box = document.querySelector(".reading-text.guarded");
+    const at = (sel) => { const e = box.querySelector(sel); return e ? [...box.querySelectorAll("*")].indexOf(e) : -1; };
+    return {
+      column: [...rec.querySelectorAll(".heard li .sp")].map((e) => e.textContent),
+      extra: rec.querySelectorAll(".connection, .saw, .label").length,
+      bg: !!box.querySelector(".reading-background .reading-conn"),
+      stages: [...box.querySelectorAll(".reading-stage-head")].map((e) => e.textContent),
+      sentences: [...box.querySelectorAll(".reading-sentence")].map((e) => e.textContent),
+      tally: !!box.querySelector(".reading-tally"),
+      order: at(".reading-background") < at(".reading-stage") && at(".reading-stage") < at(".reading-tally"),
+    };
+  })()`);
+  assert.ok(r.column.length > 0 && r.column.every((n) => n === guest), `${guest}'s lines only: ${JSON.stringify(r.column)}`);
+  assert.equal(r.extra, 0, "no connections, events, or labels in the column");
+  assert.ok(r.bg, "the background: his connection lines");
+  assert.ok(r.stages.length > 0 && r.stages.every((h) => /^In .+:$/.test(h)), "a paragraph per stage, each opening with its name");
+  assert.ok(r.sentences.length > 0 && r.sentences.length <= 8 && r.sentences.every((t) => t.startsWith(`${guest} `)), "his lines in Il Notaio's register");
+  assert.ok(r.tally && r.order, "background, tonight, then the tally");
+  await page.shot("guarded-reading");
+  // A lore note opens its entry in The city, over everything.
+  if (await page.eval<boolean>(`!!document.querySelector(".reading .reading-note .lore-link")`)) {
+    const title = await page.eval<string>(`document.querySelector(".reading .reading-note .lore-link").textContent`);
+    await page.eval(`document.querySelector(".reading .reading-note .lore-link").click()`);
+    await page.until(`document.querySelector(".modal")`);
+    assert.ok(await page.eval<boolean>(`document.querySelector(".modal").textContent.includes(${JSON.stringify(title)})`), "The city, at the entry");
+    assert.ok(await page.eval<boolean>(`!!document.querySelector('.reading-text[data-reading="guarded"]')`), "the selection and the box stay");
+    await page.eval(`document.querySelector('.modal [data-hint="close"]').click()`);
+    await page.until(`!document.querySelector(".modal")`);
+  }
+  await webDown();
+});
+
+test("TD v0.51: Il Notaio's summary over a past stage, expanded with a strip of dialogue peeking; a click in the window minimizes it, a click on it expands it", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".stage-bar .mark.past")`);
+  const stage = await page.eval<string>(`document.querySelector(".stage-bar .mark.past:last-of-type, .stage-bar .mark.past").getAttribute("aria-label")`);
+  await page.eval(`document.querySelector('.stage-bar .mark.past[aria-label="${stage.replace(/'/g, "\\'")}"] .stage').click()`);
+  await page.until(`document.querySelector(".past-stage") && document.querySelector('.past-summary[data-state="expanded"]')`);
+  const geo = () =>
+    page.eval<{ area: { top: number; bottom: number; height: number }; box: { top: number; bottom: number; height: number }; groups: number; heads: number }>(`(() => {
+      const r = (e) => { const b = e.getBoundingClientRect(); return { top: b.top, bottom: b.bottom, height: b.height }; };
+      const box = document.querySelector(".past-summary");
+      return { area: r(document.querySelector(".stream-area")), box: r(box), groups: box.querySelectorAll(".summary-group").length, heads: box.querySelectorAll(".summary-where").length };
+    })()`);
+  const steady = () => page.until(`document.getAnimations().every((a) => a.effect?.getComputedTiming().iterations === Infinity)`);
+  await steady();
+  let g = await geo();
+  assert.ok(g.box.top - g.area.top > 10 && g.box.top - g.area.top < 80, `a strip of the dialogue peeks out at the top (${g.box.top - g.area.top}px)`);
+  assert.ok(g.box.height > g.area.height * 0.7, "it covers the window down to the input box");
+  assert.ok(g.groups > 0 && g.heads === g.groups, "bullets grouped under each conversation's line");
+  await page.shot("past-summary");
+  await clickAt({ x: (await page.eval<number>(`document.querySelector(".stream-area").getBoundingClientRect().left + 40`)), y: g.area.top + 12 });
+  await page.until(`document.querySelector('.past-summary[data-state="minimized"]')`);
+  await steady();
+  g = await geo();
+  assert.ok(g.area.bottom - g.box.bottom < 20 && g.box.height < g.area.height * 0.4, "minimized at the foot, its first lines showing");
+  await clickAt(".past-summary");
+  await page.until(`document.querySelector('.past-summary[data-state="expanded"]')`);
+  await page.eval(`document.querySelector('[data-hint="return"]').click()`);
+  await page.until(`!document.querySelector(".past-stage") && !document.querySelector(".past-summary")`);
 });
 
 // ---- CC-20261114-06 (#113) -------------------------------------------------------------------------------
@@ -733,6 +839,11 @@ test("the stage bar: hovering expands a past or a future stage; a past stage ope
   // A selected guest's dots: on each past stage they appear in.
   await open();
   await page.until(`document.querySelector(".past-stage .guest, .past-stage .ln")`);
+  // Il Notaio's summary covers the window (TD v0.51): a first click in it folds the box away.
+  if (await page.eval<boolean>(`!!document.querySelector('.past-summary[data-state="expanded"]')`)) {
+    await page.eval(`document.querySelector(".stream").click()`);
+    await page.until(`document.querySelector('.past-summary[data-state="minimized"]')`);
+  }
   const name = await page.eval<string | null>(`document.querySelector(".past-stage .guest")?.textContent ?? null`);
   if (name) {
     await page.eval(`document.querySelector(".past-stage .guest").click()`);

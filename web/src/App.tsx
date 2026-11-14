@@ -7,7 +7,7 @@
 import { Component, Fragment, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { connect, type Ev } from "./connection.ts";
 import { COMMAND, MENTION, canDo, canSpeak, isCommand, matchCommands, matchGuests, openMenu, withMention, type Trigger } from "./input.ts";
-import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityList, curve, derive, earlierThisStage, errandDeadline, errandLine, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, notesFor, ownPlace, placeHeading, placeList, placeholderExample, preview, readingFor, recordUpTo, roomOf, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, type Card, type Line, type LoreEntry, type Note, type Place, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
+import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityList, curve, derive, earlierThisStage, errandDeadline, errandLine, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, notesFor, ownPlace, placeHeading, placeList, placeholderExample, preview, readingFor, recordUpTo, roomOf, runFrom, summaryFor, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, type Card, type Line, type GuardedReading, type LoreEntry, type Note, type NotaioItem, type Place, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
 import { getInfo, guest, names, narrator, notaioHint, placeDescription, placeholderExamples, setInfo, stageDescription, w, type GlossEntry, type StartInfo } from "./words.ts";
 
 type Send = (m: unknown) => void;
@@ -793,17 +793,30 @@ function Game({ me, url }: { me: string; url: string }) {
   const [log, setLog] = useState<Ev[]>([]);
   const [status, setStatus] = useState<"open" | "closed" | "connecting">("connecting");
   const conn = useRef<{ send: Send } | null>(null);
+  /** The tour has ended (or ran before), so the game may begin: sent now, and again on every (re)connection. */
+  const begun = useRef(false);
   useEffect(() => {
-    conn.current = connect(url, { event: (e) => setLog((l) => [...l, e]), reset: () => setLog([]), status: setStatus });
+    conn.current = connect(url, {
+      event: (e) => setLog((l) => [...l, e]),
+      reset: () => setLog([]),
+      status: (st) => {
+        setStatus(st);
+        if (st === "open" && begun.current) conn.current?.send({ type: "begin" });
+      },
+    });
   }, [url]);
   const v = useMemo(() => derive(log), [log]);
   const send: Send = (m) => conn.current?.send(m);
   /**
    * The tour has ended for this game (Interface v0.8): finished on Your briefing, skipped, or already run in
-   * this browser. Technical Design v0.51's hold on the game's first line hooks in here: #146 sends `begin`.
-   * Until then the evening starts while the player tours. A tour run again from Show me around doesn't call it.
+   * this browser. Technical Design v0.51's hold: the game waits for `begin` before its first line, so it's sent
+   * here (and, if the connection isn't open yet, as soon as it is). Only the game's first counts. A tour run
+   * again from Show me around doesn't call it.
    */
-  const tourEnded = (_how: TourEnd) => {};
+  const tourEnded = (_how: TourEnd) => {
+    begun.current = true;
+    conn.current?.send({ type: "begin" });
+  };
   return <GameView me={me} v={v} send={send} status={status} onTourEnd={tourEnded} />;
 }
 
@@ -885,13 +898,18 @@ export function GameView({
     if (guest && !selection.picked.includes(guest)) selection.set([guest]);
     setWebOpen(true);
   };
+  /** A lore note in Il Notaio's box (TD v0.51): opens its entry in The city, over everything, keeping the selection. */
+  const openEntry = (id: string) => {
+    setPlaces((p) => ({ ...p, city: id }));
+    setDeck("city");
+  };
   return (
     <SelContext.Provider value={selection}>
       <div className={`layout${right.hidden ? " right-hidden" : ""}`} ref={layout}>
         <Boundary panel="left" fallback={(n) => <aside className="side left">{n}</aside>}>
           <Left me={me} v={v} onDeck={setDeck} onTour={tour.again} />
         </Boundary>
-        <Centre me={me} v={v} send={send} dead={dead} status={status} boxFill={boxFill} initialPast={pastStage} />
+        <Centre me={me} v={v} send={send} dead={dead} status={status} boxFill={boxFill} initialPast={pastStage} onEntry={openEntry} />
         <Boundary panel="right" fallback={(n) => <aside className="side right">{n}</aside>}>
           {right.hidden ? <RightHandle onShow={() => right.set(false)} /> : <Right me={me} v={v} onWeb={openWeb} onHide={() => right.set(true)} layout={layout} />}
         </Boundary>
@@ -904,7 +922,7 @@ export function GameView({
           </div>
         )}
       >
-        <WebDock me={me} v={v} open={webOpen} setOpen={setWebOpen} initialTab={webTab} initialKey={keyType ?? null} send={send} dead={dead} boxClosed={cardWaiting} onConclude={concludeInBox} />
+        <WebDock me={me} v={v} open={webOpen} setOpen={setWebOpen} initialTab={webTab} initialKey={keyType ?? null} send={send} dead={dead} boxClosed={cardWaiting} onConclude={concludeInBox} onEntry={openEntry} />
       </Boundary>
       {/* After everything, and above it all in theme.css's order, so nothing covers it. */}
       {deck && v.sheet && (
@@ -1337,13 +1355,17 @@ const roomLabel = (s: State | null) =>
 /** One line for an earlier conversation in this stage: where. */
 const earlierLabel = (seg: Segment, me: string) => w("screen.earlier.item", { where: conversationLabel(seg.state, me) });
 
-function Centre({ me, v, send, dead, status, boxFill, initialPast = null }: { me: string; v: View; send: Send; dead: boolean; status: string; boxFill: BoxFill | null; initialPast?: string | null }) {
+function Centre({ me, v, send, dead, status, boxFill, initialPast = null, onEntry = () => {} }: { me: string; v: View; send: Send; dead: boolean; status: string; boxFill: BoxFill | null; initialPast?: string | null; onEntry?: (id: string) => void }) {
   const end = useRef<HTMLDivElement>(null);
   const stream = useRef<HTMLDivElement>(null);
   const hint = useHint();
   const { sel, clear } = useContext(SelContext);
   /** The past stage open in the chat window (Interface v0.5, Past stages), read-only; null for the current stage. */
   const [past, setPast] = useState<string | null>(initialPast);
+  // Il Notaio's summary over a past stage (Interface v0.13): expanded when a stage opens; a click in the
+  // window folds it to the foot, and a click on it brings it back.
+  const [covered, setCovered] = useState(true);
+  useEffect(() => setCovered(true), [past]);
   /** Earlier conversations the player opened or closed by hand, by their first line; the rest follow the selected guest. */
   const [manual, setManual] = useState<Map<string, boolean>>(() => new Map());
   // The current stage keeps its newest line in view; a past stage holds still while the player reads, and
@@ -1389,7 +1411,8 @@ function Centre({ me, v, send, dead, status, boxFill, initialPast = null }: { me
         {/* The connection's state in the header, so the stream doesn't move when it changes. */}
         {status !== "open" && <div className="notice status">{w(status === "closed" ? "screen.reconnecting" : "screen.connecting")}</div>}
       </header>
-      <div className="stream" ref={stream} onClick={sel ? deselectOnBackground(clear) : undefined}>
+      <div className="stream-area">
+      <div className="stream" ref={stream} onClick={sel ? deselectOnBackground(clear) : undefined} onClickCapture={past && covered ? (e) => (e.stopPropagation(), e.preventDefault(), setCovered(false)) : undefined}>
         <Boundary panel="stream">
           {past ? (
             <PastStage stage={past} v={v} me={me} />
@@ -1430,6 +1453,12 @@ function Centre({ me, v, send, dead, status, boxFill, initialPast = null }: { me
         </Boundary>
         <div ref={end} />
       </div>
+      {past && (
+        <Boundary panel="summary" fallback={() => null}>
+          <PastSummary key={past} stage={past} v={v} me={me} expanded={covered} onToggle={() => setCovered(!covered)} onEntry={onEntry} />
+        </Boundary>
+      )}
+      </div>
       <Boundary panel="hint">
         <NotaioHint me={me} v={v} />
       </Boundary>
@@ -1452,7 +1481,6 @@ function PastStage({ stage, v, me }: { stage: string; v: View; me: string }) {
   const lore = v.sheet?.lore ?? [];
   return (
     <section className="past-stage" data-stage={stage} aria-label={stage}>
-      <PastSummary stage={stage} v={v} />
       <div className="label" {...hint("pastStage", { focusable: true })}>
         {w("screen.pastStage.heading", { stage })}
       </div>
@@ -1475,13 +1503,67 @@ function PastStage({ stage, v, me }: { stage: string; v: View; me: string }) {
 }
 
 /**
- * The place for Il Notaio's summary of a past stage (Interface v0.13, Past stages; Technical Design v0.51,
- * Past-stage summaries): his box goes here, first in the past stage's window, covering the dialogue from
- * just under the bar down to the input box. It's a model call, built in #146; until then a past stage opens
- * on its dialogue alone, so this renders nothing.
+ * Il Notaio's summary of a past stage (Interface v0.13, Past stages; Technical Design v0.51, Past-stage
+ * summaries): over the chat window, from a strip of dialogue under the bar down to the input box. Bullets
+ * grouped by conversation, each group under its conversation line: lines in his register, events as their
+ * own record lines, and public notes. Clicking in the window minimizes it to the foot, still showing its
+ * first lines; clicking it expands it again. Until the game has written it (or on a TD before v0.51), the
+ * stage opens on its dialogue alone.
  */
-function PastSummary(_props: { stage: string; v: View }) {
-  return null;
+function PastSummary({ stage, v, me, expanded, onToggle, onEntry }: { stage: string; v: View; me: string; expanded: boolean; onToggle: () => void; onEntry: (id: string) => void }) {
+  const hint = useHint();
+  const summary = summaryFor(v, stage);
+  if (!summary) return null;
+  return (
+    <aside className="reading past-summary" data-state={expanded ? "expanded" : "minimized"} role="button" aria-expanded={expanded} onClick={onToggle} onKeyDown={toggleKeys(onToggle)} {...hint("pastSummary", { focusable: true })}>
+      <div className="reading-head">
+        <Narrated template={w("screen.pastStage.summaryTitle")} />
+      </div>
+      {summary.empty && <p className="reading-text tally">{summary.empty}</p>}
+      {summary.groups.map((g) => {
+        const run = runFrom(v, g.from);
+        return (
+          <section className="summary-group" key={g.from} data-conversation={g.conversation}>
+            <div className="summary-where">{conversationLabel(run?.state ?? null, me)}</div>
+            <ul className="summary-items">
+              {g.items.map((item, i) => (
+                <li key={i} className={`summary-item ${item.kind}`}>
+                  <ReadingItem item={item} onEntry={onEntry} />
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
+    </aside>
+  );
+}
+
+/** Enter and Space on a box that toggles. */
+const toggleKeys = (toggle: () => void) => (e: React.KeyboardEvent) => {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    toggle();
+  }
+};
+
+/**
+ * One item of his reading or summary (TD v0.51): his sentence; an event as its own record line (a death in the
+ * screen's words); or code's public note, set apart in a smaller style, its title opening the entry.
+ */
+function ReadingItem({ item, onEntry }: { item: NotaioItem; onEntry: (id: string) => void }) {
+  const hint = useHint();
+  if (item.kind === "sentence") return <span className="reading-sentence">{item.text}</span>;
+  if (item.kind === "event") return <span className={`reading-event ${item.item}`}>{item.item === "death" ? w("screen.web.died", { name: item.text }) : item.text}</span>;
+  return (
+    <span className="reading-note">
+      <button className="lore-link" onClick={(e) => (e.stopPropagation(), onEntry(item.entry))} {...hint("readingNote")}>
+        {item.title}
+      </button>
+      {w("screen.reading.noteSep")}
+      {item.text}
+    </span>
+  );
 }
 
 /**
@@ -1945,6 +2027,7 @@ function WebDock({
   dead,
   boxClosed,
   onConclude,
+  onEntry = () => {},
 }: {
   me: string;
   v: View;
@@ -1958,6 +2041,8 @@ function WebDock({
   boxClosed: boolean;
   /** Hands a note's conclusion to the input box (Interface v0.4). */
   onConclude: (text: string) => void;
+  /** Opens a lore entry in The city (a note in Il Notaio's box, TD v0.51). */
+  onEntry?: (id: string) => void;
 }) {
   const info = getInfo();
   const hint = useHint();
@@ -1986,7 +2071,6 @@ function WebDock({
   const who = picked.length === 2 ? w("screen.web.between", { a: picked[0]!, b: picked[1]! }) : (picked[0] ?? "");
   const record = heardAndSaw(v, picked, me);
   const sections = notesFor(v.notes, picked);
-  const typeLabel = (t: string) => types.find((x) => x.type === t)?.label ?? w("screen.web.otherType");
   /** A note's guest or pair, by name: selects them, so the list narrows and the web highlights them (Interface v0.7). */
   const aboutLabel = (g: string[]) => (g.length === 2 ? w("screen.web.between", { a: g[0]!, b: g[1]! }) : (g[0] ?? w("screen.web.free")));
   const About = ({ guests }: { guests: string[] }) =>
@@ -2002,8 +2086,9 @@ function WebDock({
       {/* Under no heading of its own (one guest's list, holding their pairs' notes too), a note names its guest or pair. */}
       {!sameGuests(n.guests, heading ?? picked) && <About guests={n.guests} />}
       <span className="note-text">{n.text}</span>
-      {/* Only a note on a guest or a pair can be a conclusion; a free note has no button (Interface v0.3). */}
-      {n.guests.length > 0 && (
+      {/* Only a note on a guest or a pair can be a conclusion; a free note has no button (Interface v0.3). And only
+          when the player's errand can be finished by one (TD v0.51's flag in their state; Interface v0.13). */}
+      {n.guests.length > 0 && v.state?.knowledgeErrand === true && (
         <button className="secondary small conclude" disabled={!conclude || dead || boxClosed} onClick={() => onConclude(`${conclude!.name} ${n.text}`)} {...hint(boxClosed && !dead ? "concludeWaiting" : "conclude")}>
           {w("screen.web.conclude")}
         </button>
@@ -2131,15 +2216,10 @@ function WebDock({
                 (picked.length === 0 ? (
                   <p className="muted record-pick">{w("screen.web.pick")}</p>
                 ) : (
-                  <RecordPane key={[...picked].sort().join("|")} box={<ReadingText me={me} v={v} picked={picked} />}>
+                  <RecordPane key={[...picked].sort().join("|")} box={<ReadingText me={me} v={v} picked={picked} onEntry={onEntry} />}>
+                    {/* Interface v0.5: dialogue only, newest first: one guest's lines in your presence, or what a pair said to each other. */}
                     <div className="record">
                       <h3>{who}</h3>
-                      {connections.filter(lit).map((c, i) => (
-                        <p key={i} className={`connection${c.private ? " yours" : ""}`}>
-                          <span className={`type-chip rel-${c.type}`}>{typeLabel(c.type)}</span> {c.line} {c.private && <span className="muted">{w("screen.web.yours")}</span>}
-                        </p>
-                      ))}
-                      <div className="label">{w("screen.web.heard")}</div>
                       {record.heard.length ? (
                         <ul className="heard">
                           {record.heard.map((l) => (
@@ -2148,14 +2228,6 @@ function WebDock({
                               {l.addressee && <span className="muted"> {l.addressee === me ? w("screen.toYou") : w("screen.to", { name: l.addressee })}</span>} {l.text}
                             </li>
                           ))}
-                        </ul>
-                      ) : (
-                        <p className="muted">{w("screen.web.nothing")}</p>
-                      )}
-                      <div className="label">{w("screen.web.saw")}</div>
-                      {record.saw.length ? (
-                        <ul className="saw">
-                          {record.saw.map((s) => (s.kind === "line" ? <li key={s.line.id} data-line={s.line.id}>{s.line.text}</li> : <li key={`d${s.name}`}>{w("screen.web.died", { name: s.name })}</li>))}
                         </ul>
                       ) : (
                         <p className="muted">{w("screen.web.nothing")}</p>
@@ -2217,19 +2289,65 @@ function useReadingRequest(me: string, v: View, picked: string[], open: boolean,
     if (!open || !picked.length || have || asked.current.has(key)) return;
     const t = setTimeout(() => {
       asked.current.add(key);
-      send({ type: "reading", guests: picked });
+      send({ type: "select", guests: picked });
     }, 400);
     return () => clearTimeout(t);
   }, [open, key, !!have]);
 }
 
-/** The reading's words: today's reading (#146 replaces it), or the tally, or that he's considering. */
-function ReadingText({ me, v, picked }: { me: string; v: View; picked: string[] }) {
+/**
+ * The reading's words. From TD v0.51 his guarded reading: the background, then tonight a paragraph per stage,
+ * then the tally. Before it, the reading as it was, or the tally; or that he's considering.
+ */
+function ReadingText({ me, v, picked, onEntry = () => {} }: { me: string; v: View; picked: string[]; onEntry?: (id: string) => void }) {
   const have = readingFor(v, picked, me);
+  if (have?.guarded) return <Guarded r={have.guarded} tally={have.tally} me={me} onEntry={onEntry} />;
   return (
     <p className={`reading-text${have?.text ? "" : " tally"}`} data-reading={have ? (have.text ? "reading" : "tally") : "waiting"}>
       {have ? (have.text ?? have.tally) : w("screen.reading.waiting")}
     </p>
+  );
+}
+
+/** TD v0.51's reading, in the box (Interface v0.13): background, tonight stage by stage, then the tally. */
+function Guarded({ r, tally, me, onEntry }: { r: GuardedReading; tally: string; me: string; onEntry: (id: string) => void }) {
+  const hint = useHint();
+  const between = (g: string[]) => (g.length === 2 ? w("screen.web.between", { a: g[0]!, b: g[1]! }) : (g[0] ?? ""));
+  const bg = r.background;
+  return (
+    <div className="reading-text guarded" data-reading="guarded">
+      {(bg.connections.length > 0 || bg.lore.length > 0) && (
+        <p className="reading-background">
+          {bg.connections.map((c, i) => (
+            <span key={i} className={`reading-conn${c.private ? " yours" : ""}`}>
+              {w("screen.reading.connection", { between: c.private ? (c.between.find((g) => g !== me) ?? between(c.between)) : between(c.between), line: c.line })}
+              {c.private && <span className="muted"> {w("screen.web.yours")}</span>}{" "}
+            </span>
+          ))}
+          {bg.lore.map((l) => (
+            <span key={l.entry} className="reading-note">
+              <button className="lore-link" onClick={(e) => (e.stopPropagation(), onEntry(l.entry))} {...hint("readingNote")}>
+                {l.title}
+              </button>
+              {w("screen.reading.noteSep")}
+              {l.text}{" "}
+            </span>
+          ))}
+        </p>
+      )}
+      {r.stages.map((st) => (
+        <p key={st.stage} className="reading-stage" data-stage={st.stage}>
+          <span className="reading-stage-head">{st.heading}</span>{" "}
+          {st.items.map((item, i) => (
+            <Fragment key={i}>
+              <ReadingItem item={item} onEntry={onEntry} />{" "}
+            </Fragment>
+          ))}
+        </p>
+      ))}
+      {r.empty && <p className="reading-empty">{r.empty}</p>}
+      <p className="reading-tally tally">{tally}</p>
+    </div>
   );
 }
 

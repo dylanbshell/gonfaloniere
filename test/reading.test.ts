@@ -90,6 +90,8 @@ async function playWithReadings(docs: DocSources, seed = 2000) {
     onClose: () => {},
   };
   ctrl.attach(conn);
+  // TD v0.51, the tour's hold: the screen begins at once (before v0.51 it changes nothing).
+  ctrl.receive(JSON.stringify({ type: "begin" }));
   await game.play();
   // Let the last readings finish.
   await new Promise((r) => setTimeout(r, 20));
@@ -323,7 +325,7 @@ test("TD v0.51's reading and summaries never reach a character's prompt, the gam
 });
 
 test("before TD v0.51 the reading is today's: no guarded field, no summaries, no hold", async () => {
-  const { readings, log } = await playWithReadings(fakeDocs);
+  const { readings, log } = await playWithReadings(loadDocs(docsFor("0.50")));
   assert.ok(readings.length > 0 && readings.every((r) => r.guarded === undefined));
   assert.ok(!log.some((e) => e.type === "stage-summary"));
 });
