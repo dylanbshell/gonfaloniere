@@ -1,1 +1,142 @@
-[]
+[
+  {
+    "id": "rel-piero-raffaello",
+    "title": "Piero and Raffaello",
+    "scope": "public",
+    "kind": "relationship",
+    "text": "Piero de' Medici and Raffaello de' Medici: Brothers, sons of the late Lorenzo. Piero is the elder and the heir.",
+    "source": "Characters v0.12, Shared Canon: Relationships (Lore v0.6)",
+    "status": "approved",
+    "canon_checked": true
+  },
+  {
+    "id": "rel-piero-clarice",
+    "title": "Piero and Clarice",
+    "scope": "public",
+    "kind": "relationship",
+    "text": "Piero de' Medici and Clarice Orsini: Cousins of the Medici house.",
+    "source": "Characters v0.12, Shared Canon: Relationships (Lore v0.6)",
+    "status": "approved",
+    "canon_checked": true
+  },
+  {
+    "id": "rel-raffaello-clarice",
+    "title": "Raffaello and Clarice",
+    "scope": "public",
+    "kind": "relationship",
+    "text": "Raffaello de' Medici and Clarice Orsini: Cousins of the Medici house.",
+    "source": "Characters v0.12, Shared Canon: Relationships (Lore v0.6)",
+    "status": "approved",
+    "canon_checked": true
+  },
+  {
+    "id": "rel-francesco-giorgia",
+    "title": "Francesco and Giorgia",
+    "scope": "public",
+    "kind": "relationship",
+    "text": "Francesco Pazzi and Giorgia Pazzi: Brother and sister. Francesco heads the Pazzi house.",
+    "source": "Characters v0.12, Shared Canon: Relationships (Lore v0.6)",
+    "status": "approved",
+    "canon_checked": true
+  },
+  {
+    "id": "rel-lupo-francesco",
+    "title": "Lupo and Francesco",
+    "scope": "public",
+    "kind": "relationship",
+    "text": "Lupo and Francesco Pazzi: Lupo is the Pazzi bodyguard, and Francesco is the man he keeps alive.",
+    "source": "Characters v0.12, Shared Canon: Relationships (Lore v0.6)",
+    "status": "approved",
+    "canon_checked": true
+  },
+  {
+    "id": "rel-lenoir-emile",
+    "title": "LeNoir and Emile",
+    "scope": "public",
+    "kind": "relationship",
+    "text": "Captain Armand LeNoir and Emile de Valois: LeNoir is captain of the Prince's guard.",
+    "source": "Characters v0.12, Shared Canon: Relationships (Lore v0.6)",
+    "status": "approved",
+    "canon_checked": true
+  },
+  {
+    "id": "rel-jeanne-emile",
+    "title": "Jeanne and Emile",
+    "scope": "public",
+    "kind": "relationship",
+    "text": "Jeanne d'Orléans and Emile de Valois: France's ambassador, who is arranging the Prince's marriage.",
+    "source": "Characters v0.12, Shared Canon: Relationships (Lore v0.6)",
+    "status": "approved",
+    "canon_checked": true
+  },
+  {
+    "id": "rel-emile-clarice",
+    "title": "Emile and Clarice",
+    "scope": "public",
+    "kind": "relationship",
+    "text": "Emile de Valois and Clarice Orsini: The Prince is choosing a Florentine bride, and Clarice is one of the two he is choosing between.",
+    "source": "Characters v0.12, Shared Canon: Relationships (Lore v0.6)",
+    "status": "approved",
+    "canon_checked": true
+  },
+  {
+    "id": "rel-emile-giorgia",
+    "title": "Emile and Giorgia",
+    "scope": "public",
+    "kind": "relationship",
+    "text": "Emile de Valois and Giorgia Pazzi: The Prince is choosing a Florentine bride, and Giorgia is one of the two he is choosing between.",
+    "source": "Characters v0.12, Shared Canon: Relationships (Lore v0.6)",
+    "status": "approved",
+    "canon_checked": true
+  },
+  {
+    "id": "rel-clarice-giorgia",
+    "title": "Clarice and Giorgia",
+    "scope": "public",
+    "kind": "relationship",
+    "text": "Clarice Orsini and Giorgia Pazzi: Rivals for the Prince's hand. Clarice once mocked Giorgia at a banquet as \"the Pazzi girl with nothing left\".",
+    "source": "Characters v0.12, Shared Canon: Relationships (Lore v0.6)",
+    "status": "approved",
+    "canon_checked": true
+  },
+  {
+    "id": "rel-piero-francesco",
+    "title": "Piero and Francesco",
+    "scope": "public",
+    "kind": "relationship",
+    "text": "Piero de' Medici and Francesco Pazzi: Heads of the two rival houses. In 1478 a Pazzi plot killed Piero's uncle, and a Pazzi uncle hanged for it.",
+    "source": "Characters v0.12, Shared Canon: Relationships (Lore v0.6)",
+    "status": "approved",
+    "canon_checked": true
+  },
+  {
+    "id": "rel-tommaso-piero",
+    "title": "Tommaso and Piero",
+    "scope": "public",
+    "kind": "relationship",
+    "text": "Fra Tommaso and Piero de' Medici: Fra Tommaso preaches against the Medici and everything they stand for.",
+    "source": "Characters v0.12, Shared Canon: Relationships (Lore v0.6)",
+    "status": "approved",
+    "canon_checked": true
+  },
+  {
+    "id": "rel-tommaso-beatrice",
+    "title": "Tommaso and Beatrice",
+    "scope": "public",
+    "kind": "relationship",
+    "text": "Fra Tommaso and Sister Beatrice: Fra Tommaso leads the Dominican order Sister Beatrice serves.",
+    "source": "Characters v0.12, Shared Canon: Relationships (Lore v0.6)",
+    "status": "approved",
+    "canon_checked": true
+  },
+  {
+    "id": "rel-tommaso-isabella",
+    "title": "Tommaso and Isabella",
+    "scope": "public",
+    "kind": "relationship",
+    "text": "Fra Tommaso and Contessa Isabella: Fra Tommaso leads the Dominican order the widowed Contessa joined.",
+    "source": "Characters v0.12, Shared Canon: Relationships (Lore v0.6)",
+    "status": "approved",
+    "canon_checked": true
+  }
+]
