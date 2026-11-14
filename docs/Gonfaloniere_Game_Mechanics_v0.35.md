@@ -1,9 +1,17 @@
 # Gonfaloniere
 ## Game Mechanics — Working Document
-### Version 0.34
+### Version 0.35
 *Formerly "Plots in the Palazzo"*
 
 ---
+
+## Changes in v0.35
+
+- **Named places** (Dylan, Nov 13–14; from Interface v0.8): the hall has **8 named places**, and every conversation happens in one, one conversation per place. Everyone sees who is in which place, as in Everyone Sees the Room
+  - A **Colloquio**, whoever calls it, sends both guests to a **random empty place**
+  - Guests still move **toward a person**, never to an empty place
+  - **Councils** are held in four of the hall's places, drawn at random
+  - New section under Movement; places added to Tunable Values
 
 ## Changes in v0.34
 
@@ -230,6 +238,8 @@ The full game unfolds in the following sequence (all turn counts TBD):
 
 Faction meetings are ordinary Capannello conversations limited to living faction members, with all the usual conversation rules.
 
+- Each council is held in one of the hall's places, drawn at random (Named Places)
+
 - Nothing is pooled automatically: a character only learns what another member chooses to say out loud
 - Characters may withhold French pensions, private plans, or secret alliances even from their own faction
 - Faction Meeting 4 is the last strategy session before the Murder Round
@@ -334,6 +344,21 @@ A Capannello needs at least two guests. Whenever one drops to a single guest dur
 - **Only the present moment:** the room shows where people are now, not where they've been. The record of who keeps slipping away still comes from Il Notaio's notes (below)
 - **Open play only:** councils are held apart by faction, and midnight and the ballot are private choices, so there's no room to see then
 - The dead aren't shown
+- **With named places,** the room is told place by place: who is in each one (see Named Places)
+
+### Named Places
+
+*Dylan, Nov 13–14.* The hall is divided into **8 named places** (their names are Lore's). Every conversation happens in one of them, and a place holds one conversation at a time.
+
+- **All places are always known to everyone,** occupied or empty, and everyone sees who is in which place (Everyone Sees the Room). It isn't quite realistic, and that's on purpose: it keeps the evening easy to follow
+- **At the start of each round of mingling,** each of the random groups is placed in a random place
+- **A Capannello keeps its place** for as long as it lasts. Guests who join it go to its place. When it dissolves, its place is free
+- **A Colloquio,** whoever calls it (a called Colloquio or an invitee's free one), sends both guests to **one empty place, picked at random**. When it ends, that place is free again
+- **Returning from a Colloquio,** "the Capannello they came from" is the group in the place they left, under the usual rules (Ending a Colloquio, and dissolved)
+- **A new two-person Capannello** (two seatless guests pairing up) is placed in a random empty place
+- **Guests move toward a person, not a place.** No one can move to an empty place to wait there; a guest alone is handled by the lone-guest rule
+- **Councils:** each faction meeting is held in one of the hall's places, drawn at random for each council, so four places are in use. The room view is still hidden during councils (Everyone Sees the Room)
+- **Why 8 is enough:** with 12 guests there are never more than 6 conversations at once, and a guest left alone for a moment can take one more. 8 always leaves an empty place for a Colloquio. Tunable, but never below 7
 
 ---
 
@@ -540,6 +565,7 @@ The current value of every number that balancing may adjust. Each is also stated
 | Utterances per turn | 12 |
 | Movement windows per turn | 1 |
 | Colloquio cap | About 6 utterances (3 each) |
+| Named places | 8 (never fewer than 7, so a Colloquio always finds an empty one) |
 
 ---
 
