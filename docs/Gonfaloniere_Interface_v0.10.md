@@ -1,8 +1,26 @@
 # Gonfaloniere
 ## Interface & Experience — Working Document
-### Version 0.8
+### Version 0.10
 
 ---
+
+## Changes in v0.10
+
+*Nov 14. Bookkeeping only; no design changes. Replaces PR #125, which never merged.*
+
+- **The place list is its own build task, #132,** needing Technical Design's engine task #128, which puts every place in the player's `state`. Technical Design filed the engine on its own, so the screen half didn't go in its task as v0.9 planned. #132 also adds Lore's place descriptions to the setting pack, for the hover
+- **Build State** brought up to date: the tasks filed from v0.2 to v0.10, and what each waits on
+
+## Changes in v0.9
+
+*Nov 14. Interface's part of the Named places handoff (Mechanics v0.35, Named Places; Lore v0.8, The Palazzo).*
+
+- **The places are settled** (Left, The places): **eight, always listed in a fixed order,** each with who is in it. Empty ones stay, faded. Your own place is marked, and a Colloquio's place is marked private. "To come" goes
+- **The names are Lore's,** written exactly as Lore gives them: "In the loggia with Giorgia and Lupo"; as a heading, "The loggia". Hovering a place shows Lore's one-line description of it
+- **Places aren't clickable.** Guests move toward a person, never to a place (Mechanics), so only the portraits in a place do anything (they select)
+- **Councils** show only your own council's place; midnight and the ballot show none, as the room view already did
+- The tour's step 4 now points at the places
+- **For Technical Design:** the screen half goes in its places task, with each place's description in the setting pack (tracker handoff)
 
 ## Changes in v0.8
 
@@ -130,12 +148,19 @@ This doc covers **the player screen as the player meets it**: what's on it, wher
 
 ---
 
-## Build State *(Nov 13)*
+## Build State *(Nov 14)*
 
-1. **The mini-game is playable** as Francesco: the screen from Technical Design v0.40–v0.46 is built (#80, #81, the Hub's browser fixes #88, and v0.44–v0.46's screen #90). Francesco's errand can't be done there (Fra Tommaso isn't in the cast), and the mini-game runs with `plot_reward` off
-2. **Built since:** the room (#95). **Queued:** #102 (the errand card's reward line, the deadline mark, the hint, the midnight card's extra-act row) and #109 (the note's conclusion button, v0.2–v0.3). **v0.5's screen** is filed as two tasks; its Il Notaio parts wait on Technical Design (tracker)
-3. **Then the full game,** once the full game loop is built: councils, Piero, candidate selection, speeches and `/repent`, the ballot and `/buy`, the run-off, and the full death and result screens. Dylan playing a whole game is the milestone's test (tracker, item 2)
-4. **Then v1, the first public release:** Il Notaio's full player-facing role (Onboarding, below)
+1. **The mini-game is playable** as Francesco: the screen from Technical Design v0.40–v0.46 is built (#80, #81, the Hub's browser fixes #88, and v0.44–v0.46's screen #90), and the room (#95). Francesco's errand can't be done there (Fra Tommaso isn't in the cast), and the mini-game runs with `plot_reward` off
+2. **Queued, screen only:**
+   - #102 (Technical Design's: the errand card's reward line, the deadline mark, the hint, the midnight card's extra-act row)
+   - #109: the note's conclusion button (v0.2–v0.3)
+   - #113: the stage bar and past stages (v0.5; Fable suggested)
+   - #114: the web's ring layout, Il Notaio's box in its column, the hideable right panel, rules buttons, the city list, the placeholder, and the shared selection (v0.5–v0.7)
+   - #117: the opening and the tour, four modals with the glossary, one Notes tab, and smaller fixes (v0.7–v0.8)
+   - #132: the place list (v0.9), after Technical Design's #128
+3. **Waiting on Technical Design** (tracker handoff): Il Notaio's narrative reading and the dialogue-only column, the past-stage summaries, the knowledge-errand flag for the conclusion button, and the game holding its first line during the tour
+4. **Then the full game,** once the full game loop is built: councils, Piero, candidate selection, speeches and `/repent`, the ballot and `/buy`, the run-off, and the full death and result screens. Dylan playing a whole game is the milestone's test (tracker, item 2)
+5. **Then v1, the first public release:** Il Notaio's full player-facing role (Onboarding, below)
 
 To try it: `npm run play -- --as "Francesco Pazzi" --minigame` (add `--fake` for no model calls).
 
@@ -155,8 +180,8 @@ A single page in the style of a Slack chat. Placeholder portraits until Art's ar
 │ [Rules] [City]  │ Lupo (to you): …                   │                  │
 │ ┌ ERRAND ─────┐ │ ┌ Il Notaio's hint ───────────────┐│                  │
 │ └─────────────┘ │ └─────────────────────────────────┘│                  │
-│ THE ROOM        │ [@][/] Speak as your character…    │                  │
-│ ● ●●  ●●● ●     │                       [Pass][Speak]│ ⇔ resizable · ⇥  │
+│ THE PLACES      │ [@][/] Speak as your character…    │                  │
+│ Great hall ●●●  │                       [Pass][Speak]│ ⇔ resizable · ⇥  │
 ├─────────────────┴────────────────────────────────────┴──────────────────┤
 │ ▲ THE WEB OF SECRETS (always visible; click to slide up)   ▒ shadow ▒  │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -172,23 +197,15 @@ In this order *(Dylan, Nov 13)*:
 - **The errand card,** pinned, so the errand stays in front of the player. It shows the errand's text, then its result once the check has run, in the same words as `{plot_status}`
   - **What it earns:** under the errand's text, one line in the card's accent. With `plot_reward` on: finish it before the last council before midnight, and you get one extra act at midnight (a second kill, guard, or watch, on a different guest) that no one else is told about. With it off, as in the mini-game: errands earn no extra act tonight, so the player isn't left guessing. The card's hover explanation says the same
   - **After the check,** `{plot_status}` replaces that line, so the card then says plainly whether the extra act is the player's
-- **The room** *(Mechanics, Everyone Sees the Room)*. Where every living guest is: each group as a cluster of tokens, a Colloquio pair as two tokens joined, and the player's own group marked. Tokens in a group overlap, and spread out on hover. Clicking a token selects that guest. In councils, at midnight, and at the ballot it shows only who's with you, as the rule says
-  - **Named places, to come** *(Dylan, Nov 13; v0.7)*. Every conversation will happen in a **named place**, and the room becomes a list of **every place, always visible, occupied or not:** each with its name and the portraits of whoever is there. Empty places stay, faded, so the list never shifts. The player's own place is marked, and a Colloquio's place is marked as private, so the player sees who has slipped off together without hearing them. The conversation line names the place ("In the library with Giorgia and Lupo")
-  - **Dylan's rules for places:** everyone sees who is in which place, AI guests too, even if it doesn't quite make sense in-world, because it keeps things simple. **Calling a Colloquio,** whoever calls it, sends both guests to one place picked at random
-  - **Mechanics decides how places work,** Lore names them, and Technical Design tells the AI guests (tracker handoff). Until then, the room view stays as above
-
-### Centre: the conversation
-
-- **The stage bar** *(Dylan, Nov 13; v0.5)*. The time label and the evening's track are one bar across the top, in the manner of the board's roadmap: a circle per stage, joined by a stroke.
-  - **The stages:** for the full game, the arrival, each council and round of mingling, midnight, the candidates, the speeches, the last council, and the ballot. The mini-game shows its own shorter schedule. The stages come from the game's schedule, and their names and descriptions from the setting pack
-  - **Past stages are filled, future ones outlined,** each with its numeral
-  - **The current stage is stretched into an oval** holding its name ("The second round")
-  - **Hovering any other stage expands it instead,** into the same oval, with its name and a one-line description; the current stage shrinks back while you hover, then returns
-  - **Clicking a past stage opens it** (Past stages, below). Clicking the current stage brings you back. **Future stages can't be clicked;** their hover is all they offer
-  - **When the game is waiting for you** while you're in a past stage, the current stage pulses
-  - **With `plot_reward` on, the errand's deadline** (the last council before midnight) carries a small errand mark, whose hover says "Your errand's deadline: finish it before this for an extra act at midnight"
-  - **On a narrow window** the bar scrolls sideways, keeping the current stage in view
-- **The conversation's members** sit in a slim line just under the bar ("Capannello with Giorgia and Lupo"; with named places, "In the library with Giorgia and Lupo"). **End conversation** sits on that line in a Colloquio
+- **The places** *(Dylan, Nov 13–14; v0.7–v0.9; Mechanics v0.35, Everyone Sees the Room and Named Places; Lore v0.8, The Palazzo)*. Where every living guest is, place by place. Until the engine has places, this is the room view as built: each group as a cluster of tokens, a Colloquio pair as two tokens joined
+  - **All eight places, always listed, in a fixed order** (Lore's): the great hall, the window bay, the anteroom, the loggia, the courtyard, the study, the painted room, the dining room. Each row is the place's name and the portraits of whoever is there. **Empty places stay, faded,** so the list never shifts
+  - **The names are written exactly as Lore gives them.** As a row's heading, the first letter is capitalized ("The loggia"); in a sentence, as is ("In the loggia with Giorgia and Lupo"). The names live in the setting pack, so a reskin renames them
+  - **Your own place is marked.** **A Colloquio's place is marked private** (a closed-door mark), so you see who has slipped off together, and where, without hearing them
+  - **Tokens in a place overlap,** and spread out on hover. **Clicking a portrait selects that guest,** as everywhere
+  - **A place itself isn't clickable:** guests move toward a person, never to a place. **Hovering a place's name shows Lore's one-line description** of it ("An open arcade on the upper floor, overlooking the courtyard"), which is public
+  - **In councils,** only your own council's place is shown, with your faction in it ("The Medici council, in the study"); the rest of the hall is hidden, as the rule says. **At midnight and the ballot** the list gives way to a quiet line, since each guest chooses alone
+  - The dead aren't shown
+- **The conversation's members** sit in a slim line just under the bar ("In the loggia with Giorgia and Lupo"; in a Colloquio, "In the study, aside with Clarice"; until the engine has places, "Capannello with Giorgia and Lupo"). **End conversation** sits on that line in a Colloquio
 - **Only the current conversation is open.** Earlier conversations **in the current stage** collapse into an **Earlier this stage** section above, one line each, each opening in place when clicked. Earlier stages live in the bar instead
 - **Selecting a guest** opens the collapsed sections of this stage they appeared in, with their lines highlighted, and **puts a small dot on each past stage they appear in**. Deselecting clears both
 - **The stream:** lines, Il Notaio's notes in their own style, action lines, and lines addressed to the player marked as such. A "…is speaking" indicator shows while a line is generated
@@ -390,7 +407,7 @@ Right after the choice of character, a short guided tour, in the manner of many 
   1. Your sheet
   2. The four modal buttons (Your briefing, The rules, The city, Glossary)
   3. Your errand card
-  4. **The places** (the room view until named places exist)
+  4. **The places,** with a word on how a Colloquio takes two guests off to an empty one
   5. The stage bar
   6. The conversation and the message box, with @ and /
   7. The right panel
@@ -519,6 +536,15 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | The room step will be the places | Step 4 points at the places | The Tour |
 | Midnight actions in the sheet | How many acts you'll have, and the errand's extra one | Left |
 
+**Named places settled** (Mechanics v0.35, Lore v0.8; v0.9):
+
+| Settled elsewhere | Decision here | Here |
+|---|---|---|
+| 8 places, one conversation each, all visible (Mechanics) | All eight listed in Lore's order, empty ones faded, yours marked, a Colloquio's marked private | Left, The places |
+| Guests move toward people, never to a place (Mechanics) | Places aren't clickable; their portraits select; hover shows Lore's description | Left, The places |
+| Councils held in random places; the room hidden then (Mechanics) | Only your council's place shows | Left, The places |
+| The eight names (Lore) | Used exactly as written; capitalized only as a heading | Left, The places; Centre |
+
 ---
 
 ## Open Questions
@@ -526,7 +552,6 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 - **The look:** the palazzo ledger is the leaning; decide after the first playtests (The Look)
 - **Your midnight choices in the sheet afterwards** ("You guarded Giorgia; you watched Lupo"), and **"Choosing now"** during midnight: ideas for later, not decided (Dylan, Nov 14: the count is what's wanted for now)
 - **A storybook opening, maybe in v2** (Dylan): illustrations and more interaction, with Art. Until then, Il Notaio's written opening
-- **Named places:** waiting on Mechanics' rules (how many places, whether a Colloquio's random place must be empty, whether a guest can move to an empty place, where councils are held), Lore's names, and Technical Design's prompt changes (tracker)
 - **Does the full game's stage bar fit?** It has about fifteen stages to the mini-game's handful. If the circles get too small to read, consider grouping each council with its round of mingling. Check on the first full game
 - **Is Il Notaio conservative enough?** Read his readings and summaries in the first playtests for anything that connects or hints, and tighten the guard with Technical Design if so
 - **The full game's cards:** candidate selection, the speech, the ballot (vote and buy), and the run-off. Design them once Technical Design's full game loop spec says what each phase offers
