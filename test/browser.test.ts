@@ -536,6 +536,32 @@ test("the places in a council (a fixture state: the mini-game has none): only yo
   });
 });
 
+// ---- CC-20261114-15 (#141) -------------------------------------------------------------------------------
+
+test("the player's words (Interface v0.12): the sheet shows Payroll payments, its hover France's payroll; a group's line without places reads A group with …", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".sheet-panel .facts dt")`);
+  const facts = await page.eval<string[]>(`[...document.querySelectorAll(".sheet-panel .facts dt")].map((d) => d.textContent)`);
+  assert.ok(facts.includes("Payroll payments"), facts.join(", "));
+  assert.ok(!facts.some((f) => /pension/i.test(f)));
+  await HINTS_OFF(false);
+  await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 });
+  const at = await page.eval<{ x: number; y: number }>(`(() => { const b = document.querySelector(".sheet-panel .facts").getBoundingClientRect(); return { x: b.left + 4, y: b.top + b.height / 2 }; })()`);
+  await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
+  await page.until(`document.querySelector(".tip:not(.measuring)")`);
+  assert.equal(await page.eval<string>(`document.querySelector(".tip").textContent`), "Your character: your purse, the payments you've taken from France's payroll, and how many times tonight you've drawn someone aside for a private word.");
+  await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 });
+  // A state without places (a game before TD v0.49), in a group with two others.
+  const group = `(s) => { const { places, ...rest } = s; const others = s.livingOthers.slice(0, 2); return { ...rest, conversation: { kind: "capannello", others }, present: others }; }`;
+  await withStates(group, async () => {
+    await page.until(`document.querySelector(".members .muted")?.textContent.startsWith("A group with ")`);
+    const line = await page.eval<string>(`document.querySelector(".members .muted").textContent`);
+    assert.match(line, /^A group with \S/);
+    assert.ok(!/Capannello/.test(line), line);
+    await page.shot("group-line");
+  });
+});
+
 // ---- CC-20261114-04 (#102) -------------------------------------------------------------------------------
 
 test("the errand card with plot_reward off (the mini-game): the no-extra-act line in the card's accent, and no deadline mark", { skip }, async () => {

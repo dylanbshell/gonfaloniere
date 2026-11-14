@@ -13,7 +13,7 @@ import { mentions, parseCommand } from "../src/minigame/player.ts";
 import { castBriefings } from "../src/minigame/cast.ts";
 import { readLoreFile } from "../src/minigame/lore.ts";
 import { buildRecord } from "../src/minigame/record.ts";
-import { settingPack } from "../src/setting/pack.ts";
+import { say, settingPack } from "../src/setting/pack.ts";
 import { exportView } from "../src/minigame/view.ts";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -89,6 +89,9 @@ function scriptedPlayer(url: string, seen: Seen, opts: { dropAfter: number }) {
           // Unasked, at the start: a held message, a pension, a conclusion, and a command that doesn't exist.
           send({ type: "say", text: "Good evening to you all." });
           send({ type: "command", text: "/borrow" });
+          // Paying back: for a guest with no payment, refused; then his own (Interface v0.12, The Player's Words).
+          send({ type: "command", text: "/repay @Lupo" });
+          send({ type: "command", text: "/repay" });
           send({ type: "command", text: "/conclude Lupo killed Lucien de Valois." });
           send({ type: "command", text: "/fly" });
           // Notes (TD v0.40): a free one, one on a guest, one on a pair, and one on nobody at the party.
@@ -205,6 +208,7 @@ test("a scripted player plays a whole mini-game as Francesco through the protoco
   // What the player did, in the game's own records.
   const ev = (type: string, f: (e: Record<string, unknown>) => boolean = () => true) => game.events.filter((e) => e.type === type && f(e));
   assert.equal(ev("borrow", (e) => e.character === F).length, 1);
+  assert.equal(ev("repay", (e) => e.character === F && e.holder === F).length, 1);
   assert.equal(ev("bribe", (e) => e.from === F).length, 1);
   assert.ok(ev("speech", (e) => e.speaker === F && e.source === "human").length > 3);
   assert.ok(ev("move", (e) => e.character === F && e.choice === "colloquio").length === 1 && ev("move", (e) => e.character === F && e.choice === "join").length === 1);
@@ -221,6 +225,33 @@ test("a scripted player plays a whole mini-game as Francesco through the protoco
   assert.ok(addressed.length > 0 && addressed.every((l) => !l.text.includes("@")));
   // The answer to an address is an extra line: it follows a line addressed to Francesco.
   assert.ok(game.lines.some((l, i) => l.speaker === F && game.lines.slice(0, i).findLast((x) => x.conversation === l.conversation && x.kind === "speech")?.addressee === F));
+});
+
+test("/borrow and /repay in the player's words (Interface v0.12, The Player's Words): France's payroll in the menu and the refusal; Il Notaio's confirmations, which an AI guest's History also holds, stay Technical Design's", async () => {
+  const { game, seen } = await playAsFrancesco(2000);
+  const menu = seen.log.find((e) => e.type === "state" && e.commands.some((c) => c.action === "borrow"));
+  assert.ok(menu && menu.type === "state");
+  const hint = (action: string) => menu.commands.find((c) => c.action === action)?.hint;
+  assert.equal(hint("borrow"), "Go on France's payroll: take one payment of 3 Florins from the Embassy.");
+  const repayMenu = seen.log.find((e) => e.type === "state" && e.commands.some((c) => c.action === "repay"));
+  assert.ok(repayMenu && repayMenu.type === "state");
+  assert.equal(repayMenu.commands.find((c) => c.action === "repay")?.hint, "Pay back one payroll payment, your own or a relative's, for 3 Florins.");
+  assert.ok(
+    seen.log.some((e) => e.type === "refusal" && e.reason === "You have no payroll payment you could pay back for Lupo, or can't afford it." && e.input === "/repay @Lupo"),
+    "a /repay for a guest with no payment is refused in the new words",
+  );
+  // The private confirmations are notaio.json's, which reach an AI guest's History when it borrows or repays,
+  // so they keep their words here (#143 changes them, gated on the TD version); the player sees each one.
+  const mine = game.lines.filter((l) => l.kind === "private" && l.speaker === F);
+  const purse = Number(mine[0]?.text.match(/(\d+) Florins\.$/)?.[1]);
+  assert.deepEqual(
+    mine.map((l) => l.text),
+    [say("notaio", "lines.pension_taken", { amount: 3, purse }), say("notaio", "lines.pension_renounced", { holder: F, amount: 3 })],
+  );
+  for (const l of mine) assert.ok(seen.log.some((e) => e.type === "action" && e.private && e.text === l.text), `the player saw: ${l.text}`);
+  // Nothing of the player's words reaches a prompt.
+  const prompts = game.calls.map((c) => c.user).join("\n");
+  for (const words of ["France's payroll: take one payment", "Pay back one payroll payment, your own", "You have no payroll payment"]) assert.ok(!prompts.includes(words), words);
 });
 
 test("isolation: the player's whole event stream is their own History and State, nothing else", async () => {
