@@ -4,11 +4,11 @@
 // from the player's sheet, their own log, and public content. Words come from the setting pack (words.ts); every look comes from theme.css's tokens
 // (app.css uses only those).
 
-import { Component, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { Component, Fragment, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { connect, type Ev } from "./connection.ts";
 import { COMMAND, MENTION, canDo, canSpeak, isCommand, matchCommands, matchGuests, openMenu, withMention, type Trigger } from "./input.ts";
 import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityList, curve, derive, earlierThisStage, errandDeadline, errandLine, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, notesFor, placeholderExample, preview, readingFor, recordUpTo, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, type Card, type Line, type LoreEntry, type Note, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
-import { getInfo, guest, names, notaioHint, placeholderExamples, setInfo, stageDescription, w, type GlossEntry, type StartInfo } from "./words.ts";
+import { getInfo, guest, names, narrator, notaioHint, placeholderExamples, setInfo, stageDescription, w, type GlossEntry, type StartInfo } from "./words.ts";
 
 type Send = (m: unknown) => void;
 
@@ -35,7 +35,7 @@ export function App() {
   }, []);
   if (error) return <div className="notice danger">{error}</div>;
   if (!info) return null;
-  return <HintLayer>{!game ? <Start onStart={(me, ws) => setGame({ me, ws })} /> : <Game me={game.me} url={game.ws} />}</HintLayer>;
+  return <HintLayer>{!game ? <Opening onStart={(me, ws) => setGame({ me, ws })} /> : <Game me={game.me} url={game.ws} />}</HintLayer>;
 }
 
 // ---- Hover explanations (TD v0.40) ---------------------------------------------------------------------
@@ -214,13 +214,66 @@ function FailedOverlay({ notice, onClose }: { notice: ReactNode; onClose: () => 
   );
 }
 
-// ---- Start screen ---------------------------------------------------------------------------------
+// ---- The opening (Interface v0.7, The Opening) -----------------------------------------------------------
+//
+// It replaces the start screen. Il Notaio's name heads the page, glossed, before he writes; then he writes
+// the story a character at a time, as if by pen, each paragraph following the last by itself after a short
+// pause, the earlier ones staying on the page. A click finishes the paragraph being written; Skip writes it
+// all out. At the end, one card per playable character; choosing one starts the game (and the tour). With
+// reduced motion set, each paragraph appears whole. The writing speed and the pause are theme tokens.
 
-export function Start({ onStart }: { onStart: (me: string, ws: string) => void }) {
+/** A timing from theme.css, in milliseconds. */
+function themeMs(token: string, fallback: number): number {
+  if (typeof document === "undefined") return fallback;
+  const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(token));
+  return Number.isFinite(v) ? v : fallback;
+}
+
+/** Whether the player's system asks for reduced motion, kept up to date. */
+function useReducedMotion(): boolean {
+  const query = () => typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const [reduced, setReduced] = useState(query);
+  useEffect(() => {
+    if (typeof matchMedia === "undefined") return;
+    const m = matchMedia("(prefers-reduced-motion: reduce)");
+    const on = () => setReduced(m.matches);
+    m.addEventListener("change", on);
+    return () => m.removeEventListener("change", on);
+  }, []);
+  return reduced;
+}
+
+export function Opening({ onStart, written = false }: { onStart: (me: string, ws: string) => void; /** The story already written out (as after Skip), for the tests. */ written?: boolean }) {
   const info = getInfo();
+  const paragraphs = narrator.paragraphs();
+  const hint = useHint();
+  const reduced = useReducedMotion();
+  /** How many paragraphs are written whole, and how much of the next one. Before the first: his name alone. */
+  const [pen, setPen] = useState<{ done: number; chars: number; begun: boolean }>({ done: written ? paragraphs.length : 0, chars: 0, begun: written });
   const [starting, setStarting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const hint = useHint();
+  const finished = pen.done >= paragraphs.length;
+  const current = paragraphs[pen.done] ?? "";
+  useEffect(() => {
+    if (finished) return;
+    const pause = themeMs("--opening-pause", 700);
+    // His name first, alone, for a moment; then each paragraph, then a pause before the next.
+    // With reduced motion, each paragraph appears whole.
+    const start = (i: number) => (reduced ? (paragraphs[i]?.length ?? 0) : 0);
+    if (!pen.begun) {
+      const t = setTimeout(() => setPen((p) => ({ ...p, begun: true, chars: start(p.done) })), pause);
+      return () => clearTimeout(t);
+    }
+    if (pen.chars < current.length) {
+      const t = setTimeout(() => setPen((p) => ({ ...p, chars: reduced ? current.length : p.chars + 1 })), reduced ? 0 : themeMs("--opening-char", 28));
+      return () => clearTimeout(t);
+    }
+    const t = setTimeout(() => setPen((p) => ({ done: p.done + 1, chars: start(p.done + 1), begun: true })), pause);
+    return () => clearTimeout(t);
+  }, [pen, finished, reduced, current]);
+  /** A click finishes the paragraph being written. */
+  const finish = () => !finished && setPen((p) => ({ ...p, begun: true, chars: current.length }));
+  const skip = () => setPen({ done: paragraphs.length, chars: 0, begun: true });
   const start = async (name: string) => {
     setStarting(name);
     const r = await fetch("/api/start", { method: "POST", body: JSON.stringify({ character: name }) });
@@ -232,28 +285,88 @@ export function Start({ onStart }: { onStart: (me: string, ws: string) => void }
     }
   };
   return (
-    <div className="start">
-      <h1>{w("screen.start.heading")}</h1>
-      <p className="muted">{w("orientation")}</p>
-      <div className="cards">
-        {info.playable.map((p) => (
-          <div className="start-card" key={p.name}>
-            <div className="who">
-              <Portrait name={p.name} large />
-              <div>
-                <div className="name">{p.name}</div>
-                <div className="muted">{guest(p.name)?.subtitle}</div>
-              </div>
-            </div>
-            <p className="intro">{p.intro}</p>
-            <button className="primary" disabled={!!starting} onClick={() => void start(p.name)} {...hint("play")}>
-              {starting === p.name ? w("screen.start.starting") : w("screen.start.play", { name: p.name })}
-            </button>
-          </div>
+    <div className={`opening${finished ? " finished" : ""}`} onClick={finish}>
+      {/* Interface v0.11: his name heads the page, glossed, before he writes, and stays at the top while he does. */}
+      <header className="opening-head">
+        <h1 className="opening-name">
+          <NarratorName />
+        </h1>
+        <div className="opening-gloss">{narrator.gloss()}</div>
+      </header>
+      <div className="opening-story" aria-live="polite">
+        {paragraphs.slice(0, pen.done).map((p, i) => (
+          <p key={i} className="opening-para" data-state="done">
+            {p}
+          </p>
         ))}
+        {!finished && pen.begun && (
+          <p className="opening-para" data-state="writing" data-full={current}>
+            {current.slice(0, pen.chars)}
+            <span className="opening-pen" aria-hidden="true" />
+          </p>
+        )}
       </div>
-      {error && <div className="notice danger">{error}</div>}
+      {!finished && (
+        <button className="secondary small opening-skip" onClick={(e) => (e.stopPropagation(), skip())} {...hint("openingSkip")}>
+          {w("screen.opening.skip")}
+        </button>
+      )}
+      {finished && (
+        <section className="opening-choice" aria-label={w("screen.opening.choose")}>
+          <h2>{w("screen.opening.choose")}</h2>
+          <div className="cards">
+            {info.playable.map((p) => {
+              const g = guest(p.name);
+              return (
+                <div className="start-card" key={p.name} data-guest={p.name}>
+                  <div className="who">
+                    <Portrait name={p.name} large />
+                    <div>
+                      <div className="name">{p.name}</div>
+                      <div className="muted">{g?.faction}</div>
+                      <div className="muted subtitle">{g?.subtitle}</div>
+                    </div>
+                  </div>
+                  <button className="primary" disabled={!!starting} onClick={() => void start(p.name)} {...hint("play")}>
+                    {starting === p.name ? w("screen.opening.starting") : w("screen.opening.play", { name: p.name })}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          {error && <div className="notice danger">{error}</div>}
+        </section>
+      )}
     </div>
+  );
+}
+
+/**
+ * Il Notaio's name wherever it shows (Interface v0.11): his notes in the stream, his hint, his reading, the
+ * opening, and the tour's cards. Its hover glosses it, even with the hover explanations off, since it
+ * explains a name rather than a control.
+ */
+function NarratorName() {
+  const h = useContext(HintsContext);
+  const hover = narrator.hover();
+  return (
+    <span className="narrator-name" tabIndex={0} data-narrator="" aria-description={hover} onMouseEnter={(e) => h.show(hover, e.currentTarget, true)} onMouseLeave={h.hide} onFocus={(e) => h.show(hover, e.currentTarget, true)} onBlur={h.hide}>
+      {w("screen.notaio")}
+    </span>
+  );
+}
+
+/** A template from player.json with `{notaio}` in it: his name there, with its hover. */
+function Narrated({ template }: { template: string }) {
+  return (
+    <>
+      {template.split("{notaio}").map((part, i) => (
+        <Fragment key={i}>
+          {i > 0 && <NarratorName />}
+          {part}
+        </Fragment>
+      ))}
+    </>
   );
 }
 
@@ -685,7 +798,13 @@ function Game({ me, url }: { me: string; url: string }) {
   }, [url]);
   const v = useMemo(() => derive(log), [log]);
   const send: Send = (m) => conn.current?.send(m);
-  return <GameView me={me} v={v} send={send} status={status} />;
+  /**
+   * The tour has ended for this game (Interface v0.8): finished on Your briefing, skipped, or already run in
+   * this browser. Technical Design v0.51's hold on the game's first line hooks in here: #146 sends `begin`.
+   * Until then the evening starts while the player tours. A tour run again from Show me around doesn't call it.
+   */
+  const tourEnded = (_how: TourEnd) => {};
+  return <GameView me={me} v={v} send={send} status={status} onTourEnd={tourEnded} />;
 }
 
 /**
@@ -704,6 +823,8 @@ export function GameView({
   keyType,
   pastStage = null,
   rightHidden: initialRightHidden,
+  tourStep,
+  onTourEnd = () => {},
 }: {
   me: string;
   v: View;
@@ -720,6 +841,10 @@ export function GameView({
   pastStage?: string | null;
   /** The right panel hidden from the start (Interface v0.5); otherwise the browser's remembered choice. */
   rightHidden?: boolean;
+  /** The tour open at this step from the start, for the tests; otherwise it runs once per browser, after the choice. */
+  tourStep?: number;
+  /** The tour has ended: finished, skipped, or already run (Game's `tourEnded`). */
+  onTourEnd?: (how: TourEnd) => void;
 }) {
   const [deck, setDeck] = useState<DeckName | null>(initialDeck);
   const [places, setPlaces] = useState<DeckPlaces>(NO_PLACES);
@@ -730,6 +855,8 @@ export function GameView({
   // A note's conclusion goes to the input box, not straight to the game (Interface v0.4).
   const [boxFill, setBoxFill] = useState<BoxFill | null>(null);
   const right = useRightHidden(initialRightHidden);
+  // Interface v0.8: the tour, once per browser, right after the choice; ending on Your briefing opens it.
+  const tour = useTour(onTourEnd, tourStep, () => setDeck("briefing"));
   // Escape clears the selection, in both places, after any open menu, deck, or the Web of Secrets has taken it.
   const clear = useRef(selection.clear);
   clear.current = selection.clear;
@@ -762,7 +889,7 @@ export function GameView({
     <SelContext.Provider value={selection}>
       <div className={`layout${right.hidden ? " right-hidden" : ""}`} ref={layout}>
         <Boundary panel="left" fallback={(n) => <aside className="side left">{n}</aside>}>
-          <Left me={me} v={v} onDeck={setDeck} />
+          <Left me={me} v={v} onDeck={setDeck} onTour={tour.again} />
         </Boundary>
         <Centre me={me} v={v} send={send} dead={dead} status={status} boxFill={boxFill} initialPast={pastStage} />
         <Boundary panel="right" fallback={(n) => <aside className="side right">{n}</aside>}>
@@ -785,7 +912,156 @@ export function GameView({
           <ModalRow deck={deck} sheet={v.sheet} places={places} onPlaces={setPlaces} onDeck={setDeck} onClose={() => setDeck(null)} />
         </Boundary>
       )}
+      {tour.step !== null && (
+        <Boundary panel="tour" fallback={() => null}>
+          <Tour step={tour.step} onStep={tour.go} onSkip={tour.skip} onFinish={tour.finish} />
+        </Boundary>
+      )}
     </SelContext.Provider>
+  );
+}
+
+// ---- The tour (Interface v0.8, The Tour) ------------------------------------------------------------------
+//
+// Right after the choice of character: one part of the screen at a time spotlit, the rest dimmed, with a small
+// card beside it in Il Notaio's voice, styled like his hint. A click anywhere moves on; Back goes back; every
+// step has Skip tour; Escape skips too. It ends on the Your briefing button, and moving on from there opens the
+// briefing. It runs once, remembered in the browser; Show me around runs it again. With reduced motion set,
+// the spotlight jumps rather than glides (theme.css).
+
+const TOUR_KEY = "player-screen.tour";
+/** How the tour ended: on Your briefing, skipped, or already run in this browser (so it didn't show). */
+export type TourEnd = "finished" | "skipped" | "seen";
+
+/** The steps, in the doc's order: each its card's key in notaio.json's tour, and what it spotlights (their union). */
+const TOUR: { key: string; at: string[] }[] = [
+  { key: "sheet", at: [".side.left .sheet-panel"] },
+  { key: "decks", at: [".side.left .buttons.decks"] },
+  { key: "errand", at: [".side.left .errand"] },
+  // The room view: the places, once the engine has them (#132).
+  { key: "room", at: ['.side.left [data-hint="here"]', ".side.left .room"] },
+  { key: "stageBar", at: [".centre .conv-where"] },
+  { key: "conversation", at: [".centre .stream", ".centre .input"] },
+  { key: "right", at: [".side.right"] },
+  { key: "web", at: [".web-bar"] },
+  { key: "briefing", at: ['.side.left [data-hint="briefing"]'] },
+];
+
+function useTour(onEnd: (how: TourEnd) => void, initial: number | undefined, openBriefing: () => void) {
+  const [step, setStep] = useState<number | null>(initial ?? null);
+  /** A run from Show me around, which doesn't end anything for the game. */
+  const again = useRef(false);
+  const latest = useRef(onEnd);
+  latest.current = onEnd;
+  // After the first render in the browser, so the screen it points at is there (and never on the server).
+  useEffect(() => {
+    if (initial !== undefined) return;
+    let seen = false;
+    try {
+      seen = localStorage.getItem(TOUR_KEY) === "done";
+    } catch {
+      // Blocked storage: the tour runs, and runs again next time.
+    }
+    if (seen) latest.current("seen");
+    else setStep(0);
+  }, []);
+  const end = (how: TourEnd) => {
+    setStep(null);
+    try {
+      localStorage.setItem(TOUR_KEY, "done");
+    } catch {
+      // The tour shows again next time.
+    }
+    if (!again.current) latest.current(how);
+    again.current = false;
+  };
+  return {
+    step,
+    go: (n: number) => setStep(Math.max(0, Math.min(TOUR.length - 1, n))),
+    skip: () => end("skipped"),
+    finish: () => {
+      end("finished");
+      openBriefing();
+    },
+    again: () => {
+      again.current = true;
+      setStep(0);
+    },
+  };
+}
+
+/** The union of the elements a step spotlights, in the window; null when none is on the screen. */
+function tourRect(at: string[]): { top: number; left: number; width: number; height: number } | null {
+  const rects = at.flatMap((sel) => [...document.querySelectorAll(sel)].map((e) => e.getBoundingClientRect())).filter((r) => r.width > 0 && r.height > 0);
+  if (!rects.length) return null;
+  const top = Math.min(...rects.map((r) => r.top));
+  const left = Math.min(...rects.map((r) => r.left));
+  return { top, left, width: Math.max(...rects.map((r) => r.right)) - left, height: Math.max(...rects.map((r) => r.bottom)) - top };
+}
+
+function Tour({ step, onStep, onSkip, onFinish }: { step: number; onStep: (n: number) => void; onSkip: () => void; onFinish: () => void }) {
+  const hint = useHint();
+  const s = TOUR[step]!;
+  const last = step === TOUR.length - 1;
+  const [spot, setSpot] = useState<ReturnType<typeof tourRect>>(null);
+  const [place, setPlace] = useState<{ top: number; left: number } | null>(null);
+  const card = useRef<HTMLDivElement>(null);
+  useEscape(onSkip);
+  // Bring the step's part into view (a short window scrolls the left column), then follow it as the screen moves.
+  useLayoutEffect(() => {
+    document.querySelector(s.at[0]!)?.scrollIntoView({ block: "nearest" });
+    let frame = 0;
+    let was = "";
+    const follow = () => {
+      const r = tourRect(s.at);
+      const key = JSON.stringify(r);
+      if (key !== was) {
+        was = key;
+        setSpot(r);
+      }
+      frame = requestAnimationFrame(follow);
+    };
+    follow();
+    return () => cancelAnimationFrame(frame);
+  }, [step]);
+  // The card beside the spot: to its right if there's room, else below, else above, else to its left; kept in the window.
+  useLayoutEffect(() => {
+    const c = card.current;
+    if (!c) return;
+    const gap = themeMs("--tour-gap", 12);
+    const { offsetWidth: cw, offsetHeight: ch } = c;
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    const clampX = (x: number) => Math.max(gap, Math.min(x, W - cw - gap));
+    const clampY = (y: number) => Math.max(gap, Math.min(y, H - ch - gap));
+    if (!spot) return setPlace({ top: clampY((H - ch) / 2), left: clampX((W - cw) / 2) });
+    const right = spot.left + spot.width + gap;
+    const below = spot.top + spot.height + gap;
+    if (right + cw <= W - gap) setPlace({ top: clampY(spot.top), left: right });
+    else if (below + ch <= H - gap) setPlace({ top: below, left: clampX(spot.left) });
+    else if (spot.top - gap - ch >= gap) setPlace({ top: spot.top - gap - ch, left: clampX(spot.left) });
+    else setPlace({ top: clampY(spot.top), left: clampX(spot.left - gap - cw) });
+  }, [spot, step]);
+  const next = () => (last ? onFinish() : onStep(step + 1));
+  return (
+    <div className="tour" data-step={s.key} onClick={next} role="dialog" aria-modal="true" aria-label={w("screen.tour.again")}>
+      <div className={`tour-spot${spot ? "" : " none"}`} style={spot ? { top: spot.top, left: spot.left, width: spot.width, height: spot.height } : undefined} aria-hidden="true" />
+      <div ref={card} className={`tour-card${place ? "" : " measuring"}`} style={place ? { top: place.top, left: place.left } : undefined} data-step={s.key}>
+        <div className="tour-head">
+          <NarratorName />
+          <span className="muted tour-count">{w("screen.tour.counter", { n: step + 1, total: TOUR.length })}</span>
+        </div>
+        <p className="tour-text">{narrator.tourStep(s.key)}</p>
+        <div className="tour-controls">
+          <button className="secondary small" disabled={step === 0} onClick={(e) => (e.stopPropagation(), onStep(step - 1))} {...hint("tourBack")}>
+            {w("screen.tour.back")}
+          </button>
+          <button className="secondary small tour-skip" onClick={(e) => (e.stopPropagation(), onSkip())} {...hint("tourSkip")}>
+            {w("screen.tour.skip")}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -828,7 +1104,7 @@ function MoreBelow({ m }: { m: ReturnType<typeof useMoreBelow> }) {
   );
 }
 
-function Left({ me, v, onDeck }: { me: string; v: View; onDeck: (d: DeckName) => void }) {
+function Left({ me, v, onDeck, onTour }: { me: string; v: View; onDeck: (d: DeckName) => void; onTour: () => void }) {
   const s = v.state;
   const line = errandLine(s);
   const midnight = midnightLine(s);
@@ -839,7 +1115,13 @@ function Left({ me, v, onDeck }: { me: string; v: View; onDeck: (d: DeckName) =>
     <aside className="side left" ref={m.ref}>
       <div className="side-head">
         <div className="label">{w("screen.you")}</div>
-        <HintSwitch />
+        {/* Interface v0.8: Show me around, beside the explanations' switch, runs the tour again. */}
+        <span className="side-head-controls">
+          <button className="switch tour-again" onClick={onTour} {...hint("tourAgain")}>
+            {w("screen.tour.again")}
+          </button>
+          <HintSwitch />
+        </span>
       </div>
       <div className="panel sheet-panel" {...hint("sheet", { focusable: true })}>
         {/* Interface v0.7: the player's own name or portrait opens their briefing, at the place they left it. */}
@@ -1242,7 +1524,9 @@ function StreamLine({ l, me, lore }: { l: Line; me: string; lore: LoreEntry[] })
   if (l.item === "notaio")
     return (
       <div className="ln notaio" data-line={l.id}>
-        <span className="sp">{w("screen.notaio")}</span>
+        <span className="sp">
+          <NarratorName />
+        </span>
         <span className="tx">
           <Linked text={l.text} lore={lore} />
         </span>
@@ -1279,7 +1563,9 @@ function NotaioHint({ me, v }: { me: string; v: View }) {
   return (
     <aside className={`notaio-hint${open ? "" : " collapsed"}`}>
       <button className="hint-head" aria-expanded={open} onClick={() => setOpen(!open)} {...hint("notaioHint")}>
-        <span>{w("screen.notaioHint.title")}</span>
+        <span>
+          <Narrated template={w("screen.notaioHint.title")} />
+        </span>
         <span className="muted">{w(open ? "screen.notaioHint.hide" : "screen.notaioHint.show")}</span>
       </button>
       {open && (
@@ -1889,7 +2175,9 @@ function RecordPane({ box, children }: { box: ReactNode; children: ReactNode }) 
         }}
         {...hint("reading", { focusable: true })}
       >
-        <div className="reading-head">{w("screen.reading.title")}</div>
+        <div className="reading-head">
+          <Narrated template={w("screen.reading.title")} />
+        </div>
         {box}
       </aside>
     </div>

@@ -14,7 +14,15 @@ export interface StartInfo {
   setting: string;
   currency: { singular: string; plural: string };
   words: Record<string, unknown>;
-  notaio: { hints: Record<string, string> };
+  notaio: {
+    hints: Record<string, string>;
+    /** Interface v0.11: his name's gloss, for the opening's caption and the hover wherever his name shows. */
+    name?: { gloss: string; hover: string };
+    /** Interface v0.7: the opening's story, a paragraph at a time. */
+    opening?: { paragraphs: string[] };
+    /** Interface v0.8: the tour's cards, by step. */
+    tour?: { steps: Record<string, string> };
+  };
   factions: string[];
   /** TD v0.44: the six relationship types, in relationships.json's order, with their labels, for the web's key. */
   relationshipTypes?: { type: string; label: string; covers: string }[];
@@ -76,3 +84,11 @@ export function names(xs: string[]): string {
 
 /** A guest's public information: the subtitle and faction only. */
 export const guest = (name: string) => info?.roster.find((r) => r.name === name);
+
+/** Il Notaio's words for the screen (notaio.json): his name's gloss and hover, the opening's paragraphs, a tour step's card. */
+export const narrator = {
+  gloss: () => info?.notaio?.name?.gloss ?? "",
+  hover: () => info?.notaio?.name?.hover ?? "",
+  paragraphs: () => info?.notaio?.opening?.paragraphs ?? [],
+  tourStep: (key: string) => info?.notaio?.tour?.steps[key] ?? `tour.${key}`,
+};

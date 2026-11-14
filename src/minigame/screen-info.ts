@@ -61,7 +61,8 @@ export function screenInfo(cards: CharacterName[], briefings: Partial<Record<Cha
     currency: pack.currency,
     words,
     // Il Notaio's hint to the player (TD v0.40): notaio.json's templates, filled on the screen.
-    notaio: { hints: strip("notaio.json").hints as Record<string, string> },
+    // Interface v0.7–v0.11: his name's gloss, the opening's story, and the tour's cards, all in his voice.
+    notaio: (({ hints, name, opening, tour }) => ({ hints, name, opening, tour }))(strip("notaio.json")) as { hints: Record<string, string>; name: { gloss: string; hover: string }; opening: { paragraphs: string[] }; tour: { steps: Record<string, string> } },
     max: MESSAGE_MAX,
     // The web's arcs, in the setting's faction order.
     factions: pack.factions.map((f) => f.name),

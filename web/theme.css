@@ -133,9 +133,22 @@
   --modal-peek-width: 150px;
   --modal-row-gap: 16px;
   --modal-slide: 120px;
-  --peek-opacity: 0.85;
+  --peek-opacity: 0.92;
   --peek-fade-left: linear-gradient(to right, transparent, #000 75%);
   --peek-fade-right: linear-gradient(to left, transparent, #000 75%);
+  /* Interface v0.7, the opening: how fast Il Notaio writes (a character at a time), the pause before the next
+     paragraph, the page's width, and his pen */
+  --opening-char: 28ms;
+  --opening-pause: 700ms;
+  --opening-width: 620px;
+  --opening-pen-width: 2px;
+  /* Interface v0.8, the tour: the dimmed screen around the spotlit part, the spotlight's margin, the card */
+  --tour-dim: rgba(20, 20, 18, 0.55);
+  --tour-spread: 200vmax;
+  --tour-pad: 6px;
+  --tour-gap: 12px;
+  --tour-card-width: 300px;
+  --motion-tour: 280ms;
   /* The Web of Secrets' bar: the selected guests' small portraits */
   --bar-portrait-size: 22px;
 
@@ -144,6 +157,7 @@
   --z-dock-backdrop: 40;
   --z-dock: 50;
   --z-overlay: 100;
+  --z-tour: 150;
   --z-tip: 200;
 
   /* Colours: light */
