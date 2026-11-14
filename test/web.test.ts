@@ -20,7 +20,7 @@ import { settingPack } from "../src/setting/pack.ts";
 import { GameView, Start } from "../web/src/App.tsx";
 import type { Ev } from "../web/src/connection.ts";
 import { canDo, canSpeak, openMenu, trigger, withMention } from "../web/src/input.ts";
-import { appearsIn, briefingCards, cityCards, derive, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, loreParts, readingFor, rulesCards, talkingWith, trackMarks, webLayout, type LoreEntry, type View } from "../web/src/model.ts";
+import { appearsIn, briefingCards, cityCards, derive, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, lineStages, loreParts, readingFor, rulesCards, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, type LoreEntry, type View } from "../web/src/model.ts";
 import { notaioHint, setInfo, type StartInfo } from "../web/src/words.ts";
 import { fakeCaller, fakeDocs, fakeSettings } from "./fixtures/fake-game.ts";
 
@@ -32,7 +32,7 @@ const noComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^
  * A fake game as Francesco, answered in process; the log at every request, with which kind was open.
  * `Game` plays a subclass (one that earns the extra act); `midnight` answers each midnight request in turn.
  */
-async function playedLog(opts: { Game?: typeof MiniGame; midnight?: (guests: string[], n: number) => unknown } = {}): Promise<{ log: Ev[]; at: Record<string, Ev[]>; game: MiniGame }> {
+async function playedLog(opts: { Game?: typeof MiniGame; midnight?: (guests: string[], n: number) => unknown; tap?: (ev: Ev, game: MiniGame) => void } = {}): Promise<{ log: Ev[]; at: Record<string, Ev[]>; game: MiniGame }> {
   const ctrl = new HumanController(F);
   const game = new (opts.Game ?? MiniGame)(fakeDocs, fakeSettings({ briefings: castBriefings(fakeDocs), seed: 2000, turns: 12, human: F }), fakeCaller(), {}, null, ctrl);
   let midnights = 0;
@@ -46,6 +46,7 @@ async function playedLog(opts: { Game?: typeof MiniGame; midnight?: (guests: str
     send: (d) => {
       let ev = JSON.parse(d) as Ev;
       log.push(ev);
+      opts.tap?.(ev, game);
       if (ev.type === "refusal" && midnight && opts.midnight) ev = midnight;
       else if (ev.type === "request" && ev.kind === "midnight") midnight = ev.closed ? null : ev;
       if (ev.type !== "request" || ev.closed) return;
@@ -111,19 +112,40 @@ async function lateView() {
   const idx = log.findLastIndex((e) => e.type === "request" && e.kind === "speak" && !e.closed);
   const v = derive(log.slice(0, idx + 1));
   assert.ok(v.segments.length > 2, `several conversations by then: ${v.segments.length}`);
-  return { v, at };
+  return { v, at, log };
 }
 
-test("only the current conversation is open: earlier ones are one line each under Earlier tonight", async () => {
-  const { v } = await lateView();
+/** The log at the latest request where this stage already has an earlier conversation, folded under Earlier this stage. */
+async function earlierView() {
+  const { log } = await playedLog();
+  for (let i = log.length - 1; i >= 0; i--) {
+    const e = log[i]!;
+    if (e.type !== "request" || e.closed || e.kind !== "speak") continue;
+    const v = derive(log.slice(0, i + 1));
+    if (earlierThisStage(v).length > 0) return v;
+  }
+  throw new Error("no request with an earlier conversation in its stage");
+}
+
+test("only the current conversation is open: this stage's earlier ones are one line each under Earlier this stage, and earlier stages aren't there", async () => {
+  const v = await earlierView();
+  const earlier = earlierThisStage(v);
+  const now = v.state!.phaseLabel;
+  assert.ok(earlier.every((r) => r.stage === now), "only this stage's");
   const h = html(createElement(GameView, { me: F, v, send: () => {}, status: "open" }));
   assert.deepEqual(missingWords(h), []);
   assert.match(h, /class="earlier"/);
-  assert.equal((h.match(/class="earlier-line"/g) ?? []).length, v.segments.length - 1, "one line per earlier conversation");
+  assert.ok(h.includes(`>${PLAYER.screen.earlier.title}<`), "Earlier this stage");
+  assert.equal((h.match(/class="earlier-line"/g) ?? []).length, earlier.length, "one line per earlier conversation in this stage");
   assert.ok(h.includes('aria-expanded="false"'), "collapsed until clicked");
   const id = (l: { id: string }) => `data-line="${l.id}"`;
-  for (const seg of v.segments.slice(0, -1)) for (const l of seg.lines) assert.ok(!h.includes(id(l)), `an earlier line is folded away: ${l.id}`);
+  const current = new Set(v.segments.at(-1)!.lines.map((l) => l.id));
+  for (const l of v.stream.filter((x) => !current.has(x.id))) assert.ok(!h.includes(id(l)), `an earlier line is folded away or in its stage: ${l.id}`);
   for (const l of v.segments.at(-1)!.lines) assert.ok(h.includes(id(l)), `a current line is shown: ${l.id}`);
+  // An earlier stage's conversations aren't folded here: they're in the bar.
+  const before = v.runs.filter((r) => r.stage !== now && !current.has(r.lines[0]!.id));
+  assert.ok(before.length > 0, "the player was in conversations in earlier stages");
+  assert.equal(earlier.filter((r) => before.includes(r)).length, 0);
 });
 
 test("the errand card: pinned under the sheet, with the briefing's errand section", async () => {
@@ -272,8 +294,8 @@ test("the decks: one card per briefing section and per rules topic, with Your pa
 });
 
 test("selection: one guest at a time, on the right, with their lines highlighted and their earlier conversations open", async () => {
-  const { v } = await lateView();
-  const earlier = v.segments.slice(0, -1);
+  const v = await earlierView();
+  const earlier = earlierThisStage(v);
   const name = v.stream.find((l) => l.item === "line" && !l.you && earlier.some((s) => appearsIn(s, l.speaker!)))!.speaker!;
   const h = game({ v, selected: { kind: "guest", name } });
   assert.deepEqual(missingWords(h), []);
@@ -502,8 +524,8 @@ test("the evening's track: past filled, now highlighted, the rest outlined, each
   const v = derive(at["speak:capannello"]!);
   assert.ok(v.sheet!.track!.includes(v.state!.phaseLabel));
   const h = game({ v });
-  assert.equal((h.match(/class="mark (past|now|next)"/g) ?? []).length, v.sheet!.track!.length);
-  assert.equal((h.match(/class="mark now"/g) ?? []).length, 1);
+  assert.equal((h.match(/class="mark (past|now|next)[ "]/g) ?? []).length, v.sheet!.track!.length);
+  assert.equal((h.match(/class="mark now[ "]/g) ?? []).length, 1);
   assert.match(h, /data-hint="trackNow"/);
 });
 
@@ -699,3 +721,114 @@ test("the extra act's looks are theme tokens: the card's accent, in light and da
   assert.equal((theme.match(/--errand-accent:/g) ?? []).length, 2, "light and dark");
   assert.match(theme, /--errand-mark-size:/);
 });
+
+// ---- CC-20261114-06 (#113): the stage bar and read-only past stages (Interface v0.5) ----------------------
+
+test("each line's stage is the phase it was spoken in, from what the screen already receives; runs split by conversation and stage", async () => {
+  const truth = new Map<number, string>();
+  const g = (x: MiniGame) => x as unknown as { turn: number; gathering: boolean; phaseLabelAt(at: number, gathering: boolean): string };
+  // The engine's own phase label at the moment each line goes out: what the screen's stage must match.
+  const tap = (ev: Ev, game: MiniGame) => {
+    if (ev.type === "line" || ev.type === "notaio" || ev.type === "action") truth.set(ev.seq, g(game).phaseLabelAt(g(game).turn, g(game).gathering));
+  };
+  const { log, game: played } = await playedLog({ tap });
+  const v = derive(log);
+  assert.ok(v.stream.length > 50);
+  for (const l of v.stream) assert.equal(l.stage, truth.get(l.seq), `${l.id} (seq ${l.seq})`);
+  const track = played.stages();
+  assert.ok(new Set(v.stream.map((l) => l.stage)).size >= 4, "lines in several stages");
+  for (const l of v.stream) assert.ok(track.includes(l.stage!), `${l.stage} is on the track`);
+  // Runs: every line once, in order; one conversation and one stage each; a new run at each change of either.
+  assert.deepEqual(v.runs.flatMap((r) => r.lines.map((l) => l.id)), v.stream.map((l) => l.id));
+  for (const r of v.runs) assert.ok(r.lines.every((l) => l.conversation === r.conversation && l.stage === r.stage));
+  for (let i = 1; i < v.runs.length; i++) assert.ok(v.runs[i]!.conversation !== v.runs[i - 1]!.conversation || v.runs[i]!.stage !== v.runs[i - 1]!.stage);
+  for (const stage of track) assert.deepEqual(stageRuns(v, stage).flatMap((r) => r.lines.map((l) => l.id)), v.stream.filter((l) => l.stage === stage).map((l) => l.id), stage);
+
+  // The two orders the engine can send: a turn's state ahead of a line from the turn before (the line keeps
+  // its stage), and a line opening a new turn ahead of its state (it takes the state that follows it at once).
+  const st = (seq: number, phaseLabel: string) => ({ type: "state", seq, state: { phaseLabel }, commands: [] }) as unknown as Ev;
+  const ln = (seq: number, turn: number) => ({ type: "notaio", seq, id: `L${seq}`, turn, conversation: "C1", text: "" }) as unknown as Ev;
+  const stages = lineStages([ln(1, 0), st(2, "A"), ln(3, 0), st(4, "B"), ln(5, 1), st(6, "C"), ln(7, 1), ln(8, 1)]);
+  assert.deepEqual([...stages], [[1, "A"], [3, "A"], [5, "C"], [7, "C"], [8, "C"]]);
+});
+
+test("the stage bar: a circle per stage with its numeral, past ones buttons, future ones not, the current one an oval with its name; words and looks from the pack and the theme", async () => {
+  const v = await earlierView();
+  const track = v.sheet!.track!;
+  const now = track.indexOf(v.state!.phaseLabel);
+  assert.ok(now > 0, "a past stage by then");
+  const h = game({ v });
+  assert.deepEqual(missingWords(h), []);
+  const bar = h.slice(h.indexOf('class="track stage-bar"'), h.indexOf("</ol>"));
+  const marks = [...bar.matchAll(/<li class="([^"]*)"[^>]*>(.*?)<\/li>/g)];
+  assert.equal(marks.length, track.length);
+  marks.forEach(([, cls, inner], i) => {
+    const at = i < now ? "past" : i === now ? "now" : "next";
+    assert.ok(cls!.startsWith(`mark ${at}`), `${i}: ${cls}`);
+    assert.match(inner!, new RegExp(`<span class="num">${i + 1}</span>`), "its numeral");
+    if (at === "next") assert.match(inner!, /^<span class="stage" tabindex="0" aria-disabled="true"[^>]*data-hint="trackNext"/, "a future stage isn't a button");
+    else assert.match(inner!, /^<button class="stage"/, "past and current are buttons");
+    assert.equal(inner!.includes('class="stage-name"'), at === "now", "only the current one shows its name");
+  });
+  assert.ok(marks[now]![1]!.includes("expanded"));
+  // Every stage of the mini-game has its one-line description in the pack; the hovers say what a click does.
+  for (const stage of track) assert.ok(typeof PLAYER.screen.stageBar.descriptions[stage] === "string", stage);
+  for (const k of ["trackPast", "trackNow", "trackNext", "return", "pastStage"]) assert.ok(PLAYER.screen.hints[k].length > 10, k);
+  const css = readFileSync("web/src/app.css", "utf8");
+  for (const sel of [".stage-bar", ".stage", ".stage-dot", ".members"]) assert.match(css, new RegExp(`${sel.replace(/\./g, "\\.")} \\{`), sel);
+  assert.match(css, /\.stage-bar \{[^}]*overflow-x: auto/, "it scrolls sideways on a narrow window");
+});
+
+test("Earlier this stage, and a selected guest's dots on the past stages they appear in", async () => {
+  const v = await earlierView();
+  const now = v.state!.phaseLabel;
+  const name = v.stream.find((l) => l.item === "line" && !l.you && l.stage !== now)!.speaker!;
+  const dots = stagesWith(v, name);
+  assert.ok(dots.size > 0 && !dots.has(now));
+  for (const stage of dots) assert.ok(stageRuns(v, stage).some((r) => appearsIn(r, name)));
+  const h = game({ v, selected: { kind: "guest", name } });
+  assert.equal((h.match(/class="stage-dot"/g) ?? []).length, dots.size, "a dot on each");
+  for (const m of h.matchAll(/<li class="mark (\w+)[^"]*" aria-label="([^"]*)"[^>]*>(.*?)<\/li>/g)) assert.equal(m[3]!.includes("stage-dot"), dots.has(m[2]!.replace(/&#x27;/g, "'")), m[2]);
+  assert.doesNotMatch(game({ v }), /stage-dot/, "nothing selected: no dots");
+});
+
+test("a past stage opens read-only: its conversations in order, Return in place of Speak and Pass, the summary's place empty until #146", async () => {
+  const v = await earlierView();
+  const stage = v.sheet!.track![1]!;
+  const runs = stageRuns(v, stage);
+  assert.ok(runs.length > 0);
+  const h = game({ v, pastStage: stage });
+  assert.deepEqual(missingWords(h), []);
+  const view = h.slice(h.indexOf('class="past-stage"'), h.indexOf('class="notaio-hint'));
+  assert.ok(view.includes(esc(w2("pastStage.heading", { stage }))), "headed with the stage");
+  assert.equal((view.match(/class="past-conv"/g) ?? []).length, runs.length, "each conversation under its line");
+  const ids = [...view.matchAll(/data-line="(\w+)"/g)].map((m) => m[1]);
+  assert.deepEqual(ids, runs.flatMap((r) => r.lines.map((l) => l.id)), "every line of the stage, in order, and nothing else");
+  assert.doesNotMatch(view, /class="earlier"|class="card"|class="speaking"/, "nothing of the current stage");
+  // The bar marks the open stage; the input box keeps its draft field, with Return alone in Speak's place.
+  assert.match(h, new RegExp(`<li class="mark past expanded shown open" aria-label="${esc(stage)}"`));
+  const input = h.slice(h.indexOf('class="input past"'));
+  assert.ok(input.length > 0 && input.includes("<textarea"));
+  assert.match(input, /<button class="primary return( beckon)?"[^>]*data-hint="return"[^>]*>Return to current stage</);
+  assert.doesNotMatch(input, /data-hint="(speak|do|pass)"/, "no Speak, Do, or Pass");
+  assert.doesNotMatch(h.slice(h.indexOf('class="conv-head"'), h.indexOf("</header>")), /data-hint="end"/, "no End conversation from a past stage");
+  // While the game waits for the player, Return and the current stage beckon, and the placeholder says so.
+  assert.ok(v.pending);
+  assert.match(input, /class="primary return beckon"/);
+  assert.ok(input.includes(`placeholder="${esc(PLAYER.screen.input.pastWaiting)}"`));
+  assert.match(h, /<li class="mark now beckon"/);
+  const calm = game({ v: { ...v, pending: null }, pastStage: stage });
+  assert.ok(calm.includes(`placeholder="${esc(PLAYER.screen.input.pastPlaceholder)}"`));
+  assert.doesNotMatch(calm, /beckon/);
+  // A decision card waiting doesn't close the box while a past stage is open.
+  const { at } = await playedLog();
+  const moving = derive(at.move!);
+  const past = moving.sheet!.track!.find((t) => trackMarks(moving.sheet!.track!, moving.state!.phaseLabel).find((m) => m.stage === t)!.at === "past")!;
+  assert.match(game({ v: moving, pastStage: past }), /class="primary return beckon"/);
+});
+
+/** A word from player.json's screen section, filled. */
+function w2(key: string, values: Record<string, string>): string {
+  const t = key.split(".").reduce((o: any, k) => o[k], PLAYER.screen) as string;
+  return t.replace(/\{(\w+)\}/g, (m, k: string) => values[k] ?? m);
+}
