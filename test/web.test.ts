@@ -1310,8 +1310,9 @@ test("the opening: his name glossed at the top before he writes, Skip, and the s
   assert.doesNotMatch(h, /class="opening-para"/, "before he writes, only his name");
   assert.match(h, /class="secondary small opening-skip"[^>]*data-hint="openingSkip"/);
   assert.doesNotMatch(h, /start-card/, "the choice comes at the end");
-  assert.ok(Array.isArray(NOTAIO_PACK.opening.paragraphs) && NOTAIO_PACK.opening.paragraphs.length >= 1);
-  assert.equal(NOTAIO_PACK.opening.paragraphs.at(-1), "Speak as your character would, plainly.", "Interface v0.14: the last line");
+  assert.ok(Array.isArray(NOTAIO_PACK.opening.paragraphs) && NOTAIO_PACK.opening.paragraphs.length === 6, "#148: Lore's six placeholder paragraphs");
+  assert.ok(NOTAIO_PACK.opening.paragraphs.at(-1)!.endsWith(" Speak as your character would, plainly."), "Interface v0.14: the last paragraph ends on the orientation line");
+  assert.equal(NOTAIO_PACK.opening.paragraphs.join(" ").split("Speak as your character would, plainly.").length, 2, "#148: the orientation line once, not appended again");
   assert.deepEqual(info.notaio.opening!.paragraphs, NOTAIO_PACK.opening.paragraphs, "served to the screen as written");
   const written = html(createElement(Opening, { onStart: () => {}, written: true }));
   assert.equal((written.match(/class="opening-para" data-state="done"/g) ?? []).length, NOTAIO_PACK.opening.paragraphs.length, "Skip: every paragraph, whole");

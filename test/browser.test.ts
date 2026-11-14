@@ -132,8 +132,11 @@ before(async () => {
   opening.headTop = head.top;
   await page.eval(`document.querySelector(".opening-story").click()`);
   opening.afterClick = await page.eval(story);
-  await page.until(`document.querySelector(".opening-choice .start-card")`, 10_000);
+  // The rest, a click finishing each paragraph as he writes it (#148's six take over a minute by pen). Only
+  // mid-paragraph: a click in the pause between paragraphs would start the pause again.
+  await page.until(`(() => { const p = document.querySelector('.opening-para[data-state="writing"]'); if (p && p.textContent.length < p.dataset.full.length) document.querySelector(".opening-story").click(); return document.querySelector(".opening-choice .start-card"); })()`, 20_000);
   opening.end = await page.eval(story);
+  await page.eval(`document.querySelector(".opening-choice").scrollIntoView({ block: "end" })`);
   await page.shot("opening-choice");
   // Again from the start: Skip writes it all out at once.
   await page.send("Page.reload");
@@ -145,11 +148,12 @@ before(async () => {
   await page.send("Page.reload");
   await page.until(`document.querySelector(".opening-para")`, 10_000);
   opening.reduced = await page.eval(story);
+  await page.until(`document.querySelector(".opening-choice .start-card button")`, 20_000);
   await page.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] });
-  await page.until(`document.querySelector(".opening-choice .start-card button")`, 10_000);
   // Choose the card as a player would: hover (its explanation shows), then click. The game
   // starts and waits for the player, with the sheet (the decks) in hand.
-  const b = await page.eval<{ x: number; y: number }>(`(() => { const r = document.querySelector(".start-card button").getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+  // The story runs past the window now (#148), so scroll down to the card first, as a player would.
+  const b = await page.eval<{ x: number; y: number }>(`(() => { const e = document.querySelector(".start-card button"); e.scrollIntoView({ block: "center" }); const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
   await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...b });
   await page.until(`document.querySelector(".tip:not(.measuring)")`);
   startTip = await page.eval<string>(`document.querySelector(".tip").textContent`);
