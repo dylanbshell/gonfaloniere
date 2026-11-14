@@ -91,13 +91,20 @@
       ]
     },
     {
-      "name": "Fra Tommaso",
+      "name": "Friar Tommaso",
       "faction": "Dominicans",
       "subtitle": "Dominicans · the preacher",
       "aliases": [
         "Tommaso",
         "Brother Tommaso",
-        "Father Tommaso"
+        "Father Tommaso",
+        "Fra Tommaso"
+      ],
+      "earlier": [
+        {
+          "name": "Fra Tommaso",
+          "before_characters": "0.15"
+        }
       ]
     },
     {
@@ -153,7 +160,7 @@
       ]
     }
   ],
-  "_roster_comment": "Characters' roster: the exact spellings models must use; aliases for matching names in model output; the public subtitle from each briefing (Characters v0.10). `roles`: \"two kills\" is Mechanics' Murder Round special case (two Kill orders that guards and watchers can't stop, and no guard or watch).",
+  "_roster_comment": "Characters' roster: the exact spellings models must use; aliases for matching names in model output; the public subtitle from each briefing (Characters v0.10). `roles`: \"two kills\" is Mechanics' Murder Round special case (two Kill orders that guards and watchers can't stop, and no guard or watch). `earlier`: a name the character had before a Characters version renamed them (Characters v0.15: Fra Tommaso became Friar Tommaso, #136); a game on an earlier Characters version hears the old name wherever code writes the roster into a prompt, so it replays as it ran. The old name stays an alias.",
   "places": [
     "the great hall",
     "the window bay",

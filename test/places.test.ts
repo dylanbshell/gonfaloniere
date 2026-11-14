@@ -136,9 +136,9 @@ test("{room}'s words, with and without places: TD's examples, with the setting p
   assert.equal(
     roomText({ places: [
       { place: "the great hall", members: ["Giorgia Pazzi", "Raffaello de' Medici", "Captain Armand LeNoir"], private: false },
-      { place: "the window bay", members: ["Fra Tommaso", "Sister Beatrice"], private: true },
+      { place: "the window bay", members: ["Friar Tommaso", "Sister Beatrice"], private: true },
     ] }),
-    "the great hall: Giorgia Pazzi, Raffaello de' Medici and Captain Armand LeNoir; the window bay: Fra Tommaso and Sister Beatrice, in private.",
+    "the great hall: Giorgia Pazzi, Raffaello de' Medici and Captain Armand LeNoir; the window bay: Friar Tommaso and Sister Beatrice, in private.",
   );
   assert.equal(roomText({ places: [{ place: "the loggia", members: ["Lupo"], private: false }, { place: "the study", members: [], private: false }] }), "the loggia: Lupo.", "a guest on their own; an empty place isn't listed");
   assert.equal(roomText({ places: [] }), "", "nothing to see: no line");
@@ -160,7 +160,7 @@ test("{room}'s size in a full-size room (reported; TD estimates 50–110 tokens)
   ] })}`;
   const four = `Around the room: ${roomText({ places: [
     { place: "the great hall", members: ["Giorgia Pazzi", "Raffaello de' Medici", "Captain Armand LeNoir"], private: false },
-    { place: "the window bay", members: ["Fra Tommaso", "Contessa Isabella", "Jeanne d'Orléans"], private: false },
+    { place: "the window bay", members: ["Friar Tommaso", "Contessa Isabella", "Jeanne d'Orléans"], private: false },
     { place: "the painted room", members: ["Piero de' Medici", "Clarice Orsini", "Francesco Pazzi"], private: false },
   ] })}`;
   t.diagnostic(`room line in the fake full-size game: ${lens.length} calls, ~${Math.round(Math.min(...lens))}–${Math.round(Math.max(...lens))} tokens, ~${Math.round(avg)} on average (characters / 4)`);

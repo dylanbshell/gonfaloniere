@@ -128,7 +128,7 @@ export class Recorder {
   private async perceptionPass(turn: number, c: CharacterName, lines: GameLine[], thoughts: Thought[]): Promise<void> {
     const sp = this.docs.systemPrompts!.perceptionPass!;
     const items = this.timeline(turn, c, lines, thoughts);
-    const user = fill(sp.user, { roster: rosterText(), character_name: c, timeline: this.renderTimeline(c, items) });
+    const user = fill(sp.user, { roster: rosterText(this.docs.versions.characters), character_name: c, timeline: this.renderTimeline(c, items) });
     const raw = await this.call("perception-pass", c, sp.system, user);
     if (raw === null) {
       this.events.push({ turn, type: "extraction-failed", pass: "10e", character: c });
@@ -141,7 +141,7 @@ export class Recorder {
   /** 10a/10d's user message: roster, conversation, context lines and this turn's lines with IDs, and the IDs to sweep. */
   private passUser(turn: number, mine: GameLine[], context: GameLine[]): string {
     return fill(this.docs.systemPrompts!.starPass.user, {
-      roster: rosterText(),
+      roster: rosterText(this.docs.versions.characters),
       conversation_label: whereLabel(mine.at(-1)!.where),
       turn: String(turn),
       participants: this.listJoin([...new Set(mine.flatMap((l) => l.heardBy))]),
@@ -217,7 +217,7 @@ export class Recorder {
     const sp = this.docs.systemPrompts!.thoughtPass;
     const prior = this.memory.beliefsOf(c);
     const user = fill(sp.user, {
-      roster: rosterText(),
+      roster: rosterText(this.docs.versions.characters),
       character_name: c,
       prior_beliefs: prior.length ? prior.map((b) => `[${b.id}] ${b.kind} — ${b.statement}`).join("\n") : "None.",
       thoughts: ts.map((t) => `[${t.id}] ${t.text}`).join("\n"),

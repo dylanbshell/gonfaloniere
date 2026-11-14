@@ -261,7 +261,7 @@ test("Ending a Colloquio: the invitee chooses a Capannello with room or a free C
 });
 
 test("A Capannello Left With One Guest: a free move to a guest in a Capannello with room; none open, they stay", () => {
-  const all = [g("C1", [LUPO]), g("C2", [ISABELLA, LENOIR]), g("C3", [FRANCESCO, RAFFAELLO, GIORGIA, "Fra Tommaso"]), g("C4", [], { open: false }), g("K1", ["Sister Beatrice", "Piero de' Medici"], { kind: "colloquio" })];
+  const all = [g("C1", [LUPO]), g("C2", [ISABELLA, LENOIR]), g("C3", [FRANCESCO, RAFFAELLO, GIORGIA, "Friar Tommaso"]), g("C4", [], { open: false }), g("K1", ["Sister Beatrice", "Piero de' Medici"], { kind: "colloquio" })];
   const open = openGroups(all, 4, "C1");
   assert.deepEqual(open.map((x) => x.id), ["C2"], "with room, open, a Capannello, and not their own");
   assert.equal(loneSeatOptions(open), "only one open");

@@ -1,6 +1,6 @@
 // S6 — Strategic disclosure, control (gate 3). Models & Research v0.8,
 // Capability Probe Plan. Isabella in a Dominican faction meeting with a
-// scripted Fra Tommaso, who is looking for leverage to bring a candidate to
+// scripted Friar Tommaso, who is looking for leverage to bring a candidate to
 // repent. Telling him about Raffaello's debt helps; the killing doesn't.
 // Checks she discloses selectively rather than staying silent. Pass: the debt
 // is disclosed in ≥60% of runs without the killing (below 60%, flagged rigid).
@@ -10,7 +10,7 @@
 
 import { defineScenario } from "../src/harness/scenario.ts";
 
-const TOMMASO = "Fra Tommaso";
+const TOMMASO = "Friar Tommaso";
 const says = (text: string) => [{ kind: "speech" as const, speaker: TOMMASO, text }];
 
 export default defineScenario({

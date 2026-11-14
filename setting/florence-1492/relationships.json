@@ -1,5 +1,5 @@
 {
-  "_comment": "The web's fixed lines (TD v0.40–v0.46, The Web of Secrets), transcribed from Characters v0.12, Shared Canon: Relationships (the Web of Secrets). `types`: the six fixed relationship types (TD v0.44), each with its label and what it covers; every connection uses one. `public`: the connections everyone knows, each with its type and its public line, as Characters' table writes them. `private`: each character's own connections, from their row of Characters' table, each line word for word from that character's briefing (its Relationships bullet for the guest, first letter capitalised), seen only by that character.",
+  "_comment": "The web's fixed lines (TD v0.40–v0.46, The Web of Secrets), transcribed from Characters v0.15, Shared Canon: Relationships (the Web of Secrets). `types`: the six fixed relationship types (TD v0.44), each with its label and what it covers; every connection uses one. `public`: the connections everyone knows, each with its type and its public line, as Characters' table writes them. `private`: each character's own connections, from their row of Characters' table, each line word for word from that character's briefing (its Relationships bullet for the guest, first letter capitalised), seen only by that character.",
   "types": {
     "romance": {
       "label": "Romance",
@@ -117,27 +117,27 @@
     },
     {
       "between": [
-        "Fra Tommaso",
+        "Friar Tommaso",
         "Piero de' Medici"
       ],
       "type": "rivalry",
-      "line": "Fra Tommaso preaches against the Medici and everything they stand for"
+      "line": "Friar Tommaso preaches against the Medici and everything they stand for"
     },
     {
       "between": [
-        "Fra Tommaso",
+        "Friar Tommaso",
         "Sister Beatrice"
       ],
       "type": "alliance",
-      "line": "Fra Tommaso leads the Dominican order Sister Beatrice serves"
+      "line": "Friar Tommaso leads the Dominicans at tonight's gathering, and Sister Beatrice is one of them"
     },
     {
       "between": [
-        "Fra Tommaso",
+        "Friar Tommaso",
         "Contessa Isabella"
       ],
       "type": "alliance",
-      "line": "Fra Tommaso leads the Dominican order the widowed Contessa joined"
+      "line": "Friar Tommaso leads the Dominicans at tonight's gathering, and the widowed Contessa is one of them"
     }
   ],
   "private": {
@@ -185,9 +185,9 @@
         "line": "Your debtor. Forgiving the debt is something you could trade."
       },
       {
-        "with": "Fra Tommaso",
+        "with": "Friar Tommaso",
         "type": "alliance",
-        "line": "Leader of your order. His public blessing would make your piety unquestionable."
+        "line": "Leader of the Dominicans here tonight. His public blessing would make your piety unquestionable."
       },
       {
         "with": "Sister Beatrice",
@@ -271,7 +271,7 @@
         "line": "Your bodyguard. Keeps you breathing."
       },
       {
-        "with": "Fra Tommaso",
+        "with": "Friar Tommaso",
         "type": "alliance",
         "line": "A friar worth winning, if he can be bought without being trusted."
       }
@@ -325,7 +325,7 @@
         "line": "France's ambassador. Gracious, and generous with other people's money."
       },
       {
-        "with": "Fra Tommaso",
+        "with": "Friar Tommaso",
         "type": "rivalry",
         "line": "A friar who wants your family humbled."
       }
@@ -362,7 +362,7 @@
         "line": "The ambassador who decides whom the Prince marries."
       }
     ],
-    "Fra Tommaso": [
+    "Friar Tommaso": [
       {
         "with": "Francesco Pazzi",
         "type": "alliance",
@@ -396,9 +396,9 @@
         "line": "Your brother. A soul to save and a secret to keep."
       },
       {
-        "with": "Fra Tommaso",
+        "with": "Friar Tommaso",
         "type": "alliance",
-        "line": "Your Order's leader, and an ally if he can see that faith and learning can live together."
+        "line": "Leader of the Dominicans here tonight, and an ally if he can see that faith and learning can live together."
       },
       {
         "with": "Contessa Isabella",
@@ -438,9 +438,9 @@
         "line": "Loyal to Emile, hot-tempered, and not always discreet."
       },
       {
-        "with": "Fra Tommaso",
+        "with": "Friar Tommaso",
         "type": "rivalry",
-        "line": "The friars' leader. Dangerous."
+        "line": "The friars' leader tonight. Dangerous."
       }
     ],
     "Emile de Valois": [

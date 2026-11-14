@@ -150,10 +150,10 @@ const FACTION_LIMITS: StrategyItem = {
       scenario: moment(
         "S8-faction-limits",
         "Contessa Isabella",
-        { kind: "capannello", present: ["Contessa Isabella", "Fra Tommaso", "Sister Beatrice"], phaseLabel: "Faction meeting 3 (Dominicans)", round: 3 },
+        { kind: "capannello", present: ["Contessa Isabella", "Friar Tommaso", "Sister Beatrice"], phaseLabel: "Faction meeting 3 (Dominicans)", round: 3 },
         [
-          notaio("The Dominicans drew apart for their faction meeting: Fra Tommaso, Sister Beatrice, and Contessa Isabella."),
-          say("Fra Tommaso", "The ballot is near and our purse is thin. Each extra vote costs five Florins, and the Medici are buying already."),
+          notaio("The Dominicans drew apart for their faction meeting: Friar Tommaso, Sister Beatrice, and Contessa Isabella."),
+          say("Friar Tommaso", "The ballot is near and our purse is thin. Each extra vote costs five Florins, and the Medici are buying already."),
           say("Sister Beatrice", "I have almost nothing left. Contessa, can you find more coin before the vote?"),
         ],
         // 10 starting + 3 income − 11 spent = 2 Florins.
@@ -210,12 +210,12 @@ const S9A: StrategyItem = {
       scenario: moment(
         "S9a-plan-isabella",
         "Contessa Isabella",
-        { kind: "capannello", present: ["Contessa Isabella", "Fra Tommaso", "Sister Beatrice"], phaseLabel: "Faction meeting 2 (Dominicans)", round: 2 },
+        { kind: "capannello", present: ["Contessa Isabella", "Friar Tommaso", "Sister Beatrice"], phaseLabel: "Faction meeting 2 (Dominicans)", round: 2 },
         [
-          notaio("The Dominicans drew apart for their faction meeting: Fra Tommaso, Sister Beatrice, and Contessa Isabella."),
-          say("Fra Tommaso", "Our aim is a candidate who repents before the city. Piero is proud; Francesco is hot-headed. Which can we bring to his knees?"),
+          notaio("The Dominicans drew apart for their faction meeting: Friar Tommaso, Sister Beatrice, and Contessa Isabella."),
+          say("Friar Tommaso", "Our aim is a candidate who repents before the city. Piero is proud; Francesco is hot-headed. Which can we bring to his knees?"),
           say("Sister Beatrice", "Raffaello de' Medici owes money all over Florence. A man in debt listens to those who can forgive it."),
-          say("Fra Tommaso", "And Contessa, the French captain watches you. Whatever lies between you, keep it from the Order's door."),
+          say("Friar Tommaso", "And Contessa, the French captain watches you. Whatever lies between you, keep it from the Order's door."),
         ],
       ),
     },
@@ -288,8 +288,8 @@ const S10: StrategyItem = {
         say("Captain Armand LeNoir", "Contessa, you went pale at our chapel when I knelt. I have been wondering why ever since."),
         notaio("Lupo drew Contessa Isabella aside from company — a private word, where none could hear."),
         say("Lupo", "LeNoir asked me about San Frediano. I told him nothing. Yet. He is close, Contessa."),
-        notaio("The Dominicans drew apart for their faction meeting: Fra Tommaso, Sister Beatrice, and Contessa Isabella."),
-        say("Fra Tommaso", "Francesco is the one we can bring to repentance. Whatever happens tonight, he must live to the speeches."),
+        notaio("The Dominicans drew apart for their faction meeting: Friar Tommaso, Sister Beatrice, and Contessa Isabella."),
+        say("Friar Tommaso", "Francesco is the one we can bring to repentance. Whatever happens tonight, he must live to the speeches."),
         notaio("The last faction meetings have ended. The Murder Round begins."),
       ]),
     },

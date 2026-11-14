@@ -19,14 +19,16 @@ test("the run setting defaults to florence-1492, and its files are in setting/fl
 });
 
 test("the roster and aliases are the ones game records have always held, in the same order and shape", () => {
-  // A game record's header stores ROSTER and ALIASES as they are; this is their JSON before the move.
+  // A game record's header stores ROSTER and ALIASES as they are; this is their JSON before the move,
+  // but for one deliberate change: Characters v0.15 renamed Fra Tommaso to Friar Tommaso (#136), keeping
+  // "Fra Tommaso" as his last alias so the old name, and older records, still resolve to him.
   assert.equal(
     JSON.stringify(ROSTER),
-    `[{"name":"Piero de' Medici","faction":"Medici"},{"name":"Clarice Orsini","faction":"Medici"},{"name":"Raffaello de' Medici","faction":"Medici"},{"name":"Francesco Pazzi","faction":"Pazzi"},{"name":"Giorgia Pazzi","faction":"Pazzi"},{"name":"Lupo","faction":"Pazzi"},{"name":"Fra Tommaso","faction":"Dominicans"},{"name":"Sister Beatrice","faction":"Dominicans"},{"name":"Contessa Isabella","faction":"Dominicans"},{"name":"Jeanne d'Orléans","faction":"French Embassy"},{"name":"Emile de Valois","faction":"French Embassy"},{"name":"Captain Armand LeNoir","faction":"French Embassy"}]`,
+    `[{"name":"Piero de' Medici","faction":"Medici"},{"name":"Clarice Orsini","faction":"Medici"},{"name":"Raffaello de' Medici","faction":"Medici"},{"name":"Francesco Pazzi","faction":"Pazzi"},{"name":"Giorgia Pazzi","faction":"Pazzi"},{"name":"Lupo","faction":"Pazzi"},{"name":"Friar Tommaso","faction":"Dominicans"},{"name":"Sister Beatrice","faction":"Dominicans"},{"name":"Contessa Isabella","faction":"Dominicans"},{"name":"Jeanne d'Orléans","faction":"French Embassy"},{"name":"Emile de Valois","faction":"French Embassy"},{"name":"Captain Armand LeNoir","faction":"French Embassy"}]`,
   );
   assert.equal(
     JSON.stringify(ALIASES),
-    `{"Piero de' Medici":["Piero","Signor Piero","Messer Piero"],"Clarice Orsini":["Clarice","Madonna Clarice","Lady Clarice"],"Raffaello de' Medici":["Raffaello","Signor Raffaello","Messer Raffaello"],"Francesco Pazzi":["Francesco","Francesco de' Pazzi","Signor Francesco","Messer Francesco"],"Giorgia Pazzi":["Giorgia","Giorgia de' Pazzi","Madonna Giorgia","Lady Giorgia"],"Lupo":[],"Fra Tommaso":["Tommaso","Brother Tommaso","Father Tommaso"],"Sister Beatrice":["Beatrice"],"Contessa Isabella":["Isabella","Contessa Isabella di Salviati","Isabella di Salviati","the Contessa"],"Jeanne d'Orléans":["Jeanne","Ambassador Jeanne","Madame Jeanne","Lady Jeanne"],"Emile de Valois":["Emile","Prince Emile","Prince Emile de Valois"],"Captain Armand LeNoir":["LeNoir","Captain LeNoir","Armand LeNoir","Armand","the Captain"]}`,
+    `{"Piero de' Medici":["Piero","Signor Piero","Messer Piero"],"Clarice Orsini":["Clarice","Madonna Clarice","Lady Clarice"],"Raffaello de' Medici":["Raffaello","Signor Raffaello","Messer Raffaello"],"Francesco Pazzi":["Francesco","Francesco de' Pazzi","Signor Francesco","Messer Francesco"],"Giorgia Pazzi":["Giorgia","Giorgia de' Pazzi","Madonna Giorgia","Lady Giorgia"],"Lupo":[],"Friar Tommaso":["Tommaso","Brother Tommaso","Father Tommaso","Fra Tommaso"],"Sister Beatrice":["Beatrice"],"Contessa Isabella":["Isabella","Contessa Isabella di Salviati","Isabella di Salviati","the Contessa"],"Jeanne d'Orléans":["Jeanne","Ambassador Jeanne","Madame Jeanne","Lady Jeanne"],"Emile de Valois":["Emile","Prince Emile","Prince Emile de Valois"],"Captain Armand LeNoir":["LeNoir","Captain LeNoir","Armand LeNoir","Armand","the Captain"]}`,
   );
   assert.deepEqual(CAST, ["Lupo", "Contessa Isabella", "Captain Armand LeNoir", "Francesco Pazzi", "Raffaello de' Medici", "Giorgia Pazzi"]);
   assert.deepEqual(STANDINS, ["Francesco Pazzi", "Raffaello de' Medici", "Giorgia Pazzi"]);

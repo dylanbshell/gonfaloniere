@@ -72,9 +72,9 @@ export const charactersPath = (version: string) => `docs/Gonfaloniere_Characters
 /**
  * The Characters version a run loads from TD v0.34 on (PROBE_CHARACTERS overrides). Only the default:
  * the in-world names' minimum stays `since.characters` in the setting pack (v0.10), so a new
- * Characters version changes just this line (#73: v0.11, Isabella's Easter Mass).
+ * Characters version changes just this line (#73: v0.11, Isabella's Easter Mass; #136: v0.15, Friar Tommaso).
  */
-export const DEFAULT_CHARACTERS = "0.12";
+export const DEFAULT_CHARACTERS = "0.15";
 
 /**
  * The docs for one TD version. TD v0.34+ and Characters v0.10+ use in-world names and must be

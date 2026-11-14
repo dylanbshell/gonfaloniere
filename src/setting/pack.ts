@@ -20,7 +20,11 @@ export interface SettingPack {
   name: string;
   currency: { singular: string; plural: string };
   factions: { name: string; colour: string | null; pension: PensionRole }[];
-  roster: { name: string; faction: string; subtitle: string; aliases: string[]; roles?: string[] }[];
+  /**
+   * `earlier`: the names a character had before a Characters version renamed them, each with the first
+   * version of the new name (`before_characters`); a game on an earlier version hears the old one.
+   */
+  roster: { name: string; faction: string; subtitle: string; aliases: string[]; roles?: string[]; earlier?: { name: string; before_characters: string }[] }[];
   /** TD v0.49's named places, in Lore's order ("the great hall", …); absent in a pack without them. */
   places?: string[];
   playable: string[];

@@ -599,8 +599,8 @@ test("the room (TD v0.45–v0.48, a game without places): your own group marked,
   assert.ok(v.state!.places && !v.state!.room && v.named, "the default TD (v0.49) sends the places in open play, in place of the room");
   // roomOf reads either shape: from places, the other occupied places.
   const place = (name: string, guests: string[], o: { private?: boolean; own?: boolean } = {}) => ({ name, guests, private: !!o.private, own: !!o.own });
-  const places = [place("the great hall", ["Lupo", "Fra Tommaso"]), place("the window bay", []), place("the anteroom", ["Francesco Pazzi", "Giorgia Pazzi"], { own: true }), place("the loggia", ["Piero de' Medici", "Clarice Orsini"], { private: true }), place("the study", ["Sister Beatrice"]), place("the dining room", [])];
-  const roomShape = { groups: [["Lupo", "Fra Tommaso"], ["Sister Beatrice"]], colloquios: [["Piero de' Medici", "Clarice Orsini"]] };
+  const places = [place("the great hall", ["Lupo", "Friar Tommaso"]), place("the window bay", []), place("the anteroom", ["Francesco Pazzi", "Giorgia Pazzi"], { own: true }), place("the loggia", ["Piero de' Medici", "Clarice Orsini"], { private: true }), place("the study", ["Sister Beatrice"]), place("the dining room", [])];
+  const roomShape = { groups: [["Lupo", "Friar Tommaso"], ["Sister Beatrice"]], colloquios: [["Piero de' Medici", "Clarice Orsini"]] };
   assert.deepEqual(roomOf({ ...v.state!, places }), roomShape);
   // An older game: no state ever carried places, so the room view as built.
   const { places: _, ...withoutPlaces } = v.state!;
@@ -974,7 +974,7 @@ function w2(key: string, values: Record<string, string>): string {
 // buttons, the city's list, the placeholder, and one selection shared with the web (Interface v0.5–v0.7) -------
 
 test("one selection, shared with the Web of Secrets: chat to web, web to chat, a pair, clearing, and a lore topic", () => {
-  const [A, B, C] = ["Lupo", "Giorgia Pazzi", "Fra Tommaso"];
+  const [A, B, C] = ["Lupo", "Giorgia Pazzi", "Friar Tommaso"];
   const topic = LORE[0]!;
   // A guest selected in the chat is the web's selection; again, it clears both.
   let s = selectInChat(NO_SELECTION, A);
