@@ -1,9 +1,18 @@
 # Gonfaloniere
 ## Game Mechanics — Working Document
-### Version 0.35
+### Version 0.36
 *Formerly "Plots in the Palazzo"*
 
 ---
+
+## Changes in v0.36
+
+*Retitling for clarity (Dylan, Nov 14; Characters v0.15, Open Questions: Retitling). Names a modern player knows. Older changelog entries keep the old names.*
+
+- **"French pension" is now being on France's payroll.** `/borrow` takes one **payroll payment** (3 Florins from the Embassy treasury) and puts the character on France's payroll; `/repay` pays one back. France wins if anyone in the winning faction is on its payroll. Dylan's other idea, "a French bribe", would blur with the existing bribe, a plain transfer. The Tunable Values row **Pension size** is now **Payroll payment** (same value, 3 Florins)
+- **"Capannello" is now a group.** "Colloquio" stays, since a private word has its own place in the game. The Capannello phases are now **rounds of mingling** (Mingling 1–3), matching the in-world names, and the lone-guest section is A Group Left With One Guest
+- **Fra Tommaso is now Friar Tommaso** (Characters v0.15)
+- No rule changed: only names
 
 ## Changes in v0.35
 
@@ -190,9 +199,9 @@ Gonfaloniere is being built as an all-AI simulation first, with all 12 character
 ## Core Structure
 
 - 12 active characters across 4 factions: Medici, Pazzi, Dominicans, French Embassy
-- 3 Capannello phases of open play, followed by a Murder Round and the Election
+- 3 rounds of mingling (open play), followed by a Murder Round and the Election
 - Death is permanent and removes the character from active play; a dead character's faction can still win
-- A dead character's Florins and pensions vanish; nothing is inherited
+- A dead character's Florins and places on France's payroll vanish; nothing is inherited
 - All living characters may vote in the Election regardless of faction
 - Only Medici and Pazzi characters may be nominated as candidates for Gonfaloniere
 
@@ -202,9 +211,9 @@ Gonfaloniere is being built as an all-AI simulation first, with all 12 character
 
 The full game unfolds in the following sequence (all turn counts TBD):
 
-- **A)** Faction Meeting 1 → Individual Strategy 1 → Capannello 1
-- **B)** Faction Meeting 2 → Individual Strategy 2 → Capannello 2
-- **C)** Faction Meeting 3 → Individual Strategy 3 → Capannello 3
+- **A)** Faction Meeting 1 → Individual Strategy 1 → Mingling 1
+- **B)** Faction Meeting 2 → Individual Strategy 2 → Mingling 2
+- **C)** Faction Meeting 3 → Individual Strategy 3 → Mingling 3
 - **D)** Faction Meeting 4 → Individual Strategy 4 → KILL / GUARD / INVESTIGATE
 - **E)** Medici & Pazzi Internal Discussions → Candidate Selection
 - **F)** Speeches (candidate speeches + open interventions; the only window for /repent)
@@ -218,7 +227,7 @@ The full game unfolds in the following sequence (all turn counts TBD):
 ## Turn Structure
 
 - A **turn** is 12 utterances, counted across all active conversations at once, regardless of how many conversations are running or how many characters are in each
-- With 4 Capannelli of 3, each conversation gets about 3 utterances per turn: each character speaks about once and hears two others
+- With 4 groups of 3, each conversation gets about 3 utterances per turn: each character speaks about once and hears two others
 - At the end of every turn, one character gets a movement window (see Movement)
 - Starting value: 12 utterances per turn, tunable
 
@@ -226,9 +235,9 @@ The full game unfolds in the following sequence (all turn counts TBD):
 
 ---
 
-## Capannello Initialization
+## Group Initialization
 
-- At the start of each Capannello phase (A, B, C), all living characters are randomly split into groups of 3 (4 groups at full strength)
+- At the start of each round of mingling (A, B, C), all living characters are randomly split into groups of 3 (4 groups at full strength)
 - The movement order for that phase is also randomized
 - Random starts keep characters from settling into comfortable cliques; they then sort themselves over the phase through movement
 
@@ -236,12 +245,12 @@ The full game unfolds in the following sequence (all turn counts TBD):
 
 ## Faction Meetings
 
-Faction meetings are ordinary Capannello conversations limited to living faction members, with all the usual conversation rules.
+Faction meetings are ordinary group conversations limited to living faction members, with all the usual conversation rules.
 
 - Each council is held in one of the hall's places, drawn at random (Named Places)
 
 - Nothing is pooled automatically: a character only learns what another member chooses to say out loud
-- Characters may withhold French pensions, private plans, or secret alliances even from their own faction
+- Characters may withhold being on France's payroll, private plans, or secret alliances even from their own faction
 - Faction Meeting 4 is the last strategy session before the Murder Round
 - Faction Meeting 5 is the final coordination beat before the irreversible ballot, after hearing speeches and any repentance
 - No individual strategy step follows Faction Meeting 5; voting comes next
@@ -254,7 +263,7 @@ After each faction meeting, every character privately works out their own plan: 
 
 - Each character's plan is entirely their own. Faction meetings inform it but never dictate it
 - Two characters who heard the same information may leave with completely different, even conflicting, plans
-- A character also revisits their plan after a genuinely strategy-altering event, such as surviving an assassination attempt or having a French pension revealed
+- A character also revisits their plan after a genuinely strategy-altering event, such as surviving an assassination attempt or having their place on France's payroll revealed
 
 *How plans are generated and stored is covered in Technical Design.*
 
@@ -275,16 +284,16 @@ After each faction meeting, every character privately works out their own plan: 
 
 ## Conversation Types
 
-- **Capannello:** an open meeting of 2–4 guests that anyone can join while it has room
+- **Group** (formerly *Capannello*): an open meeting of 2–4 guests that anyone can join while it has room
 - **Colloquio:** a secret meeting between two guests, started by one of them (the **initiator**) with another (the **invitee**). No one else can join
-- **A Capannello dissolves** when it no longer has any guests, e.g. its last guest moved away under the lone-guest rule. A dissolved Capannello can't be returned to
+- **A group dissolves** when it no longer has any guests, e.g. its last guest moved away under the lone-guest rule. A dissolved group can't be returned to
 - **It also counts as dissolved for a returning guest** if none of the guests who were in it when they called the Colloquio are still there, even if newcomers have since joined. The group is the people, not the seats
 
-### Capannello (Capan)
+### Group
 
 - A group conversation between 2–4 characters
-- Maximum 6 Capannelli running at once
-- Default configuration: 4 groups of 3, randomized at the start of each Capannello phase
+- Maximum 6 groups running at once
+- Default configuration: 4 groups of 3, randomized at the start of each round of mingling
 - **Who speaks next:** the character who most urgently wants to speak goes next, and nobody easily speaks twice in a row. *(Formula in Technical Design.)*
 - **A direct question must be answered:** if someone addresses a specific character, that character speaks next
 - Characters join at the end of the current cycle, never mid-cycle
@@ -294,7 +303,7 @@ After each faction meeting, every character privately works out their own plan: 
 
 - A private two-person conversation, called by the initiator
 - No one may join a Colloquio; they are strictly private
-- **Who speaks next:** the same urgency rule as a Capannello. The direct-question rule doesn't apply, since there's only one other person
+- **Who speaks next:** the same urgency rule as a group. The direct-question rule doesn't apply, since there's only one other person
 - All Colloquio requests are automatically accepted; there is no refusal
 - Calling a Colloquio uses up the character's movement window, so it's a deliberate, costly choice. The one exception is an invitee's free Colloquio when a Colloquio ends (below)
 - It carries a social cost: characters seen withdrawing for a Colloquio are noted by Il Notaio, with escalating implication for repeat occurrences
@@ -304,11 +313,11 @@ After each faction meeting, every character privately works out their own plan: 
 - Hard cap of about **6 utterances** (3 each), tunable
 - Ending is free and doesn't use a movement window
 - The two guests return **separately**, invitee first:
-  1. **The invitee** chooses at once, from the Capannelli with room (the initiator's old one included), or calls a **free Colloquio** of their own, which doesn't use their movement window. They couldn't refuse the first Colloquio, so being summoned should never cost them. Going first lets them take the initiator's seat
-  2. **The initiator** goes back to the Capannello they came from. If it's full (including because the invitee just took the last seat) or has dissolved, they're placed in the Capannello with the **fewest guests**; ties go to the one with the **fewest members of their own faction**, then are broken at random
-- **Free Colloquio caller:** if the invitee called a free Colloquio, they have no Capannello to go back to when it ends, so they're placed as if theirs had dissolved
+  1. **The invitee** chooses at once, from the groups with room (the initiator's old one included), or calls a **free Colloquio** of their own, which doesn't use their movement window. They couldn't refuse the first Colloquio, so being summoned should never cost them. Going first lets them take the initiator's seat
+  2. **The initiator** goes back to the group they came from. If it's full (including because the invitee just took the last seat) or has dissolved, they're placed in the group with the **fewest guests**; ties go to the one with the **fewest members of their own faction**, then are broken at random
+- **Free Colloquio caller:** if the invitee called a free Colloquio, they have no group to go back to when it ends, so they're placed as if theirs had dissolved
 - **A call waiting for them:** if someone called a Colloquio with either guest while they were busy, that call opens the moment this Colloquio ends, before they're seated. The summoned guest is its invitee, so they still choose first when it ends
-- **No seat:** if either has nowhere to go (every Capannello full), they pair with the next guest who has no seat, often the other member of the pair, forming a new two-person Capannello
+- **No seat:** if either has nowhere to go (every group full), they pair with the next guest who has no seat, often the other member of the pair, forming a new two-person group
 - Il Notaio notes the return, and returners rejoin at the end of the current cycle like any other joiner
 
 ---
@@ -316,21 +325,21 @@ After each faction meeting, every character privately works out their own plan: 
 ## Movement
 
 - One character gets a movement window per turn, cycling through all living characters
-- The order is randomized at the start of each Capannello phase
-- When their window arrives, a character chooses one: **stay**, **switch Capannelli**, or **call a Colloquio**
+- The order is randomized at the start of each round of mingling
+- When their window arrives, a character chooses one: **stay**, **switch groups**, or **call a Colloquio**
 - Switching and calling a Colloquio both use up the window
 - Characters move **toward a person**, not to a group, and moves are resolved one at a time, so two characters can't swap past each other
 - **Moving toward a guest in a Colloquio:** the mover stays put until that guest is seated, then joins their group. If the guest isn't seated by the end of the next turn, the move is cancelled and the window is spent
 - **Collisions:** if a move would overfill a group, an open seat is used first. If both groups are full, the character least involved in their current conversation is the one who moves *(how involvement is measured is in Technical Design)*
 
-### A Capannello Left With One Guest
+### A Group Left With One Guest
 
-A Capannello needs at least two guests. Whenever one drops to a single guest during open play (two leave for a Colloquio, a partner switches away, or anything else):
+A group needs at least two guests. Whenever one drops to a single guest during open play (two leave for a Colloquio, a partner switches away, or anything else):
 
-- **The lone guest gets an immediate free move** toward any guest in a Capannello with room. It doesn't use their movement window
-- **If they don't choose,** they join the smallest open Capannello
-- **If no Capannello has room** (rare), they pair with the next guest who has no seat (another lone guest, or a guest returning from a Colloquio), forming a new two-person Capannello. Until then they stay where they are
-- Once the lone guest moves away, their old Capannello has **dissolved**
+- **The lone guest gets an immediate free move** toward any guest in a group with room. It doesn't use their movement window
+- **If they don't choose,** they join the smallest open group
+- **If no group has room** (rare), they pair with the next guest who has no seat (another lone guest, or a guest returning from a Colloquio), forming a new two-person group. Until then they stay where they are
+- Once the lone guest moves away, their old group has **dissolved**
 - Il Notaio notes the join as usual
 - Applies to open play only: faction meetings can't merge across factions
 - There's no geography in the palazzo, so "nearest" means nothing; the guest moves toward a person, like any other move
@@ -352,10 +361,10 @@ A Capannello needs at least two guests. Whenever one drops to a single guest dur
 
 - **All places are always known to everyone,** occupied or empty, and everyone sees who is in which place (Everyone Sees the Room). It isn't quite realistic, and that's on purpose: it keeps the evening easy to follow
 - **At the start of each round of mingling,** each of the random groups is placed in a random place
-- **A Capannello keeps its place** for as long as it lasts. Guests who join it go to its place. When it dissolves, its place is free
+- **A group keeps its place** for as long as it lasts. Guests who join it go to its place. When it dissolves, its place is free
 - **A Colloquio,** whoever calls it (a called Colloquio or an invitee's free one), sends both guests to **one empty place, picked at random**. When it ends, that place is free again
-- **Returning from a Colloquio,** "the Capannello they came from" is the group in the place they left, under the usual rules (Ending a Colloquio, and dissolved)
-- **A new two-person Capannello** (two seatless guests pairing up) is placed in a random empty place
+- **Returning from a Colloquio,** "the group they came from" is the one in the place they left, under the usual rules (Ending a Colloquio, and dissolved)
+- **A new two-person group** (two seatless guests pairing up) is placed in a random empty place
 - **Guests move toward a person, not a place.** No one can move to an empty place to wait there; a guest alone is handled by the lone-guest rule
 - **Councils:** each faction meeting is held in one of the hall's places, drawn at random for each council, so four places are in use. The room view is still hidden during councils (Everyone Sees the Room)
 - **Why 8 is enough:** with 12 guests there are never more than 6 conversations at once, and a guest left alone for a moment can take one more. 8 always leaves an empty place for a Colloquio. Tunable, but never below 7
@@ -398,16 +407,16 @@ Mutually exclusive, checked in precedence order the moment the Election result i
 ### Precedence Order
 
 1. **Dominicans win** if the elected candidate has repented.
-2. **French Embassy wins** if anyone in the elected candidate's faction holds a French pension, and at least one French Embassy character is alive.
+2. **French Embassy wins** if anyone in the elected candidate's faction is on France's payroll, and at least one French Embassy character is alive.
 3. **The elected candidate's faction (Medici or Pazzi) wins** otherwise — a clean win.
 
-*Design principle: a French pension is the easy, common win; repentance is the rare, powerful one that overrides it.*
+*Design principle: France's payroll is the easy, common win; repentance is the rare, powerful one that overrides it.*
 
 ### Notes
 
-- A clean Medici or Pazzi win is the hardest outcome: win the vote, no repentance, and no member of the faction holding a French pension
+- A clean Medici or Pazzi win is the hardest outcome: win the vote, no repentance, and no member of the faction on France's payroll
 - Factions must police their own members — a single relative on France's payroll can hand the game to France
-- Pensions die with the character, so killing a pensioned relative during the Murder Round clears it (an intentional dark possibility)
+- A place on the payroll dies with the character, so killing a relative on France's payroll during the Murder Round clears it (an intentional dark possibility)
 - A faction about to lose to France could have its candidate repent to hand the win to the Dominicans instead (kingmaking — watch in testing)
 
 ---
@@ -426,22 +435,22 @@ Mutually exclusive, checked in precedence order the moment the Election result i
 
 ### /repay
 
-- Renounces one French pension by returning exactly **3 Florins** to the Embassy treasury
-- Repayment is in whole pensions only — no partial repayment
+- Pays back one **payroll payment** by returning exactly **3 Florins** to the Embassy treasury, taking that payment off France's payroll
+- Repayment is in whole payments only — no partial repayment
 - Available any time up until the ballot
-- You can repay your own pension or a faction member's
-- Since pensions are private, you can only rescue a relative who discloses that they hold one
+- You can repay your own payment or a faction member's
+- Since the payroll is private, you can only rescue a relative who discloses that they're on it
 - **Private:** only the Embassy's ledger records it; there is no public broadcast
 
-### /borrow (accepting a French pension)
+### /borrow (going on France's payroll)
 
-- Accepts one French pension: exactly **3 Florins** from the Embassy treasury
+- Accepts one **payroll payment**: exactly **3 Florins** from the Embassy treasury, which puts the character on France's payroll
 - Available any time, to any character **except Dominicans and French Embassy members** — a free action that does not use a movement window
 - Borrowed Florins go into the character's purse and can be spent on anything (bribes, vote buying, /repay)
-- All requests automatically granted while the treasury holds at least one pension's worth
-- A character may hold multiple pensions; each is one unit on the Embassy ledger
-- If the treasury is empty, no pension is available
-- *Natural deterrent:* a pension taken early can still be renounced before the ballot; a pension taken to buy votes at the ballot cannot, so it guarantees France the win if that faction wins
+- All requests automatically granted while the treasury holds at least one payment's worth
+- A character may take several payments; each is one entry on the Embassy's payroll
+- If the treasury is empty, no payment is available
+- *Natural deterrent:* a payment taken early can still be paid back before the ballot; a payment taken to buy votes at the ballot cannot, so it guarantees France the win if that faction wins
 
 ### /bribe
 
@@ -455,10 +464,10 @@ Mutually exclusive, checked in precedence order the moment the Election result i
 **Testing baseline — symmetric by design, so that any imbalance in results comes from the rules rather than starting conditions:**
 
 - Every character starts with **10 Florins**
-- Every character receives **1 Florin per round**, paid at the start of each Capannello phase (3 Florins over a full game)
-- **No starting pensions**
+- Every character receives **1 Florin per round**, paid at the start of each round of mingling (3 Florins over a full game)
+- **No one starts on France's payroll**
 - **No special per-round income** (e.g. the goldmine) — varied wealth from the character briefings may be reintroduced later as part of tuning
-- Note: equal is not automatically fair — Dominicans cannot take pensions at all, so their purse plus income is all they will ever have
+- Note: equal is not automatically fair — Dominicans cannot go on France's payroll at all, so their purse plus income is all they will ever have
 
 **Rules:**
 
@@ -466,18 +475,18 @@ Mutually exclusive, checked in precedence order the moment the Election result i
 - /borrow and /repay don't require a Colloquio
 - No other IOUs or promises are enforced
 - Every transaction is recorded: who paid whom, how much, in which conversation
-- Personal purses and pensions are private unless a character chooses to disclose them
-- **On death, a character's Florins and pensions vanish.** Nothing passes to their faction or their killer. This gives the Murder Round real teeth: killing a rich character cuts their family's vote-buying power
+- Personal purses and places on France's payroll are private unless a character chooses to disclose them
+- **On death, a character's Florins and payroll payments vanish.** Nothing passes to their faction or their killer. This gives the Murder Round real teeth: killing a rich character cuts their family's vote-buying power
 
 **The Embassy Treasury:**
 
 - A shared lending fund belonging to the French Embassy as an institution, separate from French characters' personal purses
-- Starting value: **15 Florins (5 pensions)** — always a multiple of the pension size
-- Used for pensions only: French characters cannot spend it on their own bribes or votes
-- Never refilled from personal purses — it only grows back when pensions are repaid
-- If the pension size is ever tuned, the treasury must remain a multiple of the new amount
-- **The ledger is open to the whole Embassy:** every French character knows who holds pensions, how many, and the treasury balance
-- Outside the Embassy, a pension only becomes known if the holder discloses it or a French character reveals it — giving France a card to play (reveal, blackmail, or stay silent so the family doesn't clean it up before the vote)
+- Starting value: **15 Florins (5 payments)** — always a multiple of the payroll payment
+- Used for payroll payments only: French characters cannot spend it on their own bribes or votes
+- Never refilled from personal purses — it only grows back when payments are repaid
+- If the payroll payment is ever tuned, the treasury must remain a multiple of the new amount
+- **The ledger is open to the whole Embassy:** every French character knows who is on the payroll, for how many payments, and the treasury balance
+- Outside the Embassy, a place on the payroll only becomes known if the holder discloses it or a French character reveals it — giving France a card to play (reveal, blackmail, or stay silent so the family doesn't clean it up before the vote)
 
 ---
 
@@ -519,20 +528,20 @@ Ties each character's storyline to their power on the night of the Murder Round.
 | Piero | Learn that Francesco is having an affair with Clarice | Knowledge |
 | Clarice | Hold a private Colloquio with Emile, while Piero has not learned of her affair | Meeting + knowledge |
 | Raffaello | Tell LeNoir that Isabella ordered his brother's killing (Lupo's name alone doesn't count) | Knowledge (passed from Raffaello to LeNoir) |
-| Francesco | Pay Fra Tommaso at least 3 Florins, a visible act of piety | Payment |
+| Francesco | Pay Friar Tommaso at least 3 Florins, a visible act of piety | Payment |
 | Giorgia | Hold a private Colloquio with Emile, while Emile has not learned of her affair with LeNoir | Meeting + knowledge |
 | Lupo | Be paid at least 5 Florins in total by other characters | Payments |
-| Fra Tommaso | Receive at least 3 Florins in donations from Medici or Pazzi characters | Payments |
+| Friar Tommaso | Receive at least 3 Florins in donations from Medici or Pazzi characters | Payments |
 | Sister Beatrice | Learn who hired Lupo for the San Frediano killing | Knowledge |
 | Contessa Isabella | Pay Lupo at least 3 Florins for his silence, while LeNoir has not learned that Isabella ordered his brother's killing | Payment + knowledge |
-| Jeanne | Get at least one Medici or Pazzi character to accept a French pension | Pension ledger |
+| Jeanne | Get at least one Medici or Pazzi character to go on France's payroll | The payroll |
 | Emile | Hold private Colloquios with both Clarice and Giorgia, and learn at least one of their secret affairs (Clarice with Francesco, or Giorgia with LeNoir) | Meetings + knowledge |
 | Captain LeNoir | Learn who ordered his brother's death | Knowledge |
 
 How they interlock:
 - **Head-to-head:** Piero vs. Clarice over the affair; LeNoir and Raffaello vs. Isabella over the murder; Beatrice vs. Isabella within the Dominicans
 - **Cooperative:** Francesco paying Tommaso completes both plots; Emile meeting each suitor helps all three; Lupo needs paying clients
-- **Into the main objectives:** Jeanne's plot creates French pensions, Lupo's creates kill contracts, and Tommaso's builds the friars' vote-buying purse
+- **Into the main objectives:** Jeanne's plot puts guests on France's payroll, Lupo's creates kill contracts, and Tommaso's builds the friars' vote-buying purse
 
 ---
 
@@ -556,10 +565,10 @@ The current value of every number that balancing may adjust. Each is also stated
 | Lever | Current value |
 |---|---|
 | Starting Florins | 10 |
-| Per-round income | 1 Florin per Capannello phase |
+| Per-round income | 1 Florin per round of mingling |
 | Vote price | 5 Florins per vote |
-| Pension size | 3 Florins |
-| Embassy treasury | 15 Florins (must stay a multiple of the pension size) |
+| Payroll payment | 3 Florins |
+| Embassy treasury | 15 Florins (must stay a multiple of the payroll payment) |
 | Guards / Investigations needed to block | 2 or more |
 | Plot Reward | 1 extra Murder Round action (Kill, Guard, or Investigate) per completed plot point, or switched off |
 | Utterances per turn | 12 |
@@ -574,7 +583,7 @@ The current value of every number that balancing may adjust. Each is also stated
 **Deferred:**
 - **Reveal action** (Dylan, via Models & Research, Nov 7) — a character giving up a secret marks it on that line, like a bribe: which fact, and to whom. Deliberate tellings, every errand-completing event so far, would then be recorded exactly; deductions and slips would still need a knowledge check. Waits on two tests: a secret-keeping test (a reveal option on every line may prime characters to give secrets away) and Models & Research's golden set of errand scenes
 - **Sibyl of San Marco** — cryptic verse oracle for 1 Florin per question; deferred due to uncertainty about how well characters would decode her verse, and about game balance
-- **Pension and Florin inheritance** — passing a dead character's pensions or Florins to surviving faction members; a lever to test if killing proves too powerful
+- **Payroll and Florin inheritance** — passing a dead character's payroll payments or Florins to surviving faction members; a lever to test if killing proves too powerful
 - **Personal goal rewards** — a fixed Florin reward per achieved personal goal (one tuning knob, converting to votes through the vote price). Requires rewriting goals so they can be checked from the record of the game, and favoring goals that can be completed mid-game. Watch for Florins being worth more to Dominicans, and for goals that allies could trigger just by passing money around
 - **Trial after murder** (from Puritania and Élysée) — after the Murder Round: discussion, accusations needing a seconder, then a vote; the convicted are executed (Puritania caps each juror's Guilty votes at the number of murders). Gives killing a cost and rewards deduction. A lever if the simulator shows killing is too cheap; a conviction could also bar a character from standing or voting (Élysée's eligibility rule)
 - **Sanctuary** — repentant characters immune to the Murder Round (would only apply if repentance is ever moved before the Murder Round)
@@ -594,14 +603,14 @@ The current value of every number that balancing may adjust. Each is also stated
 - **Secret repentance** — keeps family votes and gains Dominican votes at little cost; likely overpowered
 - **Non-candidate repentance** — would let write-ins bypass the candidate system
 - **Binding vote deals / public ballots** — unenforceable under a secret ballot; vote buying covers this
-- **Removing the French pension win condition** — leaves France with no win condition and removes any reason to repay
+- **Removing France's payroll win condition** — leaves France with no win condition and removes any reason to repay
 - **Restricting how borrowed Florins are spent** — money is interchangeable, so it can't be enforced without tracking individual coins
-- **Partial pensions or repayments** — replaced by fixed whole-pension units
+- **Partial payments or repayments** — replaced by fixed whole payments
 - **Full Murder Round immunity as the plot reward** — all-or-nothing, hard to tune, and likely to make the Murder Round fizzle; replaced by one free guard (v0.14), itself replaced by the Plot Reward (v0.19)
 - **Giving a dead character's Florins to their killer** — a strong murder-for-profit motive that could also expose the killer, whose identity is meant to stay secret
 - **Votes as the personal goal reward, with different values per goal** — too many separate knobs to tune reliably; a uniform Florin reward is simpler
 - **Different rewards per subplot** (Nov 3) — e.g. an unrecorded Colloquio for the love knot, Florins for the political rivalry. Thematic, but it multiplies balancing levers, could confound the personality research with reward type, and doesn't fit characters who span two subplots. The marriage stays flavour instead
-- **Public /repay** — would expose pension holders, contradicting pension privacy
+- **Public /repay** — would expose who is on the payroll, contradicting its privacy
 - **French characters refilling the treasury** from personal purses
 
 *Technical items that were considered or removed (e.g. the esteem matrix) are listed in Technical Design.*
@@ -628,9 +637,9 @@ The current value of every number that balancing may adjust. Each is also stated
 | # | Character | Difficulty | Why |
 |---|---|---|---|
 | 1 | Francesco (Pazzi) | Very easy | One Colloquio and one payment, to someone whose own errand wants it. Logged |
-| 2 | Fra Tommaso (Dominican) | Very easy | Needs others to pay, but Francesco's errand is to pay him |
+| 2 | Friar Tommaso (Dominican) | Very easy | Needs others to pay, but Francesco's errand is to pay him |
 | 3 | Lupo (Pazzi) | Easy | Isabella's errand pays him 3 of the 5; any contract or bribe covers the rest |
-| 4 | Jeanne (French) | Moderate | Someone must choose to take a pension. Briefings now state the stakes rather than forbid it; untested |
+| 4 | Jeanne (French) | Moderate | Someone must choose to go on France's payroll. Briefings now state the stakes rather than forbid it; untested |
 | 5 | Clarice (Medici) | Moderate | The meeting is easy (Emile wants it too); her cousin Piero's errand is to expose her |
 | 6 | LeNoir (French) | Moderate | Holds the seal, any noble can read it, and Raffaello's errand is to tell him. Reached in both recent mini-games |
 | 7 | Isabella (Dominican) | Moderate–hard | The payment is easy; three guests hunt her secret (LeNoir, Raffaello, Beatrice) |
@@ -654,7 +663,7 @@ The current value of every number that balancing may adjust. Each is also stated
   - **Owners:** Mechanics changes the plot point table (amounts, conditions, deadlines); Characters changes briefings and clues (e.g. a firmer clue for Piero or Beatrice). Each errand change that touches both goes through a handoff
   - **Hard design work:** suggest switching to Fable for the session that does it
 - **Levers if the skew is real:** raise the easy amounts (Francesco 5 Florins instead of 3, Lupo 7 instead of 5); ease one Medici errand (e.g. a firmer clue for Piero, a Characters change); or make each errand's threshold a Tunable Value
-- **How do we know an errand is done?** (Dylan, Nov 11: one of the hardest design questions in the game.) Four of the twelve errands are logged and exact (payments and the pension ledger). The other eight rest on whether a character has *learned* something, judged by a knowledge check that carries the memory known limit. Options so far, which can combine:
+- **How do we know an errand is done?** (Dylan, Nov 11: one of the hardest design questions in the game.) Four of the twelve errands are logged and exact (payments and the payroll). The other eight rest on whether a character has *learned* something, judged by a knowledge check that carries the memory known limit. Options so far, which can combine:
   - **Knowledge checks as built,** if Models & Research's golden set shows they cross the pass line wrongly in at most 1 of ~30 scenes
   - **The reveal action** (Deferred) for deliberate tellings, with a narrower check for deductions and slips
   - **`/conclude`** for the human player's own deductions (adopted)
@@ -682,13 +691,13 @@ Rules for when one character is played by a human. The all-AI simulation ignores
 
 ### Human Player Input
 
-- **In a Capannello or council:** one message per turn, slotted in at the next natural break in the conversation, about what each AI guest gets in a group of three
+- **In a group or council:** one message per turn, slotted in at the next natural break in the conversation, about what each AI guest gets in a group of three
 - **A direct question can always be answered:** if someone addresses the player, they may answer even if they've already used the turn's message. The answer is an extra line, not the turn's message
 - **In a Colloquio:** the human speaks in turn like any guest, up to the usual cap
 - Maximum 500 characters per message
 - **Commands** don't count toward the limit; they are actions, not speech. They use the in-world names: /kill, /guard, /watch (Investigate), plus /repent, /repay, /borrow, /bribe, /vote, **/buy** for vote buying, and **/conclude**
 - **/conclude [statement]:** privately records what the player has worked out, at any time. It's how a human completes a knowledge errand by deduction, as an AI character can through its private thoughts. It's never spoken or shown to anyone. A new /conclude replaces the last, so only the latest counts at the errand deadline, and it's judged like any conclusion: a wrong one counts for nothing, and a hedged one ("perhaps…") is only a suspicion
-- **Movement:** when their window comes, the human chooses stay, move toward a person, or call a Colloquio. As an invitee returning from a Colloquio, they get the same free choice as anyone (a Capannello with room, or a free Colloquio)
+- **Movement:** when their window comes, the human chooses stay, move toward a person, or call a Colloquio. As an invitee returning from a Colloquio, they get the same free choice as anyone (a group with room, or a free Colloquio)
 - A command that's mistimed, illegal, or unaffordable is refused, and Il Notaio says why
 
 ### Il Notaio — Player-Facing Duties
@@ -704,7 +713,7 @@ All of these are required for v1, the first public release, so players always ge
 
 - If any character tries to break the fourth wall or manipulate the other characters out of game, everyone is notified at once
 - **Off-register speech is not a jailbreak.** Slang, very casual phrasing, or anachronisms are just play: characters react in-world, finding the guest strange or rude, which can cost them socially. The rule applies only when the player speaks to the AI rather than as their character: saying it's a game or an AI, or giving characters out-of-game instructions
-- All characters converge on that character's Capannello; the 4-character cap is suspended
+- All characters converge on that character's group; the 4-character cap is suspended
 - The offending character is treated as an Ottoman spy — a grave social transgression in 1492 Florence
 - The result is effective removal from the game before the Election
 - **One private warning first:** the first time a player's message is judged to break the fourth wall, it isn't spoken, and Il Notaio warns them privately. Only a second hit brings the consequence above. A detector will sometimes misfire, and removal is final
