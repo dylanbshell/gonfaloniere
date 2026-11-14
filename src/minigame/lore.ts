@@ -32,6 +32,11 @@ const LoreEntryShape = z.object({
   aliases: z.array(z.string().min(1)).optional(),
   /** The player screen (TD v0.40): the subject The city deck groups it under. */
   subject: z.string().min(1).optional(),
+  /**
+   * TD v0.51, Notes on what was said: one or two sentences of what every guest knew of it at the start of the
+   * evening, worded for Il Notaio to read out. Lore writes them; without one, the entry's first two sentences stand in.
+   */
+  gloss: z.string().min(1).optional(),
 });
 export type LoreEntry = z.infer<typeof LoreEntryShape> & { scope: "public" | CharacterName };
 

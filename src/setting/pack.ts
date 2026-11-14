@@ -59,6 +59,23 @@ export function relationships(name = SETTING): Relationships {
   return read<Relationships>("relationships.json", name);
 }
 
+/**
+ * notaio-guard.json (TD v0.51, Il Notaio's reading, The guard): the words code lets his sentences use outside
+ * their quotes. `verbs`: the three speech verbs by their role (G3); `small`: the other words allowed anywhere
+ * (G6); `betweenQuotes`: allowed only between two quotes; `negating`: the words G5's negation rule looks for,
+ * after any of `linking`.
+ */
+export interface NotaioGuard {
+  verbs: { said: string; told: string; asked: string };
+  small: string[];
+  betweenQuotes: string[];
+  negating: string[];
+  linking: string[];
+}
+export function notaioGuard(name = SETTING): NotaioGuard {
+  return read<NotaioGuard>("notaio-guard.json", name);
+}
+
 /** The relationship types, in the file's order: `romance`, `kin`, … (TD v0.44's six). */
 export const relationshipTypes = (name = SETTING): string[] => Object.keys(relationships(name).types).filter((k) => !k.startsWith("_"));
 

@@ -90,7 +90,8 @@ const { values: opts } = parseArgs({
 
 const OUT = process.env.PROBE_RESULTS_DIR ?? "results/minigame";
 // The recorder's calls, and from TD v0.44 the player screen's reading (Il Notaio's), which TD puts on the recorder model.
-const SYSTEM_KINDS: (CallKind | ScreenCallKind)[] = ["star-pass", "claims-pass", "sweep-reask", "thought-pass", "perception-pass", "knowledge-check", "notaio-reading"];
+// TD v0.51 adds his past-stage summaries, on the same prompt and model.
+const SYSTEM_KINDS: (CallKind | ScreenCallKind)[] = ["star-pass", "claims-pass", "sweep-reask", "thought-pass", "perception-pass", "knowledge-check", "notaio-reading", "notaio-summary"];
 const RETRY: Omit<RetryPolicy, "onRetry"> = { maxAttempts: 5, retryable: (status) => status === 429 || status === null };
 const WINDOW_MS = 10 * 60_000;
 const WINDOW_MIN_CALLS = 30;

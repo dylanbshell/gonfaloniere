@@ -77,7 +77,7 @@ export function screenContent(me: CharacterName, lore: LoreSetting, loadable: Lo
       ...rel.public.map((c) => ({ between: c.between, type: c.type, line: c.line })),
       ...(rel.private[me] ?? []).map((c) => ({ between: [me, c.with], type: c.type, line: c.line, private: true })),
     ],
-    lore: entries.filter((e) => e.scope === "public").map((e) => ({ id: e.id, title: e.title, aliases: e.aliases ?? [], subject: e.subject ?? null, text: e.text })),
+    lore: entries.filter((e) => e.scope === "public").map((e) => ({ id: e.id, title: e.title, aliases: e.aliases ?? [], subject: e.subject ?? null, text: e.text, ...(e.gloss && { gloss: e.gloss }) })),
     past: lore === "on" ? entries.filter((e) => e.scope === me).map((e) => ({ id: e.id, title: e.title, text: e.text })) : [],
   };
 }
