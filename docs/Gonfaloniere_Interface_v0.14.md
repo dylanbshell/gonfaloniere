@@ -1,8 +1,28 @@
 # Gonfaloniere
 ## Interface & Experience — Working Document
-### Version 0.12
+### Version 0.14
 
 ---
+
+## Changes in v0.14
+
+*Nov 14. Takes the "The opening drops the second orientation sentence" handoff (Lore v0.13, Il Notaio's Opening). Replaces PR #147, which never merged; v0.13 carries over unchanged.*
+
+- **The opening ends on "Speak as your character would, plainly."** Adopted (Dylan): Lore's placeholder (#148) leaves off "The other guests react to strange talk as guests would", and it's the cleaner last line in Il Notaio's voice (The Opening)
+- **The warning moves to the tour, and says it outright** (Dylan; The Tour, step 6). The card on the message box tells the player that the other guests are played by AI and hear them as people of 1492 would, so modern slang, internet talk, or talk about the game itself will confuse them and the evening may not play as it should. It's the one tour card that steps outside the story, on purpose
+- **Onboarding** follows: the orientation line is the opening's last sentence, and the warning is the tour's
+- Build: one small task puts the card's words in the setting pack, after #117 (tracker)
+
+## Changes in v0.13
+
+*Nov 14. Takes the "Il Notaio's guarded reading, FYI" handoff (Technical Design v0.51, Player Interface, Il Notaio's reading). Dylan adopted all three differences; they can be tuned after playtests.*
+
+- **He reports rather than summarizes** (Principles; The Web of Secrets). Code chooses which lines he speaks of, by rules that never read them, and he puts each in reported speech with the guest's own words quoted. It reads more like a register than a story: that's the price of a reading that can't connect
+- **A failed sentence becomes a plain quote of its line,** unmarked, rather than the whole box giving way to the tally. The tally stays as the box's closing line
+- **Context is code's, as a named exception** (Principles): code sets out the connection lines word for word, and puts a short public note after a line that names a lore entry, as the stream's lore links already do. He never writes either
+- **The box's order:** background, then tonight stage by stage, then the tally. **Past-stage summaries** are bullets grouped by conversation (Past stages)
+- **To watch in playtests** (Open Questions): whether he's too thin to help, and whether his box, which quotes lines the column below also holds, should start minimized
+- Build: all in #146, with Technical Design's plumbing, so nothing new to file. Build State also lists #141
 
 ## Changes in v0.12
 
@@ -155,10 +175,12 @@ This doc covers **the player screen as the player meets it**: what's on it, wher
 
 **First-hand only.** The screen shows what the character knows from their briefing, what's public, what they saw and heard tonight, and the player's own notes. That's the same rule the characters live under: it keeps the player and the AI guests on equal terms.
 
-**Il Notaio narrates, but never connects** *(Dylan, Nov 13; v0.5)*. AI is good at giving people the right information at the right moment, so the screen leans on Il Notaio to do that. He's as conservative as he can be:
-- **He may** summarize what the player heard and saw, narrate what happened, and give context from what the player already has: the public lore, the public relationship lines, and the player's own briefing
+**Il Notaio reports, but never connects** *(Dylan, Nov 13; v0.5; guarded in v0.13)*. AI is good at giving people the right information at the right moment, so the screen leans on Il Notaio to do that. He's as conservative as he can be:
+- **He may** report what the player heard, in his register: each line put in reported speech, with the guest's own words quoted ("Lupo told you: "…""). The events the player saw appear as their own record lines, word for word
+- **He doesn't choose what to report.** Code picks the lines by rules that never read them, and shows them in the order the player heard them (Technical Design, Il Notaio's reading)
 - **He may never** put two pieces together into something new ("they both mentioned the garden"), read anyone's mood or motive, say who's lying, suggest what to do, or hint at anything
-- **Every claim about tonight quotes** the words or names the event it rests on. If that can't be checked, he gives way to a plain count. He can't invent anything
+- **Code may set public context beside a line; he never does** *(Dylan, Nov 14; v0.13)*. The connection lines the player already has (the public ones and their own briefing's) are set out word for word, and a line that names a public lore entry is followed by a short note of what every guest knew of it at the start, as the stream's lore links already do. It's code's, not his, and it holds only what's public
+- **Every word is checked.** Every claim about tonight quotes the words or is the record's own line for the event. A sentence of his that fails the check is replaced by a plain quote of the same line, so nothing is dropped and he can't invent anything
 - **Labelled as his:** "Il Notaio's reading. He may be wrong." He draws only on the player's own record, as Technical Design guarantees
 - He appears in two places: his box in the Web of Secrets, and his summary of a past stage. His hint under the stream stays templates only
 
@@ -178,7 +200,8 @@ This doc covers **the player screen as the player meets it**: what's on it, wher
    - #114: the web's ring layout, Il Notaio's box in its column, the hideable right panel, rules buttons, the city list, the placeholder, and the shared selection (v0.5–v0.7)
    - #117: the opening and the tour, four modals with the glossary, one Notes tab, and smaller fixes (v0.7–v0.8)
    - #132: the place list (v0.9), after Technical Design's #128
-3. **Waiting on Technical Design** (tracker handoff): Il Notaio's narrative reading and the dialogue-only column, the past-stage summaries, the knowledge-errand flag for the conclusion button, and the game holding its first line during the tour
+   - #141: the retitled words (v0.12)
+3. **Queued with Technical Design's plumbing, #146** (Technical Design v0.51): Il Notaio's guarded reading and the dialogue-only column, the past-stage summaries, the knowledge-errand flag for the conclusion button, and the game holding its first line during the tour
 4. **Then the full game,** once the full game loop is built: councils, Piero, candidate selection, speeches and `/repent`, the ballot and `/buy`, the run-off, and the full death and result screens. Dylan playing a whole game is the milestone's test (tracker, item 2)
 5. **Then v1, the first public release:** Il Notaio's full player-facing role (Onboarding, below)
 
@@ -238,12 +261,12 @@ In this order *(Dylan, Nov 13)*:
 
 Clicking a past stage in the bar opens it in the chat window, read-only.
 - **The stage's conversations,** everything the player was in during that stage, in order, with lore links and highlighting as in the current stage
-- **Il Notaio's summary** covers the window, from just under the bar down to the input box, with a strip of the dialogue peeking out at the top. It's **mainly bullet points: what happened in that stage,** by the rules in Principles: what was said and done in the player's presence, quoted, and nothing connected or inferred
+- **Il Notaio's summary** covers the window, from just under the bar down to the input box, with a strip of the dialogue peeking out at the top. It's **bullet points, grouped by conversation** *(v0.13)*: each group under its conversation line ("In the loggia with Giorgia and Lupo"), then what was said and seen there, in order: lines in his register, events as the record's own lines, and public notes as in his reading. By the rules in Principles, with no background. A stage where the player heard nothing says so in a line
 - **Clicking anywhere in the chat window minimizes his box** to the bottom, still showing his first lines, so the player can scroll the dialogue. Clicking the minimized box opens it again
 - **The input box stays,** and the player can draft as usual. **Speak/Do and Pass are replaced by one button, Return to current stage,** in the same spot; Enter does the same. The draft stays in the box, and **nothing is sent until the player presses Speak or Do back in the current stage.** That's deliberate: the conversation may have moved on while they read
 - **The @ and / menus** list who's here now and what's allowed now, since that's where the message will go
 - **When the game is waiting for the player** (someone addresses them, or a decision card opens), the Return button and the current stage pulse, and the placeholder says so. They aren't pulled back mid-read; the game waits for them anyway
-- *His summary is a model call, made once per stage and kept; how, and what it's fed, are Technical Design's (tracker handoff). Until it lands, a past stage opens on its dialogue alone*
+- *His summary is a model call, made once when the stage ends and kept; which lines, and the checks, are Technical Design's (v0.51, Past-stage summaries). Built in #146; until then, a past stage opens on its dialogue alone*
 
 ### The input box and its buttons
 
@@ -335,11 +358,16 @@ The web of relationships, plus the player's own record and notes.
 **Il Notaio's reading** *(Dylan, Nov 13; v0.5)*. His box lives **inside the What you heard and saw column,** styled like his hint in the stream.
 - **Expanded by default:** it fills the column, covering almost all the dialogue, with **a strip of the dialogue peeking out at the top**
 - **Clicking his box or the dialogue behind it minimizes it** to the bottom of the column, still showing his first lines, so the player can read the dialogue. Clicking the minimized box expands it again
-- **What he writes, in paragraphs:** for a guest, what the player has heard and seen of them tonight, including the events they witnessed (payments, Colloquios, a death), and context from the public lore, the public relationship lines, and the player's own briefing. For a pair, the same about the two of them and what has passed between them. All by the rules in Principles: he narrates and gives context, and never connects, infers, or hints
+- **What the box holds, top to bottom** *(v0.13; Technical Design v0.51)*:
+  1. **Background:** the public connection lines and the player's own that involve the selection, word for word, then up to two public lore entries that name them, each as its title and short public note, linking to the entry
+  2. **Tonight,** oldest first, **a paragraph per stage,** each opening with the stage's name ("In the second round of mingling:"). In each, in the order they happened: the events the player saw involving the selection (payments, Colloquios, a death), as their own record lines; the lines spoken, each as one sentence in his register; and, after a line that names a public lore entry, that entry's note
+  3. **The tally,** as a closing line ("You've heard them speak 4 times; you saw one payment")
+- **Which lines:** for a guest, lines they spoke in the player's presence; for a pair, what they said to each other. Up to eight, those said to the player first. The column beneath still holds every line
+- **A lore note is set apart from his sentences,** in a smaller style that links to the entry (theme tokens), so it reads as context beside the line, not as something he said
+- **A sentence that fails the check** is replaced by a plain quote of the same line, unmarked, since the two read almost alike. With nothing heard or seen, the box says so in a line
 - **Labelled:** "Il Notaio's reading. He may be wrong."
-- **Every claim about tonight quotes** the words or names the event it rests on. If a quote can't be checked, the box shows the plain tally instead ("You've heard them speak 4 times; you saw one payment")
 - It's written on a new selection once the web is open, and stays until something new enters that selection's record
-- *What it's fed, the prompt, the guard, and how it's recorded are Technical Design's (Player Interface, Il Notaio's reading). v0.5's narrative with background and events needs a new prompt and guard (tracker handoff); until then the box shows today's reading in its new place*
+- *What it's fed, the prompt, the checks, and how it's recorded are Technical Design's (v0.51, Player Interface, Il Notaio's reading). Built in #146; until then the box shows today's reading in its new place*
 
 **Notes** *(Dylan, Nov 12)*. Written in the Web of Secrets, and attached the way its selection works:
 - **One guest selected:** a note about them. **Two:** a note about the pair, drawn on the web as the player's own dashed line, styled apart from known connections. **Nothing selected:** a free note
@@ -349,7 +377,7 @@ The web of relationships, plus the player's own record and notes.
   - **A pair:** notes on the pair first, then on each of the two, under small headings
   - Clicking a note's guest or pair in the full list selects them, so the list narrows and the web highlights them. Clearing the selection shows everything again. There's no separate "All your notes" tab or filter; the selection is the filter, and it's shared with the chat
 - **A note on a guest or a pair can become a conclusion** *(v0.2–v0.4; Dylan, Nov 13)*. A conclusion exists to finish a **knowledge errand** by deduction, so the button shows only where it can mean something:
-  - **Only if the player's character has a knowledge errand** (Piero does; Francesco's errand is a payment, so he never sees it, nor does the mini-game). The screen learns this from a flag Technical Design sends (tracker handoff); until it does, the button follows the next rule alone
+  - **Only if the player's character has a knowledge errand** (Piero does; Francesco's errand is a payment, so he never sees it, nor does the mini-game). The screen learns this from a flag in the player's `state` (Technical Design v0.51; #146); until it's built, the button follows the next rule alone
   - **Only on notes about a guest or a pair,** since a conclusion is about someone. A free note has none
   - **Never filtered by which guests matter to the errand.** Piero's errand is to find out two names he doesn't know, so a button only on the "right" guests would point at the answer. Concluding about the wrong pair is a mistake he's allowed to make
   - Typing `/conclude` still works at any time, for everyone (Mechanics, Human Player Input)
@@ -414,8 +442,8 @@ Il Notaio introduces himself as the narrator before the player meets anyone.
 - **Full screen, on its own.** He writes the story leading up to the evening, **paragraph by paragraph, a character at a time,** as if by pen. Fixed text from the setting pack, **not a model call**
 - **Each paragraph follows the last by itself** after a short pause; earlier paragraphs stay on the page, so nothing the player is reading moves away. **Clicking finishes the paragraph being written.** A small **Skip** control writes everything out at once, for players who have seen it
 - **At the end, the choice:** one card per playable character, Piero and Francesco in the full game, Francesco alone in the mini-game. Each shows the portrait, name, faction, and the briefing's public subtitle. Choosing one starts the game, and **the tour begins** (The Tour, v0.8)
-- **His last paragraph carries the orientation line** in his voice: speak as your character would, plainly; guests react to strange talk as guests would
-- **Public only:** the story gives away no one's secrets. **Lore writes it, and Characters canon-checks it** (tracker handoff). Until it's written, the opening holds only the orientation paragraph
+- **His last paragraph ends on the orientation line** in his voice: **"Speak as your character would, plainly."** *(Lore v0.13; v0.14)*. The warning about modern talk is the tour's (The Tour, step 6), so the story ends in the story
+- **Public only:** the story gives away no one's secrets. **Lore writes it, and Characters canon-checks it** (tracker handoff). Until the final text is written, Lore's six-paragraph placeholder stands (Lore v0.13, Il Notaio's Opening; #148)
 - The writing speed and the pause are theme tokens. With reduced motion set, each paragraph appears whole
 - **Later, maybe v2:** a storybook opening with illustrations, more interactive, with Art (Open Questions)
 
@@ -432,12 +460,12 @@ Right after the choice of character, a short guided tour, in the manner of many 
   3. Your errand card
   4. **The places,** with a word on how a Colloquio takes two guests off to an empty one
   5. The stage bar
-  6. The conversation and the message box, with @ and /
+  6. The conversation and the message box, with @ and /. **This card ends with the warning, in plain words** *(Dylan, Nov 14; v0.14)*: *"Speak as your character would, plainly. The other guests are played by AI, and they hear you as guests in 1492 would: modern slang, internet talk, or talk about the game itself will confuse them, and the evening may not play as it should."* It's the one card that steps outside the story, on purpose: a player who knows why gets a better game than one who finds out by breaking it
   7. The right panel
   8. The Web of Secrets bar
 - **It ends on the Your briefing button:** "Start with your briefing." Clicking it opens the briefing and ends the tour
 - **It runs once,** remembered in the browser. A **Show me around** control beside the hover-explanations switch runs it again
-- **The game waits for it.** The game loads, so the tour has the player's sheet, errand, and room to point at, but **holds its first line until the tour ends or is skipped.** That's Technical Design's to build (tracker handoff); until it is, the evening starts while the player tours
+- **The game waits for it.** The game loads, so the tour has the player's sheet, errand, and room to point at, but **holds its first line until the tour ends or is skipped.** Technical Design v0.51 specifies it and #146 builds it; until then, the evening starts while the player tours
 - Its words live in the setting pack. With reduced motion set, the spotlight jumps rather than glides
 
 ---
@@ -455,7 +483,8 @@ Right after the choice of character, a short guided tour, in the manner of many 
 How a new player learns the game without a tutorial up front.
 
 - **The example lives in the box's placeholder** *(v0.5)*, plain and period-fitting, with an @ and a / in it, rotated from a short list in the setting pack. It shows the register and both menus without a rule to read: plain English, no "thee", no flourish
-- **An orientation line:** speak as your character would, plainly; guests react to strange talk as guests would. The last paragraph of the opening (v0.7)
+- **An orientation line:** "Speak as your character would, plainly." The last sentence of the opening (v0.7; v0.14)
+- **The warning, outright:** the guests are AI and hear the player as people of 1492 would, so modern slang or talk about the game will confuse them. On the tour's message-box card (The Tour, step 6; v0.14)
 - **The opening itself** introduces Il Notaio as the narrator (The Opening), and **the tour** shows the player the screen (The Tour)
 - **The glossary's dotted underlines** explain the game's words where the player meets them (v0.7)
 - **Il Notaio's hint** *(Dylan, Nov 12)*. A small docked box under the stream, collapsible. He says in a line or two what the moment asks of the player: the first council, the movement window, being called aside, midnight, the ballot, or a refused command. **With `plot_reward` on, also the start of the last round before the errand's deadline:** the last round to finish the errand for its extra act. It shows whether or not the errand is done, so it never gives a check's result away early. It also points to the hover explanations. Templates only, from `notaio.json`, no model calls. **Styled clearly apart from his announcements:** the announcement is the notary speaking to the room, the hint is him speaking to the player
@@ -508,7 +537,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 
 | Decision | Why, where recorded | Here |
 |---|---|---|
-| First-hand only: nothing summarized or inferred by a model | Keeps the player and the AI guests on equal terms; the screen can't show anything false | Principles (since v0.5, Il Notaio narrates but never connects) |
+| First-hand only: nothing summarized or inferred by a model | Keeps the player and the AI guests on equal terms; the screen can't show anything false | Principles (since v0.5, Il Notaio reports but never connects; guarded since v0.13) |
 | Everyone sees the room, AI guests too (a Mechanics rule since v0.32) | Without it a human can't follow the evening | The Screen, Left |
 | The web and the record, then notes on a guest, a pair, or free | | The Web of Secrets |
 | Only the current conversation is open; the rest collapse into Earlier tonight | The current room is never confused with the last | Centre (since v0.5, past stages live in the stage bar) |
@@ -588,6 +617,20 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | Councils held in random places; the room hidden then (Mechanics) | Only your council's place shows | Left, The places |
 | The eight names (Lore) | Used exactly as written; capitalized only as a heading | Left, The places; Centre |
 
+**Technical Design's guard** (Technical Design v0.51; v0.13):
+
+| Settled elsewhere | Decision here | Here |
+|---|---|---|
+| Code chooses the lines; the model only puts each in reported speech | Adopted (Dylan): he reports in his register rather than telling a story | Principles; The Web of Secrets |
+| A failed sentence falls back to a plain quote of its line | Adopted, unmarked; the tally stays as a closing line | The Web of Secrets |
+| Context is code's: connection lines word for word, and lore as a note after a line that names it (Dylan) | Adopted, as a named exception to "never connects" | Principles; The Web of Secrets |
+
+**Lore's opening** (Lore v0.13; v0.14):
+
+| Settled elsewhere | Decision here | Here |
+|---|---|---|
+| The opening ends on "Speak as your character would, plainly", without the line about strange talk (Dylan) | Adopted; the warning moves to the tour and says outright that the guests are AI and modern talk confuses them (Dylan) | The Opening; The Tour; Onboarding |
+
 ---
 
 ## Open Questions
@@ -596,10 +639,11 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 - **Your midnight choices in the sheet afterwards** ("You guarded Giorgia; you watched Lupo"), and **"Choosing now"** during midnight: ideas for later, not decided (Dylan, Nov 14: the count is what's wanted for now)
 - **A storybook opening, maybe in v2** (Dylan): illustrations and more interaction, with Art. Until then, Il Notaio's written opening
 - **Does the full game's stage bar fit?** It has about fifteen stages to the mini-game's handful. If the circles get too small to read, consider grouping each council with its round of mingling. Check on the first full game
-- **Is Il Notaio conservative enough?** Read his readings and summaries in the first playtests for anything that connects or hints, and tighten the guard with Technical Design if so
+- **Is Il Notaio conservative enough, or too thin?** Read his readings and summaries in the first playtests for anything that connects or hints, and tighten the guard with Technical Design if so. The other way too: the guarded reading reads like a register (Technical Design says so). If it's too thin to help, Technical Design's first lever is letting the model choose which lines to cover, with the golden set rerun, never loosening the word check (v0.13)
+- **Should his box start minimized?** It now quotes lines the column beneath it also holds. It stays expanded for now, since it's the only place the events, the background, and the lore notes show; switch if it feels repetitive in play (v0.13)
 - **The full game's cards:** candidate selection, the speech, the ballot (vote and buy), and the run-off. Design them once Technical Design's full game loop spec says what each phase offers
 - **Does the player wait too long?** The whole game pauses for the player, and a group line takes a few seconds. Measure how long a played game takes; if it drags, look at what the screen can show while the player waits. *(Moved from Technical Design's open questions)*
-- **A previewed "polish" for off-register input:** not now. It would cost a model call and a wait per message, and make the player's words not quite theirs. Add it only if a playtest shows casual input pulling the AI guests casual (Models & Research watches that). If added, it's always previewed and never silent, and Technical Design builds the call
+- **A previewed "polish" for off-register input:** not now. It would cost a model call and a wait per message, and make the player's words not quite theirs. The tour's warning is the first defence (v0.14). Add it only if a playtest shows casual input pulling the AI guests casual anyway (Models & Research watches that). If added, it's always previewed and never silent, and Technical Design builds the call
 - **The board's slide versus the screen's web:** the screen uses six relationship types where the board's slide uses four categories. Visualization & Sharing may align the slide; nothing waits on it (tracker)
 
 ---
