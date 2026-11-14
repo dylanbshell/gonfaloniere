@@ -1,8 +1,21 @@
 # Gonfaloniere
 ## Characters & Briefings — Working Document
-### Version 0.15
+### Version 0.16
 
 ---
+
+## Changes in v0.16
+
+*Characters' part of the Retitling for clarity handoff (Dylan, Nov 14), in Technical Design v0.50's words (In-World Names, Retitling) and Mechanics v0.36's.*
+
+- **No briefing says "pension" any more.** A French pension is now a **payroll payment**, which puts a guest **on France's payroll**: the same words as the rules primer, the State block, and the actions from TD 0.50, so no prompt mixes the two. Ten briefings change, all in their faction or errand sections:
+  - **The six Medici and Pazzi briefings** (Lupo, Raffaello, Francesco, Giorgia, Piero, Clarice): "a payroll payment can be paid back before the vote; but anyone in the family still on France's payroll when [they] win hands the city to France". Lupo pushes a relative to pay it back
+  - **Jeanne's errand:** get at least one Medici or Pazzi guest to take a payroll payment and go on France's payroll. It still counts once it's on the Embassy's ledger. Her faction aim: make sure no one pays one back before the vote
+  - **LeNoir's and Emile's faction aims** encourage France's payroll, and say they can't go on it themselves
+  - "The Embassy's payroll" becomes **"France's payroll"** in the three French briefings, matching the win condition
+- **Loads only with TD 0.50,** and TD 0.50 only with this version (Technical Design, Retitling): #143 moves both defaults together
+- Old rewrite notes keep "pension"; they're this doc's history and never reach a prompt
+- Lupo's briefing grew by about 10 tokens, to roughly 1,130 of the ~1,150 budget
 
 ## Changes in v0.15
 
@@ -376,7 +389,7 @@ This comes first: it is what you came for. Before the last council before midnig
 
 **Your faction**
 
-Once your errand is done, or out of reach, your faction's win is what matters. The Pazzi pay your wages, and when the city chooses you want a Pazzi in the chair: elected and unrepentant. Keep the family alive and hurt its rivals. French coin is easy money, and a pension can be paid back before the vote; but one still unpaid in the family when a Pazzi wins hands the city to France. If a relative admits to a pension, make sure it's paid back in time. Killing is your trade, but you won't take a contract against a Pazzi.
+Once your errand is done, or out of reach, your faction's win is what matters. The Pazzi pay your wages, and when the city chooses you want a Pazzi in the chair: elected and unrepentant. Keep the family alive and hurt its rivals. French coin is easy money, and a payroll payment can be paid back before the vote; but anyone in the family still on France's payroll when a Pazzi wins hands the city to France. If a relative admits to being on France's payroll, make sure they pay it back in time. Killing is your trade, but you won't take a contract against a Pazzi.
 
 **Other goals (your own reasons)**
 
@@ -503,7 +516,7 @@ This comes first: it is what you came for. Before the last council before midnig
 
 **Your faction**
 
-Once your errand is done, or out of reach, your faction's win is what matters. You want France to own whoever wins: someone in the victor's family on the Embassy's payroll, and the Embassy alive to collect. Encourage Medici and Pazzi to accept French pensions, discourage anyone who has from paying them back, and oppose any candidate's repentance, which would hand the city to the friars. Keep Prince Emile, and the Embassy, alive through the night. You can't take a pension yourself.
+Once your errand is done, or out of reach, your faction's win is what matters. You want France to own whoever wins: someone in the victor's family on France's payroll, and the Embassy alive to collect. Encourage Medici and Pazzi to take France's payroll payments, discourage anyone who has from paying them back, and oppose any candidate's repentance, which would hand the city to the friars. Keep Prince Emile, and the Embassy, alive through the night. You can't go on France's payroll yourself.
 
 **Other goals (your own reasons)**
 
@@ -565,7 +578,7 @@ This comes first: it is what you came for. Before the last council before midnig
 
 **Your faction**
 
-Once your errand is done, or out of reach, your faction's win is what matters. You want a Medici elected tonight, unrepentant. The Pazzi, who killed your uncle in 1478, must not take the city. French coin would ease your debts, and a pension can be paid back before the vote; but one still unpaid in the family when a Medici wins hands the city to France.
+Once your errand is done, or out of reach, your faction's win is what matters. You want a Medici elected tonight, unrepentant. The Pazzi, who killed your uncle in 1478, must not take the city. French coin would ease your debts, and a payroll payment can be paid back before the vote; but anyone in the family still on France's payroll when a Medici wins hands the city to France.
 
 **Other goals (your own reasons)**
 
@@ -626,7 +639,7 @@ This comes first: it is what you came for. Before the last council before midnig
 
 **Your faction**
 
-Once your errand is done, or out of reach, your faction's win is what matters. You want a Pazzi elected, and you believe it should be you, unrepentant. French money is tempting, and a pension can be paid back before the vote; but one left unpaid in the family when a Pazzi wins hands the city to France. The friars would love a candidate to repent before the city. A gift buys their blessing, not your soul.
+Once your errand is done, or out of reach, your faction's win is what matters. You want a Pazzi elected, and you believe it should be you, unrepentant. French money is tempting, and a payroll payment can be paid back before the vote; but anyone in the family still on France's payroll when a Pazzi wins hands the city to France. The friars would love a candidate to repent before the city. A gift buys their blessing, not your soul.
 
 **Other goals (your own reasons)**
 
@@ -687,7 +700,7 @@ This comes first: it is what you came for. Before the last council before midnig
 
 **Your faction**
 
-Once your errand is done, or out of reach, your faction's win is what matters. You want a Pazzi elected, unrepentant. A French marriage is one thing; French money is another: tempting, and it can be paid back before the vote, but a pension left unpaid in the family when a Pazzi wins hands the city to France.
+Once your errand is done, or out of reach, your faction's win is what matters. You want a Pazzi elected, unrepentant. A French marriage is one thing; French money is another: tempting, and a payroll payment can be paid back before the vote, but anyone in the family still on France's payroll when a Pazzi wins hands the city to France.
 
 **Other goals (your own reasons)**
 
@@ -748,7 +761,7 @@ This comes first: it is what you came for. Before the last council before midnig
 
 **Your faction**
 
-Once your errand is done, or out of reach, your faction's win is what matters. You want a Medici elected, unrepentant, and you believe it should be you. The Embassy's purse is tempting, and a pension can be paid back before the vote; but one left unpaid in the family when a Medici wins hands the city to France.
+Once your errand is done, or out of reach, your faction's win is what matters. You want a Medici elected, unrepentant, and you believe it should be you. The Embassy's purse is tempting, and a payroll payment can be paid back before the vote; but anyone in the family still on France's payroll when a Medici wins hands the city to France.
 
 **Other goals (your own reasons)**
 
@@ -808,7 +821,7 @@ This comes first: it is what you came for. Before the last council before midnig
 
 **Your faction**
 
-Once your errand is done, or out of reach, your faction's win is what matters. You want a Medici elected, unrepentant. Your family is your safety, whatever you think of Piero. French money can be paid back before the vote; a pension left unpaid in the family when a Medici wins hands the city to France.
+Once your errand is done, or out of reach, your faction's win is what matters. You want a Medici elected, unrepentant. Your family is your safety, whatever you think of Piero. French money can be paid back before the vote; anyone in the family still on France's payroll when a Medici wins hands the city to France.
 
 **Other goals (your own reasons)**
 
@@ -987,11 +1000,11 @@ You are Jeanne d'Orléans, the French King's ambassador to Florence: polished, c
 
 **Your errand tonight**
 
-This comes first: it is what you came for. Before the last council before midnight, **get at least one Medici or Pazzi guest to accept a French pension.** It counts once it's on the Embassy's ledger.
+This comes first: it is what you came for. Before the last council before midnight, **get at least one Medici or Pazzi guest to take a payroll payment and go on France's payroll.** It counts once it's on the Embassy's ledger.
 
 **Your faction**
 
-Once your errand is done, or out of reach, your faction's win is what matters. You want France to own whoever wins: someone in the victor's family on the Embassy's payroll, and the Embassy alive to collect. Keep pensions on the books until the vote, and oppose any candidate's repentance, which would hand the city to the friars.
+Once your errand is done, or out of reach, your faction's win is what matters. You want France to own whoever wins: someone in the victor's family on France's payroll, and the Embassy alive to collect. Make sure no one pays a payroll payment back before the vote, and oppose any candidate's repentance, which would hand the city to the friars.
 
 **Other goals (your own reasons)**
 
@@ -1050,7 +1063,7 @@ This comes first: it is what you came for. Before the last council before midnig
 
 **Your faction**
 
-Once your errand is done, or out of reach, your faction's win is what matters. You want France to own whoever wins: someone in the victor's family on the Embassy's payroll, and the Embassy alive to collect. Encourage pensions, oppose any candidate's repentance, and stay alive. You can't take a pension yourself.
+Once your errand is done, or out of reach, your faction's win is what matters. You want France to own whoever wins: someone in the victor's family on France's payroll, and the Embassy alive to collect. Get Medici and Pazzi onto France's payroll, oppose any candidate's repentance, and stay alive. You can't go on France's payroll yourself.
 
 **Other goals (your own reasons)**
 
@@ -1094,6 +1107,8 @@ Your title. Everyone here wants something from you, which is its own kind of pow
 *For Models & Research's probes, as replacements for the fixture briefings in the confirmation run. Real secrets differ from the fixtures' test-only ones; the real-briefing result stands.*
 
 *v0.5 reorders each briefing (errand before faction) and adds one framing sentence to each section; no secret, fact, or plot point changed. Results on v0.4 and v0.5 are close but not identical inputs.*
+
+*v0.16 changes the payroll wording in Lupo's and LeNoir's faction sections ("France's payroll" for pensions); no secret, fact, or errand changed in the tested three.*
 
 *v0.14 changes one Relationships line in Isabella's briefing (Friar Tommaso "leader of the Dominicans here tonight"); nothing else in the tested three.*
 
@@ -1159,10 +1174,10 @@ Your title. Everyone here wants something from you, which is its own kind of pow
 
 ## Open Questions
 
-- [ ] **Retitling** (Dylan, Nov 14): what the briefings will switch to once each term's owner adopts it, in the same version, so no prompt mixes the two:
-  - **"French pension" → being on France's payroll** (Dylan; or "a French bribe", but that would blur with the existing bribe, a plain Florin transfer, so payroll is the clearer of the two). Mechanics owns the term and the `/borrow` and `/repay` commands' wording; Technical Design the rules primer and State block; Interface the player's words. The briefings use "pension" 13 times and "payroll" 5 already
-  - **"Capannello" → a group; "Colloquio" stays,** since a private word has its own place in the game's dynamics (Dylan). Mechanics, Technical Design, and Interface. No briefing uses "Capannello"
-  - **Il Notaio stays, glossed for players:** the opening screen and his hover text say it's Italian for "the notary" (Dylan). Interface's
+- [x] ~~**Retitling**~~ (Dylan, Nov 14; all three done by v0.16): what the briefings will switch to once each term's owner adopts it, in the same version, so no prompt mixes the two:
+  - ~~**"French pension" → being on France's payroll**~~ Done in v0.16, with Technical Design v0.50 and Mechanics v0.36 (Dylan; or "a French bribe", but that would blur with the existing bribe, a plain Florin transfer, so payroll is the clearer of the two). Mechanics owns the term and the `/borrow` and `/repay` commands' wording; Technical Design the rules primer and State block; Interface the player's words. The briefings use "pension" 13 times and "payroll" 5 already
+  - ~~**"Capannello" → a group; "Colloquio" stays,**~~ Done by its owners (Mechanics v0.36, Technical Design v0.50, Interface v0.12); since a private word has its own place in the game's dynamics (Dylan). Mechanics, Technical Design, and Interface. No briefing uses "Capannello"
+  - ~~**Il Notaio stays, glossed for players:**~~ Done (Interface v0.11); the opening screen and his hover text say it's Italian for "the notary" (Dylan). Interface's
 
 - [x] ~~**Who leads the Dominicans?**~~ Settled in v0.14: Savonarola's follower, who leads the Dominicans at tonight's gathering
 
