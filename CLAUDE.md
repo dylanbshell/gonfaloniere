@@ -30,7 +30,9 @@ Work arrives as tasks from Dylan, often relayed from Technical Design (TD). The 
 
 ## Docs and prompts
 
-- `docs/` is read-only for Claude Code. The project chats merge their own doc PRs into main (one doc per PR, from a `docs/<doc>-vX.Y` branch, merge commit). Don't merge, edit, or close a doc PR unless the task says to; start each task from an up-to-date main, which already has the latest docs.
+- Doc PRs carry one doc each, from a `docs/<doc>-vX.Y` branch, and merge into main with a merge commit. Who merges one depends on the session:
+  - **A Claude Code task session** (one working a `cc-task` issue or another task from Dylan): `docs/` is read-only. Never merge, edit, or close a doc PR unless the task says to. Start each task from an up-to-date main, which already has the latest docs.
+  - **A project chat** (one of the chats in the project tracker, including when it runs as a Claude Code session): merge the doc PR you opened yourself, with a merge commit (never squash), after Dylan says so in that chat. The tracker's Repo rules govern this case.
 - Prompts are loaded from the TD doc by `src/sources/docs.ts`. Prompt text is never copied into code.
 - `docs/` holds only the current version of each doc. `technicalDesignPath(v)` and `loadDocs` read older versions from git history, so a run pinned to an old version still works.
 - The TD version comes from `PROBE_TD` (default in `probe.config.ts`, `config.docs.technicalDesign`). To change it, edit the default there, and add a test in `test/store.test.ts` that plays the fake game on the old and new versions and checks that every prompt differs only as the new version's changelog says.
