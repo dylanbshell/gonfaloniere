@@ -52,5 +52,30 @@
     "and": " and ",
     "between": "; ",
     "end": "."
+  },
+  "name": {
+    "_comment": "Interface v0.11, Il Notaio's name glossed: `gloss` is the caption under his name at the top of the opening; `hover` shows wherever his name appears on the screen (his notes in the stream, his hint, his reading, the tour's cards), even with the hover explanations off. His glossary entry (player.json's glossary) starts with the same gloss.",
+    "gloss": "Italian for “the notary”",
+    "hover": "Il Notaio: Italian for “the notary”. He records the evening and belongs to no faction."
+  },
+  "opening": {
+    "_comment": "Interface v0.7, The Opening: the story Il Notaio writes on a full screen before the player chooses, a paragraph at a time, in this order. Fixed text, never a model call. Lore writes it and Characters canon-checks it; until then it holds only its last line, the orientation line (Interface v0.14), and the paragraphs drop in here as the list grows (#148).",
+    "paragraphs": [
+      "Speak as your character would, plainly."
+    ]
+  },
+  "tour": {
+    "_comment": "Interface v0.8, The Tour: one card per part of the screen, in Il Notaio's voice, in the tour's order. `conversation` is step 6, the message box's card (#151 adds the warning there, Interface v0.14). `briefing` is the last: the Your briefing button, which starts the evening. Drafted by Claude Code (CC-20261114-10) for Dylan's review.",
+    "steps": {
+      "sheet": "This is you: your purse, the payments you've taken, how often you've drawn someone aside, and what you may do at midnight. Click your name or portrait for your briefing.",
+      "decks": "Your briefing, the rules of the evening, what the whole city knows, and a glossary of the evening's words. Each opens over the room, and each keeps your place.",
+      "errand": "Your errand: what you came to do tonight. It stays pinned here, and once it's been judged, the result shows here too.",
+      "room": "The room: who stands with whom. You see every group, and who has slipped away in private, but never what they say. Click a portrait to look at that guest.",
+      "stageBar": "The evening, stage by stage. The long one is now. Click an earlier one to read it again; nothing can be said from there.",
+      "conversation": "The conversation you're in, and your box beneath it. Type what your character says, and Speak. Begin with @ to address one guest, or / for what you may do instead of speaking.",
+      "right": "Whoever has your ear, or whoever you've chosen to look at: only what everyone at the party knows of them.",
+      "web": "The Web of Secrets: who is tied to whom, what you heard and saw of each guest, and your own notes. Click the bar to raise it.",
+      "briefing": "Start with your briefing."
+    }
   }
 }

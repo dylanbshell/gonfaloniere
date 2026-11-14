@@ -100,6 +100,10 @@ let page: Page;
 let base = "";
 let startTip: string | null = null;
 let tipAfterStart: string | null = null;
+/** The opening as it was written, before the game started (Interface v0.7), and the tour's first step after the choice. */
+type Story = { paras: { state: string; text: string; full: string }[]; choice: boolean; gloss: string | null; name: string | null };
+const opening: Partial<Record<"beforeWriting" | "writing" | "afterClick" | "end" | "skipped" | "reduced", Story>> & { headTop?: number } = {};
+let tourAtStart: string | null = null;
 
 const VIEW = { width: 1200, height: 700 };
 
@@ -115,10 +119,36 @@ before(async () => {
   page = await Page.open(targets.find((t) => t.type === "page")!.webSocketDebuggerUrl);
   await page.send("Emulation.setDeviceMetricsOverride", { ...VIEW, deviceScaleFactor: 1, mobile: false });
   await page.send("Runtime.enable");
+  // The opening (Interface v0.7): what it shows as Il Notaio writes, a click, Skip, and reduced motion; then the
+  // choice, and the tour that follows it. Seen here, before the game starts, and checked in the tests below.
+  const story = `({ paras: [...document.querySelectorAll(".opening-para")].map((p) => ({ state: p.dataset.state, text: p.firstChild?.textContent ?? "", full: p.dataset.full ?? p.textContent })), choice: !!document.querySelector(".opening-choice .start-card"), gloss: document.querySelector(".opening-gloss")?.textContent ?? null, name: document.querySelector(".opening-name")?.textContent ?? null })`;
   await page.send("Page.navigate", { url });
+  await page.until(`document.querySelector(".opening .opening-name")`);
+  opening.beforeWriting = await page.eval(story);
+  await page.until(`(() => { const p = document.querySelector('.opening-para[data-state="writing"]'); return p && p.firstChild && p.firstChild.textContent.length > 0 && p.firstChild.textContent.length < p.dataset.full.length; })()`, 10_000);
+  opening.writing = await page.eval(story);
+  await page.shot("opening-writing");
+  const head = await page.eval<{ top: number }>(`({ top: document.querySelector(".opening-head").getBoundingClientRect().top })`);
+  opening.headTop = head.top;
+  await page.eval(`document.querySelector(".opening-story").click()`);
+  opening.afterClick = await page.eval(story);
+  await page.until(`document.querySelector(".opening-choice .start-card")`, 10_000);
+  opening.end = await page.eval(story);
+  await page.shot("opening-choice");
+  // Again from the start: Skip writes it all out at once.
+  await page.send("Page.reload");
+  await page.until(`document.querySelector(".opening-skip")`);
+  await page.eval(`document.querySelector(".opening-skip").click()`);
+  opening.skipped = await page.eval(story);
+  // With reduced motion set, each paragraph appears whole.
+  await page.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
+  await page.send("Page.reload");
+  await page.until(`document.querySelector(".opening-para")`, 10_000);
+  opening.reduced = await page.eval(story);
+  await page.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] });
+  await page.until(`document.querySelector(".opening-choice .start-card button")`, 10_000);
   // Choose the card as a player would: hover (its explanation shows), then click. The game
   // starts and waits for the player, with the sheet (the decks) in hand.
-  await page.until(`document.querySelector(".start-card button")`);
   const b = await page.eval<{ x: number; y: number }>(`(() => { const r = document.querySelector(".start-card button").getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
   await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...b });
   await page.until(`document.querySelector(".tip:not(.measuring)")`);
@@ -128,6 +158,13 @@ before(async () => {
   await page.eval(`document.querySelector(".start-card button").click()`);
   await page.until(`document.querySelector(".input textarea") && !document.querySelector('[data-hint="briefing"]').disabled`);
   tipAfterStart = await page.eval<string | null>(`document.querySelector(".tip")?.textContent ?? null`);
+  // The tour starts by itself after the choice (Interface v0.8); skipped here, so the tests below have the
+  // screen to themselves, and run again with Show me around in its own test.
+  await page.until(`document.querySelector(".tour")`);
+  tourAtStart = await page.eval<string>(`document.querySelector(".tour").dataset.step`);
+  await page.shot("tour-after-choice");
+  await page.eval(`document.querySelector(".tour-skip").click()`);
+  await page.until(`!document.querySelector(".tour")`);
 });
 
 /** Stops a process and its children (npx starts tsx, which starts node), and waits for it to go. */
@@ -1178,5 +1215,131 @@ test("a glossary word in the chat: a faint dotted underline, its definition on h
   await clickAt({ x: g.x, y: g.y });
   assert.equal(await page.eval<boolean>(`!!document.querySelector(".side.right .look:not(.leaving)")`), false);
   await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 5, y: 5 });
+  await HINTS_OFF(false);
+});
+
+// ---- CC-20261114-10 (#117, part 3 of 3) ------------------------------------------------------------------
+
+const NOTAIO_WORDS = JSON.parse(readFileSync("setting/florence-1492/notaio.json", "utf8")) as { name: { gloss: string; hover: string }; opening: { paragraphs: string[] }; tour: { steps: Record<string, string> } };
+
+test("the opening: his name and its gloss before he writes, a character at a time, a click finishing the paragraph, Skip writing it all, reduced motion writing it whole, then the choice", { skip }, () => {
+  const paras = NOTAIO_WORDS.opening.paragraphs;
+  const o = opening as Required<typeof opening>;
+  assert.equal(o.beforeWriting.name, "Il Notaio", "his name heads the page");
+  assert.equal(o.beforeWriting.gloss, NOTAIO_WORDS.name.gloss, "with its gloss beneath it");
+  assert.deepEqual(o.beforeWriting.paras, [], "before he writes");
+  assert.equal(o.beforeWriting.choice, false);
+  // Writing: part of the first paragraph, as by pen; the name kept at the top.
+  const w = o.writing.paras.at(-1)!;
+  assert.equal(w.state, "writing");
+  assert.ok(w.text.length > 0 && w.text.length < w.full.length && w.full.startsWith(w.text), `a character at a time: "${w.text}"`);
+  assert.equal(o.writing.gloss, NOTAIO_WORDS.name.gloss, "the gloss stays while he writes");
+  assert.ok(o.headTop >= 0 && o.headTop < 5, "his name at the top");
+  // A click finishes the paragraph being written.
+  assert.equal(o.afterClick.paras.at(-1)!.text, paras[0], "a click finishes it");
+  assert.equal(o.afterClick.choice, false, "the choice waits for the end");
+  // At the end: every paragraph, kept on the page, and the choice.
+  assert.deepEqual(o.end.paras.map((p) => p.text), paras, "earlier paragraphs stay on the page");
+  assert.equal(o.end.choice, true);
+  // Skip: everything at once, and the choice.
+  assert.deepEqual(o.skipped.paras.map((p) => [p.state, p.text]), paras.map((p) => ["done", p]), "Skip writes everything out");
+  assert.equal(o.skipped.choice, true);
+  // Reduced motion: the first paragraph seen is already whole.
+  assert.equal(o.reduced.paras[0]!.text, paras[0], "with reduced motion, it appears whole");
+});
+
+test("the tour after the choice, once: steps in order, each spotlit with its card; a click moves on, Back goes back; Skip tour; it ends on Your briefing, which opens; Show me around runs it again", { skip }, async () => {
+  assert.equal(tourAtStart, "sheet", "it began by itself after the choice, on the sheet");
+  await reopen();
+  assert.equal(await page.eval<boolean>(`!!document.querySelector(".tour")`), false, "it runs once: not after a reload");
+  const steps = Object.keys(NOTAIO_WORDS.tour.steps);
+  const target: Record<string, string> = { sheet: ".sheet-panel", decks: ".buttons.decks", errand: ".side.left .errand", room: ".side.left .room", stageBar: ".conv-where", conversation: ".centre .stream", right: ".side.right", web: ".web-bar", briefing: '.side.left [data-hint="briefing"]' };
+  const look = () =>
+    page.eval<{ step: string; text: string; covers: boolean; cardIn: boolean; overlaps: boolean }>(`(() => {
+      const t = document.querySelector(".tour"), spot = document.querySelector(".tour-spot").getBoundingClientRect(), card = document.querySelector(".tour-card").getBoundingClientRect();
+      const el = document.querySelector(${JSON.stringify(Object.fromEntries(Object.entries(target)))}[t.dataset.step]).getBoundingClientRect();
+      return { step: t.dataset.step, text: document.querySelector(".tour-text").textContent,
+        covers: spot.left <= el.left + 1 && spot.top <= el.top + 1 && spot.right >= el.right - 1 && spot.bottom >= el.bottom - 1,
+        cardIn: card.left >= 0 && card.top >= 0 && card.right <= innerWidth && card.bottom <= innerHeight,
+        overlaps: !(card.right <= spot.left || card.left >= spot.right || card.bottom <= spot.top || card.top >= spot.bottom) };
+    })()`);
+  const settle = () => page.until(`document.querySelector(".tour-spot") && document.querySelector(".tour-spot").getAnimations().length === 0 && !document.querySelector(".tour-card.measuring")`);
+  await page.eval(`document.querySelector(".tour-again").click()`);
+  await page.until(`document.querySelector(".tour")?.dataset.step === "sheet"`);
+  // The rest of the screen is dimmed: the spot's shadow covers the window.
+  assert.match(await page.eval<string>(`getComputedStyle(document.querySelector(".tour-spot")).boxShadow`), /rgba?\(/);
+  for (const [i, step] of steps.entries()) {
+    await page.until(`document.querySelector(".tour")?.dataset.step === ${JSON.stringify(step)}`);
+    await settle();
+    const l = await look();
+    assert.equal(l.text, NOTAIO_WORDS.tour.steps[step], `${step}: its card`);
+    assert.ok(l.covers, `${step}: spotlit`);
+    assert.ok(l.cardIn, `${step}: the card in the window`);
+    if (step !== "right" && step !== "conversation") assert.ok(!l.overlaps, `${step}: the card beside it, not over it`);
+    await page.shot(`tour-${i + 1}-${step}`);
+    if (step === "decks") {
+      // Back goes back, and a click anywhere moves on again.
+      await page.eval(`document.querySelector('[data-hint="tourBack"]').click()`);
+      await page.until(`document.querySelector(".tour")?.dataset.step === "sheet"`);
+      await clickAt({ x: VIEW.width / 2, y: VIEW.height / 2 });
+      await page.until(`document.querySelector(".tour")?.dataset.step === "decks"`);
+    }
+    if (i < steps.length - 1) await clickAt({ x: 8, y: VIEW.height - 8 });
+  }
+  // The last: Your briefing. Moving on opens the briefing and ends the tour.
+  await clickAt('.side.left [data-hint="briefing"]');
+  await page.until(`!document.querySelector(".tour") && document.querySelector(".deck-briefing .deck-card")`);
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector(".overlay")`);
+  // Show me around again, then Skip tour on a later step; Escape skips too.
+  await page.eval(`document.querySelector(".tour-again").click()`);
+  await page.until(`document.querySelector(".tour")`);
+  await clickAt({ x: 8, y: VIEW.height - 8 });
+  await page.until(`document.querySelector(".tour")?.dataset.step === "decks"`);
+  await page.eval(`document.querySelector(".tour-skip").click()`);
+  await page.until(`!document.querySelector(".tour")`);
+  await page.eval(`document.querySelector(".tour-again").click()`);
+  await page.until(`document.querySelector(".tour")`);
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector(".tour")`);
+  // With reduced motion, the spotlight jumps.
+  await page.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
+  await page.eval(`document.querySelector(".tour-again").click()`);
+  await page.until(`document.querySelector(".tour-spot")`);
+  assert.equal(await page.eval<string>(`getComputedStyle(document.querySelector(".tour-spot")).transitionDuration.split(",").every((d) => parseFloat(d) === 0) ? "jumps" : "glides"`), "jumps");
+  await page.key("Escape", 27);
+  await page.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] });
+  await reopen();
+  assert.equal(await page.eval<boolean>(`!!document.querySelector(".tour")`), false, "still once");
+});
+
+test("Il Notaio's name: its hover glosses it, even with the hover explanations off, in the stream, his hint, and the tour's card", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".ln.notaio .narrator-name")`);
+  await HINTS_OFF(true);
+  const hoverOn = async (sel: string) => {
+    await page.eval(`document.querySelector(${JSON.stringify(sel)}).scrollIntoView({ block: "nearest" })`);
+    await page.eval(`new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)))`);
+    const at = await page.eval<{ x: number; y: number }>(`(() => { const b = document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; })()`);
+    await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 });
+    await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
+    await page.until(`document.querySelector(".tip:not(.measuring)")`);
+    return page.eval<string>(`document.querySelector(".tip").textContent`);
+  };
+  assert.equal(await hoverOn(".ln.notaio .narrator-name"), NOTAIO_WORDS.name.hover, "his notes in the stream");
+  await page.shot("notaio-name-hover");
+  assert.equal(await hoverOn(".notaio-hint .narrator-name"), NOTAIO_WORDS.name.hover, "his hint");
+  // A control's explanation stays off meanwhile.
+  await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 });
+  const speak = await page.eval<{ x: number; y: number }>(`(() => { const b = document.querySelector(".input .actions button").getBoundingClientRect(); return { x: b.left + 4, y: b.top + 4 }; })()`);
+  await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...speak });
+  await new Promise((r) => setTimeout(r, 200));
+  assert.equal(await page.eval<boolean>(`!!document.querySelector(".tip")`), false, "explanations are off");
+  await page.eval(`document.querySelector(".tour-again").click()`);
+  await page.until(`document.querySelector(".tour-card:not(.measuring) .narrator-name")`);
+  assert.equal(await hoverOn(".tour-card .narrator-name"), NOTAIO_WORDS.name.hover, "the tour's card");
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector(".tour")`);
+  await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 });
   await HINTS_OFF(false);
 });

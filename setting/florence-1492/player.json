@@ -66,7 +66,6 @@
     "note_too_long": "That note is {length} characters; keep it to {max}.",
     "note_guest": "A note can be about guests at this party only."
   },
-  "orientation": "Speak as your character would, plainly. The other guests react to strange talk as guests would.",
   "briefingHeadings": {
     "_comment": "Headings in the Characters doc's briefings that the screen looks for (the errand card shows its section). Not shown as words.",
     "errand": "Your errand tonight"
@@ -76,11 +75,6 @@
     "title": "Gonfaloniere",
     "connecting": "Connecting…",
     "reconnecting": "The connection dropped. Reconnecting…",
-    "start": {
-      "heading": "Choose your guest",
-      "play": "Play as {name}",
-      "starting": "The guests are arriving…"
-    },
     "you": "You",
     "purse": "Purse",
     "purseValue": "{amount} {currency}",
@@ -315,7 +309,11 @@
       "glossarySearch": "Type to narrow the glossary to the words that match.",
       "glossaryRules": "Open the rules at the section behind this word.",
       "modalPrevious": "The one before this. Click to slide back to it.",
-      "modalNext": "The next one along. Click to slide on to it."
+      "modalNext": "The next one along. Click to slide on to it.",
+      "tourAgain": "Take the tour of the screen again: one part at a time, with a word from Il Notaio on each.",
+      "tourBack": "Back to the part before.",
+      "tourSkip": "End the tour here. Show me around, at the top of this column, runs it again.",
+      "openingSkip": "Write out the whole story at once."
     },
     "city": "The city",
     "rulesModal": {
@@ -349,7 +347,7 @@
       "showLabel": "Show the panel again"
     },
     "notaioHint": {
-      "title": "Il Notaio, to you",
+      "title": "{notaio}, to you",
       "hide": "Hide",
       "show": "Show"
     },
@@ -382,7 +380,7 @@
     "more": "More below",
     "panelError": "This part of the screen ran into a problem and stopped. The rest still works; reloading the page may bring it back.",
     "reading": {
-      "title": "Il Notaio's reading. He may be wrong.",
+      "title": "{notaio}'s reading. He may be wrong.",
       "waiting": "Il Notaio is considering…",
       "tally": "{heard}; {saw}.",
       "heard": {
@@ -415,6 +413,20 @@
     "modalRow": {
       "previous": "Back to {title}",
       "next": "On to {title}"
+    },
+    "opening": {
+      "_comment": "Interface v0.7, The Opening's controls and the choice at its end. Il Notaio's story itself is notaio.json's opening.",
+      "skip": "Skip",
+      "choose": "Choose your guest",
+      "play": "Play as {name}",
+      "starting": "The guests are arriving…"
+    },
+    "tour": {
+      "_comment": "Interface v0.8, The Tour's controls. Its cards are notaio.json's tour.",
+      "back": "Back",
+      "skip": "Skip tour",
+      "counter": "{n} of {total}",
+      "again": "Show me around"
     }
   },
   "glossary": {
@@ -574,7 +586,7 @@
       },
       {
         "term": "Il Notaio",
-        "text": "Italian for \"the notary\": the one who records the evening. He notes who joins, leaves, and slips away, and announces what all the city hears. He belongs to no faction.",
+        "text": "Italian for “the notary”: the one who records the evening. He notes who joins, leaves, and slips away, and announces what all the city hears. He belongs to no faction.",
         "match": [
           "Il Notaio"
         ]

@@ -18,7 +18,7 @@ import type { LoreEntry as StoredLore } from "../src/minigame/lore.ts";
 import { glossary, screenInfo } from "../src/minigame/screen-info.ts";
 import { rulesText } from "../src/prompt/assemble.ts";
 import { settingPack } from "../src/setting/pack.ts";
-import { GameView, Start } from "../web/src/App.tsx";
+import { GameView, Opening } from "../web/src/App.tsx";
 import type { Ev } from "../web/src/connection.ts";
 import { canDo, canSpeak, openMenu, trigger, withMention } from "../web/src/input.ts";
 import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityCards, cityList, curve, derive, factionArcs, placeholderExample, preview, selectBack, selectInChat, selectInWeb, selectLore, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, lineStages, loreParts, readingFor, rulesCards, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, glossaryList, lineParts, midnightLine, notesFor, rulesSectionFor, type LoreEntry, type View } from "../web/src/model.ts";
@@ -78,13 +78,15 @@ const html = (el: ReturnType<typeof createElement>) => renderToString(el);
 /** Words the screen shows but couldn't find in player.json come out as their keys. */
 const missingWords = (h: string) => h.match(/\bscreen\.[\w.]+|\b(?:refusals|commands|hints)\.[\w.]+|undefined|\[object Object\]/g) ?? [];
 
-test("the start screen: one card, for Francesco, with his public line and his briefing's first paragraph", () => {
-  const h = html(createElement(Start, { onStart: () => {} }));
+test("the opening's choice (Interface v0.7): one card, for Francesco, with his portrait, name, faction, and public subtitle", () => {
+  const h = html(createElement(Opening, { onStart: () => {}, written: true }));
   assert.deepEqual(missingWords(h), []);
   assert.equal(info.playable.length, 1);
-  assert.match(h, /Francesco Pazzi/);
-  assert.ok(h.includes(info.playable[0]!.intro.slice(0, 40).replace(/'/g, "&#x27;")), "the first paragraph");
-  assert.ok(!info.playable[0]!.intro.startsWith("*"), "not the subtitle line");
+  const card = h.slice(h.indexOf('class="start-card"'));
+  const g = info.roster.find((r) => r.name === F)!;
+  assert.match(card, /class="portrait large"/);
+  assert.ok(card.includes(`<div class="name">${F}</div><div class="muted">${g.faction}</div><div class="muted subtitle">${esc(g.subtitle)}</div>`), "name, faction, subtitle");
+  assert.match(card, /data-hint="play"/);
 });
 
 test("the game screen renders at every kind of wait, and the end screen at the end, with every word from the setting pack", async () => {
@@ -1142,7 +1144,7 @@ test("the glossary's entries: from the setting pack, amounts filled from the gam
   assert.ok(retuned.some((e) => e.term === "Ballot"), "the full game keeps them");
   assert.throws(() => glossary([{ term: "X", text: "{nonsense}" }], t, "Florins", true), /doesn't have/);
   // Il Notaio's entry starts with the gloss (Interface v0.11).
-  assert.match(text("Il Notaio"), /^Italian for "the notary"/);
+  assert.match(text("Il Notaio"), /^Italian for “the notary”/);
   // The glossary's own words aren't the screen's: they arrive filled, apart from player.json's words.
   assert.equal((info.words as Record<string, unknown>).glossary, undefined);
 });
@@ -1194,4 +1196,62 @@ test("the four modals in a row: the open one between its neighbours, nothing bef
   assert.match(css, /\.modal-peek\.left \{[^}]*mask-image: var\(--peek-fade-left\)/, "the left one's left side faded");
   assert.match(css, /\.modal-peek\.right \{[^}]*mask-image: var\(--peek-fade-right\)/);
   assert.match(css, /\.gloss \{ text-decoration: underline dotted var\(--gloss-underline\)/);
+});
+
+// ---- CC-20261114-10 (#117, part 3 of 3): the opening, the tour, and Il Notaio's name glossed (Interface v0.7–v0.11) ----
+
+const NOTAIO_PACK = JSON.parse(readFileSync("setting/florence-1492/notaio.json", "utf8")) as { name: { gloss: string; hover: string }; opening: { paragraphs: string[] }; tour: { steps: Record<string, string> } };
+
+test("the opening: his name glossed at the top before he writes, Skip, and the story a list of paragraphs in notaio.json, ending on the orientation line", () => {
+  const h = html(createElement(Opening, { onStart: () => {} }));
+  assert.deepEqual(missingWords(h), []);
+  assert.match(h, /<header class="opening-head"><h1 class="opening-name"><span class="narrator-name"[^>]*>Il Notaio<\/span><\/h1><div class="opening-gloss">Italian for “the notary”<\/div><\/header>/);
+  assert.doesNotMatch(h, /class="opening-para"/, "before he writes, only his name");
+  assert.match(h, /class="secondary small opening-skip"[^>]*data-hint="openingSkip"/);
+  assert.doesNotMatch(h, /start-card/, "the choice comes at the end");
+  assert.ok(Array.isArray(NOTAIO_PACK.opening.paragraphs) && NOTAIO_PACK.opening.paragraphs.length >= 1);
+  assert.equal(NOTAIO_PACK.opening.paragraphs.at(-1), "Speak as your character would, plainly.", "Interface v0.14: the last line");
+  assert.deepEqual(info.notaio.opening!.paragraphs, NOTAIO_PACK.opening.paragraphs, "served to the screen as written");
+  const written = html(createElement(Opening, { onStart: () => {}, written: true }));
+  assert.equal((written.match(/class="opening-para" data-state="done"/g) ?? []).length, NOTAIO_PACK.opening.paragraphs.length, "Skip: every paragraph, whole");
+  assert.doesNotMatch(written, /opening-skip/);
+  const theme = readFileSync("web/theme.css", "utf8");
+  for (const t of ["--opening-char", "--opening-pause", "--tour-dim", "--motion-tour", "--z-tour"]) assert.match(theme, new RegExp(`${t}:`), t);
+  assert.match(readFileSync("web/src/app.css", "utf8"), /prefers-reduced-motion: reduce\)[^@]*\.tour-spot \{ transition: none; \}/, "the spotlight jumps with reduced motion");
+});
+
+test("the tour: a card per step in Il Notaio's voice, in the doc's order, ending on Your briefing; Back, Skip tour, and Show me around; not on the server's first render", async () => {
+  const { at } = await playedLog();
+  const v = derive(at["speak:capannello"]!);
+  assert.doesNotMatch(game({ v }), /class="tour"/, "it starts in the browser, after the choice");
+  assert.deepEqual(Object.keys(NOTAIO_PACK.tour.steps), ["sheet", "decks", "errand", "room", "stageBar", "conversation", "right", "web", "briefing"], "the doc's eight, then Your briefing");
+  assert.equal(NOTAIO_PACK.tour.steps.briefing, "Start with your briefing.");
+  Object.keys(NOTAIO_PACK.tour.steps).forEach((key, i) => {
+    const h = game({ v, tourStep: i });
+    assert.deepEqual(missingWords(h), [], key);
+    const tour = h.slice(h.indexOf('<div class="tour"'));
+    assert.match(tour, new RegExp(`^<div class="tour" data-step="${key}"`), key);
+    assert.ok(tour.includes(`<p class="tour-text">${esc(NOTAIO_PACK.tour.steps[key]!)}</p>`), `${key}: its card, from notaio.json`);
+    assert.match(tour, /<div class="tour-head"><span class="narrator-name"/, `${key}: in his name`);
+    assert.ok(tour.includes(`${i + 1} of 9`));
+    assert.match(tour, new RegExp(`<button class="secondary small"${i === 0 ? ' disabled=""' : ""}[^>]*data-hint="tourBack"`), `${key}: Back`);
+    assert.match(tour, /data-hint="tourSkip">Skip tour</, `${key}: Skip tour`);
+  });
+  assert.match(game({ v }), /<button class="switch tour-again"[^>]*data-hint="tourAgain">Show me around<\/button><button class="switch"/, "Show me around, beside the explanations' switch");
+  const css = readFileSync("web/src/app.css", "utf8");
+  assert.match(css, /\.tour-card \{[^}]*background: var\(--hint-bg\)/, "styled like his hint");
+});
+
+test("Il Notaio's name, glossed wherever it shows: his notes, his hint, his reading; the words from notaio.json, his glossary entry starting the same", async () => {
+  const { at } = await playedLog();
+  const v = derive(at["speak:capannello"]!);
+  const hover = `aria-description="${esc(NOTAIO_PACK.name.hover)}"`;
+  const h = game({ v, web: ["Lupo"] });
+  assert.match(h, new RegExp(`<div class="ln notaio" data-line="\\w+"><span class="sp"><span class="narrator-name" tabindex="0" data-narrator="" ${hover.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`), "his notes in the stream");
+  assert.match(h, /<button class="hint-head"[^>]*><span><span class="narrator-name"[^>]*>Il Notaio<\/span>, to you<\/span>/, "his hint");
+  assert.match(h, /<div class="reading-head"><span class="narrator-name"[^>]*>Il Notaio<\/span>&#x27;s reading\. He may be wrong\.<\/div>/, "his reading");
+  assert.equal(NOTAIO_PACK.name.hover, "Il Notaio: Italian for “the notary”. He records the evening and belongs to no faction.");
+  assert.ok(info.glossary!.find((e) => e.term === "Il Notaio")!.text.startsWith(NOTAIO_PACK.name.gloss), "his glossary entry starts with the same gloss");
+  assert.ok(NOTAIO_PACK.name.gloss.startsWith("Italian for"));
+  assert.ok(!("orientation" in (info.words as object)) && !("start" in (info.words as { screen: object }).screen), "the start screen's words went with it");
 });
