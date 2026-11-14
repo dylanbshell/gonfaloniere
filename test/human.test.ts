@@ -263,7 +263,7 @@ test("/borrow and /repay in the player's words (Interface v0.12, The Player's Wo
   for (const words of ["France's payroll: take one payment", "Pay back one payroll payment, your own", "You have no payroll payment"]) assert.ok(!prompts.includes(words), words);
 });
 
-for (const [td, docs] of [["", fakeDocs], [" (TD v0.51: with Il Notaio's guarded readings and stage summaries in it)", docs51]] as const)
+for (const [td, docs] of [[" (TD v0.50)", loadDocs(docsFor("0.50"))], [" (TD v0.51: with Il Notaio's guarded readings and stage summaries in it)", docs51]] as const)
 test(`isolation: the player's whole event stream is their own History and State, nothing else${td}`, async () => {
   const { game, ctrl } = await playAsFrancesco(7, docs);
   const heard = new Map(game.lines.filter((l) => l.heardBy.includes(F)).map((l) => [l.id, l]));

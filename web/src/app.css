@@ -246,7 +246,20 @@ button.key-type.on { border-color: var(--accent); background: var(--select-bg); 
 .record-pane:not(.covered) .record { padding-bottom: calc(var(--reading-min-height) + var(--space-4)); }
 .reading-head { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-label); margin-bottom: var(--space-1); }
 .reading-text { margin: 0; }
-.reading-text.tally { font-style: italic; }
+.reading-text.tally, .reading-tally { font-style: italic; }
+/* TD v0.51 (Interface v0.13): his guarded reading, background then a paragraph per stage, then the tally. A
+   lore note is code's, set apart from his sentences in a smaller style, its title a link. */
+.reading-text.guarded p { margin: 0 0 var(--space-2); }
+.reading-text.guarded p:last-child { margin-bottom: 0; }
+.reading-stage-head { font-weight: var(--weight-bold); }
+.reading-event { color: var(--text-muted); }
+.reading-note { font-size: var(--text-xs); color: var(--text-muted); }
+.reading-note .lore-link { font-size: var(--text-xs); }
+/* His summary over a past stage: the box over the chat window, under a peeking strip of the dialogue. */
+.stream-area { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.summary-group { margin: 0 0 var(--space-2); }
+.summary-where { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-label); }
+.summary-items { margin: var(--space-1) 0 0; padding-left: var(--space-4); display: flex; flex-direction: column; gap: var(--space-1); }
 
 /* The stage bar (Interface v0.5): a circle per stage joined by a stroke, past filled, future outlined, the
    current one an oval with its name; a hovered or focused stage expands instead. It scrolls sideways on a

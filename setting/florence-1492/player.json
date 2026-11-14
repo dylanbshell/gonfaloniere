@@ -215,7 +215,8 @@
     },
     "pastStage": {
       "heading": "Earlier: {stage}",
-      "empty": "Nothing reached you in this stage."
+      "empty": "Nothing reached you in this stage.",
+      "summaryTitle": "{notaio}'s summary of this stage. He may be wrong."
     },
     "earlier": {
       "title": "Earlier this stage",
@@ -284,7 +285,7 @@
       "more": "This column goes on below. Click to scroll down, or scroll as usual.",
       "key": "The key to the lines: each kind of tie has its own colour and line style.",
       "keyType": "Highlight every line of this kind across the web. Click again to clear.",
-      "reading": "Il Notaio's short reading of what you've heard and seen of the selected guests. It's one model's summary of your own record, and every quote is checked against it. He may still be wrong. Click it, or the lines behind it, to fold it to the foot of the column; click again to bring it back.",
+      "reading": "Il Notaio's reading of what you've heard and seen of the selected guests: what you knew of them already, then tonight, stage by stage, each line put in his register with their own words quoted. Every word of his is checked against the line. He may still be wrong. Click it, or the lines behind it, to fold it to the foot of the column; click again to bring it back.",
       "faction": "A faction: its guests sit together under its name.",
       "track": "The evening's stages: filled ones are done, the long one is now, outlined ones are still to come.",
       "trackPast": "{stage}: done. Click to read its conversations again. Nothing can be sent from there.",
@@ -315,7 +316,9 @@
       "tourAgain": "Take the tour of the screen again: one part at a time, with a word from Il Notaio on each.",
       "tourBack": "Back to the part before.",
       "tourSkip": "End the tour here. Show me around, at the top of this column, runs it again.",
-      "openingSkip": "Write out the whole story at once."
+      "openingSkip": "Write out the whole story at once.",
+      "pastSummary": "Il Notaio's summary of this stage: what you heard and saw, conversation by conversation, each line in his register with the guest's own words quoted. Click anywhere in the window to fold it to the foot; click it again to bring it back.",
+      "readingNote": "What every guest knew of this at the start of the evening: a public note the game sets beside the line, not Il Notaio's. Click to open it in The city."
     },
     "city": "The city",
     "rulesModal": {
@@ -400,7 +403,10 @@
         "1": "you saw one thing that concerns {who}",
         "n": "you saw {n} things that concern {who}"
       },
-      "both": "them both"
+      "both": "them both",
+      "_guarded_comment": "TD v0.51 (Interface v0.13), his guarded reading: `connection` is one of the background's connection lines ({between}: the pair, or for one of your own, the other guest); `noteSep` goes between a lore note's title and its note. Drafted by Claude Code (CC-20261114-20).",
+      "connection": "{between}: {line}.",
+      "noteSep": ": "
     },
     "room": "The room",
     "withYou": "With you",

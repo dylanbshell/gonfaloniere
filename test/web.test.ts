@@ -21,7 +21,7 @@ import { settingPack } from "../src/setting/pack.ts";
 import { GameView, Opening } from "../web/src/App.tsx";
 import type { Ev } from "../web/src/connection.ts";
 import { canDo, canSpeak, openMenu, trigger, withMention } from "../web/src/input.ts";
-import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityCards, cityList, curve, derive, factionArcs, placeholderExample, preview, selectBack, selectInChat, selectInWeb, selectLore, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, lineStages, loreParts, readingFor, roomOf, rulesCards, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, glossaryList, lineParts, midnightLine, notesFor, rulesSectionFor, type LoreEntry, type View } from "../web/src/model.ts";
+import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityCards, cityList, curve, derive, factionArcs, placeholderExample, preview, selectBack, selectInChat, selectInWeb, selectLore, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, lineStages, loreParts, readingFor, roomOf, summaryFor, rulesCards, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, glossaryList, lineParts, midnightLine, notesFor, rulesSectionFor, type LoreEntry, type View } from "../web/src/model.ts";
 import { notaioHint, setInfo, type StartInfo } from "../web/src/words.ts";
 import { fakeCaller, fakeDocs, fakeSettings } from "./fixtures/fake-game.ts";
 
@@ -67,10 +67,14 @@ async function playedLog(opts: { Game?: typeof MiniGame; midnight?: (guests: str
     onClose: () => {},
   };
   ctrl.attach(conn);
-  queueMicrotask(() => reply(JSON.stringify({ type: "command", text: "/borrow" })));
+  // TD v0.51, the tour's hold: the screen begins at once, as one whose tour has already run.
+  queueMicrotask(() => (reply(JSON.stringify({ type: "command", text: "/borrow" })), reply(JSON.stringify({ type: "begin" }))));
   await game.play();
   return { log, at, game };
 }
+
+/** A view whose player has a knowledge errand (TD v0.51's flag, as the game would send it for Piero). */
+const knowing = (v: View): View => ({ ...v, state: { ...v.state!, knowledgeErrand: true } });
 
 const info = { ...screenInfo([F], castBriefings(fakeDocs), { tunables: fakeDocs.tunables, minigame: true }), started: null, ws: null } as StartInfo;
 setInfo(info);
@@ -384,7 +388,7 @@ test("notes in the web viewer: on a guest, on a pair (drawn dashed), or free; al
     { seq: 1e6 + 1, type: "note", id: "N2", turn: 1, guests: ["Lupo"], text: "Lupo watches the door." },
     { seq: 1e6 + 2, type: "note", id: "N3", turn: 2, guests: ["Lupo", "Giorgia Pazzi"], text: "Those two talk too often." },
   ];
-  const v = derive([...base, ...notes]);
+  const v = knowing(derive([...base, ...notes]));
   assert.deepEqual(v.notes.map((n) => n.id), ["N1", "N2", "N3"]);
   assert.equal((game({ v, web: [] }).match(/class="edge note-line/g) ?? []).length, 1, "the pair's dashed line");
   // Interface v0.7: one Notes tab. The writing box on top, then one list, newest first, filtered by the selection.
@@ -412,6 +416,13 @@ test("notes in the web viewer: on a guest, on a pair (drawn dashed), or free; al
   const buttons = [...all.matchAll(/<li class="note">(.*?)<\/li>/g)].map((m) => [m[1]!.match(/class="note-text"[^>]*>([^<]+)</)![1], /data-hint="conclude"/.test(m[1]!)]);
   assert.deepEqual(buttons, [["Those two talk too often.", true], ["Lupo watches the door.", true], ["Something is off tonight.", false]]);
   assert.ok(v.commands.some((c) => c.action === "conclude"), "the conclusion's command, found by its action");
+  // TD v0.51's flag: only a character whose errand a conclusion can finish sees the button. Francesco's is a
+  // payment, so the game sends false, and no note has one; a state without the flag (an older game) has none either.
+  const francesco = derive([...base, ...notes]);
+  assert.equal(francesco.state!.knowledgeErrand, false, "the game's flag for Francesco");
+  assert.doesNotMatch(game({ v: francesco, web: [], webTab: "notes" }), /class="secondary small conclude"/);
+  const { knowledgeErrand: _k, ...unflagged } = francesco.state!;
+  assert.doesNotMatch(game({ v: { ...francesco, state: unflagged as typeof francesco.state }, web: [], webTab: "notes" }), /class="secondary small conclude"/);
 });
 
 test("the conclusion button (Interface v0.4): disabled while a decision card waits, with a hover saying why; disabled for a dead player", async () => {
@@ -419,12 +430,12 @@ test("the conclusion button (Interface v0.4): disabled while a decision card wai
   const note: Ev = { seq: 1e6, type: "note", id: "N1", turn: 1, guests: ["Lupo"], text: "Lupo watches the door." };
   const button = (h: string) => h.match(/<button class="secondary small conclude"[^>]*>/)?.[0] ?? "";
   // Speaking: the box is open, so the button is live, with its usual hover.
-  const speaking = button(game({ v: derive([...at["speak:colloquio"]!, note]), web: ["Lupo"], webTab: "notes" }));
+  const speaking = button(game({ v: knowing(derive([...at["speak:colloquio"]!, note])), web: ["Lupo"], webTab: "notes" }));
   assert.match(speaking, /data-hint="conclude"/);
   assert.doesNotMatch(speaking, /disabled/);
   // A decision card waiting: disabled, and the hover says to finish the choice first.
   for (const k of ["move", "seat", "midnight"]) {
-    const h = game({ v: derive([...at[k]!, note]), web: ["Lupo"], webTab: "notes" });
+    const h = game({ v: knowing(derive([...at[k]!, note])), web: ["Lupo"], webTab: "notes" });
     assert.deepEqual(missingWords(h), [], k);
     assert.match(button(h), /disabled=""/, `${k}: disabled`);
     assert.match(button(h), /data-hint="concludeWaiting"/, `${k}: the hover says why`);
@@ -432,7 +443,7 @@ test("the conclusion button (Interface v0.4): disabled while a decision card wai
   const words = (info.words as { screen: { hints: Record<string, string> } }).screen.hints;
   assert.ok(words.concludeWaiting!.length > 10, "its words are in player.json");
   // A dead player: disabled, as before.
-  const dead = derive([...at["speak:colloquio"]!, note]);
+  const dead = knowing(derive([...at["speak:colloquio"]!, note]));
   dead.deaths.push({ name: F, you: true, seq: 1e6 + 1 });
   assert.match(button(game({ v: dead, web: ["Lupo"], webTab: "notes" })), /disabled=""/);
 });
@@ -929,7 +940,7 @@ test("Earlier this stage, and a selected guest's dots on the past stages they ap
   assert.doesNotMatch(game({ v }), /stage-dot/, "nothing selected: no dots");
 });
 
-test("a past stage opens read-only: its conversations in order, Return in place of Speak and Pass, the summary's place empty until #146", async () => {
+test("a past stage opens read-only: its conversations in order, Return in place of Speak and Pass, Il Notaio's summary over them", async () => {
   const v = await earlierView();
   const stage = v.sheet!.track![1]!;
   const runs = stageRuns(v, stage);
@@ -962,6 +973,69 @@ test("a past stage opens read-only: its conversations in order, Return in place 
   const moving = derive(at.move!);
   const past = moving.sheet!.track!.find((t) => trackMarks(moving.sheet!.track!, moving.state!.phaseLabel).find((m) => m.stage === t)!.at === "past")!;
   assert.match(game({ v: moving, pastStage: past }), /class="primary return beckon"/);
+});
+
+test("Il Notaio's summary of a past stage (TD v0.51; Interface v0.13): over the window, expanded, bullets under each conversation's line; none until the game has written it", async () => {
+  const v = await earlierView();
+  const stage = v.sheet!.track![1]!;
+  const summary = summaryFor(v, stage);
+  assert.ok(summary, `the game wrote it when the stage ended: ${JSON.stringify(v.summaries.map((x) => x.stage))} ${stage}`);
+  assert.ok(summary.groups.length > 0, "with its groups");
+  const h = game({ v, pastStage: stage });
+  assert.deepEqual(missingWords(h), []);
+  const box = h.slice(h.indexOf('<aside class="reading past-summary"'), h.indexOf("</aside>", h.indexOf('<aside class="reading past-summary"')));
+  assert.match(box, /^<aside class="reading past-summary" data-state="expanded" role="button" aria-expanded="true"[^>]*data-hint="pastSummary"/);
+  assert.ok(box.includes(esc(PLAYER.screen.pastStage.summaryTitle.split("{notaio}")[1])), "labelled as his");
+  // Each group under its conversation's line, the one the stage's dialogue shows for it.
+  const wheres = [...box.matchAll(/class="summary-where">([^<]*)</g)].map((m) => m[1]);
+  const lines = [...h.matchAll(/class="past-where muted">([^<]*)</g)].map((m) => m[1]);
+  assert.equal(wheres.length, summary.groups.length);
+  for (const x of wheres) assert.ok(lines.includes(x), `${x} in ${JSON.stringify(lines)}`);
+  // Bullets: his sentences, events as their own record lines, notes set apart with a link.
+  const items = summary.groups.flatMap((g) => g.items);
+  assert.equal((box.match(/<li class="summary-item /g) ?? []).length, items.length);
+  for (const i of items.filter((x) => x.kind === "sentence")) assert.ok(box.includes(esc(i.text)), i.text);
+  assert.equal((box.match(/class="reading-note"/g) ?? []).length, items.filter((i) => i.kind === "note").length);
+  // The box sits over the stream, outside its scroll, so the dialogue scrolls under it once minimized.
+  assert.ok(h.indexOf('class="reading past-summary"') > h.indexOf('class="past-stage"') && h.indexOf('class="stream-area"') < h.indexOf('class="stream"'));
+  // A stage the game hasn't summarized (or a game before TD v0.51): its dialogue alone.
+  const none = game({ v: { ...v, summaries: [] }, pastStage: stage });
+  assert.doesNotMatch(none, /past-summary/);
+  // The current stage has no box.
+  assert.doesNotMatch(game({ v }), /past-summary/);
+  const css = readFileSync("web/src/app.css", "utf8");
+  assert.match(css, /\.stream-area \{[^}]*position: relative/);
+});
+
+test("Il Notaio's guarded reading in his box (TD v0.51): the background, then a paragraph per stage, his lines and the events in order, notes apart, the tally last", async () => {
+  const { at } = await playedLog();
+  const base = derive(at["speak:capannello"]!);
+  const lupo = heardAndSaw(base, ["Lupo"], F);
+  const upTo = Math.max(0, ...lupo.heard.map((l) => l.seq), ...lupo.saw.map((s) => (s.kind === "line" ? s.line.seq : s.seq)));
+  const stage = base.sheet!.track![1]!;
+  const guarded = {
+    background: { connections: [{ between: ["Lupo", F], type: "service", line: "He keeps you alive" }, { between: [F, "Lupo"], type: "service", line: "Your bodyguard", private: true }], lore: [{ entry: "pub-palazzo", title: "Tonight's host", text: "A great house." }] },
+    stages: [{ stage, heading: `In ${stage.toLowerCase()}:`, items: [{ kind: "sentence", seq: 5, text: 'Lupo told you: "The door is mine."' }, { kind: "note", entry: "pub-palazzo", title: "Tonight's host", text: "A great house." }, { kind: "event", seq: 6, item: "notaio", text: "Lupo drew Giorgia Pazzi aside." }] }],
+    empty: null,
+  };
+  const v = derive([...at["speak:capannello"]!, { seq: 1e7, type: "reading", guests: ["Lupo"], upTo, text: null, tally: "You've heard Lupo speak 3 times.", guarded }]);
+  const h = game({ v, web: ["Lupo"] });
+  assert.deepEqual(missingWords(h), []);
+  const box = h.slice(h.indexOf('<aside class="reading"'));
+  assert.match(box, /data-reading="guarded"/);
+  const order = ["reading-background", "reading-stage", "reading-tally"].map((c) => box.indexOf(`class="${c}`));
+  assert.ok(order.every((x, i) => x > 0 && (i === 0 || x > order[i - 1]!)), "background, tonight, then the tally");
+  assert.ok(box.includes(esc(w2("reading.connection", { between: "Lupo and Francesco Pazzi", line: "He keeps you alive" }))), "a public connection line, verbatim");
+  assert.ok(box.includes(esc(w2("reading.connection", { between: "Lupo", line: "Your bodyguard" }))) && box.includes(esc(PLAYER.screen.web.yours)), "your own, marked as yours");
+  assert.ok(box.includes(esc(`In ${stage.toLowerCase()}:`)) && box.includes(esc('Lupo told you: "The door is mine."')));
+  assert.ok(box.indexOf("The door is mine") < box.indexOf('class="reading-note"', box.indexOf('class="reading-stage')) && box.indexOf('class="reading-note"', box.indexOf('class="reading-stage')) < box.indexOf("drew Giorgia"), "in their order");
+  assert.equal((box.match(/<button class="lore-link"[^>]*data-hint="readingNote">Tonight&#x27;s host</g) ?? []).length, 2, "each lore title a link, in the background and after the line");
+  assert.ok(box.includes("You&#x27;ve heard Lupo speak 3 times."));
+  // Nothing heard or seen: his line saying so.
+  const empty = derive([...at["speak:capannello"]!, { seq: 1e7, type: "reading", guests: ["Lupo"], upTo, text: null, tally: "T.", guarded: { background: { connections: [], lore: [] }, stages: [], empty: "Nothing yet." } }]);
+  assert.match(game({ v: empty, web: ["Lupo"] }), /class="reading-empty">Nothing yet\.</);
+  const css = readFileSync("web/src/app.css", "utf8");
+  assert.match(css, /\.reading-note \{[^}]*font-size: var\(--text-xs\)/, "a note in a smaller style, a token");
 });
 
 /** A word from player.json's screen section, filled. */
@@ -1063,11 +1137,15 @@ test("Il Notaio's box in the What you heard and saw column: over the dialogue, e
   const v = derive(at["speak:capannello"]!);
   const h = game({ v, web: ["Lupo"] });
   const side = h.slice(h.indexOf('class="web-side"'));
-  // In the column, after the dialogue (so it lies over it), expanded, with its label; the column keeps its events.
+  // In the column, after the dialogue (so it lies over it), expanded, with its label. The column is dialogue only
+  // (Interface v0.5; TD v0.51): no connections, no events, which are Il Notaio's to tell.
   assert.match(side, /class="record-pane covered"><div class="record-scroll"><div class="record">/);
   assert.match(side, /<aside class="reading" data-state="expanded" role="button" aria-expanded="true"[^>]*data-hint="reading"/);
   assert.ok(side.indexOf('class="reading"') > side.indexOf('class="record"'), "the box over the dialogue");
-  assert.ok(side.includes(`>${esc2(PLAYER.screen.web.heard)}<`) && side.includes(`>${esc2(PLAYER.screen.web.saw)}<`), "the column keeps what it showed");
+  const column = side.slice(side.indexOf('class="record"'), side.indexOf('class="reading"'));
+  assert.ok(!column.includes(`>${esc2(PLAYER.screen.web.saw)}<`) && !column.includes('class="connection') && !column.includes('class="saw"'), "dialogue only");
+  const lupo = heardAndSaw(v, ["Lupo"], F).heard;
+  assert.deepEqual([...column.matchAll(/<li data-line="(L\d+)"/g)].map((m) => m[1]), lupo.map((l) => l.id), "his lines in your presence, newest first, and nothing else");
   assert.equal(h.slice(0, h.indexOf('class="web-side"')).includes('class="reading"'), false, "not on the map any more");
   // Nothing selected: one line asking for a guest, and no reading.
   const none = game({ v, web: [] });

@@ -159,6 +159,32 @@ export interface Reading {
   upTo: number;
   text: string | null;
   tally: string;
+  /** TD v0.51: the guarded reading, built by the game (its `text` is null; the tally is its closing line). */
+  guarded?: GuardedReading;
+}
+
+/**
+ * One item of Il Notaio's guarded reading or past-stage summary (TD v0.51): a line in his register (`seq`, the
+ * line's own), an event as its own record line (a death by its name), or code's note on a public lore entry.
+ */
+export type NotaioItem =
+  | { kind: "sentence"; seq: number; text: string }
+  | { kind: "event"; seq: number; item: "notaio" | "action" | "death"; text: string }
+  | { kind: "note"; entry: string; title: string; text: string };
+
+/** TD v0.51's reading: code's background, then a paragraph per stage; `empty` when nothing was heard or seen. */
+export interface GuardedReading {
+  background: { connections: Connection[]; lore: { entry: string; title: string; text: string }[] };
+  stages: { stage: string; heading: string; items: NotaioItem[] }[];
+  empty: string | null;
+}
+
+/** TD v0.51's summary of a finished stage: bullets by conversation, each group by its first line's seq. */
+export interface StageSummary {
+  seq: number;
+  stage: string;
+  groups: { conversation: string; from: number; items: NotaioItem[] }[];
+  empty: string | null;
 }
 
 export interface Note {
@@ -193,6 +219,8 @@ export interface View {
   result: Result | null;
   notes: Note[];
   readings: Reading[];
+  /** TD v0.51: Il Notaio's summaries of finished stages, as they arrive. */
+  summaries: StageSummary[];
   /** Who was present at each state update, in order: whether someone left the player's group since a moment. */
   presence: { seq: number; present: string[] }[];
   /** The seq of the player's last own line, for rotating the example line. */
@@ -234,7 +262,7 @@ export function lineStages(log: Ev[]): Map<number, string> {
 }
 
 export function derive(log: Ev[]): View {
-  const v: View = { stream: [], segments: [], runs: [], state: null, commands: [], speaking: null, sheet: null, pending: null, refusal: null, deaths: [], result: null, notes: [], readings: [], presence: [], spoken: 0, activity: 0 };
+  const v: View = { stream: [], segments: [], runs: [], state: null, commands: [], speaking: null, sheet: null, pending: null, refusal: null, deaths: [], result: null, notes: [], readings: [], summaries: [], presence: [], spoken: 0, activity: 0 };
   const open = new Map<string, Request>();
   let waiting: Segment[] = [];
   const stages = lineStages(log);
@@ -277,7 +305,8 @@ export function derive(log: Ev[]): View {
     else if (e.type === "death") v.deaths.push({ name: e.name as string, you: !!e.you, seq: e.seq });
     else if (e.type === "result") v.result = e.result as Result;
     else if (e.type === "note") v.notes.push({ id: e.id as string, seq: e.seq, turn: e.turn as number, guests: e.guests as string[], text: e.text as string });
-    else if (e.type === "reading") v.readings.push({ seq: e.seq, guests: e.guests as string[], upTo: e.upTo as number, text: (e.text as string | null) ?? null, tally: e.tally as string });
+    else if (e.type === "reading") v.readings.push({ seq: e.seq, guests: e.guests as string[], upTo: e.upTo as number, text: (e.text as string | null) ?? null, tally: e.tally as string, ...(e.guarded ? { guarded: e.guarded as GuardedReading } : {}) });
+    else if (e.type === "stage-summary") v.summaries.push({ seq: e.seq, stage: e.stage as string, groups: e.groups as StageSummary["groups"], empty: (e.empty as string | null) ?? null });
   }
   v.pending = [...open.values()].at(-1) ?? null;
   return v;
@@ -484,6 +513,12 @@ export function trackMarks(stages: string[], now: string | undefined, deadline: 
 }
 
 // ---- The stage bar and past stages (Interface v0.5) -------------------------------------------------------
+
+/** Il Notaio's summary of a past stage (TD v0.51), once the game has written it; null before (or on an older TD). */
+export const summaryFor = (v: View, stage: string): StageSummary | null => [...v.summaries].reverse().find((s) => s.stage === stage) ?? null;
+
+/** The run a summary's group is about: the stretch of the stage whose first line is its `from`. */
+export const runFrom = (v: View, from: number): Run | null => v.runs.find((r) => r.lines[0]?.seq === from) ?? null;
 
 /** The conversations the player was in during one stage, in order: what a past stage shows, read-only. */
 export function stageRuns(v: View, stage: string): Run[] {
