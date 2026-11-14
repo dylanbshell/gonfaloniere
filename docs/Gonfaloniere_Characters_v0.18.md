@@ -1,8 +1,17 @@
 # Gonfaloniere
 ## Characters & Briefings — Working Document
-### Version 0.17
+### Version 0.18
 
 ---
+
+## Changes in v0.18
+
+*Checks Il Notaio's placeholder opening (Lore v0.13, Il Notaio's Opening; approved by Dylan, Nov 14), which #148 puts on the player's first screen. Lore built it only from checked entries, so it asked for no check, but rewording and setting facts side by side can still hint at a secret, so this chat checked it anyway (Dylan, Nov 14).*
+
+- **All six paragraphs pass** (Lore Canon Checks, Il Notaio's opening). Every fact is in a checked entry or a briefing, nothing from Lore's Held Back list appears, and no pairing of facts points at a secret
+- **Two juxtapositions looked at and cleared:** Clarice's sentence comes just before the Pazzi's, which says nothing of her and Francesco; and "France ... can pay for it" follows Friar Tommaso's name, which is `pub-france`'s own wording and says nothing of buying tonight's votes, the subject of his unsigned letter
+- **The office stays neutral here** ("whoever holds the office"), unlike the gloss before Dylan approved its rewording
+- **The final opening still comes here for its own check.** No briefing changed, so no prompt changes
 
 ## Changes in v0.17
 
@@ -1179,6 +1188,19 @@ Your title. Everyone here wants something from you, which is its own kind of pow
 | France (`pub-france`) | Pass | Naples, the road south, Prince Emile sent to choose a bride: his, Giorgia's, and Jeanne's briefings. Nothing of payroll payments, Jeanne, or the affair |
 | San Frediano (`pub-san-frediano`) | Pass | Exactly the Shared Canon's public fact (a Frenchman stabbed by the north chapel seven years ago, no one charged). No gambler, name, seal, or sacristan |
 | Tonight's host (`pub-palazzo`) | Pass | A neutral town house with eight places, as the entry and Lore's The Palazzo say |
+
+*Dylan approved the office's rewording, "to choose the holder by vote at tonight's gathering" (Nov 14), so all ten pass once Lore makes it.*
+
+**Il Notaio's opening, the placeholder** (v0.18, Nov 14: Lore v0.13's six paragraphs, as Dylan approved them; checked against Characters v0.17, the ten entries, and Lore's Held Back list). The player reads it before choosing a character, so it must hold only what every guest knew at the start. The final opening replaces it and gets its own check.
+
+| Paragraph | Result | Reason |
+|---|---|---|
+| 1. The notary | Pass | Records who arrives, who speaks with whom, and who draws another aside: the social awareness line (Briefing Template, item 9). Belonging to no faction agrees with every briefing |
+| 2. Lorenzo's death | Pass | Careggi, 8 April, twenty-three years, the lightning three days before, the month's mind and the mourning: `pub-lorenzo` and `pub-evening`, Shared Canon: Setting |
+| 3. The office | Pass | Lot in ordinary years, a vote at one gathering this spring, a neutral house: `pub-gonfaloniere` and `pub-palazzo`. Says nothing of who may stand, so it doesn't imply a man |
+| 4. The families | Pass | Piero at twenty-one and "the Unfortunate", Raffaello better loved, Clarice the quickest wit; Giuliano stabbed at Mass, the leaders hanged from the Signoria's windows; Francesco a boy then, with Giorgia now: `pub-medici`, `pub-1478`, `pub-pazzi`, and their briefings. Nothing of Raffaello's debt, French credit, Salviati, Lupo, or the ribbon, and Clarice beside the Pazzi carries no hint of F1 |
+| 5. The church and France | Pass | Savonarola leading San Marco's friars, Friar Tommaso among his followers: `pub-savonarola`. Charles VIII, Naples, "can pay for it", Prince Emile sent for a bride: `pub-france` and Jeanne's "every guest knows France can pay". It doesn't say France is buying votes tonight, so Tommaso's unsigned letter stays his. Not saying that Tommaso leads the Dominicans tonight contradicts nothing; his public lines say it |
+| 6. The close | Pass | Promises no more than the guests learn by watching. San Frediano is left out, which is safe either way, since it's public |
 
 
 ---
