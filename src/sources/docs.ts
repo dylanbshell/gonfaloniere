@@ -532,16 +532,21 @@ function parseTunables(mech: string): Tunables {
     const value = cells[2]?.match(/\d+/);
     if (cells[1] && value) rows.set(cells[1], Number(value[0]));
   }
-  const get = (lever: string): number => {
-    const v = rows.get(lever);
-    if (v === undefined) throw new Error(`Tunable "${lever}" not found in mechanics`);
-    return v;
+  /** The first of the row's names the table has: a row renamed in a later Mechanics keeps its older name after it. */
+  const get = (...levers: string[]): number => {
+    for (const lever of levers) {
+      const v = rows.get(lever);
+      if (v !== undefined) return v;
+    }
+    throw new Error(`Tunable "${levers.join('" or "')}" not found in mechanics`);
   };
   return {
     starting_florins: get("Starting Florins"),
     income: get("Per-round income"),
     vote_price: get("Vote price"),
-    pension_size: get("Pension size"),
+    // Mechanics v0.36 renamed the row "Payroll payment" (same value); v0.35 and before call it "Pension size".
+    // The key stays pension_size, the prompts' placeholder name.
+    pension_size: get("Payroll payment", "Pension size"),
     embassy_treasury: get("Embassy treasury"),
     colloquio_cap: get("Colloquio cap"),
   };

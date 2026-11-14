@@ -214,11 +214,11 @@ test("TD v0.36: every prompt is v0.35's with only the changelog's changes: arriv
   console.log(`block 6: ${(linesBefore / notebooks).toFixed(2)} lines a call on v0.35, ${(linesAfter / notebooks).toFixed(2)} on v0.36 (${notebooks} calls)`);
 });
 
-test("PROBE_TD defaults to 0.49, with Characters v0.15 and Mechanics v0.35 (CC-20261114-11, #128: named places; CC-20261114-13, #136: Characters v0.15)", () => {
+test("PROBE_TD defaults to 0.49, with Characters v0.15 and Mechanics v0.36 (CC-20261114-11, #128: named places; CC-20261114-13, #136: Characters v0.15; CC-20261114-14, #139: Mechanics v0.36)", () => {
   if (process.env.PROBE_TD || process.env.PROBE_CHARACTERS) return;
   assert.equal(fakeDocs.versions.technicalDesign, "0.49");
   assert.equal(fakeDocs.versions.characters, "0.15");
-  assert.equal(fakeDocs.versions.mechanics, "0.35");
+  assert.equal(fakeDocs.versions.mechanics, "0.36");
 });
 
 test("TD v0.49: every prompt is v0.48's with only {room} and {conversation_label} changed, to name the places", async () => {

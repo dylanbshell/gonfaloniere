@@ -38,13 +38,13 @@ const parseRoom = (room: string) =>
 /** The place a block 5 label names, if any. */
 const labelPlace = (label: string) => PLACES.find((p) => new RegExp(`^(a Capannello|a private Colloquio) in ${p} with `).test(label)) ?? null;
 
-test("the setting's places: Lore's eight, in order, matching Mechanics v0.35's Named places; TD v0.49 loads Mechanics v0.35", () => {
+test("the setting's places: Lore's eight, in order, matching Mechanics v0.35's Named places; TD v0.49 loads Mechanics v0.36", () => {
   assert.deepEqual(PLACES, ["the great hall", "the window bay", "the anteroom", "the loggia", "the courtyard", "the study", "the painted room", "the dining room"]);
-  assert.equal(docs49.versions.mechanics, "0.35");
+  assert.equal(docs49.versions.mechanics, "0.36", "v0.35's Named places, carried unchanged into v0.36 (#139)");
   assert.equal(docs49.namedPlaces, PLACES.length);
   assert.equal(docs48.versions.mechanics, "0.30", "before TD v0.49, Mechanics v0.30 as before");
   assert.equal(docs48.namedPlaces, null);
-  assert.deepEqual(docs49.tunables, docs48.tunables, "v0.35's table adds only Named places, read outside Tunables, so no value moves");
+  assert.deepEqual(docs49.tunables, docs48.tunables, "v0.35's table adds only Named places, read outside Tunables, and v0.36 only renames a row, so no value moves");
 });
 
 test("at load, a game on TD v0.49 refuses to start unless the pack's places and Mechanics' count agree, and number at least 7", () => {
