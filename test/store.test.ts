@@ -14,6 +14,7 @@ import { embedderFromEnv, hashEmbedder, openAiCompatibleEmbedder, type Embedder 
 import type { CallRequest, MiniGame } from "../src/minigame/engine.ts";
 import { isolationCheck, type IsolationRecord } from "../src/minigame/isolation.ts";
 import { LORE_BUDGET, loreHeader, loreLines, readLoreFile, type LoreEntry } from "../src/minigame/lore.ts";
+import { relationships, type Relationships } from "../src/setting/pack.ts";
 import { MemoryStore, overlapScore, renderReading, type Belief, type GameLine, type Thought } from "../src/minigame/memory.ts";
 import { VectorStore, notebookQuery, openStoreDb, storeRows } from "../src/minigame/store.ts";
 import { docsFor } from "../probe.config.ts";
@@ -274,8 +275,47 @@ test("lore file: only approved, canon-checked entries load; scopes are public or
   assert.deepEqual(loreHeader(f, "off").lore_file.entries_loaded, 0);
   writeFileSync(path, JSON.stringify([{ ...entries[0], scope: "Lupo the Elder" }]));
   assert.throws(() => readLoreFile(path), /neither public nor a character's full name/);
-  // The repo's file starts empty: no lore content is written by code.
-  assert.deepEqual(readLoreFile().all, []);
+  // The repo's own file loads (the shape, the scopes, unique ids). Its content comes from the Lore chat,
+  // in its own PRs; code writes no lore.
+  assert.doesNotThrow(() => readLoreFile());
+});
+
+/**
+ * Where relationship lore disagrees with the web (TD v0.42, The lore store's `kind`; Characters v0.12,
+ * Shared Canon: Relationships): each `kind: "relationship"` entry is public and is exactly one public
+ * connection's line, as "{a} and {b}: {line}." with the pair in the connection's order; no connection has
+ * two entries. Empty when they agree.
+ */
+function relationshipLoreProblems(entries: LoreEntry[], rel: Relationships): string[] {
+  const problems: string[] = [];
+  const said = (c: Relationships["public"][number]) => `${c.between[0]} and ${c.between[1]}: ${c.line}${c.line.endsWith(".") ? "" : "."}`;
+  const used = new Map<number, string>();
+  for (const e of entries.filter((x) => x.kind === "relationship")) {
+    if (e.scope !== "public") problems.push(`${e.id}: scope ${e.scope}, not public`);
+    const matches = rel.public.flatMap((c, i) => (said(c) === e.text ? [i] : []));
+    if (matches.length !== 1) problems.push(`${e.id}: matches ${matches.length} public connections, not one: ${JSON.stringify(e.text)}`);
+    for (const i of matches) {
+      if (used.has(i)) problems.push(`${e.id}: the same connection as ${used.get(i)}`);
+      used.set(i, e.id);
+    }
+  }
+  return problems;
+}
+
+test("relationship lore matches the web (TD v0.42's lore `kind`; Characters v0.12, Shared Canon: Relationships): each entry is one public connection's line, word for word", () => {
+  // The repo's file, against setting/<name>/relationships.json as the screen reads it.
+  assert.deepEqual(relationshipLoreProblems(readLoreFile().all, relationships()), []);
+  // The check itself: a drifted line, a private scope, a reversed pair, and a second entry for one connection are each caught.
+  const rel = relationships();
+  const c = rel.public[0]!;
+  const entry = (id: string, text: string, scope = "public") => ({ id, title: id, scope, text, source: "test", status: "approved", canon_checked: true, kind: "relationship" }) as LoreEntry;
+  const good = `${c.between[0]} and ${c.between[1]}: ${c.line}${c.line.endsWith(".") ? "" : "."}`;
+  assert.deepEqual(relationshipLoreProblems([entry("R1", good)], rel), []);
+  assert.equal(relationshipLoreProblems([entry("R1", good.replace(/.$/, "!"))], rel).length, 1, "a drifted line");
+  assert.equal(relationshipLoreProblems([entry("R1", good, "Lupo")], rel).length, 1, "not public");
+  assert.equal(relationshipLoreProblems([entry("R1", `${c.between[1]} and ${c.between[0]}: ${c.line}.`)], rel).length, 1, "the pair reversed");
+  assert.equal(relationshipLoreProblems([entry("R1", good), entry("R2", good)], rel).length, 1, "two entries for one connection");
+  assert.deepEqual(relationshipLoreProblems([{ ...entry("L1", "Not a relationship."), kind: "lore" }], rel), [], "other lore isn't checked");
 });
 
 test("lore lines (TD v0.25): up to 2, about 250 tokens at most; one that would pass the cap is skipped and a shorter one can fit", () => {
