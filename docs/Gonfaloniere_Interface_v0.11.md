@@ -1,8 +1,19 @@
 # Gonfaloniere
 ## Interface & Experience — Working Document
-### Version 0.10
+### Version 0.11
 
 ---
+
+## Changes in v0.11
+
+*Nov 14. Interface's part (3) of the Retitling handoff (Dylan; Characters v0.15, Open Questions: Retitling), and the Friar Tommaso rename.*
+
+- **Il Notaio keeps his name, glossed as Italian for "the notary"** (Dylan):
+  - **On the opening:** his name heads the page, before he writes, with a small caption beneath it: *Italian for "the notary"* (The Opening)
+  - **In his hover text,** wherever his name appears on the screen (Hover explanations)
+  - **In his glossary entry,** which now starts with the gloss (Glossary Draft)
+- **Friar Tommaso,** not Fra Tommaso (Characters v0.15)
+- **Still to come from the same handoff** (Open Questions): "French pension" becomes being on France's payroll, and "Capannello" becomes a group. Both wait on Mechanics' wording first; then this doc changes the player's words to match
 
 ## Changes in v0.10
 
@@ -150,7 +161,7 @@ This doc covers **the player screen as the player meets it**: what's on it, wher
 
 ## Build State *(Nov 14)*
 
-1. **The mini-game is playable** as Francesco: the screen from Technical Design v0.40–v0.46 is built (#80, #81, the Hub's browser fixes #88, and v0.44–v0.46's screen #90), and the room (#95). Francesco's errand can't be done there (Fra Tommaso isn't in the cast), and the mini-game runs with `plot_reward` off
+1. **The mini-game is playable** as Francesco: the screen from Technical Design v0.40–v0.46 is built (#80, #81, the Hub's browser fixes #88, and v0.44–v0.46's screen #90), and the room (#95). Francesco's errand can't be done there (Friar Tommaso isn't in the cast), and the mini-game runs with `plot_reward` off
 2. **Queued, screen only:**
    - #102 (Technical Design's: the errand card's reward line, the deadline mark, the hint, the midnight card's extra-act row)
    - #109: the note's conclusion button (v0.2–v0.3)
@@ -349,6 +360,8 @@ The web of relationships, plus the player's own record and notes.
 
 Every control and panel has a short explanation on hover or focus. A switch in an obvious place turns them off, remembered in the browser. They're on by default.
 
+**Il Notaio's name** *(Dylan, Nov 14; v0.11)*, wherever it appears (his notes and announcements in the stream, his hint, his reading in the Web of Secrets, the tour's cards), has its own hover: *Il Notaio: Italian for "the notary". He records the evening and belongs to no faction.* It shows even with hover explanations switched off, since it explains a name rather than a control. The words come from the setting pack.
+
 ---
 
 ## Decision Cards
@@ -388,6 +401,7 @@ When the game waits for one of the player's choices, a card appears in the strea
 ## The Opening *(Dylan, Nov 13; v0.7)*
 
 Il Notaio introduces himself as the narrator before the player meets anyone.
+- **His name heads the page, glossed** *(Dylan, Nov 14; v0.11)*: "Il Notaio", with a small caption beneath it, *Italian for "the notary"*, shown before he starts writing and kept at the top while he writes. The name and the caption come from the setting pack
 - **Full screen, on its own.** He writes the story leading up to the evening, **paragraph by paragraph, a character at a time,** as if by pen. Fixed text from the setting pack, **not a model call**
 - **Each paragraph follows the last by itself** after a short pause; earlier paragraphs stay on the page, so nothing the player is reading moves away. **Clicking finishes the paragraph being written.** A small **Skip** control writes everything out at once, for players who have seen it
 - **At the end, the choice:** one card per playable character, Piero and Francesco in the full game, Francesco alone in the mini-game. Each shows the portrait, name, faction, and the briefing's public subtitle. Choosing one starts the game, and **the tour begins** (The Tour, v0.8)
@@ -551,6 +565,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 
 - **The look:** the palazzo ledger is the leaning; decide after the first playtests (The Look)
 - **Your midnight choices in the sheet afterwards** ("You guarded Giorgia; you watched Lupo"), and **"Choosing now"** during midnight: ideas for later, not decided (Dylan, Nov 14: the count is what's wanted for now)
+- **Retitling, still to come** (Dylan, Nov 14; tracker handoff): **"French pension" becomes being on France's payroll** (the sheet's "Pensions held", the glossary, the command hints for `/borrow` and `/repay`), and **"Capannello" becomes a group** (the glossary, the conversation line, the tour). Both wait on Mechanics' new wording, so the player's words match the rules exactly. "Colloquio" stays
 - **A storybook opening, maybe in v2** (Dylan): illustrations and more interaction, with Art. Until then, Il Notaio's written opening
 - **Does the full game's stage bar fit?** It has about fifteen stages to the mini-game's handful. If the circles get too small to read, consider grouping each council with its round of mingling. Check on the first full game
 - **Is Il Notaio conservative enough?** Read his readings and summaries in the first playtests for anything that connects or hints, and tighten the guard with Technical Design if so
@@ -582,7 +597,7 @@ A first draft of the glossary's entries, from Mechanics v0.34, in the in-world n
 | **French pension** | 3 Florins lent by the French Embassy. If anyone in the winning candidate's family still holds one at the ballot, France wins. Pensions are private unless someone tells |
 | **Gonfaloniere** † | The office the evening decides: the head of Florence's government. Only a Medici or a Pazzi can stand |
 | **Guard** | A midnight act. A guest guarded by two or more others survives an attack |
-| **Il Notaio** | The notary who records the evening. He notes who joins, leaves, and slips away, and announces what all the city hears. He belongs to no faction |
+| **Il Notaio** | Italian for "the notary": the one who records the evening. He notes who joins, leaves, and slips away, and announces what all the city hears. He belongs to no faction |
 | **Kill** | A midnight act. It's carried out unless the killer was watched by two or more guests, or the target guarded by two or more. Killers are never named |
 | **Medici** | One of the two great houses, competing for Gonfaloniere. They win if their candidate is elected, unrepentant, with no one in the family holding a French pension |
 | **Midnight** | When each living guest secretly chooses one act: kill, guard, or watch, each on a different guest. Il Notaio then announces who died, never who killed them |
