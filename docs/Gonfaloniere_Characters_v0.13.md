@@ -1,8 +1,16 @@
 # Gonfaloniere
 ## Characters & Briefings — Working Document
-### Version 0.12
+### Version 0.13
 
 ---
+
+## Changes in v0.13
+
+*Clears Lore's handoff: canon-check the ten public lore entries (Lore v0.8, Lore: Public; approved by Dylan, Nov 14).*
+
+- **All ten pass** (Lore Canon Checks, now with its first records): the evening, Lorenzo, the office, 1478, the Pazzi now, Lorenzo's heirs, the friar of San Marco, France, San Frediano, and the palazzo. Each agrees with the Shared Canon and every briefing it touches, plants no new clue, and fixes no one's appetite. Every fact a briefing limits stays limited: the Salviati arms, Raffaello's debt, the seal, and the San Frediano details beyond the public fact
+- **One wrinkle in this doc's own canon, not in the lore:** Fra Tommaso is "a follower of the reformer Savonarola" in his briefing, while Beatrice's and Isabella's briefings and two public lines say he leads the order. The friar of San Marco entry makes the gap visible, since it calls Savonarola the Dominican prior. It's readable as "leads the friars in the city, under Savonarola", so nothing fails, but a small rewording is in Open Questions
+- No briefing changed, so no prompt changes, and the engine can stay on v0.12
 
 ## Changes in v0.12
 
@@ -1085,7 +1093,7 @@ Your title. Everyone here wants something from you, which is its own kind of pow
 
 ## Lore Canon Checks
 
-*This chat's part of the lore store (Technical Design, The lore store). Lore drafts entries; Dylan approves them; this chat checks each approved entry before it reaches the engine. No entries exist yet.*
+*This chat's part of the lore store (Technical Design, The lore store). Lore drafts entries; Dylan approves them; this chat checks each approved entry before it reaches the engine.*
 
 **An entry passes when:**
 - **It agrees with the Shared Canon** (Setting and San Frediano) and with every briefing it touches, stand-ins included
@@ -1096,7 +1104,21 @@ Your title. Everyone here wants something from you, which is its own kind of pow
 
 **Recording:** each checked entry is listed below with its title, scope, the Characters version it was checked against, and pass or fail with a one-line reason. A briefing change re-opens the checks for entries in that character's scope.
 
-*Checked entries: none yet.*
+**Checked entries** (v0.13, Nov 14: Lore v0.8's ten public lore entries, as Dylan approved them; all checked against Characters v0.12's briefings and Shared Canon). The 14 relationship entries need no separate check: their text is this doc's own public lines (Shared Canon: Relationships).
+
+| Entry | Scope | Result | Reason |
+|---|---|---|---|
+| The evening (`pub-evening`) | public | Pass | Mid-May 1492, five weeks after Lorenzo's death, days after his month's mind: matches Shared Canon: Setting. The mourning at the Medici palace doesn't place the gathering there, so it agrees with the neutral palazzo |
+| Lorenzo the Magnificent (`pub-lorenzo`) | public | Pass | Historical (23 years in power, the lightning of 5 April, his death three days later). No briefing touches it. The lightning "as a sign" is the city's talk, not a prophecy |
+| The office, this spring (`pub-gonfaloniere`) | public | Pass | Agrees with every briefing's election and the rules primer; says nothing of who may stand. "By lot" matches Il Notaio's run-off line |
+| The Pazzi conspiracy (`pub-1478`) | public | Pass | Matches Shared Canon: Setting and Piero's and Francesco's briefings: Giuliano killed, Lorenzo wounded, a Pazzi uncle hanged from the palace windows. Leaving out Archbishop Salviati is right: it keeps Isabella's house clear of the plot. The Pazzi arms aren't described, so it gives no heraldry lesson |
+| The Pazzi now (`pub-pazzi`) | public | Pass | Francesco "a boy" and Giorgia beside him match their briefings ("you were young"; "you were a child"). The seized banks and barred sons are new texture that no briefing contradicts. Nothing about Lupo |
+| Lorenzo's heirs (`pub-medici`) | public | Pass | Piero at twenty-one and "the Unfortunate", Raffaello popular with soldiers, Clarice of the old Orsini line and admired for her wit: all in their briefings. "The taverns he drinks in" is drinking, not gambling, so it doesn't point at the debt to Isabella, and "everyone who matters knows" his purse is thin |
+| The friar of San Marco (`pub-savonarola`) | public | Pass | Fra Tommaso "among" Savonarola's followers matches his briefing. Savonarola appears as in-world lore with nothing of his later years. See Open Questions for the wording of Tommaso's leadership elsewhere in this doc |
+| France (`pub-france`) | public | Pass | Emile "the King's young cousin, sent to choose a Florentine bride" matches his, Giorgia's, and Jeanne's briefings. "Can pay for it" matches Jeanne's "every guest knows France can pay"; nothing of Fra Tommaso's letter, Jeanne's pension offer, or the affair. The match isn't promised for tonight |
+| San Frediano (`pub-san-frediano`) | public | Pass | Exactly the Shared Canon's public fact: a Frenchman killed by the north chapel seven years ago, no one charged. "Stabbed" matches Beatrice's briefing. No gambler, name, seal, sacristan, or date beyond the year, so no new path to F2 or F4 |
+| The palazzo (`pub-palazzo`) | public | Pass | A neutral host, which no briefing contradicts. Leaving out a garden and a chapel keeps Piero's ribbon, the Embassy gardens, and both chapels unblurred |
+
 
 ---
 
@@ -1113,6 +1135,8 @@ Your title. Everyone here wants something from you, which is its own kind of pow
 ---
 
 ## Open Questions
+
+- [ ] **Who leads the Dominicans?** (v0.13, from the lore check) Fra Tommaso's briefing makes him "a follower of the reformer Savonarola"; Beatrice's says he "leads your Order in the city", Isabella's calls him "leader of your order", and two public lines say he "leads the Dominican order". Public lore names Savonarola the Dominican prior at San Marco. It reads well enough as "leads the friars in the city, under Savonarola", so the lore check passes. A tidier version would say **"leads the city's friars tonight"** in the two public lines and Isabella's line. Changing the public lines means copying them again to `relationships.json` and the lore file, so only worth doing if Dylan wants it, or if the first full games show the AI guests confused
 
 - [ ] **A neutral type for the Web of Secrets?** (v0.12) Five briefing connections fit none of the six types (Shared Canon: Relationships, "Left off the web"), so they aren't drawn. A seventh, neutral type ("acquaintance") would let the web show them uncoloured. Technical Design owns the type list; only worth asking for if a player misses them
 
