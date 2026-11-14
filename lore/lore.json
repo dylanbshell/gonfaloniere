@@ -138,5 +138,154 @@
     "source": "Characters v0.12, Shared Canon: Relationships (Lore v0.6)",
     "status": "approved",
     "canon_checked": true
+  },
+  {
+    "id": "pub-evening",
+    "title": "The month's mind",
+    "scope": "public",
+    "kind": "lore",
+    "text": "It is a May evening in 1492, five weeks since Lorenzo de' Medici, the Magnificent, died at his villa at Careggi on the eighth of April. His month's mind requiem was sung only days ago, and the city is still in mourning: black cloth hangs at the Medici palace, and music is kept low. Tonight's gathering honours his memory, and chooses who will lead Florence now that he is gone.",
+    "source": "Lore, The Evening; the original rules' setting and Cathedral Edict (Lore v0.9; canon-checked in Characters v0.13)",
+    "status": "approved",
+    "canon_checked": true,
+    "aliases": [
+      "requiem"
+    ],
+    "subject": "Tonight"
+  },
+  {
+    "id": "pub-lorenzo",
+    "title": "Lorenzo the Magnificent",
+    "scope": "public",
+    "kind": "lore",
+    "text": "Lorenzo de' Medici ruled Florence for twenty-three years without ever holding its highest office, through his bank, his friends, and his name. He paid for painters and poets, and kept the peace of Italy with his letters. On the fifth of April, lightning struck the lantern of the cathedral dome and sent marble crashing down toward the Medici houses. Three days later he was dead. Many still call the lightning a sign.",
+    "source": "Lore v0.4 (Lore v0.9; canon-checked in Characters v0.13)",
+    "status": "approved",
+    "canon_checked": true,
+    "aliases": [
+      "the Magnificent",
+      "il Magnifico",
+      "Careggi"
+    ],
+    "subject": "History"
+  },
+  {
+    "id": "pub-gonfaloniere",
+    "title": "The office, this spring",
+    "scope": "public",
+    "kind": "lore",
+    "text": "The Gonfaloniere of Justice is Florence's chief magistrate, and whoever holds the office holds the city. In ordinary years Florence fills her offices by lot, drawing names from purses of approved citizens. This spring is not ordinary. With Lorenzo dead and no one able to rule as he did, the leading houses agreed that the Gonfaloniere would be chosen by vote, at a single gathering, tonight.",
+    "source": "Lore v0.4; the original rules' setting (Lore v0.9; canon-checked in Characters v0.13)",
+    "status": "approved",
+    "canon_checked": true,
+    "aliases": [
+      "Gonfaloniere of Justice"
+    ],
+    "subject": "Tonight"
+  },
+  {
+    "id": "pub-1478",
+    "title": "The Pazzi conspiracy",
+    "scope": "public",
+    "kind": "lore",
+    "text": "Fourteen years ago, in April 1478, the Pazzi rose against the Medici. Their men struck during Mass in the cathedral: Giuliano de' Medici, Lorenzo's brother, was stabbed to death, and Lorenzo escaped wounded. The city sided with the Medici. Within days the leaders of the plot hung from the windows of the Palazzo della Signoria, the Pazzi arms were struck from the city's walls, and the family's name became a curse.",
+    "source": "Lore v0.4; Characters, Shared Canon: Setting (Lore v0.9; canon-checked in Characters v0.13)",
+    "status": "approved",
+    "canon_checked": true,
+    "aliases": [
+      "1478",
+      "the Pazzi plot"
+    ],
+    "subject": "History"
+  },
+  {
+    "id": "pub-pazzi",
+    "title": "The Pazzi now",
+    "scope": "public",
+    "kind": "lore",
+    "text": "The Pazzi survived 1478 in name only. Their banks were seized, their houses watched, and their sons kept from office. Francesco, a boy when his elders fell, now leads what remains of the family, with his sister Giorgia beside him. For fourteen years Florentines have crossed the street to avoid them. Tonight, with the Magnificent gone, they stand among the city's great houses again, and no one is sure what they want.",
+    "source": "Lore v0.4; Francesco's and Giorgia's briefings (Lore v0.9; canon-checked in Characters v0.13)",
+    "status": "approved",
+    "canon_checked": true,
+    "subject": "Families"
+  },
+  {
+    "id": "pub-medici",
+    "title": "Lorenzo's heirs",
+    "scope": "public",
+    "kind": "lore",
+    "text": "Lorenzo left the Medici to his eldest son, Piero, twenty-one, whom the city already calls \"the Unfortunate\": proud, handsome, and not his father. His younger brother Raffaello is better loved, a golden-haired cavalier popular with the soldiers he has ridden with and the taverns he drinks in. Their cousin Clarice Orsini, of the old Roman house of Orsini, is the family's quickest wit and its most admired guest.",
+    "source": "Lore v0.4; Piero's, Raffaello's, and Clarice's briefings (Lore v0.9; canon-checked in Characters v0.13)",
+    "status": "approved",
+    "canon_checked": true,
+    "aliases": [
+      "the Unfortunate"
+    ],
+    "subject": "Families"
+  },
+  {
+    "id": "pub-savonarola",
+    "title": "The friar of San Marco",
+    "scope": "public",
+    "kind": "lore",
+    "text": "At the convent of San Marco, the Dominican prior Girolamo Savonarola preaches that Florence has grown rich and rotten, and that a scourge will come unless she repents. Crowds pack his sermons, and the rich and the Church's princes fear them. It is said Lorenzo sent for him as he lay dying; what passed between them, each side tells its own way. His followers in the city, Fra Tommaso among them, have grown louder since.",
+    "source": "Lore v0.4 (Lore v0.9; canon-checked in Characters v0.13)",
+    "status": "approved",
+    "canon_checked": true,
+    "aliases": [
+      "Savonarola",
+      "San Marco"
+    ],
+    "subject": "Powers"
+  },
+  {
+    "id": "pub-france",
+    "title": "France",
+    "scope": "public",
+    "kind": "lore",
+    "text": "Across the Alps, King Charles VIII of France talks of claiming the crown of Naples, and men say his armies are gathering. Florence lies on the road south, so France wants her friendship and can pay for it. The French Embassy in the city is busy and generous. This spring it has a royal guest: Prince Emile de Valois, the King's young cousin, sent to choose a Florentine bride.",
+    "source": "Lore v0.4; the original rules' setting and Embassy Circular (Lore v0.9; canon-checked in Characters v0.13)",
+    "status": "approved",
+    "canon_checked": true,
+    "aliases": [
+      "Charles VIII",
+      "Naples"
+    ],
+    "subject": "Powers"
+  },
+  {
+    "id": "pub-san-frediano",
+    "title": "San Frediano",
+    "scope": "public",
+    "kind": "lore",
+    "text": "San Frediano is an old parish church across the Arno, near the city gate that bears its name, in a quarter of wool-workers and dyers. Seven years ago a Frenchman was found stabbed to death by its north chapel. The watch asked its questions, but no one was ever charged, and the quarter soon found other things to talk about.",
+    "source": "Characters, Shared Canon: San Frediano (the public fact) (Lore v0.9; canon-checked in Characters v0.13)",
+    "status": "approved",
+    "canon_checked": true,
+    "aliases": [
+      "the north chapel"
+    ],
+    "subject": "Places"
+  },
+  {
+    "id": "pub-palazzo",
+    "title": "Tonight's host",
+    "scope": "public",
+    "kind": "lore",
+    "text": "Tonight's gathering is held in a palazzo whose owner belongs to no faction, lent so that no house plays host. Its guests have eight places to talk: the great hall under its painted beams; the window bay at the hall's far end; the anteroom at the top of the stair; the loggia above the courtyard; the courtyard, around the well; the host's study; the painted room, frescoed with the months; and the dining room, where the mourners' supper is laid.",
+    "source": "Lore, The Palazzo; Mechanics v0.35, Named Places (Lore v0.9; canon-checked in Characters v0.13)",
+    "status": "approved",
+    "canon_checked": true,
+    "aliases": [
+      "the great hall",
+      "the window bay",
+      "the anteroom",
+      "the loggia",
+      "the courtyard",
+      "the study",
+      "the painted room",
+      "the dining room"
+    ],
+    "subject": "Places"
   }
 ]
