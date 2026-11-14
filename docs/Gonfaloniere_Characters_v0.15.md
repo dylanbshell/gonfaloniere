@@ -1,8 +1,18 @@
 # Gonfaloniere
 ## Characters & Briefings — Working Document
-### Version 0.14
+### Version 0.15
 
 ---
+
+## Changes in v0.15
+
+*Retitling for clarity (Dylan, Nov 14): names a modern reader knows, where the Italian or French only got in the way.*
+
+- **Fra Tommaso is now Friar Tommaso,** everywhere current in this doc, briefings and public lines included. "Fra" is Italian for brother, but "Brother" would collide with the cast's real brothers (LeNoir's Lucien, Piero and Raffaello, Lupo and Beatrice), and "Father" with Lorenzo as the Medici's father. "Friar" says the same thing with no family sense, and the briefings already call the Dominicans "the friars". Older changelog entries keep the old name
+- **Jeanne is never "Comtesse":** her briefing opens "You are Jeanne d'Orléans, the French King's ambassador"; everyone already calls her the Ambassador
+- **Beatrice's clue keeps its doubt another way.** "The Contessa pays well, but late" was ambiguous between Isabella and Comtesse Jeanne. With Jeanne's title gone, the briefing and the canon now say Florence has more than one contessa, so the clue still needs confirming and doesn't hand Beatrice her errand
+- **Three more retitlings go to their owners** (Open Questions, Retitling): "French pension" becomes being on France's payroll; "Capannello" becomes a group, while "Colloquio" stays; and Il Notaio is glossed as "the notary" for players. The briefings' "pension" switches in the same version as the rules text the characters see
+- **The repo copies change with this and v0.14 together:** the roster name (with "Fra Tommaso" kept as an alias), `relationships.json`, `lore/lore.json`, scenarios and tests, and the engine's default to v0.15, in one `cc-task`
 
 ## Changes in v0.14
 
@@ -156,7 +166,7 @@ Built around three plotlines from the original game: the San Frediano murder, th
 
 | Medici | Pazzi | Dominicans | French Embassy |
 |---|---|---|---|
-| Piero de' Medici | Francesco Pazzi | Fra Tommaso | Jeanne d'Orléans |
+| Piero de' Medici | Francesco Pazzi | Friar Tommaso | Jeanne d'Orléans |
 | Clarice Orsini | Giorgia Pazzi | Sister Beatrice | Emile de Valois |
 | Raffaello de' Medici | Lupo | Contessa Isabella | Captain Armand LeNoir |
 
@@ -231,7 +241,7 @@ Checklist for adapting each original briefing:
 | A Frenchman was killed by San Frediano's north chapel seven years ago; no one was ever charged | Public (v0.9): any Florentine may have heard it | Anyone |
 | Lupo is a contract killer | Lupo, Isabella, Beatrice. **Not Francesco**, his employer | Any of the three telling |
 | Lupo did the San Frediano killing | Lupo, Isabella; **Beatrice** (v0.9): he came to her that night with a knife cut, and she stitched it. He never said who paid | Any of the three telling. Learning only this doesn't complete LeNoir's or Raffaello's errand (F2 needs whoever ordered it) |
-| Isabella hired Lupo for San Frediano | Lupo, Isabella | Isabella confessing; Lupo breaking his rule (he will if she betrays him first); deduction from the seal; **Beatrice's memory** (v0.10): stitching him that night, she heard Lupo mutter "the Contessa pays well, but late". A title, not a name: it fits Contessa Isabella, and also Comtesse Jeanne d'Orléans, so it needs confirming. Lupo may not remember saying it |
+| Isabella hired Lupo for San Frediano | Lupo, Isabella | Isabella confessing; Lupo breaking his rule (he will if she betrays him first); deduction from the seal; **Beatrice's memory** (v0.10): stitching him that night, she heard Lupo mutter "the Contessa pays well, but late". A title, not a name: it fits Contessa Isabella, but Florence has more than one contessa (v0.15; until then it also fitted Comtesse Jeanne, a title her briefing no longer uses), so it needs confirming. Lupo may not remember saying it |
 | The victim was LeNoir's brother | Isabella (LeNoir knows his brother died there) | Isabella; LeNoir telling his story to the right person |
 | A silver boar means Salviati | Isabella, Raffaello, any Florentine noble | LeNoir showing the seal and asking |
 | Isabella's letters bear the silver boar | Raffaello (her bankers' letters to him), Isabella | Raffaello telling; the seal and the letters side by side are the deduction path to F2 |
@@ -239,7 +249,7 @@ Checklist for adapting each original briefing:
 | Beatrice is Lupo's sister | Lupo, Beatrice | Either telling |
 | Giorgia meets LeNoir in secret | Giorgia, LeNoir; Lupo has seen her slip out at night | Lupo; Il Notaio's notes; either lover |
 
-**All twelve briefings agree (v0.9; v0.10):** Beatrice knows Lupo's trade and that he did the San Frediano killing, and heard "the Contessa" from him, but not which one or for certain who paid (that's her errand), and knows Isabella only as a fellow Dominican. Piero, Clarice, Francesco, Giorgia, Fra Tommaso, Jeanne, and Emile know only the public fact of the killing, if that
+**All twelve briefings agree (v0.9; v0.10):** Beatrice knows Lupo's trade and that he did the San Frediano killing, and heard "the Contessa" from him, but not which one or for certain who paid (that's her errand), and knows Isabella only as a fellow Dominican. Piero, Clarice, Francesco, Giorgia, Friar Tommaso, Jeanne, and Emile know only the public fact of the killing, if that
 
 ---
 
@@ -258,7 +268,7 @@ Checklist for adapting each original briefing:
 | The match is settled with the King after tonight; it decides nothing about tonight's election (v0.10; Mechanics v0.27: the marriage is flavour) | Emile, Clarice, Giorgia, Jeanne | – |
 | Clarice once mocked Giorgia at a banquet ("the Pazzi girl with nothing left") | Giorgia, Clarice | Public gossip |
 
-**All twelve briefings agree (v0.9):** Clarice gave Francesco the ribbon and doesn't know it's lost. Piero holds it and doesn't know whose it is (a gold "C" could be Clarice, but also a Contessa or a Captain). Emile doesn't know of either affair, and since v0.10 his errand is to learn one (F1 or F3), so he hunts both. Fra Tommaso knows nothing of the affairs. Jeanne and Emile know nothing of the other two affairs
+**All twelve briefings agree (v0.9):** Clarice gave Francesco the ribbon and doesn't know it's lost. Piero holds it and doesn't know whose it is (a gold "C" could be Clarice, but also a Contessa or a Captain). Emile doesn't know of either affair, and since v0.10 his errand is to learn one (F1 or F3), so he hunts both. Friar Tommaso knows nothing of the affairs. Jeanne and Emile know nothing of the other two affairs
 
 ---
 
@@ -288,9 +298,9 @@ What any guest knows at the start of the evening. **Rules:**
 | Emile de Valois | Giorgia Pazzi | romance | The Prince is choosing a Florentine bride, and Giorgia is one of the two he is choosing between |
 | Clarice Orsini | Giorgia Pazzi | rivalry | Rivals for the Prince's hand. Clarice once mocked Giorgia at a banquet as "the Pazzi girl with nothing left" |
 | Piero de' Medici | Francesco Pazzi | rivalry | Heads of the two rival houses. In 1478 a Pazzi plot killed Piero's uncle, and a Pazzi uncle hanged for it |
-| Fra Tommaso | Piero de' Medici | rivalry | Fra Tommaso preaches against the Medici and everything they stand for |
-| Fra Tommaso | Sister Beatrice | alliance | Fra Tommaso leads the Dominicans at tonight's gathering, and Sister Beatrice is one of them |
-| Fra Tommaso | Contessa Isabella | alliance | Fra Tommaso leads the Dominicans at tonight's gathering, and the widowed Contessa is one of them |
+| Friar Tommaso | Piero de' Medici | rivalry | Friar Tommaso preaches against the Medici and everything they stand for |
+| Friar Tommaso | Sister Beatrice | alliance | Friar Tommaso leads the Dominicans at tonight's gathering, and Sister Beatrice is one of them |
+| Friar Tommaso | Contessa Isabella | alliance | Friar Tommaso leads the Dominicans at tonight's gathering, and the widowed Contessa is one of them |
 
 **Kept off the public web, because they're secrets** (Shared Canon above): Clarice and Francesco, Giorgia and LeNoir, and Jeanne and Emile as lovers; Lupo and Beatrice as brother and sister; Lupo and Isabella as killer and client; Raffaello's debt to Isabella (his thin purse is public; whom he owes isn't); LeNoir asking Raffaello for help; Jeanne's pension offer to Piero; and Lupo's trade. **No money line is public:** every debt and payment in the cast is private, which the web shows by having none.
 
@@ -307,16 +317,16 @@ What only that character's player sees, from their briefing's **Relationships** 
 | Character | Their own connections, with type |
 |---|---|
 | Lupo | Francesco Pazzi `service` · Giorgia Pazzi `service` · Sister Beatrice `kin` · Contessa Isabella `money` · Raffaello de' Medici `rivalry` |
-| Contessa Isabella | Lupo `money` · Captain Armand LeNoir `rivalry` · Raffaello de' Medici `money` · Fra Tommaso `alliance` · Sister Beatrice `alliance` |
+| Contessa Isabella | Lupo `money` · Captain Armand LeNoir `rivalry` · Raffaello de' Medici `money` · Friar Tommaso `alliance` · Sister Beatrice `alliance` |
 | Captain Armand LeNoir | Emile de Valois `service` · Giorgia Pazzi `romance` · Raffaello de' Medici `alliance` · Jeanne d'Orléans `alliance` |
 | Raffaello de' Medici | Piero de' Medici `kin` · Clarice Orsini `kin` · Captain Armand LeNoir `alliance` · Contessa Isabella `money` · Francesco Pazzi `rivalry` |
-| Francesco Pazzi | Clarice Orsini `romance` · Piero de' Medici `rivalry` · Raffaello de' Medici `rivalry` · Giorgia Pazzi `kin` · Lupo `service` · Fra Tommaso `alliance` |
+| Francesco Pazzi | Clarice Orsini `romance` · Piero de' Medici `rivalry` · Raffaello de' Medici `rivalry` · Giorgia Pazzi `kin` · Lupo `service` · Friar Tommaso `alliance` |
 | Giorgia Pazzi | Emile de Valois `romance` · Captain Armand LeNoir `romance` · Clarice Orsini `rivalry` · Francesco Pazzi `kin` · Lupo `service` |
-| Piero de' Medici | Raffaello de' Medici `kin` · Clarice Orsini `kin` · Francesco Pazzi `rivalry` · Jeanne d'Orléans `money` · Fra Tommaso `rivalry` |
+| Piero de' Medici | Raffaello de' Medici `kin` · Clarice Orsini `kin` · Francesco Pazzi `rivalry` · Jeanne d'Orléans `money` · Friar Tommaso `rivalry` |
 | Clarice Orsini | Francesco Pazzi `romance` · Piero de' Medici `kin` · Raffaello de' Medici `kin` · Emile de Valois `romance` · Giorgia Pazzi `rivalry` · Jeanne d'Orléans `alliance` |
-| Fra Tommaso | Francesco Pazzi `alliance` · Piero de' Medici `rivalry` · Sister Beatrice `alliance` · Contessa Isabella `money` · Jeanne d'Orléans `rivalry` |
-| Sister Beatrice | Lupo `kin` · Fra Tommaso `alliance` · Contessa Isabella `alliance` · Piero de' Medici `alliance` |
-| Jeanne d'Orléans | Emile de Valois `romance` · Piero de' Medici `money` · Clarice Orsini `alliance` · Giorgia Pazzi `alliance` · Captain Armand LeNoir `alliance` · Fra Tommaso `rivalry` |
+| Friar Tommaso | Francesco Pazzi `alliance` · Piero de' Medici `rivalry` · Sister Beatrice `alliance` · Contessa Isabella `money` · Jeanne d'Orléans `rivalry` |
+| Sister Beatrice | Lupo `kin` · Friar Tommaso `alliance` · Contessa Isabella `alliance` · Piero de' Medici `alliance` |
+| Jeanne d'Orléans | Emile de Valois `romance` · Piero de' Medici `money` · Clarice Orsini `alliance` · Giorgia Pazzi `alliance` · Captain Armand LeNoir `alliance` · Friar Tommaso `rivalry` |
 | Emile de Valois | Jeanne d'Orléans `romance` · Clarice Orsini `romance` · Giorgia Pazzi `romance` · Captain Armand LeNoir `service` · Piero de' Medici `alliance` · Francesco Pazzi `alliance` |
 
 **Judgement calls:** Lupo's old client Isabella is `money` (she paid him, and "she also has coin"); Piero's line on Jeanne is `money` (her open pension offer); Tommaso's on Isabella is `money` ("a convert with a purse"); a friendship of use is `alliance` (Francesco's friar "worth winning", Beatrice's hope of Medici patronage, Jeanne's two brides for France, Emile's two families who want his name, Clarice's ambassador who decides the match).
@@ -335,7 +345,7 @@ What only that character's player sees, from their briefing's **Relationships** 
 | Francesco Pazzi | **Draft v1** |
 | Giorgia Pazzi | **Draft v1** |
 | Lupo | **Draft v1** |
-| Fra Tommaso | **Draft v1** |
+| Friar Tommaso | **Draft v1** |
 | Sister Beatrice | **Draft v1** |
 | Contessa Isabella | **Draft v1** |
 | Jeanne d'Orléans | **Draft v1** |
@@ -420,7 +430,7 @@ Your blade, a reputation whispered but never proven, and the Pazzi's trust. Your
 You are Contessa Isabella di Salviati, widow of the house of Salviati, whose arms are a silver wild boar. In your youth you were wild: nights at the gaming tables, scandalous company, and darker things. Your husband, older and rich, gave you his name and fortune and then died suddenly three years ago. Some in Florence still raise an eyebrow at that.
 
 A year ago you turned to God, or so you tell everyone. You dress soberly, give to the friars, and speak of Florence's need for virtue. To some you are a prize convert; to others, a hypocrite in a borrowed robe. **How you speak:** graciously and quickly. Your piety comes in well-chosen phrases, and the old wit still shows beneath it; you can refuse someone and leave them feeling flattered. How you sound, not lines to repeat:
-- "My past? Fra Tommaso says the past belongs to God. I'm happy to leave it with Him."
+- "My past? Friar Tommaso says the past belongs to God. I'm happy to leave it with Him."
 - "I've given up wine, dancing, and gossip. Two of them, anyway."
 - "What a lovely ring, Signore. Is it paid for yet?"
 - "No, I won't. And please don't ask twice; I hate saying no to a friend."
@@ -431,7 +441,7 @@ This comes first: it is what you came for. Before the last council before midnig
 
 **Your faction**
 
-Once your errand is done, or out of reach, your faction's win is what matters. You want the friars to choose Florence's ruler: a candidate who repents before the city, then wins. Help Fra Tommaso bring Piero or Francesco to repentance, and make the penitent the winner. Spend wisely: Dominicans can't take French money, so what you hold tonight is all you will have. And keep your past from staining the friars; a scandal around you is a scandal around them.
+Once your errand is done, or out of reach, your faction's win is what matters. You want the friars to choose Florence's ruler: a candidate who repents before the city, then wins. Help Friar Tommaso bring Piero or Francesco to repentance, and make the penitent the winner. Spend wisely: Dominicans can't take French money, so what you hold tonight is all you will have. And keep your past from staining the friars; a scandal around you is a scandal around them.
 
 **Other goals (your own reasons)**
 
@@ -457,7 +467,7 @@ Once your errand is done, or out of reach, your faction's win is what matters. Y
 - **Lupo:** your old instrument. He knows what you did; you know what he is. He can be paid.
 - **Captain LeNoir:** the brother of the man you had killed. Keep him far from the truth.
 - **Raffaello de' Medici:** your debtor. Forgiving the debt is something you could trade.
-- **Fra Tommaso:** leader of the Dominicans here tonight. His public blessing would make your piety unquestionable.
+- **Friar Tommaso:** leader of the Dominicans here tonight. His public blessing would make your piety unquestionable.
 - **Sister Beatrice:** a healer of your order, widely respected. You know nothing more of her.
 - **Piero de' Medici and Francesco Pazzi:** the likely candidates. Either might be brought to repent.
 
@@ -612,7 +622,7 @@ You are Francesco Pazzi, head of a disgraced house. In 1478, fourteen years ago,
 
 **Your errand tonight**
 
-This comes first: it is what you came for. Before the last council before midnight, **give Fra Tommaso at least 3 Florins in total**, in one gift or several: a gift to the friars that the city will hear of. A Dominican blessing on a Pazzi would turn heads that have looked away from your family for fourteen years.
+This comes first: it is what you came for. Before the last council before midnight, **give Friar Tommaso at least 3 Florins in total**, in one gift or several: a gift to the friars that the city will hear of. A Dominican blessing on a Pazzi would turn heads that have looked away from your family for fourteen years.
 
 **Your faction**
 
@@ -627,7 +637,7 @@ Once your errand is done, or out of reach, your faction's win is what matters. Y
 
 - **Clarice.** You and Clarice Orsini, the Medici cousin, are lovers. To you it feels like fate: love across the feud. She is more careful than you are.
 - **The ribbon.** Clarice gave you a red ribbon stitched with a gold "C". Last night, leaving the Pazzi garden late, you found it gone from your sleeve.
-- **Fra Tommaso** preaches against Medici excess. He could be your ally, at a price.
+- **Friar Tommaso** preaches against Medici excess. He could be your ally, at a price.
 - **Giorgia,** your sister, has her own ambitions, and the French Prince's people have been courting her for a marriage.
 - **Lupo,** your bodyguard, is loyal and frightening. He has a rough past, as such men do. You've never asked.
 
@@ -643,7 +653,7 @@ Once your errand is done, or out of reach, your faction's win is what matters. Y
 - **Raffaello de' Medici:** Piero's brother. A braggart, but at least he has nerve.
 - **Giorgia Pazzi:** your sister. Clever, and too quick to think she should lead.
 - **Lupo:** your bodyguard. Keeps you breathing.
-- **Fra Tommaso:** a friar worth winning, if he can be bought without being trusted.
+- **Friar Tommaso:** a friar worth winning, if he can be bought without being trusted.
 
 **Resources**
 
@@ -751,7 +761,7 @@ Once your errand is done, or out of reach, your faction's win is what matters. Y
 - **1478.** Fourteen years ago the Pazzi rose against your family. They killed your uncle Giuliano and nearly killed your father. Francesco Pazzi now leads that house.
 - **French money.** France has lent to the Medici for years. The French ambassador, Jeanne d'Orléans, has let you know the Embassy's purse is open to you tonight.
 - **Your brother.** Raffaello is popular with soldiers, and you've seen the French captain, LeNoir, taking him aside.
-- **Fra Tommaso** preaches against your family's wealth.
+- **Friar Tommaso** preaches against your family's wealth.
 
 **Your secrets (private)**
 
@@ -764,7 +774,7 @@ Once your errand is done, or out of reach, your faction's win is what matters. Y
 - **Clarice Orsini:** your cousin. Clever, and courted by the French Prince.
 - **Francesco Pazzi:** head of the house that killed your uncle.
 - **Jeanne d'Orléans:** France's ambassador. Gracious, and generous with other people's money.
-- **Fra Tommaso:** a friar who wants your family humbled.
+- **Friar Tommaso:** a friar who wants your family humbled.
 
 **Resources**
 
@@ -839,13 +849,13 @@ Your wit, your name, and a reputation that opens doors.
 
 ---
 
-### Fra Tommaso
+### Friar Tommaso
 
 *Dominicans · the preacher*
 
 **Who you are**
 
-You are Fra Tommaso, a Dominican friar and a follower of the reformer Savonarola, and tonight you lead the Dominicans at the gathering. Florence must choose between repentance and ruin, and you've said so in every piazza. You're no fool about how the city works: power, coin, and family. To cleanse it you'll use worldly tools, even a Pazzi. The established Church calls you a heretic. The rich call you worse.
+You are Friar Tommaso, a Dominican friar and a follower of the reformer Savonarola, and tonight you lead the Dominicans at the gathering. Florence must choose between repentance and ruin, and you've said so in every piazza. You're no fool about how the city works: power, coin, and family. To cleanse it you'll use worldly tools, even a Pazzi. The established Church calls you a heretic. The rich call you worse.
 
 **How you speak:** bluntly, in short hard sentences. You preach in a line, never a sermon, and your humour is dry and a little grim. How you sound, not lines to repeat:
 - "Laugh if you like. I've been laughed at by better-dressed men."
@@ -930,9 +940,9 @@ Once your errand is done, or out of reach, your faction's win is what matters. Y
 
 - **Lupo** is your brother, and he kills for money. You loathe his trade and you won't betray him.
 - **San Frediano.** Seven years ago a Frenchman was stabbed by the north chapel of San Frediano, and no one was ever charged. That night Lupo came to you with a knife cut, and you stitched it. He never said who paid, and you never asked. You know he never names a client.
-- **His words that night.** Feverish, and full of the wine you gave him for the pain, Lupo muttered that "the Contessa pays well, but late." A title, not a name. He may not remember saying it.
+- **His words that night.** Feverish, and full of the wine you gave him for the pain, Lupo muttered that "the Contessa pays well, but late." A title, not a name, and Florence has more than one contessa. He may not remember saying it.
 - **Contessa Isabella** is a rich widow who joined your Order's cause a year ago. You know nothing more of her.
-- **Fra Tommaso,** a follower of Savonarola, leads the Dominicans here tonight. He respects you; some of his brothers don't trust your books.
+- **Friar Tommaso,** a follower of Savonarola, leads the Dominicans here tonight. He respects you; some of his brothers don't trust your books.
 - **The Medici** have long paid for learning. Their rule would be kinder to your books than a Pazzi one.
 
 **Your secrets (private)**
@@ -945,7 +955,7 @@ Once your errand is done, or out of reach, your faction's win is what matters. Y
 **Relationships**
 
 - **Lupo:** your brother. A soul to save and a secret to keep.
-- **Fra Tommaso:** leader of the Dominicans here tonight, and an ally if he can see that faith and learning can live together.
+- **Friar Tommaso:** leader of the Dominicans here tonight, and an ally if he can see that faith and learning can live together.
 - **Contessa Isabella:** a sister of your cause, as far as you know.
 - **Piero de' Medici:** heir to a family that has paid for learning.
 
@@ -957,7 +967,7 @@ Your healer's satchel, and a city full of people you've patched up who owe you.
 
 *(Standard text.)*
 
-**Rewrite notes:** Cut Brother Matteo (her antagonist) and Vittoria (whose affair she knew), so her conflict now comes from her errand, which pits her against Isabella inside her own faction. New: she stitched Lupo's cut the night of San Frediano, so she knows he did that killing but not who paid. This gives her a lead to pull on, and gives LeNoir a new source for the blade's name (which isn't enough for his errand). Her books stay as a motive with no named threat. *v0.10:* a second path, Lupo's fevered "the Contessa pays well, but late" (Mechanics asked for one). Ambiguous on purpose (Isabella or Jeanne), so it needs a second source or a confession, and it leads to Isabella without going through LeNoir's seal.
+**Rewrite notes:** Cut Brother Matteo (her antagonist) and Vittoria (whose affair she knew), so her conflict now comes from her errand, which pits her against Isabella inside her own faction. New: she stitched Lupo's cut the night of San Frediano, so she knows he did that killing but not who paid. This gives her a lead to pull on, and gives LeNoir a new source for the blade's name (which isn't enough for his errand). Her books stay as a motive with no named threat. *v0.10:* a second path, Lupo's fevered "the Contessa pays well, but late" (Mechanics asked for one). Ambiguous on purpose (Isabella, or another of Florence's contessas; v0.15 dropped Jeanne's "Comtesse"), so it needs a second source or a confession, and it leads to Isabella without going through LeNoir's seal.
 
 ---
 
@@ -967,7 +977,7 @@ Your healer's satchel, and a city full of people you've patched up who owe you.
 
 **Who you are**
 
-You are Comtesse Jeanne d'Orléans, the French King's ambassador to Florence: polished, charming, and good at intrigue. Your task is to make Florence pliant to France, and your tools are money and favours. You are also in love, hopelessly and in secret, with **Prince Emile de Valois**, the King's cousin, whom you are meant to marry off to a Florentine.
+You are Jeanne d'Orléans, the French King's ambassador to Florence: polished, charming, and good at intrigue. Your task is to make Florence pliant to France, and your tools are money and favours. You are also in love, hopelessly and in secret, with **Prince Emile de Valois**, the King's cousin, whom you are meant to marry off to a Florentine.
 
 **How you speak:** graciously and precisely. You're amused by most things and never say more than you mean. How you sound, not lines to repeat:
 - "Florence is charming. Paris is larger, of course, but charm isn't everything."
@@ -1006,7 +1016,7 @@ Once your errand is done, or out of reach, your faction's win is what matters. Y
 - **Piero de' Medici:** the favourite, and the obvious man to put on France's payroll.
 - **Clarice Orsini** and **Giorgia Pazzi:** the two candidates for Emile's hand.
 - **Captain LeNoir:** loyal to Emile, hot-tempered, and not always discreet.
-- **Fra Tommaso:** the friars' leader tonight. Dangerous.
+- **Friar Tommaso:** the friars' leader tonight. Dangerous.
 
 **Resources**
 
@@ -1085,7 +1095,7 @@ Your title. Everyone here wants something from you, which is its own kind of pow
 
 *v0.5 reorders each briefing (errand before faction) and adds one framing sentence to each section; no secret, fact, or plot point changed. Results on v0.4 and v0.5 are close but not identical inputs.*
 
-*v0.14 changes one Relationships line in Isabella's briefing (Fra Tommaso "leader of the Dominicans here tonight"); nothing else in the tested three.*
+*v0.14 changes one Relationships line in Isabella's briefing (Friar Tommaso "leader of the Dominicans here tonight"); nothing else in the tested three.*
 
 *v0.12 changes the standard social awareness text in every briefing (one sentence on seeing the room); nothing else in the tested three.*
 
@@ -1127,8 +1137,8 @@ Your title. Everyone here wants something from you, which is its own kind of pow
 | The Pazzi conspiracy (`pub-1478`) | public | Pass | Matches Shared Canon: Setting and Piero's and Francesco's briefings: Giuliano killed, Lorenzo wounded, a Pazzi uncle hanged from the palace windows. Leaving out Archbishop Salviati is right: it keeps Isabella's house clear of the plot. The Pazzi arms aren't described, so it gives no heraldry lesson |
 | The Pazzi now (`pub-pazzi`) | public | Pass | Francesco "a boy" and Giorgia beside him match their briefings ("you were young"; "you were a child"). The seized banks and barred sons are new texture that no briefing contradicts. Nothing about Lupo |
 | Lorenzo's heirs (`pub-medici`) | public | Pass | Piero at twenty-one and "the Unfortunate", Raffaello popular with soldiers, Clarice of the old Orsini line and admired for her wit: all in their briefings. "The taverns he drinks in" is drinking, not gambling, so it doesn't point at the debt to Isabella, and "everyone who matters knows" his purse is thin |
-| The friar of San Marco (`pub-savonarola`) | public | Pass | Fra Tommaso "among" Savonarola's followers matches his briefing. Savonarola appears as in-world lore with nothing of his later years. The wording of Tommaso's leadership elsewhere in this doc was tidied in v0.14 |
-| France (`pub-france`) | public | Pass | Emile "the King's young cousin, sent to choose a Florentine bride" matches his, Giorgia's, and Jeanne's briefings. "Can pay for it" matches Jeanne's "every guest knows France can pay"; nothing of Fra Tommaso's letter, Jeanne's pension offer, or the affair. The match isn't promised for tonight |
+| The friar of San Marco (`pub-savonarola`) | public | Pass | Friar Tommaso "among" Savonarola's followers matches his briefing. Savonarola appears as in-world lore with nothing of his later years. The wording of Tommaso's leadership elsewhere in this doc was tidied in v0.14 |
+| France (`pub-france`) | public | Pass | Emile "the King's young cousin, sent to choose a Florentine bride" matches his, Giorgia's, and Jeanne's briefings. "Can pay for it" matches Jeanne's "every guest knows France can pay"; nothing of Friar Tommaso's letter, Jeanne's pension offer, or the affair. The match isn't promised for tonight |
 | San Frediano (`pub-san-frediano`) | public | Pass | Exactly the Shared Canon's public fact: a Frenchman killed by the north chapel seven years ago, no one charged. "Stabbed" matches Beatrice's briefing. No gambler, name, seal, sacristan, or date beyond the year, so no new path to F2 or F4 |
 | The palazzo (`pub-palazzo`) | public | Pass | A neutral host, which no briefing contradicts. Leaving out a garden and a chapel keeps Piero's ribbon, the Embassy gardens, and both chapels unblurred |
 
@@ -1148,6 +1158,11 @@ Your title. Everyone here wants something from you, which is its own kind of pow
 ---
 
 ## Open Questions
+
+- [ ] **Retitling** (Dylan, Nov 14): what the briefings will switch to once each term's owner adopts it, in the same version, so no prompt mixes the two:
+  - **"French pension" → being on France's payroll** (Dylan; or "a French bribe", but that would blur with the existing bribe, a plain Florin transfer, so payroll is the clearer of the two). Mechanics owns the term and the `/borrow` and `/repay` commands' wording; Technical Design the rules primer and State block; Interface the player's words. The briefings use "pension" 13 times and "payroll" 5 already
+  - **"Capannello" → a group; "Colloquio" stays,** since a private word has its own place in the game's dynamics (Dylan). Mechanics, Technical Design, and Interface. No briefing uses "Capannello"
+  - **Il Notaio stays, glossed for players:** the opening screen and his hover text say it's Italian for "the notary" (Dylan). Interface's
 
 - [x] ~~**Who leads the Dominicans?**~~ Settled in v0.14: Savonarola's follower, who leads the Dominicans at tonight's gathering
 
@@ -1169,9 +1184,9 @@ Your title. Everyone here wants something from you, which is its own kind of pow
   - **Eight of twelve errands rest on knowledge checks** (Piero and Clarice through F1, Giorgia through F3, Emile through F1 or F3 since v0.10, Beatrice through F4, and Raffaello, LeNoir, and Isabella through F2), which carry the memory known limit. The other four are logged and exact
   - **Every character has a secret,** and the secret-keeping lines reward deflection. Errands should give conversations a direction, but circling may persist
   - ~~**The marriage has no mechanical effect.**~~ Decided: flavour (Mechanics v0.27). v0.10 makes the briefings say it's settled after tonight, so none promises an effect
-  - **Real-history pull:** the real Clarice Orsini was Lorenzo's wife and Piero's mother; Fra Tommaso sounds like Savonarola. Block 1's history line is the guard
+  - **Real-history pull:** the real Clarice Orsini was Lorenzo's wife and Piero's mother; Friar Tommaso sounds like Savonarola. Block 1's history line is the guard
   - **Beatrice's new clue speeds up LeNoir:** she can name Lupo as the blade, which brings LeNoir one step from Isabella. Balance against Isabella's errand. *v0.10's "Contessa" clue adds a path to Isabella for Beatrice, not for LeNoir, unless she tells him*
-  - **Fra Tommaso's voice** is the most likely to drift ornate (a preacher). His examples are one-line jabs; watch his lines
+  - **Friar Tommaso's voice** is the most likely to drift ornate (a preacher). His examples are one-line jabs; watch his lines
   - **Isabella may be over-hunted:** LeNoir, Raffaello, and Beatrice all point at her, one from inside her faction. If her secret falls early every game, San Frediano ends in the first round
   - **Lupo is the hub:** he holds Isabella's secret, has seen Giorgia's, is Beatrice's brother, and has two unblockable kills. Games where he dies or talks early will diverge
   - **The ribbon's "C" could mislead** (Clarice, a Contessa, a Captain): good for deduction, but Piero may accuse the wrong person in public
@@ -1182,7 +1197,7 @@ Your title. Everyone here wants something from you, which is its own kind of pow
 - [x] ~~Deduced knowledge~~: decided in Technical Design (firm, correct conclusion counts; v0.3 plot points say so)
 - [x] ~~Pazzi coup date~~: fourteen years ago, 1478, matching real history (Shared Canon: Setting; v0.5 briefly said twenty)
 - [ ] Probes found models volunteer self-incriminating clues (Isabella mentioning the silver boar or the north chapel unprompted). Should her briefing warn that the boar points to her? Weigh against making her rigid in S6
-- [ ] Re-measure briefing lengths with the play model's real tokenizer (estimates on v0.12, with voice passages: Lupo ~1,120, Isabella ~1,065, LeNoir ~1,015, Raffaello ~985, Francesco ~875, Beatrice ~875, Piero ~850, Giorgia ~815, Clarice ~775, Emile ~775, Fra Tommaso ~755, Jeanne ~755). The v0.12 room sentence added about 30 to each; Lupo is now close to the ~1,150 budget. All within Technical Design's ~1,150 (confirmed in v0.34)
+- [ ] Re-measure briefing lengths with the play model's real tokenizer (estimates on v0.12, with voice passages: Lupo ~1,120, Isabella ~1,065, LeNoir ~1,015, Raffaello ~985, Francesco ~875, Beatrice ~875, Piero ~850, Giorgia ~815, Clarice ~775, Emile ~775, Friar Tommaso ~755, Jeanne ~755). The v0.12 room sentence added about 30 to each; Lupo is now close to the ~1,150 budget. All within Technical Design's ~1,150 (confirmed in v0.34)
 - [ ] Is the boar seal too easy a clue? Any Florentine noble can decode it. Watch in testing; if LeNoir solves it in the first exchange, narrow who knows Salviati heraldry
 - [x] ~~Whether voice examples belong in briefings~~: yes, as a How you speak passage (v0.5)
 - [x] ~~Where shared rules text lives~~: Technical Design's rules primer (Prompt Assembly, block 2). Briefings only say what each character wants
