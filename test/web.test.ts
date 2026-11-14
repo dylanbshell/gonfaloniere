@@ -258,7 +258,8 @@ test("the decks: one card per briefing section and per rules topic, with Your pa
   }
   assert.match(game({ v: past, deck: "briefing" }), /data-hint="deckTab">Your past</, "Your past, last");
   assert.equal((game({ v: withLore(v), deck: "city" }).match(/class="tab-group"/g) ?? []).length, 3, "The city's subjects head its list");
-  assert.match(game({ v, deck: "city" }), /class="deck-card empty"/, "an empty city says so");
+  // An empty city, on purpose: the repo's lore file holds public lore (#130), so this view sets its own, as withLore does.
+  assert.match(game({ v: { ...v, sheet: { ...v.sheet!, lore: [] } }, deck: "city" }), /class="deck-card empty"/, "an empty city says so");
 });
 
 test("selection: one guest at a time, on the right, with their lines highlighted and their earlier conversations open", async () => {
