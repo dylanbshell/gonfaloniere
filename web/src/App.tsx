@@ -12,6 +12,13 @@ import { getInfo, guest, list, names, notaioHint, setInfo, w, type StartInfo } f
 
 type Send = (m: unknown) => void;
 
+/**
+ * Text handed to the input box from elsewhere on the screen: today only a note's "This is my conclusion"
+ * (Interface v0.4, The Web of Secrets, Notes). `seq` tells one hand-off from the next, so the same text
+ * handed twice fills the box twice.
+ */
+export type BoxFill = { text: string; seq: number };
+
 export function App() {
   const [info, setLocal] = useState<StartInfo | null>(null);
   const [game, setGame] = useState<{ me: string; ws: string } | null>(null);
@@ -435,6 +442,8 @@ export function GameView({
   // The Web of Secrets is always there (TD v0.44): its own selection (up to two), kept while it's down.
   const [webOpen, setWebOpen] = useState(initialWeb !== null);
   const [picked, setPicked] = useState<string[]>(initialWeb ?? []);
+  // A note's conclusion goes to the input box, not straight to the game (Interface v0.4).
+  const [boxFill, setBoxFill] = useState<BoxFill | null>(null);
   const selection: Selection = {
     sel,
     guest: (name) => setSel(sel?.kind === "guest" && sel.name === name ? null : { kind: "guest", name }),
@@ -453,6 +462,13 @@ export function GameView({
   const layout = useRef<HTMLDivElement>(null);
   if (v.result) return <End v={v} me={me} />;
   const dead = v.deaths.some((d) => d.you);
+  /** A decision card is waiting, so the message box is closed. */
+  const cardWaiting = !!v.pending && v.pending.kind !== "speak";
+  /** "This is my conclusion": the web slides down (keeping its selection) and the box fills, sending nothing. */
+  const concludeInBox = (text: string) => {
+    setWebOpen(false);
+    setBoxFill((f) => ({ text, seq: (f?.seq ?? 0) + 1 }));
+  };
   const openWeb = (guests: string[]) => {
     setPicked(guests);
     setWebOpen(true);
@@ -463,7 +479,7 @@ export function GameView({
         <Boundary panel="left" fallback={(n) => <aside className="side left">{n}</aside>}>
           <Left me={me} v={v} onDeck={setDeck} />
         </Boundary>
-        <Centre me={me} v={v} send={send} dead={dead} status={status} />
+        <Centre me={me} v={v} send={send} dead={dead} status={status} boxFill={boxFill} />
         <Boundary panel="right" fallback={(n) => <aside className="side right">{n}</aside>}>
           <Right me={me} v={v} onWeb={openWeb} layout={layout} />
         </Boundary>
@@ -476,7 +492,7 @@ export function GameView({
           </div>
         )}
       >
-        <WebDock me={me} v={v} open={webOpen} setOpen={setWebOpen} picked={picked} setPicked={setPicked} initialTab={webTab} initialKey={keyType ?? null} send={send} dead={dead} />
+        <WebDock me={me} v={v} open={webOpen} setOpen={setWebOpen} picked={picked} setPicked={setPicked} initialTab={webTab} initialKey={keyType ?? null} send={send} dead={dead} boxClosed={cardWaiting} onConclude={concludeInBox} />
       </Boundary>
       {/* After everything, and above it all in theme.css's order, so nothing covers it. */}
       {deck && v.sheet && (
@@ -660,7 +676,7 @@ const conversationLabel = (s: State | null) =>
 /** One line for an earlier conversation: where, and when. */
 const earlierLabel = (seg: Segment) => w("screen.earlier.item", { where: conversationLabel(seg.state), when: seg.state?.phaseLabel ?? "" });
 
-function Centre({ me, v, send, dead, status }: { me: string; v: View; send: Send; dead: boolean; status: string }) {
+function Centre({ me, v, send, dead, status, boxFill }: { me: string; v: View; send: Send; dead: boolean; status: string; boxFill: BoxFill | null }) {
   const end = useRef<HTMLDivElement>(null);
   const hint = useHint();
   const { sel } = useContext(SelContext);
@@ -740,7 +756,7 @@ function Centre({ me, v, send, dead, status }: { me: string; v: View; send: Send
       </Boundary>
       {!dead && (
         <Boundary panel="input" fallback={(n) => <div className="input">{n}</div>}>
-          <InputBox me={me} v={v} send={send} closed={!!card} />
+          <InputBox me={me} v={v} send={send} closed={!!card} fill={boxFill} />
         </Boundary>
       )}
     </main>
@@ -1016,6 +1032,8 @@ function WebDock({
   initialKey,
   send,
   dead,
+  boxClosed,
+  onConclude,
 }: {
   me: string;
   v: View;
@@ -1027,6 +1045,10 @@ function WebDock({
   initialKey: string | null;
   send: Send;
   dead: boolean;
+  /** The message box is closed (a decision card is waiting), so a conclusion can't go to it. */
+  boxClosed: boolean;
+  /** Hands a note's conclusion to the input box (Interface v0.4). */
+  onConclude: (text: string) => void;
 }) {
   const info = getInfo();
   const hint = useHint();
@@ -1036,6 +1058,11 @@ function WebDock({
   const [keyOpen, setKeyOpen] = useState(true);
   const [keyType, setKeyType] = useState<string | null>(initialKey);
   useEscape(() => setOpen(false), open);
+  // Focusing the notes box can scroll the dock's clipped contents; down, the dock shows its bar again.
+  const dock = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!open && dock.current) dock.current.scrollTop = 0;
+  }, [open]);
   // Up to two: a first, then a second; a third replaces the older; selecting a selected guest clears it.
   const pick = (n: string) => setPicked((p) => (p.includes(n) ? p.filter((x) => x !== n) : p.length < 2 ? [...p, n] : [p[1]!, n]));
   const at = webLayout(info.roster, info.factions ?? []);
@@ -1057,15 +1084,18 @@ function WebDock({
       <button className="note-text" onClick={() => (setPicked(n.guests), setTab("record"))} {...hint("noteItem")}>
         {n.text}
       </button>
-      <button className="secondary small" disabled={!conclude || dead} onClick={() => send({ type: "command", text: `${conclude!.name} ${n.text}` })} {...hint("conclude")}>
-        {w("screen.web.conclude")}
-      </button>
+      {/* Only a note on a guest or a pair can be a conclusion; a free note has no button (Interface v0.3). */}
+      {n.guests.length > 0 && (
+        <button className="secondary small conclude" disabled={!conclude || dead || boxClosed} onClick={() => onConclude(`${conclude!.name} ${n.text}`)} {...hint(boxClosed && !dead ? "concludeWaiting" : "conclude")}>
+          {w("screen.web.conclude")}
+        </button>
+      )}
     </li>
   );
   return (
     <>
       {open && <div className="web-backdrop" onClick={() => setOpen(false)} />}
-      <section className={`web-dock${open ? " open" : ""}`} aria-label={w("screen.web.title")}>
+      <section ref={dock} className={`web-dock${open ? " open" : ""}`} aria-label={w("screen.web.title")}>
         <button className="web-bar" aria-expanded={open} onClick={() => setOpen(!open)} {...hint("web")}>
           <span className="web-bar-title">{w("screen.web.title")}</span>
           <span className="muted web-bar-sel">{picked.length ? who : w("screen.web.barNone")}</span>
@@ -1282,7 +1312,7 @@ function ReadingBox({ me, v, picked, open, send }: { me: string; v: View; picked
 // its place for a command; Pass is outlined; @ and / are small icons inside the box. The menus open and
 // close with their character (input.ts).
 
-function InputBox({ me, v, send, closed }: { me: string; v: View; send: Send; closed: boolean }) {
+function InputBox({ me, v, send, closed, fill }: { me: string; v: View; send: Send; closed: boolean; fill: BoxFill | null }) {
   const info = getInfo();
   const hint = useHint();
   const [text, setText] = useState("");
@@ -1293,6 +1323,34 @@ function InputBox({ me, v, send, closed }: { me: string; v: View; send: Send; cl
   const [actedAt, setActedAt] = useState(0);
   const box = useRef<HTMLDivElement>(null);
   const area = useRef<HTMLTextAreaElement>(null);
+  /**
+   * While the box holds a note's conclusion (Interface v0.4): the unsent message it set aside, if any. It
+   * comes back once the box is sent or cleared. A second conclusion replaces the first and keeps the message.
+   */
+  const [handed, setHanded] = useState<{ setAside: string | null } | null>(null);
+  /** Do highlighted for a handed conclusion, until Do runs it or the box stops being a command. */
+  const [doLit, setDoLit] = useState(false);
+  /** The last hand-off taken, so a remount doesn't take it again. */
+  const filled = useRef(fill?.seq ?? 0);
+  const caretToEnd = useRef(false);
+  useEffect(() => {
+    if (!fill || fill.seq === filled.current) return;
+    filled.current = fill.seq;
+    setHanded(handed ?? { setAside: text.trim() ? text : null });
+    setText(fill.text);
+    setForced(false);
+    setDismissed(null);
+    setDoLit(true);
+    caretToEnd.current = true;
+  }, [fill?.seq]);
+  // Focus the box with the cursor at the end, once the handed text is in it, so the player can edit it.
+  useEffect(() => {
+    if (!caretToEnd.current || !area.current) return;
+    caretToEnd.current = false;
+    const end = area.current.value.length;
+    area.current.focus();
+    area.current.setSelectionRange(end, end);
+  });
   const req = v.pending?.kind === "speak" ? v.pending : null;
   const o = (req?.options ?? {}) as { answering?: boolean; closing?: string | null; conversation?: string; with?: string[] };
   // A held message is spoken at the next pause: it's cleared when your line appears, or it's refused.
@@ -1318,6 +1376,12 @@ function InputBox({ me, v, send, closed }: { me: string; v: View; send: Send; cl
     setDismissed(openMenu(text, null));
   };
   const change = (next: string) => {
+    // Clearing a handed conclusion without running it brings the set-aside message back.
+    if (handed && !next.trim()) {
+      next = handed.setAside ?? "";
+      setHanded(null);
+    }
+    if (!isCommand(next)) setDoLit(false);
     setText(next);
     setForced(false);
     // Deleting a menu's character forgets that it was dismissed, so typing it again opens it.
@@ -1340,8 +1404,10 @@ function InputBox({ me, v, send, closed }: { me: string; v: View; send: Send; cl
     setActedAt(v.refusal?.seq ?? 0);
   };
   const submit = () => {
-    if (command) act({ type: "command", text: text.trim() });
-    else if (canSpeak(text)) {
+    if (command) {
+      act({ type: "command", text: text.trim() });
+      setDoLit(false);
+    } else if (canSpeak(text)) {
       act({ type: "say", text });
       if (!req) setHeld(text);
     } else return;
@@ -1441,7 +1507,7 @@ function InputBox({ me, v, send, closed }: { me: string; v: View; send: Send; cl
         <div className="actions">
           <span className={`count${!command && text.length > info.max ? " over" : ""}`}>{command ? "" : w("screen.input.count", { count: text.length, max: info.max })}</span>
           {command ? (
-            <button className="do" onClick={submit} disabled={!canDo(text)} {...hint("do")}>
+            <button className={`do${doLit ? " lit" : ""}`} onClick={submit} disabled={!canDo(text)} {...hint("do")}>
               {w("screen.input.do")}
             </button>
           ) : (

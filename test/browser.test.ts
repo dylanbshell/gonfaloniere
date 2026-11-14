@@ -445,3 +445,71 @@ test("the errand card with plot_reward off (the mini-game): the no-extra-act lin
   assert.equal(await page.eval<number>(`document.querySelectorAll(".track .errand-mark").length`), 0, "no deadline mark with the flag off");
   await page.shot("errand-card");
 });
+
+// ---- CC-20261114-05 (#109) -------------------------------------------------------------------------------
+
+test("a note's conclusion fills the input box and highlights Do, sending nothing; Do runs it and the set-aside message comes back", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".input textarea")`);
+  // Every message the screen sends, from here on.
+  await page.eval(`(() => { window.__sent = []; const send = WebSocket.prototype.send; WebSocket.prototype.send = function (d) { window.__sent.push(JSON.parse(d)); return send.call(this, d); }; })()`);
+  const commandsSent = () => page.eval<string[]>(`window.__sent.filter((m) => m.type === "command").map((m) => m.text)`);
+  const box = () => page.eval<string>(`document.querySelector(".input textarea").value`);
+  const words = JSON.parse(readFileSync("setting/florence-1492/player.json", "utf8")) as { commands: { conclude: { name: string } } };
+  const NOTE = "Watches the door all evening.";
+  const conclusion = `${words.commands.conclude.name} ${NOTE}`;
+  // An unsent message in the box.
+  const DRAFT = "A word, when you have a moment.";
+  await page.eval(`document.querySelector(".input textarea").focus()`);
+  await page.type(DRAFT);
+  // A note on a guest, and a free note, in the Web of Secrets.
+  await page.eval(`document.querySelector(".web-bar").click()`);
+  await page.until(`document.querySelector(".web-dock.open .node")`);
+  await page.eval(`document.querySelector('[data-hint="notesTab"]').click()`);
+  await page.until(`document.querySelector(".web textarea")`);
+  await page.eval(`document.querySelector(".web textarea").focus()`);
+  await page.type("A free thought.");
+  await page.eval(`document.querySelector('[data-hint="noteSave"]').click()`);
+  await page.until(`[...document.querySelectorAll(".note")].some((n) => n.querySelector(".note-text").textContent === "A free thought.")`);
+  assert.equal(await page.eval<boolean>(`[...document.querySelectorAll(".note")].find((n) => n.querySelector(".note-text").textContent === "A free thought.").querySelector(".conclude") === null`), true, "a free note has no conclusion button");
+  await page.eval(`document.querySelector('.web .node:not(.me)').dispatchEvent(new MouseEvent("click", { bubbles: true }))`);
+  await page.until(`document.querySelector(".web .node.picked")`);
+  const bar = await page.eval<string>(`document.querySelector(".web-bar-sel").textContent`);
+  await page.eval(`document.querySelector(".web textarea").focus()`);
+  await page.type(NOTE);
+  await page.eval(`document.querySelector('[data-hint="noteSave"]').click()`);
+  const noteButton = `[...document.querySelectorAll(".note")].find((n) => n.querySelector(".note-text").textContent === ${JSON.stringify(NOTE)})?.querySelector(".conclude")`;
+  await page.until(noteButton);
+  // "This is my conclusion": the web slides down, the box holds the command and the note, Do is lit, nothing sent.
+  await page.eval(`${noteButton}.click()`);
+  await page.until(`!document.querySelector(".web-dock.open") && document.querySelector(".web-dock").getAnimations().length === 0`);
+  assert.equal(Math.round(await page.eval<number>(`document.querySelector(".web-bar").getBoundingClientRect().bottom`)), VIEW.height, "down to its bar, in sight");
+  assert.equal(await box(), conclusion, "the box holds the conclude command and the note");
+  assert.equal(await page.eval<boolean>(`(() => { const a = document.querySelector(".input textarea"); return document.activeElement === a && a.selectionStart === a.value.length && a.selectionEnd === a.value.length; })()`), true, "focused, with the cursor at the end");
+  assert.equal(await page.eval<boolean>(`document.querySelector('[data-hint="do"]').classList.contains("lit") && getComputedStyle(document.querySelector('[data-hint="do"]')).boxShadow !== "none"`), true, "Do is highlighted");
+  assert.deepEqual(await commandsSent(), [], "nothing was sent");
+  assert.equal(await page.eval<string>(`document.querySelector(".web-bar-sel").textContent`), bar, "the web keeps its selection");
+  await page.shot("conclusion-in-box");
+  // Do runs it, once; the set-aside message comes back.
+  await page.eval(`document.querySelector('[data-hint="do"]').click()`);
+  await page.until(`window.__sent.some((m) => m.type === "command")`);
+  assert.deepEqual(await commandsSent(), [conclusion], "one conclusion went through");
+  await page.until(`document.querySelector(".input textarea").value === ${JSON.stringify(DRAFT)}`);
+  // Again, then edited and cleared without running it: the highlight goes once the box stops being a command,
+  // and clearing the box brings the message back.
+  await page.eval(`document.querySelector(".web-bar").click()`);
+  await page.until(`document.querySelector(".web-dock.open") && ${noteButton}`);
+  await page.eval(`${noteButton}.click()`);
+  await page.until(`document.querySelector(".input textarea").value === ${JSON.stringify(conclusion)} && document.querySelector('[data-hint="do"].lit')`);
+  await page.eval(`document.querySelector(".input textarea").setSelectionRange(0, 1)`);
+  await page.key("Backspace", 8);
+  await page.until(`!document.querySelector('[data-hint="do"]')`);
+  await page.eval(`document.querySelector(".input textarea").setSelectionRange(0, 0)`);
+  await page.type("/");
+  await page.until(`document.querySelector('[data-hint="do"]')`);
+  assert.equal(await page.eval<boolean>(`document.querySelector('[data-hint="do"]').classList.contains("lit")`), false, "the highlight stays off once the box stopped starting with /");
+  await page.eval(`document.querySelector(".input textarea").select()`);
+  await page.key("Backspace", 8);
+  await page.until(`document.querySelector(".input textarea").value === ${JSON.stringify(DRAFT)}`);
+  assert.deepEqual(await commandsSent(), [conclusion], "clearing it sent nothing");
+});

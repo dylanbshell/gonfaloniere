@@ -9,6 +9,8 @@ button:disabled { opacity: var(--opacity-disabled); cursor: default; }
 button.primary, .button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 button.secondary { background: transparent; border-color: var(--border); }
 button.do { background: var(--do); color: var(--do-text); border-color: var(--do); font-family: var(--font-mono); }
+/* Interface v0.4: Do highlighted while a note's conclusion waits in the box */
+button.do.lit { box-shadow: 0 0 0 var(--do-lit-ring) var(--do-lit), 0 0 var(--do-lit-glow) var(--do-lit); }
 button.icon { border: none; background: var(--surface-2); border-radius: var(--radius-sm); padding: 0 var(--space-2); font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-muted); }
 button.switch { font-size: var(--text-xs); padding: 0 var(--space-2); background: transparent; color: var(--text-muted); }
 button.switch[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
