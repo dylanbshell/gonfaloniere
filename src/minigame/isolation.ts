@@ -6,7 +6,7 @@
 
 import type { CharacterName } from "../game/roster.ts";
 import { tdMinor } from "../prompt/assemble.ts";
-import { atLeast, inWorldNames, inWorldTime, usesInWorldNames } from "../prompt/names.ts";
+import { atLeast, conversationWords, inWorldNames, inWorldTime, usesInWorldNames, usesRetitling } from "../prompt/names.ts";
 import type { LoreEntry } from "./lore.ts";
 import { gameTime, renderBelief, renderCodeEntryFor, renderEntry, renderReading, type Belief, type GameLine, type MemoryEntry, type Reading, type TimeLabel } from "./memory.ts";
 
@@ -56,6 +56,9 @@ export function isolationCheck(rec: IsolationRecord): { calls: number; memoryLin
   const dropPunct = tdMinor(rec.header.docs.technicalDesign) >= 15;
   const shared = (rec.header.notebook ?? "perceived") === "shared";
   const when = timeLabelOf(rec.header);
+  // TD v0.50: block 6's type labels say "group" with Characters' payroll version.
+  const { technicalDesign, characters } = rec.header.docs;
+  const words = conversationWords(!!characters && usesRetitling({ technicalDesign, characters }));
   // Every render a row can have in a prompt, with whose row it is. A belief's kind can change after it
   // was shown ("firmer"), so both kinds' renders count as the owner's.
   const owners = new Map<string, Set<string>>();
@@ -63,12 +66,12 @@ export function isolationCheck(rec: IsolationRecord): { calls: number; memoryLin
   if (!shared) {
     for (const r of rec.memory.readings) {
       const line = lines.get(r.line);
-      if (line) own(renderReading(r, line, r.words_line ? lines.get(r.words_line) : undefined, dropPunct, when), r.character);
+      if (line) own(renderReading(r, line, r.words_line ? lines.get(r.words_line) : undefined, dropPunct, when, words), r.character);
     }
   }
   for (const e of rec.memory.entries) {
-    if (e.source === "code") for (const c of e.audience) own(shared ? renderEntry(e, c, when) : renderCodeEntryFor(e, c, when), c);
-    else if (shared) for (const c of e.audience) own(renderEntry(e, c, when), c);
+    if (e.source === "code") for (const c of e.audience) own(shared ? renderEntry(e, c, when, words) : renderCodeEntryFor(e, c, when, words), c);
+    else if (shared) for (const c of e.audience) own(renderEntry(e, c, when, words), c);
   }
   for (const b of rec.memory.beliefs) for (const kind of ["suspicion", "conclusion"] as const) own(renderBelief({ ...b, kind }, when), b.character);
   const lore = rec.memory.lore ?? [];

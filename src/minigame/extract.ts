@@ -9,6 +9,7 @@
 
 import type { CharacterName } from "../game/roster.ts";
 import type { DocSources, PlotFact } from "../sources/docs.ts";
+import { conversationWords } from "../prompt/names.ts";
 import { ClaimsPass, KnowledgeVerdict, MemoryStore, StarPass, parseSweep, rosterText, sweepIds, whereLabel, type Belief, type GameLine, type MemoryEntry, type Thought, type TimelineItem } from "./memory.ts";
 
 export type SystemCallKind = "star-pass" | "claims-pass" | "sweep-reask" | "thought-pass" | "perception-pass" | "knowledge-check";
@@ -40,6 +41,14 @@ export class Recorder {
 
   /** TD v0.39: a human player's character has no readings, so no perception pass (Player Interface, Calls the player doesn't make). */
   skipPerception = new Set<CharacterName>();
+
+  /**
+   * The conversation words in the passes' prompts: the game's names ("Capannello with …"), or from TD v0.50
+   * the in-world ones ("group with …"), since the retitling changes every word that reaches a prompt.
+   */
+  private get words() {
+    return conversationWords(this.docs.retitled);
+  }
 
   constructor(
     private docs: DocSources,
@@ -117,7 +126,7 @@ export class Recorder {
         continue;
       }
       const l = it.line;
-      if (conv !== null && l.conversation !== conv) out.push(`— ${whereLabel(l.where, c)} —`);
+      if (conv !== null && l.conversation !== conv) out.push(`— ${whereLabel(l.where, c, this.words)} —`);
       conv = l.conversation;
       const own = l.kind === "speech" && l.speaker === c;
       out.push(`[${l.id}] ${own ? `${c} (you${l.addressee ? `, to ${l.addressee}` : ""}): ${l.text}` : this.formatLine(l)}`);
@@ -142,7 +151,7 @@ export class Recorder {
   private passUser(turn: number, mine: GameLine[], context: GameLine[]): string {
     return fill(this.docs.systemPrompts!.starPass.user, {
       roster: rosterText(this.docs.versions.characters),
-      conversation_label: whereLabel(mine.at(-1)!.where),
+      conversation_label: whereLabel(mine.at(-1)!.where, undefined, this.words),
       turn: String(turn),
       participants: this.listJoin([...new Set(mine.flatMap((l) => l.heardBy))]),
       context_lines: context.length ? context.map((l) => `[${l.id}] ${this.formatLine(l)}`).join("\n") : "None.",
@@ -250,7 +259,7 @@ export class Recorder {
           fact: f.fact,
           must_include: f.mustInclude,
           does_not_count: f.doesNotCount,
-          memory_entries: entries.length ? entries.map((e) => `[${e.id}] T${e.turn} · ${whereLabel(e.where, character)} · ${e.type} · ${e.summary}${e.quote ? ` ("${e.quote}")` : ""}`).join("\n") : "None.",
+          memory_entries: entries.length ? entries.map((e) => `[${e.id}] T${e.turn} · ${whereLabel(e.where, character, this.words)} · ${e.type} · ${e.summary}${e.quote ? ` ("${e.quote}")` : ""}`).join("\n") : "None.",
           // TD v0.6: beliefs with turn, status, and quote, so the check can re-read a conclusion's quote.
           beliefs: beliefs.length ? beliefs.map((b) => `[${b.id}] T${b.firstTurn} · ${b.kind} (${b.status}) · ${b.statement} ("${b.quote}")`).join("\n") : "None.",
         });

@@ -6,6 +6,7 @@ import { test } from "node:test";
 import { allowedActionsText } from "../src/game/actions.ts";
 import { ALIASES, ROSTER, factionOf, hasRole, keepsTreasury, mayTakePension } from "../src/game/roster.ts";
 import { CAST, STANDINS } from "../src/minigame/cast.ts";
+import { payrollLedger } from "../src/prompt/assemble.ts";
 import { inWorldNames } from "../src/prompt/names.ts";
 import { DEFAULT_SETTING, SETTING, say, settingFile, settingPack } from "../src/setting/pack.ts";
 
@@ -44,7 +45,8 @@ test("code tests roles, not faction names: who may take a pension, who keeps the
   assert.equal(keepsTreasury(f("Captain Armand LeNoir")), true);
   assert.deepEqual(ROSTER.filter((r) => hasRole(r.name, "two kills")).map((r) => r.name), ["Lupo"]);
   const ctx = { florins: 10, pensionSize: 3, treasury: 15, colloquioWith: null };
-  assert.match(allowedActionsText({ ...ctx, faction: "Medici" }), /borrow/);
+  assert.match(allowedActionsText({ ...ctx, faction: "Medici" }), /borrow"\} — accept one French pension/);
+  assert.match(allowedActionsText({ ...ctx, faction: "Medici", retitled: true }), /borrow"\} — take one payroll payment/);
   assert.doesNotMatch(allowedActionsText({ ...ctx, faction: "Dominicans" }), /borrow/);
 });
 
@@ -64,12 +66,13 @@ test("Il Notaio's notes and code's lines fill to exactly what the engine wrote b
     ["notes.withdrawal_repeat", { actor: A, other: B }, "Lupo was once again seen withdrawing in private, this time with Contessa Isabella."],
     ["notes.withdrawal_repeat_before_td26", { actor: A, other: B }, "Lupo was once again seen drawing another aside — this time Contessa Isabella. Some note it is not the first private word sought this evening."],
     ["lines.payment", { actor: B, other: A, amount: 3 }, "Contessa Isabella gave Lupo 3 Florins."],
-    ["lines.pension_taken", { amount: 3, purse: 13 }, "You accepted a French pension of 3 Florins. Your purse: 13 Florins."],
-    ["lines.pension_renounced", { holder: A, amount: 3 }, "You renounced the French pension held by Lupo: 3 Florins returned to the Embassy."],
-    ["lines.pension_refused", { holder: "yourself" }, "Your attempt to renounce a pension for yourself failed: no such pension that you can repay."],
-    ["lines.ledger_taken", { actor: A }, "Lupo accepted a pension"],
-    ["lines.ledger_renounced", { holder: A }, "the pension held by Lupo was renounced"],
-    ["lines.embassy_ledger", { amount: 15, pensions: "none" }, "Embassy treasury: 15 Florins. Pensions held: none."],
+    // Before TD v0.50's Retitling: the French pension's words, kept so older games replay as they ran.
+    ["lines.pension_taken_before_td50", { amount: 3, purse: 13 }, "You accepted a French pension of 3 Florins. Your purse: 13 Florins."],
+    ["lines.pension_renounced_before_td50", { holder: A, amount: 3 }, "You renounced the French pension held by Lupo: 3 Florins returned to the Embassy."],
+    ["lines.pension_refused_before_td50", { holder: "yourself" }, "Your attempt to renounce a pension for yourself failed: no such pension that you can repay."],
+    ["lines.ledger_taken_before_td50", { actor: A }, "Lupo accepted a pension"],
+    ["lines.ledger_renounced_before_td50", { holder: A }, "the pension held by Lupo was renounced"],
+    ["lines.embassy_ledger_before_td50", { amount: 15, pensions: "none" }, "Embassy treasury: 15 Florins. Pensions held: none."],
     ["lines.embassy_ledger_latest", { latest: "Lupo accepted a pension" }, " Latest: Lupo accepted a pension."],
   ];
   for (const [key, values, before] of cases) assert.equal(say("notaio", key, values), before, key);
@@ -80,10 +83,35 @@ test("Il Notaio's notes and code's lines fill to exactly what the engine wrote b
   assert.equal(say("notaio", "lines.pension_refused_self"), "yourself");
 });
 
+test("TD v0.50's Retitling: code's payroll lines in TD's words (In-World Names, Retitling; History Line Formats)", () => {
+  const P = "Piero de' Medici";
+  const cases: [string, Record<string, string | number>, string][] = [
+    ["lines.pension_taken", { amount: 3, purse: 13 }, "You took a payroll payment of 3 Florins from the French Embassy; you are on France's payroll. Your purse: 13 Florins."],
+    ["lines.pension_renounced", { holder: "Raffaello de' Medici", amount: 3 }, "You paid back a payroll payment for Raffaello de' Medici: 3 Florins returned to the Embassy."],
+    ["lines.pension_refused", { holder: P }, "Your attempt to pay back a payroll payment for Piero de' Medici failed: they have none that you can pay back."],
+    ["lines.ledger_taken", { actor: P }, "Piero de' Medici took a payroll payment"],
+    ["lines.ledger_renounced", { holder: P }, "a payroll payment of Piero de' Medici's was paid back"],
+    ["lines.embassy_ledger", { amount: 12, ledger: "Piero de' Medici, 1 payment" }, "Embassy treasury: 12 Florins. On France's payroll: Piero de' Medici, 1 payment."],
+    ["payroll.status_no", {}, "no"],
+    ["payroll.status_yes", { payments: "1 payment" }, "yes, 1 payment"],
+    ["payroll.many", { count: 2 }, "2 payments"],
+  ];
+  for (const [key, values, now] of cases) assert.equal(say("notaio", key, values), now, key);
+  // The human test reads the purse from the end of the taken line.
+  assert.match(say("notaio", "lines.pension_taken", { amount: 3, purse: 13 }), /Your purse: 13 Florins\.$/);
+  assert.equal(payrollLedger([], true), "none");
+  assert.equal(payrollLedger([[P, 1], ["Lupo", 0], ["Giorgia Pazzi", 2]], true), "Piero de' Medici, 1 payment; Giorgia Pazzi, 2 payments");
+  assert.equal(payrollLedger([[P, 1], ["Lupo", 0], ["Giorgia Pazzi", 2]], false), "Piero de' Medici, Giorgia Pazzi (2)", "before TD v0.50, as the engine always wrote it");
+  assert.equal(payrollLedger([], false), "none");
+});
+
 test("action descriptions fill to exactly what actions.ts wrote before; a missing value is an error", () => {
   assert.equal(say("actions", "bribe", { other: "Lupo", purse: 7 }), '{"type": "bribe", "amount": N} — hand Lupo N Florins (you have 7)');
-  assert.equal(say("actions", "borrow", { amount: 3 }), '{"type": "borrow"} — accept one French pension of 3 Florins');
-  assert.equal(say("actions", "repay"), '{"type": "repay", "for": "Name"} — renounce one French pension held by yourself or a relative who has told you of it');
+  assert.equal(say("actions", "borrow_before_td50", { amount: 3 }), '{"type": "borrow"} — accept one French pension of 3 Florins');
+  assert.equal(say("actions", "repay_before_td50"), '{"type": "repay", "for": "Name"} — renounce one French pension held by yourself or a relative who has told you of it');
+  // TD v0.50's Retitling (Block 9b's notes).
+  assert.equal(say("actions", "borrow", { amount: 3 }), '{"type": "borrow"} — take one payroll payment of 3 Florins from the French Embassy, which puts you on France\'s payroll');
+  assert.equal(say("actions", "repay"), '{"type": "repay", "for": "Name"} — pay back one payroll payment, your own or a relative\'s who has told you of it');
   assert.equal(say("actions", "none"), "None available right now. Set action to null.");
   assert.equal(say("actions", "bribe_not_positive", { amount: 0 }), "bribe of 0 Florins");
   assert.throws(() => say("actions", "bribe", { purse: 7 }), /no value for \{other\}/);

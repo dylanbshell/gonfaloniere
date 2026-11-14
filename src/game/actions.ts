@@ -17,6 +17,8 @@ export interface ActionContext {
   treasury: number;
   /** In a Colloquio, the other person; null in a Capannello. */
   colloquioWith: string | null;
+  /** TD v0.50's Retitling: /borrow and /repay as payroll payments; absent before, as French pensions. */
+  retitled?: boolean;
 }
 
 export function allowedActionTypes(a: ActionContext): ActionType[] {
@@ -30,9 +32,9 @@ export function allowedActionsText(a: ActionContext): string {
       case "bribe":
         return say("actions", "bribe", { other: a.colloquioWith!, purse: a.florins });
       case "borrow":
-        return say("actions", "borrow", { amount: a.pensionSize });
+        return say("actions", a.retitled ? "borrow" : "borrow_before_td50", { amount: a.pensionSize });
       case "repay":
-        return say("actions", "repay");
+        return say("actions", a.retitled ? "repay" : "repay_before_td50");
     }
   });
   return lines.length ? lines.join("\n") : say("actions", "none");

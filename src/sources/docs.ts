@@ -6,7 +6,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { ALIASES, ROSTER, resolveAlias, type CharacterName } from "../game/roster.ts";
 import type { MurderTable, PromptTemplates } from "../prompt/assemble.ts";
-import { usesInWorldNames } from "../prompt/names.ts";
+import { usesInWorldNames, usesRetitling } from "../prompt/names.ts";
 
 export interface DocPaths {
   technicalDesign: string;
@@ -92,6 +92,11 @@ export interface DocSources {
   plotFacts: PlotFact[];
   /** TD v0.34's In-World Names: true when this TD and Characters both use them (loadDocs refuses a mix). */
   inWorld: boolean;
+  /**
+   * TD v0.50's Retitling: true when this TD and Characters both say "France's payroll" and "group" (TD 0.50
+   * with Characters 0.16 or later; loadDocs refuses a mix). Also on `templates`, for the prompt assembler.
+   */
+  retitled: boolean;
 }
 
 /**
@@ -183,6 +188,9 @@ export function loadDocs(paths: DocPaths): DocSources {
   };
   // TD v0.34: in-world names switch with the briefings, never one without the other.
   const inWorld = usesInWorldNames(versions);
+  // TD v0.50: France's payroll and groups switch with Characters' payroll version, never one without the other.
+  const retitled = usesRetitling(versions);
+  if (retitled) templates.retitled = true;
   // From v0.34, 9e's code-generated values are read from TD's table rather than written in code.
   if (inWorld && templates.murder) templates.murderTable = murderTable(td);
 
@@ -200,6 +208,7 @@ export function loadDocs(paths: DocPaths): DocSources {
     ...(notaioReading(td) && { notaioReading: notaioReading(td)! }),
     plotFacts: plotFacts(td),
     inWorld,
+    retitled,
   };
 }
 

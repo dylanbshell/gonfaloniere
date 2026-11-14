@@ -37,6 +37,7 @@ import {
   wordsCap,
   type TookTarget,
   fill,
+  payrollLedger,
   rulesText,
   speakHasAddressee,
   type AssembledPrompt,
@@ -53,7 +54,7 @@ import { Recorder, sameThought } from "./extract.ts";
 import type { LogprobsSetting, StoredLogprobs } from "./logprobs.ts";
 import { loreLines, type LoreSetting } from "./lore.ts";
 import type { RetrievalMethod, VectorStore } from "./store.ts";
-import { gameAct, hasArrival, inWorldNames, inWorldTime, minglingPhase } from "../prompt/names.ts";
+import { conversationWords, gameAct, hasArrival, inWorldNames, inWorldTime, minglingPhase } from "../prompt/names.ts";
 import type { OutgoingBody, RequestKind } from "../core/protocol.ts";
 import { actProblems, extraActProblems, type CheckedAct } from "../rules/midnight.ts";
 import { MemoryStore, renderBelief, tookTargetLine, resolveName, whereLabel, type GameLine, type Thought, type Where } from "./memory.ts";
@@ -300,6 +301,8 @@ export class MiniGame {
     // TD v0.34: block 6 lines open with an in-world time ("1st round, early") instead of T4. The mini-game is one round of mingling.
     // TD v0.36: turn 0, the guests' arrival, is "arrival".
     if (docs.inWorld) this.memory.timeLabel = inWorldTime(docs.versions.technicalDesign, s.turns);
+    // TD v0.50: block 6's type labels say "group" in place of "Capannello".
+    this.memory.words = conversationWords(docs.retitled);
     this.memory.fillCap = fillCapFor(docs.versions.technicalDesign);
     // TD v0.36: block 6's cap rises from ~450 to ~490 tokens, time labels included (they always were, as built).
     this.memory.notebookBudget = tdMinor(docs.versions.technicalDesign) >= 36 ? 490 : 450;
@@ -637,23 +640,28 @@ export class MiniGame {
     } else if (a.type === "borrow") {
       const e = borrow(this.econ, actor, size);
       if (e.type !== "pension taken") return false;
-      this.ledgerLatest = say("notaio", "lines.ledger_taken", { actor });
-      this.privateLine(conv, actor, say("notaio", "lines.pension_taken", { amount: e.amount, purse: e.purse }), "pension");
+      this.ledgerLatest = say("notaio", this.payroll("lines.ledger_taken"), { actor });
+      this.privateLine(conv, actor, say("notaio", this.payroll("lines.pension_taken"), { amount: e.amount, purse: e.purse }), "pension");
       this.events.push({ turn: this.turn, type: "borrow", character: actor });
     } else if (a.type === "repay") {
       const holder = (resolveName(a.for ?? "") ?? actor) as CharacterName;
       const e = repay(this.econ, actor, holder, size);
       if (e.type === "pension refused" && actor === this.human) return false;
       if (e.type === "pension refused") {
-        me.feedback = say("notaio", "lines.pension_refused", { holder: a.for ?? say("notaio", "lines.pension_refused_self") });
+        me.feedback = say("notaio", this.payroll("lines.pension_refused"), { holder: a.for ?? say("notaio", "lines.pension_refused_self") });
         return false;
       }
       if (e.type !== "pension renounced") return false;
-      this.ledgerLatest = say("notaio", "lines.ledger_renounced", { holder });
-      this.privateLine(conv, actor, say("notaio", "lines.pension_renounced", { holder, amount: e.amount }), "pension");
+      this.ledgerLatest = say("notaio", this.payroll("lines.ledger_renounced"), { holder });
+      this.privateLine(conv, actor, say("notaio", this.payroll("lines.pension_renounced"), { holder, amount: e.amount }), "pension");
       this.events.push({ turn: this.turn, type: "repay", character: actor, holder });
     }
     return true;
+  }
+
+  /** TD v0.50's Retitling: a payroll payment's line, or before TD 0.50 the French pension's (the key's `_before_td50`). */
+  private payroll(key: string): string {
+    return this.docs.retitled ? key : `${key}_before_td50`;
   }
 
   // ---- End of turn: movement, extraction -------------------------------------------------------
@@ -1276,7 +1284,7 @@ export class MiniGame {
     const conv = this.seatOf(c);
     const others = conv ? conv.members.filter((m) => m !== c) : [];
     const french = seesLedger(this.econ.guests.get(c)!.pension);
-    const ledgerText = [...this.econ.ledger].filter(([, n]) => n > 0).map(([n, k]) => (k > 1 ? `${n} (${k})` : n)).join(", ") || "none";
+    const ledgerText = payrollLedger([...this.econ.ledger], this.docs.retitled);
     const outside = opts.gathering || opts.seat || !conv;
     const present = outside ? [] : others;
     return {
@@ -1347,6 +1355,7 @@ export class MiniGame {
       pensionSize: this.rules.pensionSize,
       treasury: this.econ.treasury,
       colloquioWith: conv.kind === "colloquio" ? conv.members.find((m) => m !== c)! : null,
+      ...(this.docs.retitled && { retitled: true }),
     };
   }
 

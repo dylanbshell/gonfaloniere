@@ -21,6 +21,23 @@ export interface InWorldNames {
   narrator: { since: string; name: string };
   /** In-world act word → game act. */
   acts: Record<string, string>;
+  /** TD v0.50's Retitling: the first TD and Characters versions with France's payroll and groups, which load only together. */
+  retitling: { since: { technicalDesign: string; characters: string } };
+  /** The conversation words (TD v0.50): in-world from TD 0.50, and the game's own names in `game`. */
+  conversations: ConversationWords & { game: { label: Partial<Record<ConversationKind, string>>; type: Partial<Record<ConversationKind, string>> } };
+}
+
+/** The game's conversation kinds, as code and the record name them. */
+export type ConversationKind = "capannello" | "colloquio" | "gathering";
+
+/**
+ * The words a conversation is called by: block 5's {conversation_label} templates, block 6's type labels,
+ * and `with`, the type label naming who else was there ("Colloquio with Lupo").
+ */
+export interface ConversationWords {
+  label: Record<ConversationKind, string>;
+  type: Record<ConversationKind, string>;
+  with: string;
 }
 
 let cached: InWorldNames | null = null;
@@ -51,6 +68,34 @@ export function usesInWorldNames(versions: { technicalDesign: string; characters
     );
   }
   return td;
+}
+
+/**
+ * Whether a game's prompts use TD v0.50's retitling (France's payroll, groups): only when its TD and its
+ * Characters both do. Characters' payroll version needs TD 0.50 and TD 0.50 needs it, so a mix, which
+ * would say "pension" in one block and "payroll" in another, is refused (TD In-World Names, Retitling).
+ */
+export function usesRetitling(versions: { technicalDesign: string; characters: string }, names = inWorldNames()): boolean {
+  const { since } = names.retitling;
+  const td = atLeast(versions.technicalDesign, since.technicalDesign);
+  const chars = atLeast(versions.characters, since.characters);
+  if (td !== chars) {
+    throw new Error(
+      `TD v${versions.technicalDesign} and Characters v${versions.characters} would mix "pension" and "payroll" in one prompt: ` +
+        `the retitling needs TD v${since.technicalDesign}+ with Characters v${since.characters}+, and earlier versions need both earlier (TD In-World Names, Retitling)`,
+    );
+  }
+  return td;
+}
+
+/**
+ * The conversation words: in-world (from TD 0.50, "group") or the game's own names ("Capannello"), which a
+ * game before TD 0.50 hears and the record, reports, and recorder's prompts keep.
+ */
+export function conversationWords(inWorld: boolean, names = inWorldNames()): ConversationWords {
+  const c = names.conversations;
+  if (inWorld) return { label: c.label, type: c.type, with: c.with };
+  return { label: { ...c.label, ...c.game.label }, type: { ...c.type, ...c.game.type }, with: c.with };
 }
 
 const fillIn = (t: string, v: Record<string, string>) => t.replace(/\{(\w+)\}/g, (m, k: string) => v[k] ?? m);

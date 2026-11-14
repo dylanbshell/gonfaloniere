@@ -36,5 +36,27 @@
     "kill": "kill",
     "guard": "guard",
     "watch": "investigate"
+  },
+  "retitling": {
+    "_comment": "TD v0.50's In-World Names, Retitling (Mechanics v0.36): a French pension became a payroll payment that puts a guest on France's payroll, and a Capannello became a group. TD 0.50 loads only with Characters 0.16, the first whose briefings say \"payroll\", and that Characters version only with TD 0.50 or later, so the two words never meet in one prompt.",
+    "since": { "technicalDesign": "0.50", "characters": "0.16" }
+  },
+  "conversations": {
+    "_comment": "The conversation words, moved out of code with TD v0.50's retitling. Keyed by the game's kind (`capannello`, `colloquio`, `gathering`). `label`: block 5's {conversation_label}, where {in_place} is notaio.json's room.in_place (\" in the loggia\") or empty, {others} the others joined by \"and\", and a Colloquio's {utterance} of {cap}. `type`: the type label that block 6's lines carry (\"2nd round, early · group · …\"), and `with` the label naming who else was there. From TD 0.50 these are the in-world words; `game` holds the game's own names, which a game before TD 0.50 hears in their place, and which the record, the reports, and the recorder's prompts (10a–10d) keep.",
+    "label": {
+      "capannello": "a group{in_place} with {others}",
+      "colloquio": "a private Colloquio{in_place} with {other} (utterance {utterance} of {cap})",
+      "gathering": "the gathering"
+    },
+    "type": {
+      "capannello": "group",
+      "colloquio": "Colloquio",
+      "gathering": "The gathering"
+    },
+    "with": "{type} with {others}",
+    "game": {
+      "label": { "capannello": "a Capannello{in_place} with {others}" },
+      "type": { "capannello": "Capannello" }
+    }
   }
 }

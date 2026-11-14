@@ -5,9 +5,14 @@
 
 import { hasRole } from "../game/roster.ts";
 import { say } from "../setting/pack.ts";
-import { inWorldNames } from "./names.ts";
+import { conversationWords, inWorldNames } from "./names.ts";
 
 export interface PromptTemplates {
+  /**
+   * TD v0.50's Retitling, set by loadDocs: the words code fills say "France's payroll" and "group" (TD 0.50
+   * with Characters' payroll version). Absent before, where they say "pension" and "Capannello".
+   */
+  retitled?: true;
   frame: string;
   rulesPrimer: string;
   /**
@@ -84,7 +89,7 @@ export interface StateValues {
   dead: string[];
   florins: number;
   pensionsHeld: number;
-  /** French Embassy characters only. */
+  /** French Embassy characters only. `pensions`: the ledger's list, as payrollLedger words it. */
   embassyLedger?: { treasury: number; pensions: string; latest?: string };
   withdrawalCount: number;
   plotStatus?: string;
@@ -504,6 +509,8 @@ function rulesBlock(t: PromptTemplates, r: RulesValues): string {
     income: String(r.income),
     vote_price: String(r.vote_price),
     pension_size: String(r.pension_size),
+    // TD v0.50: {pension_size} became {payroll_payment}, filled from the same Mechanics row.
+    payroll_payment: String(r.pension_size),
     plot_protection_rule: r.plotProtection ? t.plotRule : "",
     plot_reward_rule: r.plotReward ? t.plotRule : "",
   }).trimEnd();
@@ -517,15 +524,17 @@ function stateBlock(t: PromptTemplates, s: StateValues): string {
   const filled = fill(template, {
     room,
     phase_label: s.phaseLabel,
-    conversation_label: conversationLabel(s.conversation, s.place),
+    conversation_label: conversationLabel(s.conversation, s.place, Boolean(t.retitled)),
     // TD v0.5: outside a conversation (Murder Round, ballot, run-off) no one is present.
     present_characters: s.conversation.kind === "gathering" && !s.present.length ? "no one; you decide alone" : s.present.join(", "),
     living_others: s.livingOthers.join(", "),
     dead_list: s.dead.length ? s.dead.join(", ") : "none",
     florins: String(s.florins),
     pensions_held: s.pensionsHeld ? String(s.pensionsHeld) : "none",
+    // TD v0.50: `no`, or `yes, 1 payment`.
+    payroll_status: s.pensionsHeld ? say("notaio", "payroll.status_yes", { payments: payments(s.pensionsHeld) }) : say("notaio", "payroll.status_no"),
     embassy_ledger: s.embassyLedger
-      ? say("notaio", "lines.embassy_ledger", { amount: s.embassyLedger.treasury, pensions: s.embassyLedger.pensions }) +
+      ? say("notaio", t.retitled ? "lines.embassy_ledger" : "lines.embassy_ledger_before_td50", { amount: s.embassyLedger.treasury, pensions: s.embassyLedger.pensions, ledger: s.embassyLedger.pensions }) +
         // TD v0.4 adds the most recent change; nothing has changed at a probe's start.
         (s.embassyLedger.latest ? say("notaio", "lines.embassy_ledger_latest", { latest: s.embassyLedger.latest }) : "")
       : "",
@@ -540,14 +549,31 @@ function stateBlock(t: PromptTemplates, s: StateValues): string {
     .join("\n");
 }
 
-/** TD v0.49: the place follows the conversation's kind ("a Capannello in the loggia with …"); "the gathering" has none. */
-function conversationLabel(c: StateValues["conversation"], place?: string): string {
-  if (c.kind === "gathering") return "the gathering";
-  const at = place ? say("notaio", "room.in_place", { place }) : "";
-  if (c.kind === "colloquio") {
-    return `a private Colloquio${at} with ${c.other} (utterance ${c.utterance} of ${c.cap})`;
-  }
-  return `a Capannello${at} with ${listJoin(c.others)}`;
+/**
+ * Block 5's {conversation_label}. TD v0.49: the place follows the conversation's kind ("a group in the
+ * loggia with …"); "the gathering" has none. TD v0.50: the words are the setting pack's (in-world-names.json),
+ * "group" when `retitled` and "Capannello" before.
+ */
+export function conversationLabel(c: StateValues["conversation"], place: string | undefined, retitled: boolean): string {
+  const t = conversationWords(retitled).label[c.kind];
+  if (c.kind === "gathering") return t;
+  const in_place = place ? say("notaio", "room.in_place", { place }) : "";
+  if (c.kind === "colloquio") return fill(t, { in_place, other: c.other, utterance: String(c.utterance), cap: String(c.cap) });
+  return fill(t, { in_place, others: listJoin(c.others) });
+}
+
+/** "1 payment", "2 payments" (TD v0.50). */
+const payments = (n: number) => (n === 1 ? say("notaio", "payroll.one") : say("notaio", "payroll.many", { count: n }));
+
+/**
+ * The Embassy ledger's list of who holds what, from [guest, payments] pairs: from TD v0.50 each guest on
+ * France's payroll with their payments ("Piero de' Medici, 1 payment"), in the setting pack's words; before,
+ * the pension ledger as it always read ("Lupo, Giorgia Pazzi (2)", or "none").
+ */
+export function payrollLedger(held: [string, number][], retitled: boolean): string {
+  const on = held.filter(([, n]) => n > 0);
+  if (!retitled) return on.map(([n, k]) => (k > 1 ? `${n} (${k})` : n)).join(", ") || "none";
+  return on.map(([holder, n]) => say("notaio", "payroll.entry", { holder, payments: payments(n) })).join(say("notaio", "payroll.between")) || say("notaio", "payroll.none");
 }
 
 function memoryBlock(t: PromptTemplates, ctx: CharacterContext): string {

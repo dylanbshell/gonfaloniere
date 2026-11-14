@@ -1,4 +1,5 @@
-// relationships.json against Characters v0.15 (CC-20261113-03, #93; v0.15 from CC-20261114-13, #136): the file is a transcription of the
+// relationships.json against Characters v0.16 (CC-20261113-03, #93; v0.15 from CC-20261114-13, #136; v0.16, whose Relationships section
+// is v0.15's word for word, from CC-20261114-16, #143): the file is a transcription of the
 // Characters doc's Shared Canon: Relationships (the Web of Secrets), so it is checked against the doc as
 // loaded: the public table's pairs, each character's row of their own connections, and every private line
 // word for word in that character's briefing.
@@ -9,9 +10,10 @@ import { charactersPath, docsFor } from "../probe.config.ts";
 import { relationshipTypes, relationships, settingPack } from "../src/setting/pack.ts";
 import { loadDocs, readDoc } from "../src/sources/docs.ts";
 
-const CHARACTERS = "0.15";
+const CHARACTERS = "0.16";
 const doc = readDoc(charactersPath(CHARACTERS));
-const briefings = loadDocs(docsFor("0.46", CHARACTERS)).briefings as Record<string, string>;
+// Characters v0.16 loads only with TD v0.50 or later (Retitling).
+const briefings = loadDocs(docsFor("0.50", CHARACTERS)).briefings as Record<string, string>;
 const rel = relationships();
 const roster = settingPack().roster.map((r) => r.name);
 const six = relationshipTypes();
@@ -44,7 +46,7 @@ test("every name is a roster name, and every type is one of the six", () => {
     }
 });
 
-test("public: the 14 pairs of Characters v0.15's table, with its types and lines, and no others", () => {
+test("public: the 14 pairs of Characters v0.16's table, with its types and lines, and no others", () => {
   const rows = table("### Public connections");
   assert.equal(rows.length, 14);
   assert.deepEqual(

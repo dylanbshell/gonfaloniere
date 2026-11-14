@@ -70,21 +70,32 @@ export const mechanicsPath = (version: string) => `docs/Gonfaloniere_Game_Mechan
 export const charactersPath = (version: string) => `docs/Gonfaloniere_Characters_v${version}.md`;
 
 /**
- * The Characters version a run loads from TD v0.34 on (PROBE_CHARACTERS overrides). Only the default:
- * the in-world names' minimum stays `since.characters` in the setting pack (v0.10), so a new
- * Characters version changes just this line (#73: v0.11, Isabella's Easter Mass; #136: v0.15, Friar Tommaso).
+ * The Characters version a run loads from TD v0.50 on (PROBE_CHARACTERS overrides). Only the default:
+ * the in-world names' minimum stays `since.characters` in the setting pack (v0.10), and the retitling's
+ * `retitling.since.characters` (v0.16), so a new Characters version changes just this line (#73: v0.11,
+ * Isabella's Easter Mass; #136: v0.15, Friar Tommaso; #143: v0.16, France's payroll). v0.16 is the payroll
+ * version; v0.17 and v0.18 change no briefing (lore glosses, the opening's check), so the pin stays v0.16.
  */
-export const DEFAULT_CHARACTERS = "0.15";
+export const DEFAULT_CHARACTERS = "0.16";
+
+/**
+ * The last Characters version before France's payroll (TD v0.50's Retitling): a run on TD v0.34–v0.49 loads
+ * it, since Characters v0.16 loads only with TD v0.50 or later.
+ */
+export const CHARACTERS_BEFORE_PAYROLL = "0.15";
 
 /**
  * The docs for one TD version. TD v0.34+ and Characters v0.10+ use in-world names and must be
- * loaded together (TD In-World Names; loadDocs refuses a mix), so Characters follows the TD:
- * DEFAULT_CHARACTERS from TD v0.34 on, v0.4 before, which every earlier game ran on.
+ * loaded together (TD In-World Names; loadDocs refuses a mix), and so must TD v0.50+ and Characters
+ * v0.16+ (Retitling), so Characters follows the TD: DEFAULT_CHARACTERS from TD v0.50 on,
+ * CHARACTERS_BEFORE_PAYROLL from v0.34, v0.4 before, which every earlier game ran on.
  * `characters` (a record's own version) or PROBE_CHARACTERS overrides.
  */
 export function docsFor(td: string, characters?: string) {
-  const since = inWorldNames().since;
-  characters ??= process.env.PROBE_CHARACTERS ?? (atLeast(td, since.technicalDesign) ? DEFAULT_CHARACTERS : "0.4");
+  const { since, retitling } = inWorldNames();
+  characters ??=
+    process.env.PROBE_CHARACTERS ??
+    (atLeast(td, retitling.since.technicalDesign) ? DEFAULT_CHARACTERS : atLeast(td, since.technicalDesign) ? CHARACTERS_BEFORE_PAYROLL : "0.4");
   return {
     technicalDesign: technicalDesignPath(td),
     characters: charactersPath(characters),
@@ -99,7 +110,7 @@ export function docsFor(td: string, characters?: string) {
 }
 
 export const config = {
-  docs: docsFor(process.env.PROBE_TD ?? "0.49"),
+  docs: docsFor(process.env.PROBE_TD ?? "0.50"),
 
   /** Same for every model; 0.7 until Technical Design sets a play value. */
   temperature: 0.7,

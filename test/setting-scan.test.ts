@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
+import { conversationWords } from "../src/prompt/names.ts";
 import { settingPack } from "../src/setting/pack.ts";
 
 /** Deliberate, with the reason. Keyed by file, then the word found. */
@@ -115,6 +116,22 @@ test("no roster name, faction name, place name, or currency word in a string lit
   assert.deepEqual(found, [], "setting text belongs in setting/, scenarios/, or docs/");
   // An allow-list entry that no longer matches anything should go.
   assert.deepEqual([...allowedSeen].sort(), Object.entries(ALLOWED).flatMap(([f, ws]) => Object.keys(ws).map((w) => `${f}|${w}`)).sort());
+});
+
+test("the conversation words that fill prompts live in the setting pack, not in code (TD v0.50, In-World Names, Retitling)", () => {
+  // Block 5's {conversation_label}, block 6's type labels, and the recorder's conversation labels: in-world-names.json's
+  // `conversations`, both sets. A plain lowercase word ("group") can't be told from prose, so the names are scanned.
+  const both = [conversationWords(true), conversationWords(false)];
+  const names = [...new Set(both.flatMap((w) => [...Object.values(w.type), w.label.gathering]))].filter((w) => /[A-Z ]/.test(w));
+  assert.deepEqual(names.sort(), ["Capannello", "Colloquio", "The gathering", "the gathering"]);
+  const re = new RegExp(`(?<![\\p{L}])(${names.join("|")})(?![\\p{L}])`, "u");
+  for (const x of ["a Capannello with", "a private Colloquio in", "The gathering"]) assert.match(x, re, x);
+  assert.doesNotMatch("None: every group is full.", re);
+  const found: string[] = [];
+  for (const f of ["src/prompt/assemble.ts", "src/prompt/names.ts", "src/minigame/memory.ts", "src/minigame/extract.ts", "src/minigame/isolation.ts"]) {
+    for (const lit of literals(readFileSync(f, "utf8"))) if (re.test(lit)) found.push(`${f}: ${JSON.stringify(lit.slice(0, 80))}`);
+  }
+  assert.deepEqual(found, []);
 });
 
 test("the scanner catches what it's for", () => {
