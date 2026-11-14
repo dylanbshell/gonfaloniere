@@ -11,6 +11,7 @@
 - **Il Notaio's reading is rebuilt around a guard** (Player Interface, The screen, Il Notaio's reading). Code chooses what he speaks of; the model only turns each chosen line into one sentence of reported speech; and code checks every word of that sentence. The model never sees the events, the background, the other lines' context, or who the player is asking about, so it has nothing to connect
 - **What the box holds:** a background paragraph that code writes from the public lines, the player's own lines, and public lore, then tonight in time order, a paragraph per stage. The events the player saw are their own History lines, placed by code. The model writes only the sentences for lines spoken
 - **The checks, word by word:** every unquoted word must be a name from that line, one of three verbs, or one of a handful of small words. Quotes must be whole clauses of that one line, copied exactly. A sentence that fails is replaced by code's plain version of the same line, never dropped silently
+- **Notes on what was said** *(Dylan, Nov 14)*: when a line names a public lore entry (the same match as the stream's lore links), code adds that entry's public gloss after the sentence. Each lore entry gets an optional `gloss`, a line or two of what every guest knew at the start, written by Lore and canon-checked by Characters (tracker handoff); until then, the entry's first two sentences. The model never sees them
 - **Past-stage summaries** use the same prompt and the same checks, written once when a stage ends and kept
 - **Failure cases** listed, with the check that stops each, for unit tests and a live golden set
 - **A flag** in the player's `state`: whether their errand can be finished by `/conclude`
@@ -2420,10 +2421,18 @@ The colours are theme tokens (`--rel-<type>`), different in lightness as well as
 **The design in one line:** code decides what Il Notaio speaks of; the model only puts each chosen line into reported speech; code checks every word the model adds. Interface's rule is that he "never connects, infers, hints, or advises". Each of those needs either a choice of what to put side by side, or words of his own. Code makes the choices, and the checks leave him almost no words of his own.
 
 **What the reading holds,** top to bottom:
-1. **Background** (code only, no model). For each selected guest: the public connection lines and the player's own connection lines that involve them (`relationships.json`), verbatim; then up to two **public** lore entries (`kind: lore`) whose text names them (full name or alias), each as its title and first sentence, with a link that opens the entry (Interface). Nothing else. Worked out once per selection and kept for the game, since none of it changes
+1. **Background** (code only, no model). For each selected guest: the public connection lines and the player's own connection lines that involve them (`relationships.json`), verbatim; then up to two **public** lore entries (`kind: lore`) whose text names them (full name or alias), each as its title and its gloss (below), with a link that opens the entry (Interface). Nothing else. Worked out once per selection and kept for the game, since none of it changes
 2. **Tonight,** oldest first, **one paragraph per stage**, each opening with the stage's in-world name ("In the second round of mingling:"). Into each paragraph, in the order they happened:
    - **The events the player saw** that involve the selection: payments the player was party to, Colloquio withdrawals and returns noted to them, deaths announced, and `/repent` broadcasts. **Each is shown as its own History line, word for word,** the way the character's memory holds it (History Line Formats). No model touches them
    - **The lines spoken,** each as one sentence from the model, checked (below)
+   - **A note on what was said** *(Dylan, Nov 14)*, after a line's sentence, when the line names something in public lore (below)
+
+**Notes on what was said** *(Dylan, Nov 14)*. Context the player could have had from the start, placed by code, never written by the model:
+- **The match:** a line's words contain the title or an alias of a **public** lore entry (`kind: lore`). It's the same match the stream uses for lore links: on the line's own words, never on what was in the speaker's prompt. Relationship entries (`kind: relationship`) never become notes
+- **The note:** the entry's title, then its **gloss**, as written, linking to the entry. **At most one note per line** (the first match in the line), and **each entry noted once** per reading or summary, at its first mention
+- **The gloss** is a new optional field on each lore entry, `gloss`: one or two sentences of what every guest knew of it at the start of the evening, worded for Il Notaio to read out. Lore writes them and Characters canon-checks them, like any entry (Lore v0.3, About; tracker handoff). **Until an entry has one,** its first two sentences stand in
+- **The model never sees a note,** and none of G1–G9 changes: code places the note after the sentence's slot, so nothing the model writes touches it (G8)
+- **What it rests on:** a note beside a line can still prompt the player's own thought ("she mentioned San Frediano, where a Frenchman was killed"), as the stream's lore links already do. It's safe because public lore holds only what every guest knew at the start, and Lore keeps back on purpose the facts that would widen a secret (Lore, Held Back). So a gloss is canon-checked against those secrets too
 
 **Which lines, chosen by code** (content-blind: no rule looks at what a line says):
 - **One guest selected:** lines that guest spoke in the player's presence. In a Colloquio with the player, each of their lines counts as addressed to the player. **A pair:** lines either spoke **to** the other, by the addressee field, in the player's presence. The player's own lines are never chosen; the player knows what they said
@@ -2512,7 +2521,7 @@ The colours are theme tokens (`--rel-<type>`), different in lightness as well as
 
 **The live golden set** (Models & Research may extend it). About 20 hand-made records, each built to tempt one of the cases above: the same word in two guests' lines, a guest contradicting themselves, emotional lines, long lines with a late negation, a line addressed to the notary, and **the plot-point facts F1–F4 split across two lines**, so that a connected reading would state a secret. For each, the reading must pass:
 - **No failed sentence reaches the screen** (the checks are what's under test, so every model sentence is re-checked from the record)
-- **No new fact:** block 10c's knowledge check, run on the rendered reading, must find no plot-point fact that it doesn't also find in a single line of the material. A fact the player heard said outright may be quoted; a fact that only two lines together imply must never appear
+- **No new fact:** block 10c's knowledge check, run on the rendered reading, must find no plot-point fact that it doesn't also find in a single line of the material or a single note. A fact the player heard said outright may be quoted; a fact that only two lines together imply must never appear
 - **The fallback rate** (sentences replaced by G9) is reported. A high rate means the prompt needs work, not the checks
 - It runs only when Dylan gives a spending stop for it, like any live check
 
@@ -2520,6 +2529,7 @@ The colours are theme tokens (`--rel-<type>`), different in lightness as well as
 - **Which lines,** content-blind: in that stage's conversations that the player was part of, every line addressed to the player, then the last two lines of each conversation, then the most recent of the rest, **up to 10.** Never the player's own lines
 - **Shown as bullets, grouped by conversation** in order, each group under its conversation line from code ("In the loggia with Giorgia Pazzi and Lupo"; before named places, the conversation label). Events the player saw in that stage go in as their own History lines, in order. No background
 - **Written once, when the stage ends,** in the background, so it's ready when the player opens the stage. Kept on the engine, so a refresh keeps it; in the full game record as a call (`source: "player screen"`); never in a prompt or a public replay
+- **Notes on what was said,** as in a reading: one per line at most, each entry once per summary
 - **A stage with no lines** gets no call, only its events, or a line saying the player heard nothing
 
 **When the reading is made:** on a new selection, once the Web of Secrets is open. **Cached** for that selection until a new chosen line or event enters its record. One call on the recorder model at temperature 0, about 400–900 input tokens. Background is cached for the whole game. **Gated to TD ≥ 0.51;** earlier games keep the old reading.
