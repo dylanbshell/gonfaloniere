@@ -1,8 +1,18 @@
 # Gonfaloniere
 ## Technical Design — Working Document
-### Version 0.49
+### Version 0.50
 
 ---
+
+## Changes in v0.50
+
+*Takes Technical Design's part of the Retitling for clarity handoff (Dylan, Nov 14; [🎭 Characters](https://claude.ai/chat/158a104c-fd3c-4623-bc93-51c97e0db04e) v0.15, Open Questions: Retitling; worded in [⚙️ Game Mechanics](https://claude.ai/chat/5a96e83c-edd9-4f47-83a9-256055042696) v0.36). Names a modern player knows. No rule changes; older changelog entries keep the old names.*
+
+- **"French pension" is now being on France's payroll.** The rules primer (block 2) explains France's payroll and payroll payments, the win condition says "on France's payroll", and midnight's line says the dead lose their place on it. Block 5's purse line reads `On France's payroll: {payroll_status}`, and the Embassy's ledger line lists who is on it. Blocks 9f and 9g ask who is on France's payroll. The placeholder `{pension_size}` is now `{payroll_payment}`
+- **"Capannello" is now a group.** Block 2 says "groups of 2–4 people", and the words code fills in (`{conversation_label}`, block 6's type label) say "group". "Colloquio" stays. The rest of this doc follows, outside the changelogs
+- **Friar Tommaso** (Characters v0.15) throughout, outside the changelogs
+- **How it ships** (In-World Names, Retitling, new): version-gated, with the words in the setting pack, and loaded only with the Characters version whose briefings say "payroll", so the two words never meet in one prompt
+- Il Notaio's name stays; its gloss is Interface's (v0.11). The player's words are Interface's too
 
 ## Changes in v0.49
 
@@ -561,7 +571,7 @@ Four layers. Each may use the layers below it, never the ones above:
 | Layer | What it is | Knows about | Folder |
 |---|---|---|---|
 | **1. Conversation core** | Agents talking in rooms. The speaking loop: `think()` for every listener, the next speaker by importance and decay, direct address, a two-person room's turn-taking, cap, and `done`. Per-agent memory: History, recent thoughts, the notebook with readings and beliefs, retrieval and the store, and isolation, so each prompt is built from one agent's own material. Model routing (play and recorder), call logging, output validation and repair as a framework, the game record and replay, and the human controller and its protocol (Player Interface) | Agents, rooms, lines, events, calls, labels it's given. **Nothing of factions, money, murder, or any setting** | `src/core/` |
-| **2. Rules module** | The game's rules as pure functions, with no model calls and no I/O: the state; which actions are legal for whom and when; applying them (money, bribes, pensions, the treasury); movement windows and seating; midnight; candidate selection; the ballot, vote buying, the run-off, and the lot; the logged errand checks; and win checks. Randomness comes from a seeded generator passed in, so the same seed gives the same result | Mechanics' rules and its Tunable Values, passed in as a config object. **No text:** it returns structured events (`{type: "payment", from, to, amount}`), never sentences | `src/rules/` |
+| **2. Rules module** | The game's rules as pure functions, with no model calls and no I/O: the state; which actions are legal for whom and when; applying them (money, bribes, France's payroll, the treasury); movement windows and seating; midnight; candidate selection; the ballot, vote buying, the run-off, and the lot; the logged errand checks; and win checks. Randomness comes from a seeded generator passed in, so the same seed gives the same result | Mechanics' rules and its Tunable Values, passed in as a config object. **No text:** it returns structured events (`{type: "payment", from, to, amount}`), never sentences | `src/rules/` |
 | **3. The game** (Gonfaloniere) | Plugs the rules into the core. It runs the evening's phases (councils, mingling rounds, midnight, selection, speeches, the ballot), maps each phase to rooms and calls, and assembles prompts from this doc's blocks. It turns rules events into lines through the setting pack's templates, and supplies the label set, the extraction passes' definitions, and the plot-point facts. The mini-game is this layer with a smaller schedule and cast, not a separate engine | All of the above | `src/games/gonfaloniere/` |
 | **4. Content** | The docs and the setting folder (The Setting Pack) | — | `docs/`, `setting/` |
 
@@ -580,7 +590,7 @@ What the core gives back: rooms, membership, and who hears what; the speaking or
 
 **Kept honest by tests:**
 - **A dependency test,** like the setting scanner: `src/core/` imports nothing from `src/rules/`, `src/games/`, or `setting/`, and `src/rules/` imports nothing but its own files. The core also passes the setting scanner with no allow-list entries
-- **Rules tests from Mechanics' examples:** each worked example in Mechanics (midnight's guard and watch counts, a tied ballot, vote buying, a pension in the winning family) becomes a table test of the rules module
+- **Rules tests from Mechanics' examples:** each worked example in Mechanics (midnight's guard and watch counts, a tied ballot, vote buying, a relative on France's payroll in the winning family) becomes a table test of the rules module
 - **Replay:** while code moves into the layers, every saved game that replays exactly today must still replay byte-identical. That's the guard against a move changing behaviour
 
 **Order of work:**
@@ -602,7 +612,7 @@ Owns what happens within conversations. Responsible for:
 - Running `think()` after every utterance for all characters present
 - Determining speaking order from importance scores
 - Applying the decay rule to consecutive speakers
-- Running `detectDesignation()` to enforce direct-address obligations in Capannelli
+- Running `detectDesignation()` to enforce direct-address obligations in groups
 - Watching for a Colloquio "done" signal and enforcing the Colloquio utterance cap
 - Counting global utterances and triggering end-of-turn processing when the threshold is reached
 
@@ -613,9 +623,9 @@ Owns the structure of conversations. Responsible for:
 - Tracking where every character is at all times
 - Administering the movement rotation and **running the movement call** for the character whose window has arrived
 - Resolving movement collisions (see Movement Implementation)
-- Randomly initializing Capannello groups at the start of each Capannello phase
-- **Seating guests** when a Colloquio ends or a Capannello is left with one guest, including the seat call (see Movement Implementation, Seating)
-- Distributing per-round income, maintaining the Embassy treasury and pension ledger, and processing /borrow, /repay, /bribe, and vote purchases
+- Randomly forming the groups at the start of each round of mingling
+- **Seating guests** when a Colloquio ends or a group is left with one guest, including the seat call (see Movement Implementation, Seating)
+- Distributing per-round income, maintaining the Embassy treasury and payroll ledger, and processing /borrow, /repay, /bribe, and vote purchases
 - Collecting and resolving Murder Round acts, ballots, run-offs, and any draw by lot
 - **Validating actions** returned by any character call (see Output Validation & Repair). Invalid actions are rejected and the character is told privately on their next call
 - Writing **action lines** into History (see History Line Formats)
@@ -640,7 +650,7 @@ Runs for every character present after every utterance. Outputs:
 - **Took** *(v0.9; target named in v0.10)*: how the character takes the line just said, which the prompt names: `promise`, `deal`, `threat`, `admission`, `claim`, `denial`, `insult` (v0.12), `pressure` (v0.16), or `none`. If they said it themselves, it's what they meant by it. Code turns it into a **reading** (see The perceived notebook). Ignored in `notebook: shared`, but still logged for research
 - **Words** *(v0.11; cap 20 since v0.13)*: when `took` isn't `none`, the few words of that line (at most 20) that made the character take it so. They become the reading's quote
 - **Importance score (0–100):** how urgently this character wants to speak. Used by the Orchestrator for speaking order, and by the Stage Manager for collisions
-- **Done signal (Colloquio only):** whether the character wants to end the Colloquio. If either character sends it, the other gets one closing line and the Colloquio ends. Not asked for in a Capannello, and ignored by code if returned there
+- **Done signal (Colloquio only):** whether the character wants to end the Colloquio. If either character sends it, the other gets one closing line and the Colloquio ends. Not asked for in a group, and ignored by code if returned there
 - **Closing think** *(v0.9)*: after a Colloquio's last line (the closing line, or the line that reaches the cap), both guests run `think()` once more before the Colloquio closes. Its thought and `took` are kept; importance and `done` are ignored. Without it, nobody reacts to the line where a private deal is most often sealed. Cost: two `think()` calls per Colloquio When the character spoke the closing line themselves, the closing think labels nothing new, but it's kept for the closing thought (v0.14)
 
 The `think()` prompt also asks each character to consider how their own recent behavior (especially frequent private withdrawals) looks to others. This is the second of two social-awareness touchpoints; the first is in the character briefing.
@@ -650,7 +660,7 @@ The `think()` prompt also asks each character to consider how their own recent b
 Produces a character's actual utterance. Returns:
 
 - **Utterance:** what the character says aloud
-- **Addressee (Capannello only):** the one character present who is being put on the spot with a direct question or demand, or none. Feeds `detectDesignation()`. Not asked for in a Colloquio
+- **Addressee (group only):** the one character present who is being put on the spot with a direct question or demand, or none. Feeds `detectDesignation()`. Not asked for in a Colloquio
 - **Action (optional):** one of the actions the character is currently allowed (/bribe in a Colloquio, /borrow, /repay). The Stage Manager validates it and writes the action line
 - **Meant and words** *(v0.13)*: the speaker's own label for their line, in the same words as `took`, plus the words of the line that carry it. Code stores it as the speaker's own reading (see The perceived notebook)
 
@@ -662,14 +672,14 @@ Runs once per turn, for the character whose movement window has arrived. Outputs
 
 - **Thought**
 - **Contact list:** every other living character rated 0–100 for how much this character wants to speak with them, with a short purpose for the top three. Kept for the dashboard, for research (who wants whom over the evening), and as a fallback target
-- **Choice:** stay, join (switch Capannelli toward a person), or Colloquio (call a person aside)
+- **Choice:** stay, join (switch groups toward a person), or Colloquio (call a person aside)
 - **Target:** the person to move toward or call aside
 
 If the character is in a Colloquio when their window arrives, the window counts as **stay** and no call runs.
 
 ### Seat call *(v0.23)*
 
-Runs when a guest needs a seat outside their movement window (see Movement Implementation, Seating): a guest left alone in a Capannello, or the invitee when a Colloquio ends. It never uses a movement window. Outputs:
+Runs when a guest needs a seat outside their movement window (see Movement Implementation, Seating): a guest left alone in a group, or the invitee when a Colloquio ends. It never uses a movement window. Outputs:
 
 - **Thought**
 - **Choice** (invitee only): join a group with room, call a free Colloquio, or, only when no group has room, wait
@@ -679,7 +689,7 @@ Prompt: block 9h. Retrieval uses the movement call's query.
 
 ### detectDesignation()
 
-Checks whether the last utterance directly addressed a specific character. If so, that character speaks next regardless of importance score. Capannelli only.
+Checks whether the last utterance directly addressed a specific character. If so, that character speaks next regardless of importance score. Groups only.
 
 - **No model call.** It reads the `addressee` field from `speak()`'s output, then code matches the name to a character present (see Output Validation & Repair). Anything else is treated as no addressee
 - Subject to the **ping-pong guard** (see Speaking Order & Decay Rule)
@@ -702,7 +712,7 @@ At the end of every turn, the turn's events are written into each character's lo
 - One call per character after each faction meeting, plus one at any genuinely strategy-altering event
 - The new plan replaces the strategy section (block 4)
 - Not regenerated every turn
-- **Strategy-altering events (starting list):** surviving a kill attempt; a Murder Round death in one's own faction; one's own French pension revealed by someone else; candidate selection; a /repent broadcast. Refine in testing
+- **Strategy-altering events (starting list):** surviving a kill attempt; a Murder Round death in one's own faction; one's own place on France's payroll revealed by someone else; candidate selection; a /repent broadcast. Refine in testing
 
 ### Murder Round
 
@@ -715,7 +725,7 @@ At the end of every turn, the turn's events are written into each character's lo
 
 ### Voting
 
-- **Ballot:** each living character makes one call (block 9f): given the speeches, any repentance, their pensions, and their purse, they name who they vote for and how many votes they buy. All of a character's votes, cast and bought, go to that one guest (Mechanics, The Election)
+- **Ballot:** each living character makes one call (block 9f): given the speeches, any repentance, who they know is on France's payroll, and their purse, they name who they vote for and how many votes they buy. All of a character's votes, cast and bought, go to that one guest (Mechanics, The Election)
 - No separate strategy step precedes it
 - **Tally in code.** Most votes wins
 - **Run-off:** if the top guests tie, Il Notaio announces the tie, and every living character makes one run-off call (block 9g): one fresh vote among the tied guests only, no buying
@@ -736,12 +746,12 @@ Every character call returns raw JSON. Code checks and repairs it before use, so
 | **Names** | Match each name to the roster: exact name, then the alias table, then a near-miss (one unique roster name within edit distance 2). No unique match = invalid name |
 | **Scores** | Importance and urgency rounded to integers and clamped to 0–100 |
 | **`done`** | Used only in a Colloquio; ignored anywhere else |
-| **Addressee** | Used only in a Capannello. Must match a character present other than the speaker; otherwise treated as null. Ignored in a Colloquio |
+| **Addressee** | Used only in a group. Must match a character present other than the speaker; otherwise treated as null. Ignored in a Colloquio |
 | **Contacts** | Self, dead, and unmatched names dropped; duplicates keep the higher urgency; **missing living guests filled with urgency 0**; **purposes kept only for the three highest-urgency contacts** (others set to null, logged as a warning) |
 | **Targets and actions** | Must be legal under mechanics at that moment (target alive, not self where barred, enough Florins, right conversation type, right faction). Illegal → rejected; the character hears why on their next call through `{action_feedback}` |
 | **Murder Round acts** | Act types are matched in-world or by game name since v0.34: `watch` and `investigate` both mean Investigate. Everyone except Lupo: one `act` object. Lupo: a `kills` list of one or two names. **All of a character's acts name different living guests** (Mechanics v0.24, Lupo's kills included). No self-guard, in any act. `extra` used only if the Plot Reward was earned, otherwise ignored. If a non-Lupo answer returns a list instead of one `act` (or Lupo returns more than two kills), keep the first and log it as a repair. A remaining illegal act triggers the retry; if still illegal, that act is dropped |
 | **Plan length** | A 9d `plan` over 150 words is cut at the last sentence end before word 150 (or at word 150 if there's none), and logged as a repair |
-| **Seat** (9h, v0.23) | Lone form: `target` must be in an open Capannello other than the guest's own. Invitee form: `join` needs a guest in an open Capannello; `colloquio` needs a living guest who isn't in a Colloquio; `wait` is valid only when no Capannello has room. Parse failures and missing fields retry as usual. **An invalid choice or target uses the default at once,** logged as a repair, with no retry |
+| **Seat** (9h, v0.23) | Lone form: `target` must be in an open group other than the guest's own. Invitee form: `join` needs a guest in an open group; `colloquio` needs a living guest who isn't in a Colloquio; `wait` is valid only when no group has room. Parse failures and missing fields retry as usual. **An invalid choice or target uses the default at once,** logged as a repair, with no retry |
 | **Votes** | Ballot target must be a living guest; `buy` clamped to 0–`{max_buy}`. Run-off target must be one of the tied guests |
 | **Memory entries** (10a, 10d) | `line` must be a spoken line from this turn; `context` IDs must exist (this turn or the context lines). **Speaker check:** the model's `speaker` must match the speaker of `line` (through the alias table), or the entry is dropped ("speaker mismatch"). **Quote check:** the `quote` must appear in `line` itself (not only in context), word for word after normalizing spaces, quote marks, and case, or the entry is dropped. **Verb check:** the `summary` must begin with the speaker's name (any alias) followed by a verb allowed for the type (table below), or the entry is dropped ("type/summary mismatch"), since the model's own words then disagree with its label. **`toward`** (10a only): if it equals the speaker, it's set to null and logged; for a deal it must be the other party (the speaker of a context line, or the other name in a cited payment line). 10d has no `toward` since v0.7; one returned there is ignored and logged. Unknown types are dropped. Turn, conversation, and audience are filled in by code. The rest of the call is kept |
 | **Sweep** (10a) | Checked against `{sweep_ids}`: each listed line should appear exactly once, with `self` and `kinds`. **One re-ask covers both gaps:** listed lines the sweep left out, and lines flagged with a kind but no matching entry ("You left out L58; you flagged L57 as a threat but wrote no entry for it"). An entry whose kind the sweep didn't flag is kept and logged. Lines with `self: true` and no admission entry are counted ("self, no admission"), not re-asked, since most are denials or harmless remarks; the count shows whether the self question is doing its job. All counts are reported for gate 8 |
@@ -777,8 +787,8 @@ Every character call returns raw JSON. Code checks and repairs it before use, so
 | Knowledge check | *None*, flagged for hand review |
 | Ballot | One vote for the voter's own faction's candidate if any, otherwise a blank ballot; buy none |
 | Run-off | One vote for a tied guest from the voter's own faction if any, otherwise a blank ballot |
-| Seat, lone guest | The open Capannello with the fewest guests, ties to the fewest of their own faction, then at random (Mechanics' "smallest open one") |
-| Seat, invitee | Placed as an initiator would be (Seating, step 3), or seatless if no Capannello has room |
+| Seat, lone guest | The open group with the fewest guests, ties to the fewest of their own faction, then at random (Mechanics' "smallest open one") |
+| Seat, invitee | Placed as an initiator would be (Seating, step 3), or seatless if no group has room |
 
 **Movement target fallback:** if the target is invalid but the choice is join or Colloquio, use the highest-urgency valid contact; if there is none, stay. **A `join` toward someone already in the character's own group** becomes `stay`, logged as "join to own group" (v0.20). The window is used, as for any stay, and it isn't a repair, since the reply was valid. A `colloquio` with a member of one's own group is a real move and stands.
 
@@ -872,7 +882,7 @@ Every character call is built from the same blocks in the same order, **most sta
 | 2 | **Rules primer:** the evening as the characters know it | Never (per run config) | ~650 |
 | 3 | **Briefing** (from Characters), voice examples included | Never | ≤ ~1,150 (v0.34; ~1,000 before) |
 | 4 | **Strategy section** | At checkpoints | ~150 |
-| 5 | **State:** phase, where you are, who's present, purse, pensions, allowed actions | Every call | ~150 |
+| 5 | **State:** phase, where you are, who's present, purse, France's payroll, allowed actions | Every call | ~150 |
 | 6 | **Long-term memory:** retrieved bullets, high-salience marked | Every utterance | ~490 (v0.36, time labels included; ~450 from v0.10; ~300 before) |
 | 7 | **Recent private thoughts** (shortTermHistory) | Every utterance | ~200 |
 | 8 | **The conversation so far** (History) | Every utterance | ~400 |
@@ -894,10 +904,10 @@ Every line in block 8 is one of four kinds. All non-speech lines are written by 
 | **Speech** | `Name: words`, or `Name (to Addressee): words` when a designation was honored | Everyone present |
 | **Il Notaio** | `[Il Notaio] words` | Witnesses of a social event; every living character for a broadcast |
 | **Witnessed action** | `[Contessa Isabella gave Lupo 3 Florins.]` | Everyone present. A bribe happens only in a Colloquio, so that means both participants |
-| **Private action** | `[You accepted a French pension of 3 Florins. Your purse: 13 Florins.]` / `[You renounced the French pension held by Raffaello de' Medici: 3 Florins returned to the Embassy.]` | **The actor only.** /borrow and /repay are private (Mechanics), so no one present sees them |
+| **Private action** | `[You took a payroll payment of 3 Florins from the French Embassy; you are on France's payroll. Your purse: 13 Florins.]` / `[You paid back a payroll payment for Raffaello de' Medici: 3 Florins returned to the Embassy.]` (v0.50; before, "You accepted a French pension…" and "You renounced the French pension held by…") | **The actor only.** /borrow and /repay are private (Mechanics), so no one present sees them |
 
 - An action line goes **directly after the speech line it came with**, so a bribe reads as part of what was said
-- **French Embassy characters learn of pensions through the ledger** in their State block (`{embassy_ledger}`), not through History, since they didn't witness the transaction. The ledger line lists the most recent change first
+- **French Embassy characters learn of payroll payments through the ledger** in their State block (`{embassy_ledger}`), not through History, since they didn't witness the transaction. The ledger line lists the most recent change first
 - Rejected actions don't appear in History; the actor hears about them through `{action_feedback}` in State
 - The probe harness already writes bribes in this format, so probe and engine transcripts match
 
@@ -916,10 +926,27 @@ Every line in block 8 is one of four kinds. All non-speech lines are written by 
 | KILL / GUARD / INVESTIGATE | **kill / guard / watch**, lowercase. Block 9e's JSON takes `"watch"`; code maps it to Investigate, and accepts `"investigate"` as an alias without a repair |
 | Capannello round N, turn T | "the {first/second/third} round of mingling, {early/midway/late}", the part by thirds of the round's turns. In block 6 the short form "2nd round, early"; during a council, "the Medici council"; at midnight, "midnight"; during the speeches, "the speeches". **Before the first council** (v0.36): "arrival" in block 6, "The guests' arrival" in block 5 |
 
-- **Kept as they are,** since they're already in-world: Capannello, Colloquio, Il Notaio, Florins, French pension, the ballot, the run-off, the speeches, repentance
+- **Kept as they are,** since they're already in-world: Colloquio, Il Notaio, Florins, the ballot, the run-off, the speeches, repentance. **Retitled in v0.50** (Mechanics v0.36): "Capannello" became a group, and a "French pension" became a payroll payment that puts a guest on France's payroll
 - **Setting pack:** these names are content, not code. They belong in the setting pack with the roster and vocabulary (The Setting Pack), so a reskin renames them in one file
 - **Switch together:** the briefings use the same names (Characters handoff). The engine loads TD v0.34 or later only with a Characters version that does, and version-gates the old names so earlier games replay byte-identical
 - **Untested:** the wording of blocks 2, 5, 6, and 9e changes, so Models & Research runs a small check (Open Questions)
+
+### Retitling *(v0.50; Mechanics v0.36)*
+
+*Dylan, Nov 14: names a modern player knows. No rule changes.*
+
+| Was | Now | Where it reaches a character |
+|---|---|---|
+| a French pension | a **payroll payment**, which puts a guest **on France's payroll** | Block 2, block 5 (`{payroll_status}`, `{embassy_ledger}`), blocks 9f and 9g, the allowed actions (`actions.json`), the private action and ledger lines (`notaio.json`), and the briefings (Characters) |
+| a Capannello | a **group** | Block 2, `{conversation_label}`, block 6's type label |
+| Fra Tommaso | **Friar Tommaso** | The roster and briefings (Characters v0.15; #136) |
+
+- **Doc text** (the blocks above) changes with this version, so a game pinned to v0.49 or earlier loads its own words
+- **Words code fills** change only from TD 0.50, so older games replay byte-identical. The setting pack holds both wordings, the old for TD < 0.50 and the new from 0.50, as a version-gated template change (The Setting Pack). That covers `actions.json`'s `/borrow` and `/repay` lines, `notaio.json`'s payroll and ledger lines, `{payroll_status}`, and the conversation words
+- **The conversation words move out of code** into `in-world-names.json` while they change: "group" (and "Capannello" before 0.50), "Colloquio", and "the gathering" (Open Questions, Setting text still in code)
+- **`{payroll_payment}`** replaces `{pension_size}` in v0.50's prompts. Both are filled from Mechanics' Payroll payment row (formerly Pension size; #139)
+- **Loaded with Characters' payroll version.** TD 0.50 needs the first Characters version whose briefings say "payroll" (Characters switches them for this, expected v0.16), and that Characters version needs TD 0.50. The loader refuses a mix, as for the in-world names, so a prompt never says "pension" in one block and "payroll" in another
+- **Code names may stay** (`pension_size`, `capannello`, `/borrow`, `/repay`): only words that reach a prompt, a record's text, or the screen change. The player's words are Interface's (`player.json`)
 
 ## The Setting Pack *(new in v0.38)*
 
@@ -941,9 +968,9 @@ Every line in block 8 is one of four kinds. All non-speech lines are written by 
 
 | File | Holds | Today in |
 |---|---|---|
-| `setting.json` | The setting's name; the currency, singular and plural ("Florin", "Florins"); the factions, each with its colour and its roles (which may take a pension, which keeps the treasury, which can't take one); the roster, each with full name, aliases, faction, and public subtitle ("Pazzi · the family bodyguard"); the playable characters; the mini-game cast; the named places, in order (v0.49) | `src/game/roster.ts`, `src/minigame/cast.ts`, faction tests in `src/game/actions.ts` |
+| `setting.json` | The setting's name; the currency, singular and plural ("Florin", "Florins"); the factions, each with its colour and its roles (which may go on France's payroll, which keeps the treasury, which can't); the roster, each with full name, aliases, faction, and public subtitle ("Pazzi · the family bodyguard"); the playable characters; the mini-game cast; the named places, in order (v0.49) | `src/game/roster.ts`, `src/minigame/cast.ts`, faction tests in `src/game/actions.ts` |
 | `in-world-names.json` | The in-world names table (In-World Names) | `scenarios/in-world-names.json` |
-| `notaio.json` | Il Notaio's notes, as templates: join, return, rejoin, a new group, the attendance note. Then code's private and action lines: a payment, a pension taken, renounced, or refused. For the player (v1): orientation notes and corrections | Strings in `src/minigame/engine.ts` |
+| `notaio.json` | Il Notaio's notes, as templates: join, return, rejoin, a new group, the attendance note. Then code's private and action lines: a payment, a payroll payment taken, paid back, or refused. For the player (v1): orientation notes and corrections | Strings in `src/minigame/engine.ts` |
 | `actions.json` | How each action is described to a character in its allowed-actions list (block 9), as templates | Strings in `src/game/actions.ts` |
 | `player.json` | The player screen's words: labels, command names and hints, example lines, refusal reasons, hover explanations, deck titles | New (Player Interface) |
 | `relationships.json` *(v0.40)* | The relationship types (v0.44: the six in Player Interface, The Web of Secrets, each with its label) and the web's fixed lines: the public connections between guests (type and one public line each), and each character's own connections from their briefing, marked private to them | New. Content from Characters (tracker handoff) |
@@ -983,19 +1010,19 @@ Tonight the city's factions — the Medici, the Pazzi, the Dominicans, and the F
 
 How the evening ends (checked in this order the moment the vote is announced):
 1. The Dominicans win if the elected candidate has publicly repented.
-2. Otherwise, the French Embassy wins if anyone in the winner's family holds a French pension, as long as one member of the Embassy still lives.
+2. Otherwise, the French Embassy wins if anyone in the winner's family is on France's payroll, as long as one member of the Embassy still lives.
 3. Otherwise, the elected candidate's family (Medici or Pazzi) wins.
 A faction must have at least one living member to win.
 
 The order of the evening: three rounds of mingling, each opened by a council of your own faction. Then midnight. Then the Medici and Pazzi each choose a candidate, the candidates give speeches, every faction holds one last council, and a secret ballot is held.
 
-Conversations: guests talk in small groups (a Capannello, 2–4 people) or slip away for a private word (a Colloquio, two people only, no one may join). Il Notaio, the evening's notary, records who joins, who leaves, and who withdraws privately, and everyone present hears his notes. Slipping away often invites suspicion.
+Conversations: guests talk in groups of 2–4 people or slip away for a private word (a Colloquio, two people only, no one may join). Il Notaio, the evening's notary, records who joins, who leaves, and who withdraws privately, and everyone present hears his notes. Slipping away often invites suspicion.
 
 Money: everyone begins with {starting_florins} Florins and receives {income} more each round. A bribe is Florins handed over in a private Colloquio; anything promised in return is a matter of honor, not law. At the ballot, every living guest casts one vote and may buy extra votes for the same guest at {vote_price} Florins each. If the top guests tie, everyone votes once more among only those guests, with no buying; if that ties too, the winner is drawn by lot.
 
-French pensions: any Medici or Pazzi may accept a pension of {pension_size} Florins from the French Embassy at any time. A pension puts its holder on France's payroll. It can be renounced before the ballot by paying {pension_size} Florins back — by the holder, or by a relative who knows of it. Pensions are private; only the Embassy keeps the full ledger.
+France's payroll: any Medici or Pazzi may take a payroll payment of {payroll_payment} Florins from the French Embassy at any time, which puts them on France's payroll. Each payment can be paid back before the ballot, {payroll_payment} Florins at a time, by the one who took it or by a relative who knows of it; with every payment paid back, they're off the payroll. The payroll is private; only the Embassy keeps the full ledger.
 
-Midnight: each living guest secretly chooses one act: to kill, guard, or watch someone. All acts take effect at once, so a guest who dies at midnight still carries out their own act. A guest guarded by two or more survives an attack. A guest watched by two or more cannot carry out their kill. You cannot guard yourself. Killers are never named. The dead lose their Florins and pensions; nothing is inherited.
+Midnight: each living guest secretly chooses one act: to kill, guard, or watch someone. All acts take effect at once, so a guest who dies at midnight still carries out their own act. A guest guarded by two or more survives an attack. A guest watched by two or more cannot carry out their kill. You cannot guard yourself. Killers are never named. The dead lose their Florins and their place on France's payroll; nothing is inherited.
 {plot_reward_rule}
 
 Repentance: during the speeches only, a candidate may publicly repent. It is permanent and turns them to the Dominicans' cause: if they are elected, the Dominicans win.
@@ -1039,7 +1066,7 @@ Present: {present_characters}
 All living guests besides you: {living_others}
 Around the room: {room}
 The dead: {dead_list}
-Your purse: {florins} Florins. French pensions you hold: {pensions_held}.
+Your purse: {florins} Florins. On France's payroll: {payroll_status}.
 {embassy_ledger}
 You have withdrawn into a private Colloquio {withdrawal_count} time(s) tonight.
 {plot_status}
@@ -1047,13 +1074,14 @@ You have withdrawn into a private Colloquio {withdrawal_count} time(s) tonight.
 ```
 
 - `{living_others}`: **every living character except this one, including those present**
-- `{room}` *(v0.45; Mechanics v0.32, Everyone Sees the Room)*: where every other living guest is right now. Every other group, then every Colloquio, in a fixed order (by the first member's roster order), e.g. `Giorgia Pazzi, Raffaello de' Medici and Captain Armand LeNoir together; Fra Tommaso and Sister Beatrice in private.` The character's own conversation isn't repeated, since "Present" says it. **The whole line is left out** during councils and for calls outside a conversation (midnight, the ballot, the run-off), and before TD v0.45. About 40–90 tokens in a full game. The word "in private" and the joining words come from the setting pack
-  - **With named places** *(v0.49; Mechanics v0.35, Named Places)*: told place by place. Every other **occupied** place, in the setting pack's order, as `{place}: {guests}`, with `, in private` after a Colloquio's pair, joined by `; `. E.g. `the great hall: Giorgia Pazzi, Raffaello de' Medici and Captain Armand LeNoir; the window bay: Fra Tommaso and Sister Beatrice, in private.` The character's own place isn't repeated, since `{conversation_label}` gives it. About 50–110 tokens in a full game
+- `{room}` *(v0.45; Mechanics v0.32, Everyone Sees the Room)*: where every other living guest is right now. Every other group, then every Colloquio, in a fixed order (by the first member's roster order), e.g. `Giorgia Pazzi, Raffaello de' Medici and Captain Armand LeNoir together; Friar Tommaso and Sister Beatrice in private.` The character's own conversation isn't repeated, since "Present" says it. **The whole line is left out** during councils and for calls outside a conversation (midnight, the ballot, the run-off), and before TD v0.45. About 40–90 tokens in a full game. The word "in private" and the joining words come from the setting pack
+  - **With named places** *(v0.49; Mechanics v0.35, Named Places)*: told place by place. Every other **occupied** place, in the setting pack's order, as `{place}: {guests}`, with `, in private` after a Colloquio's pair, joined by `; `. E.g. `the great hall: Giorgia Pazzi, Raffaello de' Medici and Captain Armand LeNoir; the window bay: Friar Tommaso and Sister Beatrice, in private.` The character's own place isn't repeated, since `{conversation_label}` gives it. About 50–110 tokens in a full game
   - **Empty places aren't listed** for the AI guests. No choice turns on them, since guests move toward people and a Colloquio's place is drawn at random, and naming free places invites a guest to propose meeting in one, which the draw would then contradict. The places' names are public lore (Lore, The palazzo), so nothing is hidden
 - `{phase_label}` *(in-world since v0.34; see In-World Names)* e.g. "The guests' arrival" (v0.36), "The second round of mingling, early", "The third Medici council", "Midnight", "The speeches", "The ballot", "The run-off". Before v0.34: "Capannello round 2, turn 4", "Faction meeting 3 (Medici)", "The Murder Round"
-- `{conversation_label}` e.g. "a Capannello with Piero de' Medici and Lupo" or "a private Colloquio with Jeanne d'Orléans (utterance 3 of 6)". For calls outside a conversation (midnight, ballot, run-off): "the gathering". **With named places** *(v0.49)*, the place follows the conversation's kind: "a Capannello in the loggia with Piero de' Medici and Lupo", "a private Colloquio in the study with Jeanne d'Orléans (utterance 3 of 6)", and a council's label the same way. "The gathering" has no place
+- `{conversation_label}` e.g. "a group with Piero de' Medici and Lupo" ("a Capannello with …" before v0.50) or "a private Colloquio with Jeanne d'Orléans (utterance 3 of 6)". For calls outside a conversation (midnight, ballot, run-off): "the gathering". **With named places** *(v0.49)*, the place follows the conversation's kind: "a group in the loggia with Piero de' Medici and Lupo", "a private Colloquio in the study with Jeanne d'Orléans (utterance 3 of 6)", and a council's label the same way. "The gathering" has no place
 - `{present_characters}`: the other characters in this conversation. **For calls outside a conversation** (midnight, ballot, run-off): `no one; you decide alone` (v0.5; the S8–S10 probes listed everyone living, which suggested an audience that doesn't exist). Targets for those calls come from "All living guests besides you"
-- `{embassy_ledger}`: French Embassy characters only — "Embassy treasury: {n} Florins. Pensions held: {ledger}. Latest: {most_recent_change}." Empty for everyone else
+- `{embassy_ledger}`: French Embassy characters only — "Embassy treasury: {n} Florins. Pensions held: {ledger}. Latest: {most_recent_change}." Empty for everyone else. **From v0.50:** "Embassy treasury: {n} Florins. On France's payroll: {ledger}. Latest: {most_recent_change}.", where `{ledger}` lists each guest on it with their payments ("Piero de' Medici, 1 payment"), and the latest change reads "{actor} took a payroll payment" or "a payroll payment of {holder}'s was paid back"
+- `{payroll_status}` *(v0.50; `{pensions_held}` before)*: `no`, or `yes, 1 payment` / `yes, 2 payments`. Dominicans and the French, who can't take one, always read `no`
 - `{plot_status}`: empty if `plot_reward` is off or before the plot check runs; then "You finished your errand in time: you have one extra act at midnight. No one else knows." or "You did not finish your errand in time; you have no extra act at midnight." (v0.34; before: "the Plot Reward", "plot point", "the Murder Round")
 - `{action_feedback}`: empty unless the character's last action was rejected, e.g. "Your attempt to give 6 Florins failed: you hold only 4."
 
@@ -1102,7 +1130,7 @@ In a **Colloquio**:
 - `{done_instruction}`: `5. done — true if you have what you came for, or nothing more is to be gained here; otherwise false.`
 - `{think_schema}`: `{"thought": "...", "took": "none", "words": null, "importance": 0, "done": false}`
 
-In a **Capannello**:
+In a **group**:
 - `{done_instruction}`: empty
 - `{think_schema}`: `{"thought": "...", "took": "none", "words": null, "importance": 0}`
 
@@ -1151,7 +1179,7 @@ Reply with only this JSON:
 {speak_schema}
 ```
 
-In a **Capannello**:
+In a **group**:
 - `{addressee_instruction}`:
   ```
   addressee — name one person present only if your line puts a direct question or demand to them that they must answer before anyone else speaks. Speaking to someone, speaking about someone, or using their name is not enough. Most lines have no addressee: use null unless you are truly putting one person on the spot. Use their name exactly as written in "Present".
@@ -1175,8 +1203,8 @@ Other placeholders:
 - `{closing_line_note}`: empty normally; "{other} is ending this private conversation. This is your last line here." or "This private conversation must end now. This is your last line here." at the cap
 - `{allowed_actions}` is generated by code from mechanics so a character only sees what they may legally do:
   - In a Colloquio, with Florins: `{"type": "bribe", "amount": N} — hand {other} N Florins (you have {florins})`
-  - Medici and Pazzi, while the treasury has a pension: `{"type": "borrow"} — accept one French pension of {pension_size} Florins`
-  - Anyone with ≥ {pension_size} Florins, until the ballot: `{"type": "repay", "for": "Name"} — renounce one French pension held by yourself or a relative who has told you of it`
+  - Medici and Pazzi, while the treasury holds a payment: `{"type": "borrow"} — take one payroll payment of {payroll_payment} Florins from the French Embassy, which puts you on France's payroll` *(v0.50; before: "accept one French pension of {pension_size} Florins")*
+  - Anyone with ≥ {payroll_payment} Florins, until the ballot: `{"type": "repay", "for": "Name"} — pay back one payroll payment, your own or a relative's who has told you of it` *(v0.50; before: "renounce one French pension held by yourself or a relative who has told you of it")*
   - If none apply: "None available right now. Set action to null."
 
 ### Block 9c — Movement task
@@ -1201,7 +1229,7 @@ Reply with only this JSON:
 ```
 
 - **No placeholders since v0.20:** `{target}` was used before any target existed, and `{colloquio_note}` could only be known after the choice, so it was always empty. A `join` toward someone in the character's own group is turned into `stay` by validation (Output Validation & Repair, Movement)
-- **A target already in a Colloquio** (v0.23): a `colloquio` waits and opens as soon as the target's Colloquio ends, before seating, so the target goes straight into it as the invitee. A `join` waits until the target is seated, then goes to their group (Movement Implementation, Seating, Edge cases). Before v0.23 a `join` went to the Capannello the target would return to, which Mechanics v0.24 no longer fixes in advance
+- **A target already in a Colloquio** (v0.23): a `colloquio` waits and opens as soon as the target's Colloquio ends, before seating, so the target goes straight into it as the invitee. A `join` waits until the target is seated, then goes to their group (Movement Implementation, Seating, Edge cases). Before v0.23 a `join` went to the group the target would return to, which Mechanics v0.24 no longer fixes in advance
 
 ### Block 9d — Strategy task *(for S9a)*
 
@@ -1222,7 +1250,7 @@ Reply with only this JSON:
 {"thought": "...", "plan": "Goals: ... Threats: ... Next moves: ..."}
 ```
 
-- `{strategy_trigger}` examples: "The Medici council has just ended." (v0.34; "faction meeting" before) / "You have just survived an attempt on your life." / "Your French pension has been revealed to others." / "The candidates have been chosen: {candidates}."
+- `{strategy_trigger}` examples: "The Medici council has just ended." (v0.34; "faction meeting" before) / "You have just survived an attempt on your life." / "Your place on France's payroll has been revealed to others." / "The candidates have been chosen: {candidates}."
 - The returned `plan` becomes block 4 for every later call. The thought goes to shortTermHistory
 - **Length (v0.5):** S9a found the limit ignored by GPT-5.4 in 16 of 20 plans (DeepSeek once, Qwen3.8 twice). The prompt now says what happens past the limit, and code enforces it (see Output Validation & Repair, Plan length)
 
@@ -1285,7 +1313,7 @@ The candidates: {candidates}
 Your purse: {florins} Florins. Each extra vote costs {vote_price} Florins; you can buy at most {max_buy}.
 Florins left after the ballot are worth nothing. If the vote ties, there will be one more vote among the tied guests, with no buying.
 
-1. thought — 2 to 4 sentences, first person: who must win for your side to win, given who has repented and who holds French pensions as far as you know, and whether buying votes is worth it.
+1. thought — 2 to 4 sentences, first person: who must win for your side to win, given who has repented and who is on France's payroll as far as you know, and whether buying votes is worth it.
 
 2. vote — the guest you vote for, exactly as written in "All living guests besides you", or your own name.
 
@@ -1309,7 +1337,7 @@ TASK: THE RUN-OFF
 The ballot was tied between {tied_guests}. Cast one fresh vote for one of them. No votes may be bought. If this vote ties again, the winner will be drawn by lot.
 {repentance_note}
 
-1. thought — 2 to 4 sentences, first person: which of them must win for your side to win, given who has repented and who holds French pensions as far as you know.
+1. thought — 2 to 4 sentences, first person: which of them must win for your side to win, given who has repented and who is on France's payroll as far as you know.
 
 2. vote — one of: {tied_guests}, exactly as written.
 
@@ -1358,8 +1386,8 @@ Reply with only this JSON:
 - `{seat_schema}`: `{"thought": "...", "choice": "join", "target": "..."}`
 
 Generated by code:
-- `{open_groups}`: one line per open Capannello other than the guest's own, e.g. `- Piero de' Medici, Lupo (room for 2)`. In the invitee form, the initiator's own Capannello, if it's open, ends `— {initiator} came from here`. With none: `None: every group is full.`
-- **The lone-guest call is skipped** when exactly one Capannello is open: the guest joins it, logged as "only one open"
+- `{open_groups}`: one line per open group other than the guest's own, e.g. `- Piero de' Medici, Lupo (room for 2)`. In the invitee form, the initiator's own group, if it's open, ends `— {initiator} came from here`. With none: `None: every group is full.`
+- **The lone-guest call is skipped** when exactly one group is open: the guest joins it, logged as "only one open"
 - **It shows other groups,** which no other prompt does (Open Questions, "Should characters see where everyone is?"). Mechanics v0.24 asks for open groups only, offered in one call
 - **Same shape as 9c,** without the contact list, so it stays small. The `{initiator}` line tells the invitee what going first means, since the rule is in no other prompt
 
@@ -1392,7 +1420,7 @@ These run on the **recorder model** (see Model Routing, The recorder model), nev
 
 ### Block 10a — ★ pass (promises, deals, threats, admissions)
 
-One call per conversation active this turn (Capannelli, Colloquii, faction meetings).
+One call per conversation active this turn (groups, Colloquii, faction meetings).
 
 **System message:**
 
@@ -1659,7 +1687,7 @@ Reply with only this JSON:
 - Importance scores reset with a fresh `think()` each turn; decay doesn't carry forward
 - Ties are broken randomly
 - `detectDesignation()` overrides all importance-score logic when a direct address is detected, subject to the guard below
-- **Ping-pong guard (v0.4):** in one Capannello, a designation can force at most **two replies in a row**. If a third consecutive line names an addressee, it is still shown as `(to Addressee)`, but the next speaker is chosen by importance. Stops two characters from trading questions and shutting the third out. Tune in the mini-game
+- **Ping-pong guard (v0.4):** in one group, a designation can force at most **two replies in a row**. If a third consecutive line names an addressee, it is still shown as `(to Addressee)`, but the next speaker is chosen by importance. Stops two characters from trading questions and shutting the third out. Tune in the mini-game
 
 The design is adapted from *Who Speaks Next?* (Nonomura & Mori, 2025), which found that combining self-selection by urgency with a "current speaker selects next" rule significantly reduced dialogue breakdowns compared with fixed turn order. That study covered a single conversation; running several in parallel is an extension of it.
 
@@ -1673,25 +1701,25 @@ The design is adapted from *Who Speaks Next?* (Nonomura & Mori, 2025), which fou
 - **Targets resolve dynamically:** the character names a person, and the Stage Manager resolves where that person currently is
 - **Sequential processing:** moves are resolved one at a time, so later movers see earlier moves
 - **Collision resolution:**
-  1. Capacity first: if one of the two Capannelli has an open seat, the character without a seat moves there
+  1. Capacity first: if one of the two groups has an open seat, the character without a seat moves there
   2. Disruption fallback: if both are full, the character with the **lower current importance score** (from their latest `think()`) moves
 - **Everyone sees the room** since v0.45 (Player Interface, Everyone sees the room), place by place since v0.49 (Named places, below). What's said still reaches only a conversation's members
 
 ### Seating *(new in v0.23)*
 
-*The rules are Mechanics' (v0.24, with the edge cases confirmed in v0.25: Conversation Types; Ending a Colloquio; Movement; A Capannello Left With One Guest). They replace the mini-game's interim rule, where a lone guest joined the fullest other group with room.*
+*The rules are Mechanics' (v0.24, with the edge cases confirmed in v0.25: Conversation Types; Ending a Colloquio; Movement; A Group Left With One Guest). They replace the mini-game's interim rule, where a lone guest joined the fullest other group with room.*
 
 **What code tracks:**
-- **Open Capannello:** at least one guest, and room under the maximum (Mechanics, Capannello). A Capannello that reaches zero guests closes for good; a new group always gets a new ID
-- **Snapshot:** when a Colloquio is called, code stores the initiator's Capannello and who was in it at that moment, the invitee included if they were there
-- **Dissolved, for a returning initiator:** their Capannello has closed, or none of the snapshot's guests is still in it (newcomers don't count)
+- **Open group:** at least one guest, and room under the maximum (Mechanics, Group). A group that reaches zero guests closes for good; a new group always gets a new ID
+- **Snapshot:** when a Colloquio is called, code stores the initiator's group and who was in it at that moment, the invitee included if they were there
+- **Dissolved, for a returning initiator:** their group has closed, or none of the snapshot's guests is still in it (newcomers don't count)
 - **Seatless:** a guest with no conversation. They pair in the order they became seatless
 
 **When a Colloquio ends** (after the closing think), in this order:
 1. **A Colloquio call waiting on either guest opens first** (Edge cases). That guest goes straight into it and skips the steps below
 2. **Invitee:** a seat call (block 9h, invitee form), at once. `join`: into that group; no collision is possible, since only groups with room are offered. `colloquio`: a free Colloquio (below). `wait`: seatless
-3. **Initiator,** by code with no call: back to their snapshot Capannello if it isn't dissolved and has room. Otherwise the open Capannello with the fewest guests, ties to the fewest of the initiator's own faction, then at random (seeded). If none has room, seatless
-4. **Seatless pairing:** whenever two guests are seatless, they form a new two-person Capannello. With 12 guests (or the mini-game's 6) and groups of at most 4, seatless guests always come in twos. As a safety net, one still seatless at the end of a turn is placed as in step 3, logged
+3. **Initiator,** by code with no call: back to their snapshot group if it isn't dissolved and has room. Otherwise the open group with the fewest guests, ties to the fewest of the initiator's own faction, then at random (seeded). If none has room, seatless
+4. **Seatless pairing:** whenever two guests are seatless, they form a new two-person group. With 12 guests (or the mini-game's 6) and groups of at most 4, seatless guests always come in twos. As a safety net, one still seatless at the end of a turn is placed as in step 3, logged
 5. **Then lone guests,** if any of this left one (below)
 
 Returners enter at the end of the current cycle like any joiner, and Il Notaio notes each placement to the group joined.
@@ -1701,17 +1729,17 @@ Returners enter at the end of the current cycle like any joiner, and Il Notaio n
 - The target can be any living guest not in a Colloquio, including the initiator they just left. In that case the initiator becomes the new invitee and step 3 is skipped, logged as "called back"
 - **Chains:** every Colloquio carries a `chain` ID. A called Colloquio starts a new chain; a free one continues the chain of the Colloquio it followed, with its position (2, 3, …). Logged on every Colloquio event and in the game record; chain length is a health metric for Mechanics' watch item. No limit is enforced
 
-**A Capannello left with one guest** (open play only; in a faction meeting the lone member stays):
+**A group left with one guest** (open play only; in a faction meeting the lone member stays):
 1. Checked after every change of seats (a move, a Colloquio opening, a placement), with lone guests handled one at a time in the order they arose
-2. **Two or more other open Capannelli:** a seat call (block 9h, lone-guest form). The guest joins the target's group. Their old Capannello closes (dissolved)
+2. **Two or more other open groups:** a seat call (block 9h, lone-guest form). The guest joins the target's group. Their old group closes (dissolved)
 3. **Exactly one:** no call; the guest joins it, logged as "only one open"
-4. **None:** the guest stays where they are. Their Capannello of one is itself open, so the next returning or seatless guest is placed with them (it always has the fewest guests). That's Mechanics' "pairs with the next guest who has no seat" without a separate queue
+4. **None:** the guest stays where they are. Their group of one is itself open, so the next returning or seatless guest is placed with them (it always has the fewest guests). That's Mechanics' "pairs with the next guest who has no seat" without a separate queue
 5. Their own movement window still comes as usual
 
 **Edge cases** (proposed by TD in v0.23, confirmed as rules in Mechanics v0.25):
-- **(a) A free Colloquio's caller has no Capannello to go back to,** since they came from a Colloquio. When it ends they're placed as if theirs had dissolved
+- **(a) A free Colloquio's caller has no group to go back to,** since they came from a Colloquio. When it ends they're placed as if theirs had dissolved
 - **(b) A Colloquio call waiting on a guest** (block 9c notes) opens as soon as that guest's Colloquio ends, before step 2, so a guest can't be seated and pulled out again in the same moment. They are the invitee of the new Colloquio, so they choose first when it ends
-- **(c) A `join` toward a guest in a Colloquio** waits until that guest is seated, then goes to their group under the usual collision rules (a no-op if that's the mover's own group, logged). If the target isn't seated by the end of the next turn, the join lapses and the mover stays, logged. Before v0.23 it went to the Capannello the target would return to, which is no longer known in advance
+- **(c) A `join` toward a guest in a Colloquio** waits until that guest is seated, then goes to their group under the usual collision rules (a no-op if that's the mover's own group, logged). If the target isn't seated by the end of the next turn, the join lapses and the mover stays, logged. Before v0.23 it went to the group the target would return to, which is no longer known in advance
 
 **As built** *(v0.25, CC-20261028-07; details the rules don't fix)*:
 - **The invitee's default** (a failed or invalid seat call) uses the fewest-guests rule and its tie-breaks, since an invitee has no snapshot
@@ -1720,7 +1748,7 @@ Returners enter at the end of the current cycle like any joiner, and Il Notaio n
   - a waiting call that opens: the caller's group
   - a call-back of the initiator: no one, since neither has a group. It's logged as an event
 - **Waiting moves whose mover is no longer free:**
-  - a waiting Colloquio call lapses if its caller is no longer in a Capannello, logged
+  - a waiting Colloquio call lapses if its caller is no longer in a group, logged
   - a waiting join whose mover is in a Colloquio keeps waiting until its deadline
 - **The seatless safety net** runs at the end of the turn, before the movement window. If no group has room, the guest starts a group of one, which the lone-guest rule then handles
 - **"Dissolved"** ignores the initiator and counts the invitee if they were in the snapshot, as specified
@@ -1736,10 +1764,10 @@ Returners enter at the end of the current cycle like any joiner, and Il Notaio n
 
 **The rules module assigns them** (`src/rules/`, pure, with a table test named for Named Places). Each open conversation has one place, and no two share one:
 - **A round of mingling starts:** each random group gets a random place, all different
-- **A Capannello keeps its place** while it lasts. A guest who joins it is in its place. When it dissolves, its place is free
+- **A group keeps its place** while it lasts. A guest who joins it is in its place. When it dissolves, its place is free
 - **A Colloquio** (a called one, a waiting call that opens, or an invitee's free one): both guests go to a **random empty place**. When it ends, that place is free
 - **A new group** (two seatless guests pairing up, or the safety net's group of one): a random empty place
-- **Returning from a Colloquio** is unchanged: "the Capannello they came from" is still tracked by the group, under the dissolved rule. A Capannello keeps its place, so that's the group in the place they left
+- **Returning from a Colloquio** is unchanged: "the group they came from" is still tracked by its ID, under the dissolved rule. A group keeps its place, so that's the group in the place they left
 - **Councils:** the four councils of a council phase take four random places, all different. Each council's place is drawn afresh for each council
 - **Moves target people, never places.** Block 9c and 9h are unchanged; no prompt offers a place as a choice
 - **No empty place** can't happen within the rules (at most 6 conversations, plus one lone guest's group, among 8). If it ever does, the engine logs an engine failure and stops, rather than doubling up
@@ -1781,7 +1809,7 @@ Returners enter at the end of the current cycle like any joiner, and Il Notaio n
   - **Beliefs:** their own conclusions and suspicions
 - In `notebook: shared` (v0.7 behaviour), the ★ and claims entries take the place of readings
 - Written at the end of every turn (see Memory Writing)
-- ★ marks promises, deals, threats, admissions (in the default mode, as the character took them), payments, and pensions
+- ★ marks promises, deals, threats, admissions (in the default mode, as the character took them), payments, and payroll payments
 - Retrieved once per utterance and shared by that character's `think()` and `speak()` (see Memory Writing, Retrieval)
 - The extraction prompts are among the most critical in the system, on par with the character briefings
 
@@ -1829,16 +1857,16 @@ Returners enter at the end of the current cycle like any joiner, and Il Notaio n
 1st round, late · Colloquio · ★ You gave Lupo 3 Florins.
 2nd round, early · Colloquio · ★ Contessa Isabella: "…three Florins for your discretion…" (you took it as a deal)
 2nd round, early · Il Notaio: "Signor Raffaello de' Medici was once again seen drawing another aside — this time Captain LeNoir…"
-2nd round, early · Capannello · Francesco Pazzi: "The Captain walks the Embassy gardens most nights." (you took it as a claim)
-2nd round, early · Capannello · Captain Armand LeNoir: "…a coward behind a French sword…" (you took it as an insult)
-2nd round, midway · Capannello · Captain Armand LeNoir: "…where were you when the boar seal went missing?" (you took it as pressure)
+2nd round, early · group · Francesco Pazzi: "The Captain walks the Embassy gardens most nights." (you took it as a claim)
+2nd round, early · group · Captain Armand LeNoir: "…a coward behind a French sword…" (you took it as an insult)
+2nd round, midway · group · Captain Armand LeNoir: "…where were you when the boar seal went missing?" (you took it as pressure)
 2nd round, midway · Colloquio with Francesco Pazzi · ★ you: "My lips are sealed, as ever." (you meant it as a promise)
 2nd round, midway · your belief (conclusion): Contessa Isabella ordered the killing of Lucien.
 ```
 
 - **Quote** *(v0.11)*: the character's own `words` (block 9a step 3), with "…" before them if they don't start the line and after them if they don't end it. **Fallback:** the whole line if it's 15 words or fewer, otherwise its first 15 words and "…". Words are counted on spaces, and a standalone dash isn't one. The full line stays in the record. *Why:* in the v0.10 re-check, the first-15-words trim cut the part the label rests on in 11 of 20 own-line readings, and a 20- or 25-word cap recovered only 1 or 3 of 14 such cases Trailing sentence punctuation (. , ; : ! ?) is dropped from the words when an "…" follows (v0.15)
 - **Code entries:** payments and private actions render as before. **Il Notaio's entries are trimmed to 15 words** like quotes (v0.10), shown as `Il Notaio: "…"`, with "You" in place of the character's name when the note begins with it (v0.11; other notes are left as written). Before this, the mini-game's opening attendance note ran to ~90 tokens. The attendance problem itself is Models & Research's mini-game fix, and shouldn't rely on block 6
-- **Conversation label:** a Colloquio with someone else speaking needs no name, since the speaker is the other guest. A Colloquio line of the character's own names the other guest. A Capannello shows only the type, to save tokens; who else heard is in the record, not the line
+- **Conversation label:** a Colloquio with someone else speaking needs no name, since the speaker is the other guest. A Colloquio line of the character's own names the other guest. A group shows only the type, to save tokens; who else heard is in the record, not the line
 - **No reaction text:** v0.8's quoted reaction made readings ~79 tokens. The character's recent thoughts are already in block 7
 
 In `notebook: shared`, ★ and claims entries render as in v0.7, with the v0.34 time label: `1st round, late · Colloquio with Lupo · ★ deal: {summary} ("{quote}")`.
@@ -1889,7 +1917,7 @@ v0.8 hoped that moving the judgement onto the character's thought would fix this
 #### Which line a label belongs to
 
 Code attaches `took` by a fixed rule, using the event order (Models & Research found 98.5% of thoughts pair cleanly). The same rule picks the line that `{took_target}` names in the prompt *(v0.10)*, so the line the character is asked about is always the line the reading is stored on:
-1. **The line:** the last spoken line the character **heard** in their conversation before the thought. Usually that's `after_line`; when an action line or an Il Notaio note came between the speech and the thought, it's the speech before them. A line spoken before the character joined doesn't count (v0.10). **"This conversation" starts at the character's latest arrival** (v0.15): a character returning from a Colloquio to the same Capannello isn't asked about lines from before they left
+1. **The line:** the last spoken line the character **heard** in their conversation before the thought. Usually that's `after_line`; when an action line or an Il Notaio note came between the speech and the thought, it's the speech before them. A line spoken before the character joined doesn't count (v0.10). **"This conversation" starts at the character's latest arrival** (v0.15): a character returning from a Colloquio to the same group isn't asked about lines from before they left
 2. **No spoken line:** if there's none (a thought after only an Il Notaio note as a conversation opens, or a joiner's first thought), the label is ignored and logged
 3. **One reading per character per line:** the first label other than `none` stands. A later, different label for the same line is logged, not stored. The same label again is a no-op, logged as "same label again" (v0.10)
 4. **Own lines** *(v0.13)*: the character's own line is labelled in `speak()` (`meant`, `words`), and that is the only source of own readings, marked `own`. The `think()` that follows their own line names the last line by someone else they heard in this conversation, the one they were answering. Under rule 3 that's usually a no-op, since they labelled it before speaking. The **closing think** covers a Colloquio's last line when someone else spoke it (Core Functions, think())
@@ -1931,7 +1959,7 @@ Code attaches `took` by a fixed rule, using the event order (Models & Research f
 **Guards, all in code, no extra calls:**
 - **Words beside the label.** Every reading shows who spoke and a trimmed quote of the exact words, so the character sees what was said next to how they took it
 - **The label is the character's own.** No recorder judges it, so a divergence from the transcript belongs to the character. This matters most for the research
-- **Money is never a matter of perception.** Payments, pensions, and private actions are code entries in the same notebook. A misread deal can't move a Florin: only an action can, and every action is validated against mechanics
+- **Money is never a matter of perception.** Payments, payroll payments, and private actions are code entries in the same notebook. A misread deal can't move a Florin: only an action can, and every action is validated against mechanics
 - **Scoring never reads readings.** Knowledge checks read the reference record and beliefs (Plot Point Checks)
 
 **Allowed, because it's the point:**
@@ -2053,8 +2081,8 @@ WHAT YOU KNOW OF FLORENCE
 - Knowledge updates at the end of each turn through the extraction pass, not batched at round end
 - Witnessed events and witnessed actions are injected into the History of present characters only; private actions only into the actor's
 - Faction meetings pool nothing automatically; members learn only what is said aloud
-- Personal purses and pensions are visible only to their holder, unless the holder discloses them
-- The Embassy's pension ledger and treasury balance are exposed in real time to every French Embassy character's context, and to no one else's
+- Personal purses and places on France's payroll are visible only to their holder, unless the holder discloses them
+- The Embassy's payroll ledger and treasury balance are exposed in real time to every French Embassy character's context, and to no one else's
 - Murder Round acts, ballots, and run-off votes are never shown to any character
 - A character's readings are stored for that character only, like their beliefs. In the default mode, the reference record is never retrieved into any character's prompt (v0.8)
 
@@ -2068,7 +2096,7 @@ WHAT YOU KNOW OF FLORENCE
 
 ### After Every Utterance
 - `think()` outputs for everyone present: thought (with `after_line`), `took`, importance score, and (in a Colloquio) done signal. After a Colloquio's last line, the closing think
-- `speak()` outputs: utterance, addressee (Capannello), and any action (validated, applied, and written as an action line by the Stage Manager)
+- `speak()` outputs: utterance, addressee (group), and any action (validated, applied, and written as an action line by the Stage Manager)
 
 ### End of Every Turn
 - Movement call for the character whose window arrived: thought, contact list, choice, target
@@ -2084,9 +2112,9 @@ WHAT YOU KNOW OF FLORENCE
 - Character locations: updated in real time as moves resolve, with each open conversation's named place (v0.49)
 - Florin balances: updated immediately on each transaction
 - Transaction log: append-only, permanent
-- Embassy treasury balance and pension ledger: updated immediately on each /borrow and /repay
+- Embassy treasury balance and payroll ledger: updated immediately on each /borrow and /repay
 - Movement rotation queue: one per turn, randomized order per phase
-- Active Colloquii and Capannelli: updated as conversations open and close. Each Colloquio also stores its initiator, invitee, snapshot, and chain ID and position (v0.23)
+- Active Colloquii and groups: updated as conversations open and close. Each Colloquio also stores its initiator, invitee, snapshot, and chain ID and position (v0.23)
 - Seatless guests, in the order they became seatless (v0.23)
 - Per-character Colloquio withdrawal count: drives Il Notaio's escalation and appears in the character's own State block
 - /repent event log: append-only, permanent
@@ -2108,7 +2136,7 @@ WHAT YOU KNOW OF FLORENCE
 |---|---|---|
 | Purpose | Debugging, research analysis, the developer dashboard | The public replay viewer |
 | Header | Game ID, date, engine version, doc versions (TD, Mechanics, Characters), the human character if any (v0.37; null otherwise), run config (secrets removed; includes `lore`, the lore file's hash, and the embedding model; includes the recorder model and `notebook` mode), seeds, roster and aliases, personality assignment, tunable values, briefings verbatim | Same, without seeds and provider details |
-| Events | Every event in order: speech, Il Notaio lines, action lines, **every Florin change** (income, bribes, pensions taken and repaid, votes bought; v0.26), moves, seat calls and placements (with the groups offered and the rule that applied, v0.23), conversations opening and closing (with each Colloquio's chain ID and position), plot checks with their evidence, Murder Round acts and results, ballots, run-off, draw by lot, outcome | Same |
+| Events | Every event in order: speech, Il Notaio lines, action lines, **every Florin change** (income, bribes, payroll payments taken and paid back, votes bought; v0.26), moves, seat calls and placements (with the groups offered and the rule that applied, v0.23), conversations opening and closing (with each Colloquio's chain ID and position), plot checks with their evidence, Murder Round acts and results, ballots, run-off, draw by lot, outcome | Same |
 | Thoughts and plans | Every thought (with its call type and, for `think()`, `after_line`, `took`, `words`, the target type, and whether it was a closing think) and strategy plan | Same (the inner life is the show) |
 | Model calls | Every call: type, character, turn, prompt (static prefix stored once per character, dynamic blocks per call), raw output, parsed output, label log probabilities (v0.21; null where unsupported), repairs, tokens, cost, latency, provider | Left out |
 | Memory | Every memory entry, reading, and belief, with its source line or thought IDs, plus every dropped extraction entry and every `took` label ignored by the attachment rule, with the reason. Reference entries keep their audience | Readings (how each character took what they heard is part of the show), the entries behind plot checks, and each character's block 6 as rendered, stored only when it changes (v0.26); the rest left out |
@@ -2126,7 +2154,7 @@ WHAT YOU KNOW OF FLORENCE
 
 *The plot points and the Plot Reward are in mechanics under Murder Round.*
 
-- **Logged checks** (meetings, payments, pension ledger) are answered directly from the system's records and are exact
+- **Logged checks** (meetings, payments, payroll ledger) are answered directly from the system's records and are exact
 - **Knowledge checks** ("has X learned Y?") run the knowledge-check prompt (block 10c) on the recorder model at temperature 0, over the character's reference entries (what was said in their presence) and beliefs up to the deadline. They depend on the extraction passes, so they carry the known limit (Memory Writing) and are hand-read in the first full games
 - **Readings never feed a knowledge check** (v0.8), so perception can't bend scoring. A character told a fact in plain words counts as told even if they took it as a lie, which 10c already says ("whether or not the character believed it"). Beliefs, which were always the character's own, still count when they're firm and correct
 - **One check per (character, fact) pair,** reused by every plot point that needs it (see Plot-point facts)
@@ -2188,7 +2216,7 @@ The true facts the knowledge checks test, worded once so every check of the same
 | Sister Beatrice: learn who hired Lupo | (Beatrice, F4) | *told* or *conclusion* |
 | Contessa Isabella: pay Lupo ≥3 Florins, while LeNoir hasn't learned | Logged payments + (LeNoir, F2) | Payments reach 3, and the check is *suspicion* or *none* |
 | Captain LeNoir: learn who ordered his brother's death | (LeNoir, F2) | *told* or *conclusion* |
-| Francesco, Lupo, Fra Tommaso, Jeanne | Logged only | From the transaction log, pension ledger, or meeting log |
+| Francesco, Lupo, Friar Tommaso, Jeanne | Logged only | From the transaction log, payroll ledger, or meeting log |
 
 So a full game needs **five knowledge checks** *(v0.35; four before)*: (Piero, F1), (LeNoir, F2), (Emile, F1), (Emile, F3), and (Beatrice, F4). (LeNoir, F2) settles three plot points, and (Emile, F3) settles two that pull against each other: Giorgia's errand fails if Emile learns of her affair, which completes his.
 
@@ -2246,9 +2274,9 @@ So a full game needs **five knowledge checks** *(v0.35; four before)*: (Piero, F
 - Number of deaths per game, foiled attempts, and game length
 - How often the ballot ties, and how often a draw by lot decides the game
 - Movement frequency per character
-- **Seating** (v0.23): lone-guest moves, invitee choices (join, free Colloquio, wait), initiators placed away from their own Capannello (full or dissolved), seatless pairs, waiting joins that lapsed, and **Colloquio chain lengths** (Mechanics' watch item)
+- **Seating** (v0.23): lone-guest moves, invitee choices (join, free Colloquio, wait), initiators placed away from their own group (full or dissolved), seatless pairs, waiting joins that lapsed, and **Colloquio chain lengths** (Mechanics' watch item)
 - Colloquio length, and how often the utterance cap is reached versus a "done" signal
-- Designations per Capannello line, and how often the ping-pong guard fires
+- Designations per group line, and how often the ping-pong guard fires
 - Rejected actions, repairs, retries, and defaults per game (a sign the prompts need work)
 - **Memory health** (v0.6, extended in v0.7): dropped memory entries by reason (speaker mismatch, quote mismatch, type/summary mismatch), sweep gaps and re-asks, "self, no admission" lines, hedge downgrades, and repeated thoughts dropped, per character per game, with the recorder model named
 
@@ -2292,7 +2320,7 @@ It reads all 86 saved mini-game records, degrading gracefully where older ones l
 
 ### Build order
 
-1. **Mini-game first** (Dylan, Nov 10). The 6-guest mini-game already includes Francesco and runs Capannelli, Colloquios, movement, seat calls, `/bribe`, `/borrow`, `/repay`, and midnight, so the screen can be built and played now. Francesco's errand (paying Fra Tommaso) can't be done there, since Tommaso isn't in the cast; the mini-game runs with `plot_reward` off anyway
+1. **Mini-game first** (Dylan, Nov 10). The 6-guest mini-game already includes Francesco and runs groups, Colloquios, movement, seat calls, `/bribe`, `/borrow`, `/repay`, and midnight, so the screen can be built and played now. Francesco's errand (paying Friar Tommaso) can't be done there, since Tommaso isn't in the cast; the mini-game runs with `plot_reward` off anyway
 2. **Then the full game,** once the full game loop is built: councils, Piero, candidate selection, speeches and `/repent`, the ballot and `/buy`, the run-off, and the full death and result screens. This is the milestone's test (Dylan plays a whole game)
 3. **Then v1, the first public release:** Il Notaio's full player-facing role (below)
 
@@ -2300,13 +2328,13 @@ It reads all 86 saved mini-game records, degrading gracefully where older ones l
 
 The engine runs one game at a time and **pauses the whole game** whenever it needs the player. Every conversation stops at the next line boundary, so play stays in the same order as an all-AI game and the record stays sequential. There's no timer.
 
-**In a Capannello or council** *(type anytime, Dylan's choice)*:
+**In a group or council** *(type anytime, Dylan's choice)*:
 - The input box is always open. A message the player sends is held and **spoken at the next line boundary in their conversation**, ahead of the next speaker by importance. It's never cut into the middle of a line
 - **One message per turn** (Mechanics). Once it's used, the box says so until the next turn. A **Pass** button gives up the turn's message
 - **Before the turn's last utterance,** if the player hasn't spoken or passed this turn, the game pauses for them. That's the only point where the game waits in a group conversation
 - **When someone addresses the player** (`detectDesignation()`), the player must speak next, so the game pauses for them at once. **The answer never uses the turn's message** (Mechanics v0.31): it's an extra line, whether or not the turn's message has been used. Passing is always allowed; the next speaker is then chosen by importance, as when the ping-pong guard fires
 - The player's message counts as one of the turn's utterances, like any line
-- **Addressing someone:** an @-mention of a guest present makes them the addressee, so they must answer next. The first @-mention counts, and only in a Capannello. The @ is dropped from the stored line, which records the addressee as `(to Name)`, as for any guest. The ping-pong guard applies as usual
+- **Addressing someone:** an @-mention of a guest present makes them the addressee, so they must answer next. The first @-mention counts, and only in a group. The @ is dropped from the stored line, which records the addressee as `(to Name)`, as for any guest. The ping-pong guard applies as usual
 - **Speaking order without importance:** the player makes no `think()` call, so they have no importance score. Their held message takes the next slot, and they're otherwise skipped in the importance order. They never win a collision on importance; in a movement collision where both groups are full, the player counts as the more involved guest, so an AI guest moves
 
 **In a Colloquio** the player speaks in turn (Mechanics). The guests alternate, and **the game waits for each of the player's lines.** Whoever called the Colloquio speaks first. The player can end it at any time with the **End conversation** button. The other guest then gets one closing line, and the player gets nothing more. If the AI guest ends it (`done`), the player is asked for one closing line, which they can pass. The cap (about 6 lines) applies as usual.
@@ -2326,8 +2354,8 @@ Commands are actions, not speech, so they don't use the turn's message (Mechanic
 | Command | When | Notes |
 |---|---|---|
 | `/bribe @Name n` | In a Colloquio, with that guest | A plain transfer of n Florins |
-| `/borrow` | Any time | Takes one French pension (not Dominicans or the French) |
-| `/repay` or `/repay @Name` | Any time before the ballot | Own pension, or a relative's |
+| `/borrow` | Any time | Takes one payroll payment, putting you on France's payroll (not Dominicans or the French) |
+| `/repay` or `/repay @Name` | Any time before the ballot | Pays back one payroll payment, your own or a relative's |
 | `/kill`, `/guard`, `/watch @Name` | Midnight only | Typed, or chosen on the midnight card |
 | `/conclude <statement>` | Any time | Private. See below |
 | `/repent <tagline>` | Speeches, candidates only | Full game |
@@ -2446,7 +2474,7 @@ Dylan's call: every guest knows where every other guest is, the AI characters as
   Around the room: {room}
   ```
 
-  - `{room}`: every other group, then every Colloquio, in a fixed order (by the first member's roster order), e.g. `Giorgia Pazzi, Raffaello de' Medici and Captain Armand LeNoir together; Fra Tommaso and Sister Beatrice in private.` The character's own conversation isn't repeated, since "Present" already says it. The dead and the absent aren't listed. During councils and calls outside a conversation (midnight, the ballot), the line is left out
+  - `{room}`: every other group, then every Colloquio, in a fixed order (by the first member's roster order), e.g. `Giorgia Pazzi, Raffaello de' Medici and Captain Armand LeNoir together; Friar Tommaso and Sister Beatrice in private.` The character's own conversation isn't repeated, since "Present" already says it. The dead and the absent aren't listed. During councils and calls outside a conversation (midnight, the ballot), the line is left out
   - About 40–90 tokens per call in a full game. Version-gated, so earlier games replay byte-identical
 - **For the player,** the room on the screen's left shows the same thing, from the same data (The screen; Interface, The Screen)
 - **Il Notaio's withdrawal notes** still go only to those present, and still count each guest's withdrawals. Seeing a pair leave is now possible from anywhere, so his notes matter for the count and the escalation, not for the news
@@ -2466,7 +2494,7 @@ Dylan's call: every guest knows where every other guest is, the AI characters as
 - **One theme file for the look** *(v0.38)*: every colour, font, size, spacing, and corner radius comes from a single theme file (CSS custom properties), and components use only its tokens. The first build is plain and neutral; a chosen look is applied by editing the theme file, not the components
 - **Refresh and reconnect:** the engine keeps the player's event log. On reconnect it replays it, then re-sends any pending request. Surviving an engine restart mid-game is later (Open Questions)
 - **In the game record:** the header names the human character (`human`, or null). Each of the player's inputs is a call record with `source: "human"`, the text as typed, the parsed result, and its verdict (valid or refused, with the reason). It has no model fields and no cost. The replay viewer marks the player's lines as the player's
-- **Setting in content:** every word the screen shows comes from the setting pack: labels, command names and hints, example lines, refusal reasons, orientation notes, and the playable characters. That includes "Florins", "Capannello", and "Il Notaio". Nothing setting-specific goes in the web app's code (The Setting Pack, `player.json`)
+- **Setting in content:** every word the screen shows comes from the setting pack: labels, command names and hints, example lines, refusal reasons, orientation notes, and the playable characters. That includes "Florins", "Colloquio", and "Il Notaio". Nothing setting-specific goes in the web app's code (The Setting Pack, `player.json`)
 - **A scripted player for tests:** a fake human that plays through the same WebSocket protocol with canned inputs, against the fake model caller. It speaks, passes, answers an address, bribes in a Colloquio, borrows, moves, calls a Colloquio, makes a seat choice, concludes, and submits midnight acts. It runs in `npm test`, so the whole path is tested with no model calls and no browser
 - **Cost:** a human character makes no model calls, so a game with a player costs a little less than an all-AI one. The extra calls in v1 are listed below
 
@@ -2639,13 +2667,13 @@ Mechanics (Il Notaio — Player-Facing Duties) requires these for the first publ
 - **Do guests propose meeting in a named place?** (v0.49) A Colloquio's place is drawn at random, so "meet me in the study" can land in the courtyard. Hand-read the first games with places. If it's common, the fix is a line in the rules primer (block 2) that places are where you find people, not where you send them, or letting a Colloquio's caller name an empty place, which is Mechanics' call
 - Whether characters should see Il Notaio's tally of *other* characters' withdrawals, or only infer it from witnessed notes (currently: only witnessed notes)
 - ~~**Should characters see where everyone is?**~~ *Closed: yes, for everyone (Dylan, Nov 12; Mechanics v0.32; block 5's room line, TD v0.45).* In a real palazzo you could see across the room. Currently they see only their own group; showing the room would make movement easier and make Il Notaio's notes less special. Since v0.23 the seat call (9h) shows the groups with room, the first glimpse past a character's own group
-- **Does a caller know they may lose their seat?** (v0.23) Block 9c doesn't say that the invitee chooses first, or that a full or dissolved Capannello sends the caller elsewhere. Left out so 9c stays as tested; add a line if the full games show callers surprised by where they land
+- **Does a caller know they may lose their seat?** (v0.23) Block 9c doesn't say that the invitee chooses first, or that a full or dissolved group sends the caller elsewhere. Left out so 9c stays as tested; add a line if the full games show callers surprised by where they land
 - ~~**Movement edge cases**~~ Settled: joining or calling someone in a Colloquio follows Seating, Edge cases (Mechanics v0.25)
 - **Seating in the full games** (v0.26): the first live check (CC-20261028-08) exercised only the invitee's wait form, since six guests filled one group of 4. Watch the join choice, the lone-guest form, and chain lengths with 12 guests, where groups with room should be common. No more mini-game spend on this
 - ~~**The in-world names check**~~ *(passed, CC-20261107-01: no game term in 888 prompts or 900 outputs, 0 of 12 midnight answers repaired; Models & Research v0.48)*. It asked (v0.34): one mini-game on TD v0.34 with the matching briefings. Does any game term still appear in thoughts or speech ("Murder Round", "plot point", "faction meeting", "T3"), do midnight acts parse with `watch`, and does the label mix stay within the register check's guardrails?
 - **The reveal action** *(candidate; Models & Research for Dylan, Nov 7)*. A character giving up a secret would mark it on the line, like a bribe, so deliberate tellings become exact entries rather than something the recorder has to catch. Deductions and slips would still need a knowledge check. **Waits on a secret-keeping test** (does marking a reveal make characters reveal more?), and goes with Mechanics' open question on how to tell an errand is done (Mechanics v0.31, Deferred and Open Questions)
 - **Setting text still in code** (from the setting-pack build, PRs #68 and #69):
-  - The conversation names in blocks 5 and 6 ("Colloquio", "Capannello", "the gathering"). They're kept as they are in Florence, but a reskin needs them in `in-world-names.json`. A small, version-gated follow-up
+  - The conversation names in blocks 5 and 6 ("Colloquio", "Capannello", "the gathering"). **Moving out with v0.50's retitling** (In-World Names, Retitling), which changes "Capannello" to "group" anyway
   - The replay viewer's words ("Florins", "Il Notaio", and the conversation names). Taking them from the setting means each export embeds them, and every published page is re-exported. Best done with the player screen, which reads the same words
 - Is 0.7 the right play temperature on the chosen model? (Revisit after probes)
 - ~~**Run-off announcement**~~ Settled: no vote count is ever announced, the final result included (Mechanics v0.24)
