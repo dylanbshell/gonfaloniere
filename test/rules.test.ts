@@ -9,7 +9,7 @@ import { rulesGuest } from "../src/game/roster.ts";
 import { ballotProblems, runoffProblem } from "../src/rules/ballot.ts";
 import type { RulesConfig } from "../src/rules/config.ts";
 import { allowedActionTypes, borrow, bribe, newEconomy, rejectAction, repay, seesLedger } from "../src/rules/economy.ts";
-import { actProblems, resolveMidnight, type Act, type CheckedAct, type Submission } from "../src/rules/midnight.ts";
+import { actProblems, extraActProblems, resolveMidnight, type Act, type CheckedAct, type Submission } from "../src/rules/midnight.ts";
 import { capannelloStart, fallbackTarget, movementWindow } from "../src/rules/movement.ts";
 import { mulberry32 } from "../src/rules/random.ts";
 import { fewestGuests, initiatorSeat, inviteeSeatProblem, leastInvolved, loneSeatOptions, openGroups, returnSeat, type Group } from "../src/rules/seating.ts";
@@ -101,6 +101,39 @@ test("Murder Round: which acts a guest may submit (the check strategy.ts words)"
   ];
   for (const c of cases) assert.deepEqual(actProblems(c.twoKills, c.acts).map((p) => p.why), c.problems, c.name);
   assert.deepEqual(guests.filter((g) => twoKills(g.name)).map((g) => g.name), [LUPO], "the role comes from the setting, not a name in the rules");
+});
+
+test("Plot Reward: the extra act's checks (block 9e's `extra`) and how it resolves", () => {
+  const act = (type: Act["type"], target: string, o: Partial<CheckedAct> = {}): CheckedAct => ({ type, target, self: false, living: true, ...o });
+  const checks: { name: string; acts: CheckedAct[]; extra: CheckedAct; problems: string[] }[] = [
+    { name: "a second act on a different guest", acts: [act("kill", ISABELLA)], extra: act("guard", LENOIR), problems: [] },
+    { name: "the two acts must name different characters", acts: [act("guard", RAFFAELLO)], extra: act("guard", RAFFAELLO), problems: ["same guest"] },
+    { name: "no self-guard: the extra act can't Guard yourself either", acts: [act("kill", ISABELLA)], extra: act("guard", FRANCESCO, { self: true, living: false }), problems: ["self"] },
+    { name: "a living guest", acts: [act("kill", ISABELLA)], extra: act("investigate", "Lorenzo", { living: false }), problems: ["not living"] },
+    { name: "Lupo's extra act may be a Guard or Investigate", acts: [act("kill", ISABELLA), act("kill", LENOIR)], extra: act("investigate", GIORGIA), problems: [] },
+    { name: "Lupo's extra act names a guest his Kills don't", acts: [act("kill", ISABELLA), act("kill", LENOIR)], extra: act("kill", LENOIR), problems: ["same guest"] },
+  ];
+  for (const c of checks) assert.deepEqual(extraActProblems(c.acts, c.extra).map((p) => p.why), c.problems, c.name);
+  const cases: { name: string; subs: Submission[]; deaths: string[]; events?: string[] }[] = [
+    { name: "an extra Kill kills like any", subs: [{ by: FRANCESCO, acts: [guard(LENOIR)], extra: kill(RAFFAELLO) }], deaths: [RAFFAELLO] },
+    {
+      name: "an extra Guard counts toward the 2+ threshold like anyone else's",
+      subs: [{ by: LUPO, acts: [kill(GIORGIA)] }, { by: FRANCESCO, acts: [kill(RAFFAELLO)] }, { by: ISABELLA, acts: [guard(RAFFAELLO)], extra: guard(GIORGIA) }, { by: LENOIR, acts: [guard(RAFFAELLO)] }],
+      deaths: [GIORGIA],
+      events: ["kill foiled", "death"],
+    },
+    {
+      name: "Lupo's extra Kill follows normal rules: Guards stop it, his own two don't",
+      subs: [{ by: LUPO, acts: [kill(ISABELLA), kill(LENOIR)], extra: kill(RAFFAELLO) }, { by: FRANCESCO, acts: [guard(RAFFAELLO)] }, { by: GIORGIA, acts: [guard(RAFFAELLO)] }],
+      deaths: [ISABELLA, LENOIR],
+      events: ["kill foiled", "death", "death"],
+    },
+  ];
+  for (const c of cases) {
+    const r = resolveMidnight(c.subs, twoKills, { blockAt });
+    assert.deepEqual(r.deaths, c.deaths, c.name);
+    if (c.events) assert.deepEqual(r.events.map((e) => e.type), c.events, c.name);
+  }
 });
 
 // ---- Commands & Public Actions, Florin Economy ------------------------------------------------------

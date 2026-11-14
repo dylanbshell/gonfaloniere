@@ -60,6 +60,8 @@ button.small { font-size: var(--text-xs); padding: 0 var(--space-2); }
 .errand { margin-top: var(--space-4); background: var(--errand-bg); border: var(--border-width) solid var(--errand-border); border-radius: var(--radius-md); padding: var(--space-3); font-size: var(--text-sm); }
 .errand .label { margin: 0 0 var(--space-1); }
 .errand-result { margin-top: var(--space-2); font-weight: var(--weight-bold); }
+/* TD v0.47: what the errand earns, one line in the card's accent */
+.errand-reward { margin-top: var(--space-2); color: var(--errand-accent); }
 
 .centre { display: flex; flex-direction: column; min-width: 0; height: calc(var(--screen-height) - var(--web-bar-height)); }
 .conv-head { min-height: var(--head-height); padding: var(--space-3) var(--space-4); border-bottom: var(--border-width) solid var(--border); background: var(--surface); display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
@@ -92,6 +94,10 @@ button.small { font-size: var(--text-xs); padding: 0 var(--space-2); }
 .tile { padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); text-align: left; }
 .tile.chosen { border-color: var(--accent); background: var(--to-you-bg); }
 .act { display: flex; gap: var(--space-2); }
+/* TD v0.47: the extra act the errand earned, its own optional row on the midnight card */
+.act-extra { border-left: var(--mark-ring) solid var(--errand-accent); padding-left: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); }
+.act-extra .label { margin: 0; color: var(--errand-accent); }
+.act-extra p { margin: 0; font-size: var(--text-sm); }
 
 /* The input box */
 .input { min-height: var(--input-box-height); border-top: var(--border-width) solid var(--border); background: var(--surface); padding: var(--space-3) var(--space-4); position: relative; }
@@ -228,6 +234,9 @@ button.key-type.on { border-color: var(--accent); background: var(--select-bg); 
 .track .mark { width: var(--mark-size); height: var(--mark-size); border-radius: var(--radius-round); border: var(--border-width) solid var(--track); }
 .track .mark.past { background: var(--track); }
 .track .mark.now { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 var(--mark-ring) var(--select-bg); }
+/* TD v0.47: the errand's deadline carries a small errand mark, a diamond on its stage mark's corner */
+.track .mark.deadline { position: relative; }
+.track .errand-mark { position: absolute; top: calc(var(--errand-mark-size) / -2); right: calc(var(--errand-mark-size) / -2); width: var(--errand-mark-size); height: var(--errand-mark-size); transform: rotate(45deg); background: var(--errand-accent); border: var(--border-width) solid var(--surface); }
 
 /* The right panel (TD v0.44–v0.46): the live "talking with" card, a selected guest's card over it, a resize handle */
 /* The conversation's tint fills the panel, under the talking-with card */

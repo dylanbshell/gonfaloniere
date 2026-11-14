@@ -12,6 +12,7 @@ import { renderToString } from "react-dom/server";
 import { HumanController, type Connection } from "../src/core/human.ts";
 import { MiniGame } from "../src/minigame/engine.ts";
 import { castBriefings } from "../src/minigame/cast.ts";
+import type { CharacterName } from "../src/game/roster.ts";
 import { errandText, screenContent } from "../src/minigame/player.ts";
 import type { LoreEntry as StoredLore } from "../src/minigame/lore.ts";
 import { screenInfo } from "../src/minigame/screen-info.ts";
@@ -19,7 +20,7 @@ import { settingPack } from "../src/setting/pack.ts";
 import { GameView, Start } from "../web/src/App.tsx";
 import type { Ev } from "../web/src/connection.ts";
 import { canDo, canSpeak, openMenu, trigger, withMention } from "../web/src/input.ts";
-import { appearsIn, briefingCards, cityCards, derive, factionLabels, heardAndSaw, hintMoment, loreParts, readingFor, rulesCards, talkingWith, trackMarks, webLayout, type LoreEntry, type View } from "../web/src/model.ts";
+import { appearsIn, briefingCards, cityCards, derive, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, loreParts, readingFor, rulesCards, talkingWith, trackMarks, webLayout, type LoreEntry, type View } from "../web/src/model.ts";
 import { notaioHint, setInfo, type StartInfo } from "../web/src/words.ts";
 import { fakeCaller, fakeDocs, fakeSettings } from "./fixtures/fake-game.ts";
 
@@ -27,18 +28,26 @@ const F = "Francesco Pazzi";
 const files = (dir: string, ext: RegExp) => readdirSync(dir).filter((f) => ext.test(f)).map((f) => join(dir, f));
 const noComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
 
-/** A fake game as Francesco, answered in process; the log at every request, with which kind was open. */
-async function playedLog(): Promise<{ log: Ev[]; at: Record<string, Ev[]>; game: MiniGame }> {
+/**
+ * A fake game as Francesco, answered in process; the log at every request, with which kind was open.
+ * `Game` plays a subclass (one that earns the extra act); `midnight` answers each midnight request in turn.
+ */
+async function playedLog(opts: { Game?: typeof MiniGame; midnight?: (guests: string[], n: number) => unknown } = {}): Promise<{ log: Ev[]; at: Record<string, Ev[]>; game: MiniGame }> {
   const ctrl = new HumanController(F);
-  const game = new MiniGame(fakeDocs, fakeSettings({ briefings: castBriefings(fakeDocs), seed: 2000, turns: 12, human: F }), fakeCaller(), {}, null, ctrl);
+  const game = new (opts.Game ?? MiniGame)(fakeDocs, fakeSettings({ briefings: castBriefings(fakeDocs), seed: 2000, turns: 12, human: F }), fakeCaller(), {}, null, ctrl);
+  let midnights = 0;
   const log: Ev[] = [];
   const at: Record<string, Ev[]> = {};
   let reply: (d: string) => void = () => {};
   let moves = 0;
+  /** The open midnight request, answered again after a refusal. */
+  let midnight: Ev | null = null;
   const conn: Connection = {
     send: (d) => {
-      const ev = JSON.parse(d) as Ev;
+      let ev = JSON.parse(d) as Ev;
       log.push(ev);
+      if (ev.type === "refusal" && midnight && opts.midnight) ev = midnight;
+      else if (ev.type === "request" && ev.kind === "midnight") midnight = ev.closed ? null : ev;
       if (ev.type !== "request" || ev.closed) return;
       const o = ev.options as Record<string, unknown>;
       const key = ev.kind === "speak" ? `speak:${o.conversation}${o.answering ? ":answering" : ""}${o.closing ? ":closing" : ""}` : String(ev.kind);
@@ -49,7 +58,7 @@ async function playedLog(): Promise<{ log: Ev[]; at: Record<string, Ev[]>; game:
         else if (ev.kind === "seat") {
           const g = o.groups as { members: string[] }[];
           reply(JSON.stringify({ type: "choice", request: ev.id, value: g.length ? { choice: "join", target: g[0]!.members[0] } : { choice: "wait", target: null } }));
-        } else reply(JSON.stringify({ type: "choice", request: ev.id, value: { acts: [{ type: "watch", target: (o.guests as string[])[0] }] } }));
+        } else reply(JSON.stringify({ type: "choice", request: ev.id, value: opts.midnight?.(o.guests as string[], midnights++) ?? { acts: [{ type: "watch", target: (o.guests as string[])[0] }] } }));
       });
     },
     onMessage: (cb) => void (reply = cb),
@@ -523,4 +532,145 @@ test("the room: your own group marked, by name; every other group as overlapping
   const mid = derive(at.midnight!);
   assert.equal(mid.state!.room, undefined);
   assert.doesNotMatch(game({ v: mid }), /data-cluster="(group|private)"/);
+});
+
+// ---- CC-20261114-04 (#102): the errand's extra act on the screen (TD v0.47) -------------------------------
+
+const PLAYER = JSON.parse(readFileSync("setting/florence-1492/player.json", "utf8")) as { screen: Record<string, any> };
+const NOTAIO = JSON.parse(readFileSync("setting/florence-1492/notaio.json", "utf8")) as { hints: Record<string, string> };
+const esc = (t: string) => t.replace(/'/g, "&#x27;").replace(/"/g, "&quot;");
+/** A view whose state has the run's flag (and the check's result), on a track whose third stage is the errand's deadline. */
+function flagged(v: View, o: { plotReward: boolean; plotStatus?: string; phase?: string; deadline?: string | null }): View {
+  const track = ["The arrival", "The first round", "The last council", "Midnight"];
+  return {
+    ...v,
+    pending: null,
+    sheet: { ...v.sheet!, track, errandDeadline: o.deadline === undefined ? "The last council" : o.deadline },
+    state: { ...v.state!, plotReward: o.plotReward, ...(o.plotStatus && { plotStatus: o.plotStatus }), phaseLabel: o.phase ?? "The arrival", conversation: { kind: "capannello", others: [] } },
+  };
+}
+const errandCard = (h: string) => h.slice(h.indexOf('class="errand"'), h.indexOf("</div></div>", h.indexOf('class="errand-text"')) + 200);
+
+test("the errand card says what the errand earns: the reward with plot_reward on, none with it off, and {plot_status} after the check", async () => {
+  const { at, log } = await playedLog();
+  const base = derive(at["speak:capannello"]!);
+  // The mini-game runs with plot_reward off, and the flag reaches the screen with every state.
+  const states = log.filter((e) => e.type === "state");
+  assert.ok(states.length > 0 && states.every((e) => (e.state as { plotReward?: unknown }).plotReward === false));
+  assert.ok(states.every((e) => !("plotStatus" in (e.state as object))), "no check, so no {plot_status}");
+  const words = PLAYER.screen.errandCard;
+  const cases: { name: string; v: View; kind: string; text: string; hover: string }[] = [
+    { name: "off (the mini-game)", v: base, kind: "noReward", text: words.noReward, hover: "errandNoReward" },
+    { name: "on, before the check", v: flagged(base, { plotReward: true }), kind: "reward", text: words.reward, hover: "errandReward" },
+    { name: "after the check", v: flagged(base, { plotReward: true, plotStatus: "You finished your errand in time: you have one extra act at midnight. No one else knows." }), kind: "status", text: "You finished your errand in time: you have one extra act at midnight. No one else knows.", hover: "errand" },
+  ];
+  for (const c of cases) {
+    assert.equal(errandLine(c.v.state)!.kind, c.kind, c.name);
+    const h = game({ v: c.v });
+    assert.deepEqual(missingWords(h), [], c.name);
+    const card = errandCard(h);
+    assert.match(card, new RegExp(`data-hint="${c.hover}"`), `${c.name}: the card's hover`);
+    assert.ok(card.includes(esc(c.text)), `${c.name}: the line, from player.json`);
+    if (c.kind === "status") assert.ok(!card.includes("errand-reward"), "the check's result replaces the line");
+    else assert.match(card, new RegExp(`class="errand-reward" data-reward="${c.kind}"`), c.name);
+  }
+  // The hovers say the same as the lines.
+  assert.match(PLAYER.screen.hints.errandReward, /last council before midnight.*extra act/);
+  assert.match(PLAYER.screen.hints.errandNoReward, /no extra act/);
+  assert.equal(errandLine(null), null, "nothing before the first state");
+});
+
+test("the track's errand mark: on the deadline stage with plot_reward on, with its hover; nothing with it off", async () => {
+  const { at } = await playedLog();
+  const base = derive(at["speak:capannello"]!);
+  assert.equal(base.sheet!.errandDeadline, null, "the mini-game's schedule has no council");
+  assert.equal(errandDeadline(base), null);
+  assert.doesNotMatch(game({ v: base }), /errand-mark/);
+  assert.deepEqual(trackMarks(["A", "B", "C"], "A", "B").map((m) => m.deadline), [false, true, false]);
+  const on = flagged(base, { plotReward: true });
+  assert.equal(errandDeadline(on), "The last council");
+  const h = game({ v: on });
+  assert.equal((h.match(/class="errand-mark"/g) ?? []).length, 1);
+  assert.match(h, /class="mark next deadline" aria-label="The last council"[^>]*><span class="errand-mark" role="img" aria-label="Your errand&#x27;s deadline"[^>]*data-hint="trackDeadline"/);
+  assert.equal(PLAYER.screen.hints.trackDeadline, "Your errand's deadline: finish it before this for an extra act at midnight.");
+  assert.doesNotMatch(game({ v: flagged(base, { plotReward: false }) }), /errand-mark/, "a deadline but the flag off");
+  assert.doesNotMatch(game({ v: flagged(base, { plotReward: true, deadline: "Not a stage" }) }), /errand-mark/, "a deadline the track doesn't have");
+});
+
+test("Il Notaio's errand hint: at the start of the last round before the deadline, done or not, and only with plot_reward on", async () => {
+  const { at } = await playedLog();
+  const base = derive(at["speak:capannello"]!);
+  const key = (o: Parameters<typeof flagged>[1]) => hintMoment(flagged(base, o), F).key;
+  assert.equal(key({ plotReward: true, phase: "The first round" }), "errandDeadline", "the last round before the deadline");
+  assert.equal(key({ plotReward: true, phase: "The first round", plotStatus: "You finished your errand in time: you have one extra act at midnight. No one else knows." }), "errandDeadline", "the same whether or not it's done");
+  assert.equal(key({ plotReward: true, phase: "The arrival" }), "mingling", "not before");
+  assert.equal(key({ plotReward: true, phase: "The last council" }), "mingling", "not at the deadline");
+  assert.equal(key({ plotReward: false, phase: "The first round" }), "mingling", "not with the flag off");
+  assert.equal(key({ plotReward: true, phase: "The arrival", deadline: "The arrival" }), "mingling", "no round before a first-stage deadline");
+  // A wait the moment asks for still comes first.
+  assert.equal(hintMoment({ ...flagged(base, { plotReward: true, phase: "The first round" }), pending: derive(at.move!).pending }, F).key, "move");
+  const h = game({ v: flagged(base, { plotReward: true, phase: "The first round" }) });
+  assert.match(h, /data-moment="errandDeadline"/);
+  assert.ok(h.includes(esc(NOTAIO.hints.errandDeadline!)), "the template, from notaio.json");
+  assert.equal(notaioHint("errandDeadline"), NOTAIO.hints.errandDeadline);
+});
+
+/** A mini-game whose player earned the extra act: only a test says so, since the mini-game runs with plot_reward off. */
+class Rewarded extends MiniGame {
+  protected override extraActEarned(c: CharacterName): boolean {
+    return c === F;
+  }
+}
+
+test("the midnight card: the extra act is its own optional row when the errand earned it, checked as block 9e's extra", async () => {
+  // The mini-game: no extra act, so no row, and the answer and the record as ever.
+  const plain = await playedLog();
+  const req = derive(plain.at.midnight!).pending!;
+  assert.equal(req.options.extra, false, "the request says it wasn't earned");
+  assert.doesNotMatch(game({ v: derive(plain.at.midnight!) }), /act-extra/);
+  const mine = plain.game.murderActs.find((a) => (a as { character: string }).character === F) as Record<string, unknown>;
+  assert.ok(mine && !("extra" in mine), "no extra in the record");
+  // Earned: the row, labelled, with the setting pack's words and an explanation.
+  const tries: unknown[] = [];
+  const earned = await playedLog({
+    Game: Rewarded,
+    midnight: (guests, n) => {
+      const a = { type: "watch", target: guests[0] };
+      const v = [
+        { acts: [a], extra: { type: "guard", target: guests[0] } }, // the same guest
+        { acts: [a], extra: { type: "guard", target: F } }, // guarding yourself
+        { acts: [a], extra: { type: "kill", target: guests[1] } },
+      ][n];
+      tries.push(v);
+      return v;
+    },
+  });
+  const v = derive(earned.at.midnight!);
+  assert.equal(v.pending!.options.extra, true);
+  const h = game({ v });
+  assert.deepEqual(missingWords(h), []);
+  const row = h.slice(h.indexOf('class="act-extra"'));
+  assert.ok(h.includes('class="act-extra"') && row.includes(esc(PLAYER.screen.midnight.extra)), "labelled from player.json");
+  assert.equal(PLAYER.screen.midnight.extra, "Your extra act (for your errand)");
+  assert.match(h, /class="act-extra"[^>]*data-hint="midnightExtra"/);
+  assert.equal((h.match(/<select/g) ?? []).length, 4, "the act and the extra act, each a kind and a guest");
+  // The game checks it as an AI guest's extra: a different guest, and no guarding yourself.
+  assert.equal(tries.length, 3);
+  const refusals = earned.log.filter((e) => e.type === "refusal").map((e) => e.reason);
+  assert.ok(refusals.includes(PLAYER_REFUSAL("same_guest")) && refusals.includes(PLAYER_REFUSAL("self")), refusals.join(" | "));
+  const act = earned.game.murderActs.find((a) => (a as { character: string }).character === F) as { acts: unknown[]; extra: { type: string; target: string } };
+  assert.equal(act.acts.length, 1);
+  assert.equal(act.extra.type, "kill", "kept apart from the standard act");
+  const ev = earned.game.events.find((e) => e.type === "murder-act" && (e as { character?: string }).character === F) as unknown as { extra?: unknown };
+  assert.deepEqual(ev.extra, act.extra);
+});
+const PLAYER_REFUSAL = (k: string) => (JSON.parse(readFileSync("setting/florence-1492/player.json", "utf8")) as { refusals: { acts: Record<string, string> } }).refusals.acts[k]!;
+
+test("the extra act's looks are theme tokens: the card's accent, in light and dark, and the mark's size", () => {
+  const theme = readFileSync("web/theme.css", "utf8");
+  const css = readFileSync("web/src/app.css", "utf8");
+  for (const sel of [".errand-reward", ".track .errand-mark", ".act-extra"]) assert.match(css, new RegExp(`${sel.replace(/\./g, "\\.")} \\{[^}]*var\\(--errand-accent\\)`), sel);
+  assert.match(css, /\.track \.errand-mark \{[^}]*var\(--errand-mark-size\)/);
+  assert.equal((theme.match(/--errand-accent:/g) ?? []).length, 2, "light and dark");
+  assert.match(theme, /--errand-mark-size:/);
 });

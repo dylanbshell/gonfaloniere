@@ -146,6 +146,9 @@
       "introTwo": "Choose one or two acts for tonight.",
       "submit": "Submit",
       "pick": "Choose a guest",
+      "extra": "Your extra act (for your errand)",
+      "extraNote": "Optional: leave it empty if you don't want it.",
+      "extraSame": "Your extra act must name a different guest from your other act.",
       "acts": {
         "kill": "Kill",
         "guard": "Guard",
@@ -179,8 +182,12 @@
     },
     "and": "and",
     "errandCard": {
-      "title": "Your errand"
+      "_comment": "TD v0.47, the errand card: under the errand's text, one line saying what finishing it earns. `reward` with the run's plot_reward on (the rules primer's terms), `noReward` with it off, as in the mini-game. After the errand's check, {plot_status} replaces the line.",
+      "title": "Your errand",
+      "reward": "Finish it before the last council before midnight for one extra act at midnight: a second kill, guard, or watch, on a different guest. No one else is told.",
+      "noReward": "Errands earn no extra act tonight."
     },
+    "errandDeadline": "Your errand's deadline",
     "earlier": {
       "title": "Earlier tonight",
       "item": "{where} · {when}",
@@ -196,6 +203,10 @@
       "switch": "Turn these explanations on or off. This browser remembers your choice.",
       "sheet": "Your character: your purse, the French pensions you hold, and how many times tonight you've drawn someone aside for a private word.",
       "errand": "What you came to do tonight. It stays here so you don't lose sight of it. Once it has been checked, the result appears here too.",
+      "errandReward": "What you came to do tonight. It stays here so you don't lose sight of it. Finish it before the last council before midnight, and you get one extra act at midnight, a second kill, guard, or watch on a different guest, that no one else is told about. Once it has been checked, the result appears here.",
+      "errandNoReward": "What you came to do tonight. It stays here so you don't lose sight of it. Tonight, errands earn no extra act at midnight, so finishing it is for its own sake.",
+      "trackDeadline": "Your errand's deadline: finish it before this for an extra act at midnight.",
+      "midnightExtra": "The extra act your errand earned you. No one else is told of it. It's yours to use or leave: it must name a different guest from your other act, and you can't guard yourself.",
       "here": "The room: the guests with you, then everyone else as they stand right now. You can see who is with whom, never what they say.",
       "briefing": "Your briefing: who you are, what you know, and what you want. Only you can see it.",
       "rules": "The rules of the evening, as every guest has them.",

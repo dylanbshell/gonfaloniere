@@ -38,6 +38,9 @@ export interface State {
   florins: number;
   pensionsHeld: number;
   withdrawalCount: number;
+  /** TD v0.47: the run's `plot_reward` flag (a run setting, not a secret). The mini-game runs with it off. */
+  plotReward?: boolean;
+  /** Once the errand's check has run (with `plot_reward` on): whether the player has the extra act, in block 5's words. */
   plotStatus?: string;
   /** TD v0.45: where every other living guest is, in open play (the AI guests' room line); absent otherwise. */
   room?: { groups: string[][]; colloquios: string[][] };
@@ -82,6 +85,8 @@ export interface Sheet {
   past?: { id: string; title: string; text: string }[];
   /** TD v0.44, the evening's track: this game's stages, in order, by their names. */
   track?: string[];
+  /** TD v0.47: the track's stage that is the errand's deadline (the last council before midnight), or null when the schedule has none. */
+  errandDeadline?: string | null;
 }
 
 /** Il Notaio's reading (TD v0.44) for one or two guests, up to a place in the record; `text` null: the tally instead. */
@@ -317,10 +322,44 @@ export function readingFor(v: View, guests: string[], me: string): Reading | nul
   return [...v.readings].reverse().find((r) => same(r.guests) && r.upTo === upTo) ?? null;
 }
 
-/** The evening's track (TD v0.44): each stage done, now, or still to come, by the current phase's name. */
-export function trackMarks(stages: string[], now: string | undefined): { stage: string; at: "past" | "now" | "next" }[] {
+/**
+ * The evening's track (TD v0.44): each stage done, now, or still to come, by the current phase's name. With
+ * a `deadline` (TD v0.47), that stage carries the errand mark.
+ */
+export function trackMarks(stages: string[], now: string | undefined, deadline: string | null = null): { stage: string; at: "past" | "now" | "next"; deadline: boolean }[] {
   const i = now === undefined ? -1 : stages.indexOf(now);
-  return stages.map((stage, j) => ({ stage, at: i < 0 ? "next" : j < i ? "past" : j === i ? "now" : "next" }));
+  return stages.map((stage, j) => ({ stage, at: i < 0 ? "next" : j < i ? "past" : j === i ? "now" : "next", deadline: stage === deadline }));
+}
+
+// ---- The errand's extra act (TD v0.47) -------------------------------------------------------------------
+
+/** The errand's deadline on the track: with `plot_reward` on, the stage the schedule names, if the track has it; else null. */
+export function errandDeadline(v: View): string | null {
+  const d = v.sheet?.errandDeadline;
+  return v.state?.plotReward && d && v.sheet?.track?.includes(d) ? d : null;
+}
+
+/**
+ * The errand card's line under the errand: once the check has run, `{plot_status}`'s words; before, with
+ * `plot_reward` on, what finishing it earns; with it off, that errands earn no extra act tonight. Null
+ * before the first state.
+ */
+export function errandLine(s: State | null): { kind: "status"; text: string } | { kind: "reward" | "noReward" } | null {
+  if (!s) return null;
+  if (s.plotStatus) return { kind: "status", text: s.plotStatus };
+  return { kind: s.plotReward ? "reward" : "noReward" };
+}
+
+/**
+ * Whether it's the last round before the errand's deadline (TD v0.47, Il Notaio's hint): the stage just
+ * before the deadline on the track. It reads only the schedule, never the errand's check, so the hint
+ * never gives a result away early.
+ */
+export function lastRoundBeforeDeadline(v: View): boolean {
+  const d = errandDeadline(v);
+  const track = v.sheet?.track ?? [];
+  const i = d ? track.indexOf(d) : -1;
+  return i > 0 && v.state?.phaseLabel === track[i - 1];
 }
 
 /** Whether a guest was part of an earlier conversation: spoke in it, was present, or was named in its events. */
@@ -345,6 +384,8 @@ export function hintMoment(v: View, me: string): { key: string; values: Record<s
     const by = [...v.stream].reverse().find((l) => l.item === "line" && l.addressee === me);
     if (by?.speaker) return { key: "answering", values: { name: by.speaker } };
   }
+  // TD v0.47: the last round to finish the errand for its extra act, whether or not it's done.
+  if (lastRoundBeforeDeadline(v)) return { key: "errandDeadline", values: {} };
   return { key: "mingling", values: {} };
 }
 

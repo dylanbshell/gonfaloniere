@@ -90,6 +90,7 @@
   /* The evening's track */
   --mark-size: 10px;
   --mark-ring: 2px;
+  --errand-mark-size: 6px;
   /* The right panel: its width (dragged, within these), the peeking header, tokens, and the speaking dot */
   --right-width: 280px;
   --right-min: 220px;
@@ -132,6 +133,7 @@
   --tip-text: #f6f6f4;
   --errand-bg: #fbf6ea;
   --errand-border: #d8c79a;
+  --errand-accent: #7a5a12;
   --select-bg: #e3e9f5;
   --hl-bg: #f4efe0;
   --link: #3a5a8c;
@@ -186,6 +188,7 @@
     --tip-text: #1d1d1b;
     --errand-bg: #2a261b;
     --errand-border: #6b5d38;
+    --errand-accent: #e0c27e;
     --select-bg: #26324a;
     --hl-bg: #2e2a1f;
     --link: #8fb0e6;
