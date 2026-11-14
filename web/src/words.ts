@@ -65,6 +65,12 @@ export function stageDescription(stage: string): string {
   return typeof d === "string" ? d : "";
 }
 
+/** A place's one-line description for its hover (player.json's screen.places.descriptions), by its name as the pack gives it; "" if it has none. */
+export function placeDescription(place: string): string {
+  const d = (info?.words as { screen?: { places?: { descriptions?: Record<string, unknown> } } } | undefined)?.screen?.places?.descriptions?.[place];
+  return typeof d === "string" ? d : "";
+}
+
 /**
  * The input box's placeholder examples (Interface v0.5; player.json's screen.input.examples): each names
  * the command it shows by action, and fills `{guest}` and `{command}`. Malformed entries are left out.
