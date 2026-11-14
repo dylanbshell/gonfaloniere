@@ -1,8 +1,17 @@
 # Gonfaloniere
 ## Interface & Experience — Working Document
-### Version 0.11
+### Version 0.12
 
 ---
+
+## Changes in v0.12
+
+*Nov 14. Interface's remaining parts, (1) and (2), of the Retitling handoff, in Mechanics v0.36's words. No design changes: only the player's words.*
+
+- **"French pension" becomes France's payroll.** `/borrow` takes one **payroll payment** and puts you **on France's payroll**; `/repay` pays one back. The sheet's "Pensions held" becomes **"Payroll payments"**, and the glossary, the command hints, the sheet's hover, and Il Notaio's private confirmations follow (The Player's Words, below)
+- **"Capannello" becomes a group.** The conversation line reads **"A group with Giorgia and Lupo"** until the engine has places, and the glossary's entry is **Group**. "Colloquio" stays
+- **New section, The Player's Words:** every setting-pack string the renames touch, old and new, for the build task
+- Build: one small task changes the words in the setting pack (tracker)
 
 ## Changes in v0.11
 
@@ -184,8 +193,8 @@ A single page in the style of a Slack chat. Placeholder portraits until Art's ar
 ```
 ┌─────────────────┬────────────────────────────────────┬──────────────────┐
 │ YOU             │ ●─●─●─(The second round)─○─○─○     │ ▔ Lupo ▔▔▔▔▔▔▔▔▔ │
-│ portrait · name │ Capannello with Giorgia, Lupo      │ Giorgia (selected│
-│ purse·pensions· │ ▸ Earlier this stage (collapsed)   │ (or a lore entry)│
+│ portrait · name │ In the loggia with Giorgia, Lupo   │ Giorgia (selected│
+│ purse·payroll·  │ ▸ Earlier this stage (collapsed)   │ (or a lore entry)│
 │ withdrawals     │ Il Notaio: …                       │                  │
 │ [Briefing]      │ Giorgia Pazzi: …                   │                  │
 │ [Rules] [City]  │ Lupo (to you): …                   │                  │
@@ -201,7 +210,7 @@ A single page in the style of a Slack chat. Placeholder portraits until Art's ar
 ### Left: you
 
 In this order *(Dylan, Nov 13)*:
-- **Your sheet:** portrait, name, faction, purse, pensions held, Colloquio withdrawals, and **midnight** *(v0.8)*. These should read as more than a list (a purse with its count, a pension seal, tally marks for withdrawals), but how they look is settled with the look (The Look, below)
+- **Your sheet:** portrait, name, faction, purse, payroll payments (v0.12), Colloquio withdrawals, and **midnight** *(v0.8)*. These should read as more than a list (a purse with its count, a pension seal, tally marks for withdrawals), but how they look is settled with the look (The Look, below)
 - **The midnight line** *(Dylan, Nov 14; v0.8)*: **"Midnight: 1 act (kill, guard, or watch)."** With `plot_reward` on, a second line in the errand card's words: **"+1 if you finish your errand before the last council."** Once the errand check has run, it becomes "+1 earned" or disappears. It never gives a check's result away early. The count and the reward come from what the errand card already uses
 - **Your name or portrait opens your briefing** *(v0.7)*, the same as its button, at the place you left it. Its hover says "Your briefing". It's the one portrait that doesn't select its guest
 - **Four buttons:** **Your briefing**, **The rules**, **The city**, and **Glossary** (Briefing, rules, the city, and the glossary, below). There's no button for the Web of Secrets, which is always at the bottom
@@ -216,7 +225,7 @@ In this order *(Dylan, Nov 13)*:
   - **A place itself isn't clickable:** guests move toward a person, never to a place. **Hovering a place's name shows Lore's one-line description** of it ("An open arcade on the upper floor, overlooking the courtyard"), which is public
   - **In councils,** only your own council's place is shown, with your faction in it ("The Medici council, in the study"); the rest of the hall is hidden, as the rule says. **At midnight and the ballot** the list gives way to a quiet line, since each guest chooses alone
   - The dead aren't shown
-- **The conversation's members** sit in a slim line just under the bar ("In the loggia with Giorgia and Lupo"; in a Colloquio, "In the study, aside with Clarice"; until the engine has places, "Capannello with Giorgia and Lupo"). **End conversation** sits on that line in a Colloquio
+- **The conversation's members** sit in a slim line just under the bar ("In the loggia with Giorgia and Lupo"; in a Colloquio, "In the study, aside with Clarice"; until the engine has places, "A group with Giorgia and Lupo"). **End conversation** sits on that line in a Colloquio
 - **Only the current conversation is open.** Earlier conversations **in the current stage** collapse into an **Earlier this stage** section above, one line each, each opening in place when clicked. Earlier stages live in the bar instead
 - **Selecting a guest** opens the collapsed sections of this stage they appeared in, with their lines highlighted, and **puts a small dot on each past stage they appear in**. Deselecting clears both
 - **The stream:** lines, Il Notaio's notes in their own style, action lines, and lines addressed to the player marked as such. A "…is speaking" indicator shows while a line is generated
@@ -379,9 +388,9 @@ When the game waits for one of the player's choices, a card appears in the strea
 
 *The timing rules are Technical Design's (How the game waits for the player); this is what the player sees of them.*
 
-- **In a Capannello or council, the box is always open.** A message sent is held and spoken at the next break between lines, never cut into one. The box then says the turn's message is used until the next turn. **Pass** gives it up
+- **In a group or council, the box is always open.** A message sent is held and spoken at the next break between lines, never cut into one. The box then says the turn's message is used until the next turn. **Pass** gives it up
 - **When someone addresses the player,** the game waits for them, and the line is marked "to you". The answer never uses the turn's message, and passing is always allowed
-- **Addressing someone:** @-mention a guest present, in a Capannello, and they must answer next. The @ isn't shown in the stored line, which reads "(to Name)" like anyone's
+- **Addressing someone:** @-mention a guest present, in a group, and they must answer next. The @ isn't shown in the stored line, which reads "(to Name)" like anyone's
 - **In a Colloquio,** the guests take turns and the game waits for each of the player's lines. **End conversation** ends it at any time; the other guest gets one closing line. If the other guest ends it, the player is asked for one closing line, which they can pass
 
 ---
@@ -461,12 +470,32 @@ How a new player learns the game without a tutorial up front.
 
 ---
 
+## The Player's Words *(v0.12)*
+
+The setting pack's player-facing strings the retitling touches (Mechanics v0.36). The keys stay as they are, since code reads them; only the words change. Strings that reach an AI guest's prompt aren't here: the Embassy's ledger lines in `notaio.json` and the factions' `pension` roles in `setting.json` are Technical Design's.
+
+| Where | Was | Now |
+|---|---|---|
+| `player.json` › `commands.borrow.hint` | Accept one French pension of {amount} {currency}. | Go on France's payroll: take one payment of {amount} {currency} from the Embassy. |
+| `player.json` › `commands.repay.hint` | Renounce one French pension, your own or a relative's, for {amount} {currency}. | Pay back one payroll payment, your own or a relative's, for {amount} {currency}. |
+| `player.json` › `refusals.pension_refused` | You hold no pension you could renounce for {holder}, or can't pay it back. | You have no payroll payment you could pay back for {holder}, or can't afford it. |
+| `player.json` › `screen.pensions` | Pensions held | Payroll payments |
+| `player.json` › `screen.capannello` | Capannello with {others} | A group with {others} |
+| `player.json` › the sheet's hover | Your character: your purse, the French pensions you hold, and how many times tonight you've drawn someone aside for a private word. | Your character: your purse, the payments you've taken from France's payroll, and how many times tonight you've drawn someone aside for a private word. |
+| `notaio.json` › `pension_taken` | You accepted a French pension of {amount} {currency}. Your purse: {purse} {currency}. | You took a payment of {amount} {currency} and are now on France's payroll. Your purse: {purse} {currency}. |
+| `notaio.json` › `pension_renounced` | You renounced the French pension held by {holder}: {amount} {currency} returned to the Embassy. | You paid back a payroll payment for {holder}: {amount} {currency} returned to the Embassy. |
+| `notaio.json` › `pension_refused` | Your attempt to renounce a pension for {holder} failed: no such pension that you can repay. | Your attempt to pay back a payroll payment for {holder} failed: there's no such payment you can repay. |
+
+`pension_refused_self` stays "yourself". The glossary's entries are in Glossary Draft.
+
+---
+
 ## The Look *(undecided; Dylan, Nov 10)*
 
 - **Three directions** are on a [design canvas](https://claude.ai/artifact/MgVNN1NijQxXrbuy56Tof2): a "palazzo ledger" (parchment and ink, serif type), a dark modern chat, and a clean light style with period accents
 - **Leaning:** the palazzo ledger, with **rounded corners** rather than square boxes, and the movement card as three choice tiles with a guest picker below, in the ledger's styling. Decide after the first playtests
 - **Applied through the theme file only.** The first build is plain and neutral; a chosen look is applied by editing `web/theme.css`, not the components. The card styles above (tint, shadow, label), the relationship colours, and the faction colours are all tokens
-- **To settle with the look:** how the sheet reads as more than a list (purse, pension seal, tally marks), the two card kinds, the hint versus the announcements, and the Web of Secrets' bar
+- **To settle with the look:** how the sheet reads as more than a list (purse, payroll seal, tally marks), the two card kinds, the hint versus the announcements, and the Web of Secrets' bar
 - **Portraits** are Art's; until they're ready, initials in a faction-coloured circle
 
 ---
@@ -565,7 +594,6 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 
 - **The look:** the palazzo ledger is the leaning; decide after the first playtests (The Look)
 - **Your midnight choices in the sheet afterwards** ("You guarded Giorgia; you watched Lupo"), and **"Choosing now"** during midnight: ideas for later, not decided (Dylan, Nov 14: the count is what's wanted for now)
-- **Retitling, still to come** (Dylan, Nov 14; tracker handoff): **"French pension" becomes being on France's payroll** (the sheet's "Pensions held", the glossary, the command hints for `/borrow` and `/repay`), and **"Capannello" becomes a group** (the glossary, the conversation line, the tour). Both wait on Mechanics' new wording, so the player's words match the rules exactly. "Colloquio" stays
 - **A storybook opening, maybe in v2** (Dylan): illustrations and more interaction, with Art. Until then, Il Notaio's written opening
 - **Does the full game's stage bar fit?** It has about fifteen stages to the mini-game's handful. If the circles get too small to read, consider grouping each council with its round of mingling. Check on the first full game
 - **Is Il Notaio conservative enough?** Read his readings and summaries in the first playtests for anything that connects or hints, and tighten the guard with Technical Design if so
@@ -584,26 +612,26 @@ A first draft of the glossary's entries, from Mechanics v0.34, in the in-world n
 |---|---|
 | **Ballot** † | The secret vote that ends the evening. Every living guest casts one vote for any living guest, and may buy extra votes for that guest at 5 Florins each. Most votes wins; Il Notaio names only the winner |
 | **/bribe** | Hand Florins to the guest you're alone with in a Colloquio. Whatever they promise in return is up to them |
-| **/borrow** | Accept a French pension: 3 Florins from the Embassy's treasury. Medici and Pazzi only |
+| **/borrow** | Go on France's payroll: take one payroll payment of 3 Florins from the Embassy's treasury. Medici and Pazzi only |
 | **Candidate** † | The one living guest each of the two great houses, Medici and Pazzi, puts forward for Gonfaloniere |
-| **Capannello** | An open group of two to four guests. Anyone may join while it has room, and only those in it hear what's said |
+| **Group** | An open conversation of two to four guests. Anyone may join while it has room, and only those in it hear what's said |
 | **Colloquio** | A private conversation between two guests. No one else can join or hear. Calling one uses your move, and the guest you call can't refuse, but everyone sees the two of you slip away |
 | **/conclude** | Privately record what you've worked out, for an errand that asks you to find something out. Only your latest conclusion counts |
 | **Council** | A private meeting of your own faction. Nothing is shared unless someone says it aloud |
-| **Dominicans** | The friars' faction. They can't take French pensions. They win if the guest elected Gonfaloniere has repented |
+| **Dominicans** | The friars' faction. They can't go on France's payroll. They win if the guest elected Gonfaloniere has repented |
 | **Errand** | Your character's own task tonight, in your briefing. Your errand card says what finishing it earns |
 | **Florins** | The evening's money. Everyone starts with 10 and receives 1 at the start of each round of mingling. Purses are private |
-| **French Embassy** | France's faction. It keeps the pension treasury and knows who holds pensions. It wins if anyone in the elected candidate's family holds a French pension |
-| **French pension** | 3 Florins lent by the French Embassy. If anyone in the winning candidate's family still holds one at the ballot, France wins. Pensions are private unless someone tells |
+| **French Embassy** | France's faction. It keeps the treasury that pays France's payroll, and knows who is on it. It wins if anyone in the elected candidate's family is on France's payroll |
+| **France's payroll** | Taking a payroll payment, 3 Florins from the French Embassy, puts a guest on France's payroll. If anyone in the winning candidate's family is still on it at the ballot, France wins. Who is on it is private unless someone tells |
 | **Gonfaloniere** † | The office the evening decides: the head of Florence's government. Only a Medici or a Pazzi can stand |
 | **Guard** | A midnight act. A guest guarded by two or more others survives an attack |
 | **Il Notaio** | Italian for "the notary": the one who records the evening. He notes who joins, leaves, and slips away, and announces what all the city hears. He belongs to no faction |
 | **Kill** | A midnight act. It's carried out unless the killer was watched by two or more guests, or the target guarded by two or more. Killers are never named |
-| **Medici** | One of the two great houses, competing for Gonfaloniere. They win if their candidate is elected, unrepentant, with no one in the family holding a French pension |
+| **Medici** | One of the two great houses, competing for Gonfaloniere. They win if their candidate is elected, unrepentant, with no one in the family on France's payroll |
 | **Midnight** | When each living guest secretly chooses one act: kill, guard, or watch, each on a different guest. Il Notaio then announces who died, never who killed them |
 | **Move** | Your turn to change company, when it comes: stay, join another guest's group, or call a Colloquio |
 | **Pazzi** | The other great house, competing for Gonfaloniere, on the same terms as the Medici |
-| **/repay** | Renounce a French pension, yours or a relative's, by paying back 3 Florins, any time before the ballot. Private |
+| **/repay** | Pay back one payroll payment, yours or a relative's, by returning 3 Florins, any time before the ballot. Private |
 | **/repent** † | A candidate's public confession during the speeches. It can't be taken back, and it makes the Dominicans' win their own |
 | **Round of mingling** | Open play, when guests form groups, move, and call Colloquios |
 | **Run-off** † | If the ballot ties, one fresh vote among the tied guests, with no buying. A second tie is decided by lot |
