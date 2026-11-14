@@ -158,7 +158,7 @@ test("the errand card: pinned under the sheet, with the briefing's errand sectio
   assert.equal(v.sheet!.errand, errand);
   const h = html(createElement(GameView, { me: F, v, send: () => {}, status: "open" }));
   const card = h.indexOf('class="errand"');
-  assert.ok(card > h.indexOf('class="facts"') && card < h.indexOf('class="here"'), "between the sheet and the room");
+  assert.ok(card > h.indexOf('class="facts"') && card < h.indexOf('class="room'), "between the sheet and the places");
 });
 
 test("buttons by job: Speak is the one filled button, disabled with nothing to say; Pass is outlined; End sits in the header", async () => {
@@ -243,7 +243,7 @@ test("one theme file: the components' CSS uses only theme.css's tokens, and ever
 
 test("no words and no setting terms in the web app's code", () => {
   const pack = settingPack();
-  const terms = [...pack.roster.flatMap((r) => [r.name, ...r.aliases]), ...pack.factions.map((x) => x.name), pack.currency.singular, pack.currency.plural, "Capannello", "Colloquio", "Notaio"];
+  const terms = [...pack.roster.flatMap((r) => [r.name, ...r.aliases]), ...pack.factions.map((x) => x.name), ...(pack.places ?? []), pack.currency.singular, pack.currency.plural, "Capannello", "Colloquio", "Notaio"];
   for (const f of [...files("web/src", /\.(tsx?|css)$/), "web/index.html"]) {
     const code = noComments(readFileSync(f, "utf8"));
     for (const t of terms) assert.ok(!new RegExp(`(?<![\\p{L}])${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}])`, "u").test(code), `${f}: "${t}"`);
@@ -484,11 +484,11 @@ test("the web's names are drawn after every line and circle, on a halo, so no li
   assert.match(css, /\.node-name \{[^}]*paint-order: stroke;[^}]*stroke: var\(--surface\)/, "a halo in the panel's colour");
 });
 
-test("the left column (TD v0.45): the sheet, then the three decks, then the errand, then who's here; no button for the web", async () => {
+test("the left column (TD v0.45): the sheet, then the three decks, then the errand, then the places; no button for the web", async () => {
   const { at } = await playedLog();
   const h = game({ v: derive(at["speak:capannello"]!) });
   const left = h.slice(h.indexOf('class="side left"'), h.indexOf('class="centre"'));
-  const order = ['data-hint="sheet"', 'data-hint="briefing"', 'data-hint="city"', 'class="errand"', 'data-hint="here"'].map((k) => left.indexOf(k));
+  const order = ['data-hint="sheet"', 'data-hint="briefing"', 'data-hint="city"', 'class="errand"', 'data-hint="places"'].map((k) => left.indexOf(k));
   assert.ok(order.every((i) => i >= 0), String(order));
   assert.deepEqual([...order].sort((a, b) => a - b), order);
   assert.ok(!left.includes('data-hint="web"'), "the Web of Secrets is at the bottom, not here");
@@ -593,40 +593,129 @@ test("the Web of Secrets: a bar always there, a key of the six types that highli
 
 // ---- CC-20261113-04 (#95): the room (TD v0.45) -----------------------------------------------------------
 
-test("the room: your own group marked, by name; every other group as overlapping tokens and each private pair joined, from the state's places (TD v0.49) or room (v0.45–v0.48)", async () => {
+test("the room (TD v0.45–v0.48, a game without places): your own group marked, by name; every other group as overlapping tokens and each private pair joined", async () => {
   const { at } = await playedLog();
   const v = derive(at["speak:capannello"]!);
-  assert.ok(v.state!.places && !v.state!.room, "the default TD (v0.49) sends the places in open play, in place of the room");
-  const h = game({ v });
-  const left = h.slice(h.indexOf('class="side left"'), h.indexOf('class="centre"'));
-  assert.match(left, /class="cluster mine" data-cluster="mine"/);
-  const room = roomOf(v.state)!;
-  const others = v.state!.places!.filter((p) => !p.own && p.guests.length);
-  assert.deepEqual(room, { groups: others.filter((p) => !p.private).map((p) => p.guests), colloquios: others.filter((p) => p.private).map((p) => p.guests) }, "the other occupied places");
-  assert.ok(room.groups.length > 0);
-  assert.equal((left.match(/data-cluster="group"/g) ?? []).length, room.groups.length);
-  assert.equal((left.match(/data-cluster="private"/g) ?? []).length, room.colloquios.length);
-  const clusters = left.slice(left.indexOf('class="clusters"'));
-  assert.equal((clusters.match(/class="token( selected)?"/g) ?? []).length, [...room.groups, ...room.colloquios].flat().length, "a token for every other guest in the room");
-  assert.equal((left.match(/class="joint"/g) ?? []).length, room.colloquios.length, "each pair joined");
-  // Hand-made places: the player's own, two groups (one a guest on their own), a pair, and empty places.
+  assert.ok(v.state!.places && !v.state!.room && v.named, "the default TD (v0.49) sends the places in open play, in place of the room");
+  // roomOf reads either shape: from places, the other occupied places.
   const place = (name: string, guests: string[], o: { private?: boolean; own?: boolean } = {}) => ({ name, guests, private: !!o.private, own: !!o.own });
   const places = [place("the great hall", ["Lupo", "Fra Tommaso"]), place("the window bay", []), place("the anteroom", ["Francesco Pazzi", "Giorgia Pazzi"], { own: true }), place("the loggia", ["Piero de' Medici", "Clarice Orsini"], { private: true }), place("the study", ["Sister Beatrice"]), place("the dining room", [])];
-  const made = { ...v, state: { ...v.state!, places } };
-  assert.deepEqual(roomOf(made.state), { groups: [["Lupo", "Fra Tommaso"], ["Sister Beatrice"]], colloquios: [["Piero de' Medici", "Clarice Orsini"]] });
-  const m = game({ v: made, selected: { kind: "guest", name: "Lupo" } });
-  assert.equal((m.match(/data-cluster="group"/g) ?? []).length, 2);
-  assert.equal((m.match(/data-cluster="private"/g) ?? []).length, 1);
-  assert.match(m, /class="token selected" aria-label="Lupo"/, "a selected guest's token is marked");
-  // Before TD v0.49, the state's room, as before.
+  const roomShape = { groups: [["Lupo", "Fra Tommaso"], ["Sister Beatrice"]], colloquios: [["Piero de' Medici", "Clarice Orsini"]] };
+  assert.deepEqual(roomOf({ ...v.state!, places }), roomShape);
+  // An older game: no state ever carried places, so the room view as built.
   const { places: _, ...withoutPlaces } = v.state!;
-  const old = { ...v, state: { ...withoutPlaces, room: { groups: [["Lupo", "Fra Tommaso"], ["Sister Beatrice"]], colloquios: [["Piero de' Medici", "Clarice Orsini"]] } } };
-  assert.equal(game({ v: old, selected: { kind: "guest", name: "Lupo" } }), m, "the same room from either shape");
-  // Midnight: no places, only who's with you.
+  const old: View = { ...v, named: false, state: { ...withoutPlaces, room: roomShape } };
+  const m = game({ v: old, selected: { kind: "guest", name: "Lupo" } });
+  const left = m.slice(m.indexOf('class="side left"'), m.indexOf('class="centre"'));
+  assert.match(left, /class="cluster mine" data-cluster="mine"/);
+  assert.match(left, /data-hint="here"/);
+  assert.doesNotMatch(left, /class="places"/, "no place list without places");
+  assert.equal((left.match(/data-cluster="group"/g) ?? []).length, 2);
+  assert.equal((left.match(/data-cluster="private"/g) ?? []).length, 1);
+  const clusters = left.slice(left.indexOf('class="clusters"'));
+  assert.equal((clusters.match(/class="token( selected)?"/g) ?? []).length, [...roomShape.groups, ...roomShape.colloquios].flat().length, "a token for every other guest in the room");
+  assert.equal((left.match(/class="joint"/g) ?? []).length, 1, "each pair joined");
+  assert.match(m, /class="token selected" aria-label="Lupo"/, "a selected guest's token is marked");
+  for (const p of v.state!.present) assert.match(left, new RegExp(`<li><button class="token( selected)?" aria-label="${esc(p)}" aria-pressed="(true|false)" data-guest="${esc(p)}"[^>]*data-hint="portrait"`), `${p}'s portrait selects`);
+  // Its conversation line is today's label, with no place.
+  const members = (h: string) => h.slice(h.indexOf('class="members"'), h.indexOf("</div>", h.indexOf('class="members"')));
+  assert.ok(members(m).includes(`>${esc(PLAYER.screen.capannello.replace("{others}", v.state!.present.join(" and ")))}`), `today's label: ${members(m)}`);
+  assert.doesNotMatch(members(m), /\bIn the /);
+  // Midnight in an older game: only who's with you.
   const mid = derive(at.midnight!);
   assert.equal(mid.state!.places, undefined);
   assert.equal(roomOf(mid.state), null);
-  assert.doesNotMatch(game({ v: mid }), /data-cluster="(group|private)"/);
+  assert.doesNotMatch(game({ v: { ...mid, named: false } }), /data-cluster="(group|private)"/);
+});
+
+// ---- CC-20261114-12 (#132): the place list and the conversation line (Interface v0.9) ----------------------
+
+test("the place list: every place in the pack's order, empty ones faded, yours marked, a private one behind a closed door; portraits select, your own opens your briefing", async () => {
+  const { at } = await playedLog();
+  const v = derive(at["speak:capannello"]!);
+  const pack = settingPack().places!;
+  const h = game({ v });
+  const left = h.slice(h.indexOf('class="side left"'), h.indexOf('class="centre"'));
+  assert.match(left, /data-hint="places"/);
+  assert.ok(left.includes(`>${PLAYER.screen.places.title}<`));
+  assert.doesNotMatch(left, /data-cluster=/, "the place list replaces the room's clusters");
+  const rows = [...left.matchAll(/<li class="place([^"]*)" data-place="([^"]*)">/g)].map((r) => ({ cls: r[1]!, name: r[2]! }));
+  assert.deepEqual(rows.map((r) => r.name), pack, "every place, in the pack's order");
+  const sp = v.state!.places!;
+  assert.deepEqual(rows.map((r) => r.cls.includes("empty")), sp.map((p) => p.guests.length === 0), "empty places stay, faded");
+  assert.ok(sp.some((p) => !p.guests.length));
+  assert.deepEqual(rows.map((r) => r.cls.includes(" own")), sp.map((p) => p.own), "your own place is marked");
+  assert.equal(sp.filter((p) => p.own).length, 1);
+  // Headings: the first letter capitalized; the hover is Lore's description, the same as the issue gives it.
+  for (const name of pack) {
+    const d = PLAYER.screen.places.descriptions[name] as string;
+    assert.ok(d && d.length > 20, name);
+    assert.ok(left.includes(`<span class="place-name" tabindex="0" aria-description="${esc(d)}">${name[0]!.toUpperCase()}${name.slice(1)}</span>`), `${name}: heading and description`);
+  }
+  assert.deepEqual(Object.keys(PLAYER.screen.places.descriptions).filter((k) => !k.startsWith("_")), pack, "a description for every place, keyed by its name");
+  // Every guest in a place has a portrait; other guests' select, the player's own opens the briefing.
+  for (const p of sp)
+    for (const g of p.guests)
+      if (g === F) assert.match(left, new RegExp(`<button class="token me" aria-label="${esc(F)}"[^>]*data-hint="myBriefing"`));
+      else assert.match(left, new RegExp(`<button class="token" aria-label="${esc(g)}" aria-pressed="false" data-guest="${esc(g)}"[^>]*data-hint="room(Token|Pair)"`), `${g}'s portrait selects`);
+  assert.doesNotMatch(left, new RegExp(`data-guest="${esc(F)}"`), "the player's own portrait doesn't select");
+  // A private place: the closed-door mark, and its guests' portraits say so.
+  const col = derive(at["speak:colloquio"]!);
+  const priv = col.state!.places!.filter((p) => p.private);
+  assert.ok(priv.length > 0);
+  const ch = game({ v: col });
+  const cl = ch.slice(ch.indexOf('class="side left"'), ch.indexOf('class="centre"'));
+  assert.equal((cl.match(/class="door" role="img"/g) ?? []).length, priv.length, "a closed door on each private place");
+  for (const p of priv) assert.match(cl, new RegExp(`<li class="place[^"]* private" data-place="${esc(p.name)}">`));
+  // No place is a control: only its portraits are buttons.
+  assert.doesNotMatch(left, /<button[^>]*data-place=/);
+});
+
+test("the place list in a council (a fixture: the mini-game has none) shows only your own place, with your faction; outside a conversation, a quiet line", async () => {
+  const { at } = await playedLog();
+  const v = derive(at["speak:capannello"]!);
+  const own = v.state!.places!.find((p) => p.own)!;
+  const council = (faction?: string): View => ({ ...v, state: { ...v.state!, conversation: { kind: "council", ...(faction && { faction }) } } });
+  const mine = info.roster.find((r) => r.name === F)!.faction;
+  for (const [cv, faction] of [[council(), mine], [council("Medici"), "Medici"]] as const) {
+    const h = game({ v: cv });
+    const left = h.slice(h.indexOf('class="side left"'), h.indexOf('class="centre"'));
+    const rows = [...left.matchAll(/<li class="place[^"]*" data-place="([^"]*)">/g)].map((r) => r[1]);
+    assert.deepEqual(rows, [own.name], "only your own place");
+    const label = `The ${faction} council, in ${own.name}`;
+    assert.ok(left.includes(`>${esc(label)}</span>`), `the row: ${label}`);
+    assert.ok(h.slice(h.indexOf('class="members"')).includes(`>${esc(label)}<`), "the conversation line too");
+  }
+  // Midnight: the list gives way to one quiet line.
+  const mid = derive(at.midnight!);
+  assert.ok(mid.named && !mid.state!.places);
+  const mh = game({ v: mid });
+  assert.match(mh, new RegExp(`class="places-quiet muted">${esc(PLAYER.screen.places.quiet)}<`));
+  assert.doesNotMatch(mh, /class="places"|data-cluster=/);
+});
+
+test("the conversation line names the place: a group, a group of one, a Colloquio; earlier conversations' lines too", async () => {
+  const { at, log } = await playedLog();
+  const members = (h: string) => h.slice(h.indexOf('class="members"'), h.indexOf("</span>", h.indexOf('class="members"')));
+  const v = derive(at["speak:capannello"]!);
+  const own = v.state!.places!.find((p) => p.own)!;
+  const listed = (xs: string[]) => (xs.length <= 2 ? xs.join(" and ") : `${xs.slice(0, -1).join(", ")}, and ${xs.at(-1)}`);
+  assert.ok(members(game({ v })).endsWith(`>${esc(`In ${own.name} with ${listed(v.state!.present)}`)}`), members(game({ v })));
+  const alone: View = { ...v, state: { ...v.state!, present: [] } };
+  assert.ok(members(game({ v: alone })).endsWith(`>${esc(`In ${own.name}, on your own`)}`));
+  const col = derive(at["speak:colloquio"]!);
+  const cOwn = col.state!.places!.find((p) => p.own)!;
+  const other = (col.state!.conversation as { other: string }).other;
+  assert.ok(members(game({ v: col })).endsWith(`>${esc(`In ${cOwn.name}, aside with ${other}`)}`), members(game({ v: col })));
+  // Between seats (a Colloquio has ended, no place is yours yet): the conversation as before.
+  const between: View = { ...col, state: { ...col.state!, places: col.state!.places!.map((p) => ({ ...p, own: false })) } };
+  assert.doesNotMatch(members(game({ v: between })), /\bIn the /);
+  // Earlier conversations in this stage are named by their places too.
+  const e = await earlierView();
+  const eh = game({ v: e });
+  const items = [...eh.matchAll(/class="earlier-line"[^>]*>(?:<[^>]+>)*([^<]*)</g)].map((m) => m[1]!);
+  assert.ok(items.length > 0 && items.every((t) => /In the /.test(t)), items.join(" | "));
+  assert.ok(log.length > 0);
 });
 
 // ---- CC-20261114-04 (#102): the errand's extra act on the screen (TD v0.47) -------------------------------
@@ -1096,8 +1185,8 @@ test("portraits select their guest wherever they appear; the player's own name o
   const v = derive(at["speak:capannello"]!);
   const h = game({ v });
   const left = h.slice(h.indexOf('class="side left"'), h.indexOf('class="centre"'));
-  // Who's with you: a portrait button and the name, each selecting.
-  for (const p of v.state!.present) assert.match(left, new RegExp(`<li><button class="token" aria-label="${esc(p)}" aria-pressed="false" data-guest="${esc(p)}"[^>]*data-hint="portrait"`), `${p}'s portrait selects`);
+  // Who's with you, in your own place: a portrait button each, selecting.
+  for (const p of v.state!.present) assert.match(left, new RegExp(`<button class="token" aria-label="${esc(p)}" aria-pressed="false" data-guest="${esc(p)}"[^>]*data-hint="roomToken"`), `${p}'s portrait selects`);
   // The tokens under the "talking with" card select too.
   const right = h.slice(h.indexOf('class="side right'), h.indexOf('class="web-dock'));
   const others = v.state!.present.filter((p) => p !== talkingWith(v, F));

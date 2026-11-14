@@ -40,7 +40,11 @@ export interface Run extends Segment {
 
 export interface State {
   phaseLabel: string;
-  conversation: { kind: "capannello"; others: string[] } | { kind: "colloquio"; other: string } | { kind: "gathering" };
+  /**
+   * A council (the full game; the mini-game has none) shows only the player's own place (Interface v0.9). No
+   * engine sends one yet, nor its faction; without `faction`, the screen names the player's own.
+   */
+  conversation: { kind: "capannello"; others: string[] } | { kind: "colloquio"; other: string } | { kind: "council"; faction?: string } | { kind: "gathering" };
   present: string[];
   livingOthers: string[];
   florins: number;
@@ -86,6 +90,25 @@ export function roomOf(s: State | null): { groups: string[][]; colloquios: strin
   }
   return s?.room ?? null;
 }
+
+/**
+ * The place list (Interface v0.9, Left: The places) from the state's `places` (TD v0.49): every place in the
+ * pack's order, empty ones too; in a council, only the player's own. Outside a conversation (midnight, the
+ * ballot) in a game that has places, none: the list gives way to a quiet line. Null in a game without
+ * places (before TD v0.49, or before the first state), which keeps the room view.
+ */
+export function placeList(v: View): Place[] | null {
+  const s = v.state;
+  if (!s || !v.named) return null;
+  if (!s.places || s.conversation.kind === "gathering") return [];
+  return s.conversation.kind === "council" ? s.places.filter((p) => p.own) : s.places;
+}
+
+/** The player's own place in this state (TD v0.49), or null: none sent, or between seats. */
+export const ownPlace = (s: State | null): Place | null => s?.places?.find((p) => p.own) ?? null;
+
+/** A place's name as a row's heading (Interface v0.9): the pack's words with only the first letter capitalized. */
+export const placeHeading = (name: string): string => name.charAt(0).toUpperCase() + name.slice(1);
 
 export interface Request {
   id: string;
@@ -176,6 +199,8 @@ export interface View {
   spoken: number;
   /** The seq of the last line or request: a refusal after it is the latest thing that happened. */
   activity: number;
+  /** Whether any state so far carried named places (TD v0.49): the screen shows the place list, not the room. */
+  named?: boolean;
 }
 
 const isLine = (e: Ev) => e.type === "line" || e.type === "notaio" || e.type === "action";
@@ -238,6 +263,7 @@ export function derive(log: Ev[]): View {
       if (l.item === "line" && l.you) v.spoken++;
     } else if (e.type === "state") {
       v.state = e.state as State;
+      if (v.state.places) v.named = true;
       v.presence.push({ seq: e.seq, present: v.state.present ?? [] });
       v.commands = e.commands as Command[];
       v.speaking = (e.speaking as string | null | undefined) ?? null;

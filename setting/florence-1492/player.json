@@ -299,6 +299,8 @@
       "loreEntry": "A lore entry you opened from a line. Back returns to what you were looking at.",
       "roomToken": "{name}, in company. Click to select them.",
       "roomPair": "{name}, in private. Click to select them.",
+      "places": "The places: every place in the house, always in the same order, and who is in each right now. Yours is marked, and a closed door marks a private conversation. You can see who is with whom, never what they say. Hover a place's name to read about it.",
+      "placePrivate": "Two guests have drawn aside here in private, behind a closed door. You can see who, never what they say.",
       "rulesSection": "Open this section of the rules. Its × takes you back to all of them.",
       "rulesShrink": "Back to all the sections of the rules.",
       "cityRow": "Read this entry in full. The arrow at its top takes you back to the list.",
@@ -403,6 +405,30 @@
     "room": "The room",
     "withYou": "With you",
     "withYouPrivately": "With you, in private",
+    "places": {
+      "_comment": "Interface v0.9, Left: The places, from the player's state's `places` (TD v0.49). Every place in setting.json's order; a row's heading is the place's name with its first letter capitalized. `yours` marks the player's own place, `private` names the closed-door mark on a place holding a Colloquio, and `quiet` stands in for the list outside a conversation (midnight, the ballot). `descriptions`: Lore's one-line description of each place (Lore v0.8, The Palazzo), shown on hovering its name, keyed by the place's name exactly as setting.json gives it.",
+      "title": "The places",
+      "yours": "You are here",
+      "private": "Private: behind a closed door",
+      "quiet": "Each guest chooses alone now.",
+      "descriptions": {
+        "the great hall": "The main room, under painted beams, where the crowd gathers",
+        "the window bay": "A deep window seat at the great hall's far end, over the street",
+        "the anteroom": "At the top of the stair, where guests wait to be announced",
+        "the loggia": "An open arcade on the upper floor, overlooking the courtyard",
+        "the courtyard": "Below the loggia, around the well, open to the night sky",
+        "the study": "The host's small room of books and letters",
+        "the painted room": "Its walls frescoed with the months of the year",
+        "the dining room": "The long table, laid for the mourners' supper"
+      }
+    },
+    "placeLine": {
+      "_comment": "Interface v0.9, the conversation line (the members line under the stage bar, and each earlier conversation's line), once the state has places (TD v0.49). {place} is the place's name as setting.json gives it, in a sentence as is; {others} the guests with the player, joined; {other} the Colloquio's other guest; {faction} the player's faction. Without places, `capannello`, `colloquio`, and `alone` above.",
+      "group": "In {place} with {others}",
+      "alone": "In {place}, on your own",
+      "colloquio": "In {place}, aside with {other}",
+      "council": "The {faction} council, in {place}"
+    },
     "glossary": "Glossary",
     "glossaryModal": {
       "search": "Search the glossary",

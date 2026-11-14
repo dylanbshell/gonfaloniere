@@ -7,8 +7,8 @@
 import { Component, Fragment, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { connect, type Ev } from "./connection.ts";
 import { COMMAND, MENTION, canDo, canSpeak, isCommand, matchCommands, matchGuests, openMenu, withMention, type Trigger } from "./input.ts";
-import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityList, curve, derive, earlierThisStage, errandDeadline, errandLine, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, notesFor, placeholderExample, preview, readingFor, recordUpTo, roomOf, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, type Card, type Line, type LoreEntry, type Note, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
-import { getInfo, guest, names, narrator, notaioHint, placeholderExamples, setInfo, stageDescription, w, type GlossEntry, type StartInfo } from "./words.ts";
+import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityList, curve, derive, earlierThisStage, errandDeadline, errandLine, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, notesFor, ownPlace, placeHeading, placeList, placeholderExample, preview, readingFor, recordUpTo, roomOf, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, type Card, type Line, type LoreEntry, type Note, type Place, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
+import { getInfo, guest, names, narrator, notaioHint, placeDescription, placeholderExamples, setInfo, stageDescription, w, type GlossEntry, type StartInfo } from "./words.ts";
 
 type Send = (m: unknown) => void;
 
@@ -938,8 +938,8 @@ const TOUR: { key: string; at: string[] }[] = [
   { key: "sheet", at: [".side.left .sheet-panel"] },
   { key: "decks", at: [".side.left .buttons.decks"] },
   { key: "errand", at: [".side.left .errand"] },
-  // The room view: the places, once the engine has them (#132).
-  { key: "room", at: ['.side.left [data-hint="here"]', ".side.left .room"] },
+  // The places (Interface v0.9), or the room view in a game without them.
+  { key: "room", at: ['.side.left [data-hint="here"]', '.side.left [data-hint="places"]', ".side.left .room"] },
   { key: "stageBar", at: [".centre .conv-where"] },
   { key: "conversation", at: [".centre .stream", ".centre .input"] },
   { key: "right", at: [".side.right"] },
@@ -1175,7 +1175,7 @@ function Left({ me, v, onDeck, onTour }: { me: string; v: View; onDeck: (d: Deck
           )}
         </div>
       )}
-      <RoomView v={v} />
+      <RoomView me={me} v={v} onDeck={onDeck} />
       <MoreBelow m={m} />
     </aside>
   );
@@ -1205,10 +1205,12 @@ function RoomStack({ names, pair }: { names: string[]; pair?: boolean }) {
  * `room` before v0.49, the same data as the AI guests' room line; during midnight and between seats there's
  * no room, so only who's with the player.
  */
-function RoomView({ v }: { v: View }) {
+function RoomView({ me, v, onDeck }: { me: string; v: View; onDeck: (d: DeckName) => void }) {
   const s = v.state;
   const room = roomOf(s);
   const hint = useHint();
+  const list = placeList(v);
+  if (list) return <PlaceList me={me} v={v} list={list} onDeck={onDeck} />;
   return (
     <>
       <div className="label" {...hint("here", { focusable: true })}>
@@ -1245,11 +1247,95 @@ function RoomView({ v }: { v: View }) {
   );
 }
 
-const conversationLabel = (s: State | null) =>
+/**
+ * One place in the list (Interface v0.9): its name, which shows Lore's one-line description on hover (public,
+ * so even with the explanations off), the marks for the player's own place and a private one, and the
+ * portraits of whoever is there, overlapping until hovered. The place itself isn't a control: guests move
+ * toward a person, never to a place. A portrait selects its guest; the player's own opens their briefing.
+ */
+function PlaceRow({ me, place, heading, council, onDeck }: { me: string; place: Place; heading: string; council: boolean; onDeck: (d: DeckName) => void }) {
+  const h = useContext(HintsContext);
+  const hint = useHint();
+  const desc = placeDescription(place.name);
+  const show = (e: { currentTarget: Element }) => desc && h.show(desc, e.currentTarget, true);
+  return (
+    <li className={`place${place.guests.length ? "" : " empty"}${place.own ? " own" : ""}${place.private ? " private" : ""}${council ? " council" : ""}`} data-place={place.name}>
+      <span className="place-head">
+        <span className="place-name" tabIndex={0} aria-description={desc || undefined} onMouseEnter={show} onMouseLeave={h.hide} onFocus={show} onBlur={h.hide}>
+          {heading}
+        </span>
+        {place.private && <span className="door" role="img" aria-label={w("screen.places.private")} {...hint("placePrivate", { focusable: true })} />}
+        {place.own && <span className="place-own">{w("screen.places.yours")}</span>}
+      </span>
+      {place.guests.length > 0 && (
+        <span className="stack">
+          {place.guests.map((n) => (
+            <span key={n} className="stack-item">
+              {n === me ? (
+                <button className="token me" aria-label={n} onClick={() => onDeck("briefing")} {...hint("myBriefing")}>
+                  <Portrait name={n} />
+                </button>
+              ) : (
+                <PortraitButton name={n} hintKey={place.private ? "roomPair" : "roomToken"} />
+              )}
+            </span>
+          ))}
+        </span>
+      )}
+    </li>
+  );
+}
+
+/**
+ * The place list (Interface v0.9, Left: The places; TD v0.49), in place of the room's clusters: every place in
+ * the pack's order, always shown, empty ones faded, so the list never shifts. In a council only the player's
+ * own place shows, headed with their faction. Outside a conversation the list gives way to a quiet line. The
+ * dead aren't in the state's places.
+ */
+function PlaceList({ me, v, list, onDeck }: { me: string; v: View; list: Place[]; onDeck: (d: DeckName) => void }) {
+  const hint = useHint();
+  const c = v.state?.conversation;
+  const heading = (p: Place) => (c?.kind === "council" ? w("screen.placeLine.council", { faction: c.faction ?? guest(me)?.faction ?? "", place: p.name }) : placeHeading(p.name));
+  return (
+    <>
+      <div className="label" {...hint("places", { focusable: true })}>
+        {w("screen.places.title")}
+      </div>
+      <div className="room places-view">
+        {list.length ? (
+          <ul className="places">
+            {list.map((p) => (
+              <PlaceRow key={p.name} me={me} place={p} heading={heading(p)} council={c?.kind === "council"} onDeck={onDeck} />
+            ))}
+          </ul>
+        ) : (
+          <div className="places-quiet muted">{w("screen.places.quiet")}</div>
+        )}
+      </div>
+    </>
+  );
+}
+
+/**
+ * The conversation line (Interface v0.9): with named places (TD v0.49), it names the player's own place
+ * ("In the loggia with …", "In the study, aside with …", "The Medici council, in the study"); without one
+ * (an older game, or between seats), the conversation as before.
+ */
+const conversationLabel = (s: State | null, me: string) => {
+  const own = ownPlace(s);
+  const c = s?.conversation;
+  if (s && own && c && c.kind !== "gathering") {
+    if (c.kind === "council") return w("screen.placeLine.council", { faction: c.faction ?? guest(me)?.faction ?? "", place: own.name });
+    if (c.kind === "colloquio") return w("screen.placeLine.colloquio", { place: own.name, other: c.other });
+    return s.present.length ? w("screen.placeLine.group", { place: own.name, others: names(s.present) }) : w("screen.placeLine.alone", { place: own.name });
+  }
+  return roomLabel(s);
+};
+const roomLabel = (s: State | null) =>
   !s ? "" : s.conversation.kind === "capannello" ? (s.present.length ? w("screen.capannello", { others: names(s.present) }) : w("screen.alone")) : s.conversation.kind === "colloquio" ? w("screen.colloquio", { other: s.conversation.other }) : w("screen.alone");
 
 /** One line for an earlier conversation in this stage: where. */
-const earlierLabel = (seg: Segment) => w("screen.earlier.item", { where: conversationLabel(seg.state) });
+const earlierLabel = (seg: Segment, me: string) => w("screen.earlier.item", { where: conversationLabel(seg.state, me) });
 
 function Centre({ me, v, send, dead, status, boxFill, initialPast = null }: { me: string; v: View; send: Send; dead: boolean; status: string; boxFill: BoxFill | null; initialPast?: string | null }) {
   const end = useRef<HTMLDivElement>(null);
@@ -1291,7 +1377,7 @@ function Centre({ me, v, send, dead, status, boxFill, initialPast = null }: { me
           {/* The members line (Interface v0.5), with End conversation in a Colloquio. */}
           <div className="members">
             <span className="muted" {...hint("header", { focusable: true })}>
-              {conversationLabel(v.state)}
+              {conversationLabel(v.state, me)}
             </span>
             {canEnd && (
               <button className="secondary" onClick={() => send({ type: "end" })} {...hint("end")}>
@@ -1317,7 +1403,7 @@ function Centre({ me, v, send, dead, status, boxFill, initialPast = null }: { me
                   {earlier.map((r) => (
                     <div className={`earlier-item${isOpen(r) ? " open" : ""}`} key={keyOf(r)}>
                       <button className="earlier-line" aria-expanded={isOpen(r)} onClick={() => toggle(r)} {...hint("earlierLine")}>
-                        <span>{earlierLabel(r)}</span>
+                        <span>{earlierLabel(r, me)}</span>
                         <span className="muted">{w(isOpen(r) ? "screen.earlier.open" : "screen.earlier.closed")}</span>
                       </button>
                       {isOpen(r) && (
@@ -1373,7 +1459,7 @@ function PastStage({ stage, v, me }: { stage: string; v: View; me: string }) {
       {runs.length ? (
         runs.map((r) => (
           <div className="past-conv" key={r.lines[0]!.id}>
-            <div className="past-where muted">{conversationLabel(r.state)}</div>
+            <div className="past-where muted">{conversationLabel(r.state, me)}</div>
             <div className="past-lines">
               {r.lines.map((l) => (
                 <StreamLine key={l.id} l={l} me={me} lore={lore} />

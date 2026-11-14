@@ -120,6 +120,13 @@
   --peek-height: 28px;
   --token-size: 28px;
   --token-overlap: 10px;
+  /* The places (Interface v0.9): an empty place faded; the closed-door mark on a private one */
+  --place-empty-opacity: 0.45;
+  --door-width: 9px;
+  --door-height: 12px;
+  --door-knob: 2px;
+  --door-knob-inset: 1px;
+  --door-fill: transparent;
   --dot-size: 8px;
   --motion-pulse: 700ms;
   /* Interface v0.7: a card over the "talking with" card slides down when deselected; on a switch, the new

@@ -323,6 +323,22 @@ button.icon.close { font-size: var(--text-lg); line-height: 1; padding: 0 var(--
 .cluster:not(.pair) .stack-item + .stack-item { margin-left: calc(var(--token-overlap) * -1); transition: margin var(--motion-fast) ease-out; }
 .cluster:not(.pair):hover .stack-item + .stack-item, .cluster:not(.pair):focus-within .stack-item + .stack-item { margin-left: var(--space-1); }
 .joint { width: var(--space-2); height: var(--mark-ring); background: var(--text-muted); }
+/* The places (Interface v0.9): every place in a fixed order, empty ones faded; yours marked; a private one behind a closed door */
+.places { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+.place { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: calc(var(--token-size) + var(--mark-ring) * 2); padding-left: var(--space-2); border-left: var(--mark-ring) solid transparent; }
+.place.empty { opacity: var(--place-empty-opacity); }
+.place.own { border-left-color: var(--accent); }
+.place-head { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); min-width: 0; font-size: var(--text-sm); }
+.place-name { cursor: default; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.place.own .place-name { font-weight: var(--weight-bold); }
+.place.council .place-name { white-space: normal; }
+.place-own { font-size: var(--text-xs); color: var(--accent); white-space: nowrap; }
+.place .stack { flex-shrink: 0; }
+.door { position: relative; display: inline-block; width: var(--door-width); height: var(--door-height); border: var(--border-width) solid var(--text-muted); border-radius: var(--radius-sm) var(--radius-sm) 0 0; background: var(--door-fill); }
+.door::after { content: ""; position: absolute; right: var(--door-knob-inset); top: 50%; width: var(--door-knob); height: var(--door-knob); border-radius: var(--radius-round); background: var(--text-muted); }
+.place .stack-item + .stack-item { margin-left: calc(var(--token-overlap) * -1); transition: margin var(--motion-fast) ease-out; }
+.place:hover .stack-item + .stack-item, .place:focus-within .stack-item + .stack-item { margin-left: var(--space-1); }
+.places-quiet { font-size: var(--text-sm); }
 button.token { border: var(--mark-ring) solid var(--surface); border-radius: var(--radius-round); padding: 0; background: transparent; line-height: 0; }
 button.token.selected { border-color: var(--accent); }
 button.token .portrait { width: var(--token-size); height: var(--token-size); font-size: var(--text-xs); }
