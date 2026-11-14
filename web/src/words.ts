@@ -47,10 +47,14 @@ export function stageDescription(stage: string): string {
   return typeof d === "string" ? d : "";
 }
 
-/** A list from player.json (the example lines). */
-export function list(key: string): string[] {
-  const t = key.split(".").reduce<unknown>((o, k) => (o && typeof o === "object" ? (o as Record<string, unknown>)[k] : undefined), info?.words);
-  return Array.isArray(t) ? t.map(String) : [];
+/**
+ * The input box's placeholder examples (Interface v0.5; player.json's screen.input.examples): each names
+ * the command it shows by action, and fills `{guest}` and `{command}`. Malformed entries are left out.
+ */
+export function placeholderExamples(): { action: string; text: string }[] {
+  const t = (info?.words as { screen?: { input?: { examples?: unknown } } } | undefined)?.screen?.input?.examples;
+  if (!Array.isArray(t)) return [];
+  return t.flatMap((e) => (e && typeof e === "object" && typeof (e as { action?: unknown }).action === "string" && typeof (e as { text?: unknown }).text === "string" ? [e as { action: string; text: string }] : []));
 }
 
 /** "A, B, and C": joined the way Il Notaio's notes join names. */

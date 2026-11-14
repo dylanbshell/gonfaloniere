@@ -52,6 +52,10 @@
   --web-bar-height: 44px;
   --web-side-width: 380px;
   --deck-card-min-height: 220px;
+  /* The rules' section buttons (Interface v0.5), and how small a section starts as it grows */
+  --rules-button-width: 180px;
+  --rules-button-height: 64px;
+  --grow-from: 0.92;
   --swipe-distance: 48px;
   --motion-fast: 160ms;
   --motion-slow: 260ms;
@@ -64,18 +68,24 @@
   /* Steady sizes, so the screen doesn't jump as the first events arrive (#88) */
   --line-sm: calc(var(--text-sm) * var(--line-height));
   --head-height: 76px;
-  --input-box-height: 152px;
+  --input-box-height: 124px;
   --hint-text-height: calc(var(--line-sm) * 2 + var(--space-2));
   /* The web's names: a halo of the panel's colour, in the diagram's units */
   --label-halo: 0.9;
   --shadow-raised: 0 2px 8px rgba(20, 20, 18, 0.18);
   /* The Web of Secrets' bar: a shadow above it, so it reads as one layer over everything (TD v0.44) */
   --shadow-dock: 0 -4px 16px rgba(20, 20, 18, 0.22);
-  --reading-width: 340px;
+  /* Il Notaio's box in the What you heard and saw column (Interface v0.5): the dialogue's strip peeking out
+     above it, expanded; its first lines, minimized */
+  --reading-peek: 44px;
+  --reading-min-height: 88px;
   --swatch-width: 36px;
   --swatch-height: 12px;
   --swatch-stroke: 1.2;
   --faction-label-size: 2.6px;
+  /* The faction arcs around the ring (Interface v0.5), in the diagram's units */
+  --faction-arc-width: 1.1;
+  --faction-arc-opacity: 0.85;
   --edge-under-width: 1.3;
   --edge-under-opacity: 0.22;
   --edge-dim: 0.15;
@@ -105,6 +115,8 @@
   --right-min: 220px;
   --right-max: 520px;
   --resize-width: 6px;
+  /* Hidden (Interface v0.5): a thin strip with a handle */
+  --right-strip-width: 36px;
   --peek-height: 28px;
   --token-size: 28px;
   --token-overlap: 10px;

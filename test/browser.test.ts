@@ -222,7 +222,8 @@ test("Speak is disabled for an @ alone, and active with something to say; a comm
 
 test("a deck swipes to the next card on a click, goes back with the arrow key, and keeps its place when reopened", { skip }, async () => {
   const tab = () => page.eval<string>(`document.querySelector(".deck .tab.on")?.textContent ?? ""`);
-  await page.eval(`document.querySelector('[data-hint="rules"]').click()`);
+  // Your briefing is the deck (Interface v0.5: the rules became buttons, and the city a list).
+  await page.eval(`document.querySelector('[data-hint="briefing"]').click()`);
   await page.until(`document.querySelector(".deck-card")`);
   const first = await tab();
   await page.eval(`document.querySelector(".deck-card").click()`);
@@ -231,10 +232,10 @@ test("a deck swipes to the next card on a click, goes back with the arrow key, a
   await page.key("ArrowLeft", 37);
   assert.equal(await tab(), first, "the left arrow goes back");
   await page.key("ArrowRight", 39);
-  await page.shot("rules-deck");
+  await page.shot("briefing-deck");
   await page.key("Escape", 27);
   await page.until(`!document.querySelector(".deck-card")`);
-  await page.eval(`document.querySelector('[data-hint="rules"]').click()`);
+  await page.eval(`document.querySelector('[data-hint="briefing"]').click()`);
   await page.until(`document.querySelector(".deck-card")`);
   assert.equal(await tab(), second, "the deck kept its place");
   await page.key("Escape", 27);
@@ -620,4 +621,234 @@ test("the stage bar: hovering expands a past or a future stage; a past stage ope
   assert.ok(narrow.scrolls, "the bar is wider than its column, so it scrolls sideways");
   assert.ok(narrow.inView, "with the current stage in view");
   await page.send("Emulation.setDeviceMetricsOverride", { ...VIEW, deviceScaleFactor: 1, mobile: false });
+});
+
+// ---- CC-20261114-07 (#114) -------------------------------------------------------------------------------
+
+/** A real click (pressed and released) at a point, or at an element's centre. */
+async function clickAt(at: { x: number; y: number } | string): Promise<void> {
+  const p = typeof at === "string" ? await page.eval<{ x: number; y: number }>(`(() => { const b = document.querySelector(${JSON.stringify(at)}).getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; })()`) : at;
+  for (const type of ["mousePressed", "mouseReleased"]) await page.send("Input.dispatchMouseEvent", { type, ...p, button: "left", clickCount: 1 });
+}
+const settled = `document.querySelector(".web-dock").getAnimations().length === 0`;
+const webUp = async () => {
+  if (!(await page.eval<boolean>(`!!document.querySelector(".web-dock.open")`))) await page.eval(`document.querySelector(".web-bar").click()`);
+  await page.until(`document.querySelector(".web-dock.open .node") && ${settled}`);
+};
+const webDown = async () => {
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector(".web-dock.open") && ${settled}`);
+};
+const pickNode = (name: string) => page.eval(`document.querySelector(${JSON.stringify(`.web .node[data-guest="${name.replace(/"/g, '\\"')}"]`)}).dispatchEvent(new MouseEvent("click", { bubbles: true }))`);
+const webPicked = () => page.eval<string[]>(`[...document.querySelectorAll(".web .node.picked")].map((n) => n.dataset.guest)`);
+const barSel = () => page.eval<string>(`document.querySelector(".web-bar-sel").textContent`);
+const looking = () => page.eval<string | null>(`document.querySelector(".side.right .look")?.dataset.guest ?? null`);
+
+test("one selection, shared with the Web of Secrets: chat to web, web to chat, a pair, clearing, and Open in the Web of Secrets", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".here .guest")`);
+  const words = JSON.parse(readFileSync("setting/florence-1492/player.json", "utf8")) as { screen: { web: { barNone: string } } };
+  const none = words.screen.web.barNone;
+  const me = await page.eval<string>(`document.querySelector(".web .node.me").dataset.guest`);
+  // Chat to web: a guest selected in the chat shows on the web's bar while it's down, and is selected when it opens.
+  const name = await page.eval<string>(`document.querySelector(".here .guest").textContent`);
+  await page.eval(`document.querySelector(".here .guest").click()`);
+  await page.until(`document.querySelector(".side.right .look")`);
+  assert.equal(await barSel(), name, "on the bar while the web is down");
+  await page.shot("shared-bar");
+  await webUp();
+  assert.deepEqual(await webPicked(), [name], "already selected when the web opens");
+  // Web to chat: a second guest makes a pair, on the bar and in the web; the chat holds the one picked last.
+  const others = await page.eval<string[]>(`[...document.querySelectorAll(".web .node:not(.me)")].map((n) => n.dataset.guest).filter((n) => n !== ${JSON.stringify(name)})`);
+  const [a, b] = [others[0]!, others[1]!];
+  await pickNode(a);
+  assert.deepEqual((await webPicked()).sort(), [name, a].sort(), "a pair in the web");
+  const pairBar = await barSel();
+  assert.ok(pairBar.includes(name) && pairBar.includes(a), `the pair on the bar: ${pairBar}`);
+  await webDown();
+  assert.equal(await looking(), a, "the chat holds the one picked last");
+  assert.equal(await barSel(), pairBar, "and the bar keeps the pair while the web is down");
+  // A new selection in the chat replaces the pair.
+  await page.eval(`document.querySelector(".here .guest").click()`);
+  await page.until(`document.querySelector(".side.right .look")?.dataset.guest === ${JSON.stringify(name)}`);
+  assert.equal(await barSel(), name, "the pair is replaced by the chat's one guest");
+  // Clearing in the chat clears both.
+  await page.eval(`document.activeElement?.blur()`);
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector(".side.right .look")`);
+  assert.equal(await barSel(), none, "cleared on the bar");
+  await webUp();
+  assert.deepEqual(await webPicked(), [], "and in the web");
+  // The web drops one of a pair: the chat holds the other.
+  await pickNode(a);
+  await pickNode(b);
+  await pickNode(b);
+  assert.deepEqual(await webPicked(), [a]);
+  await webDown();
+  assert.equal(await looking(), a, "the chat holds the one left");
+  // Clearing in the web clears the chat.
+  await webUp();
+  await pickNode(a);
+  await webDown();
+  assert.equal(await looking(), null, "cleared in the web, cleared in the chat");
+  assert.equal(await barSel(), none);
+  // "Open in the Web of Secrets" just opens the web, with the selection it already has.
+  await page.eval(`document.querySelector(".here .guest").click()`);
+  await page.until(`document.querySelector('.side.right .look [data-hint="openWeb"]')`);
+  await page.eval(`document.querySelector('.side.right .look [data-hint="openWeb"]').click()`);
+  await page.until(`document.querySelector(".web-dock.open") && ${settled}`);
+  assert.deepEqual(await webPicked(), [name]);
+  // A lore topic clears the guests in both places (when the stream names one).
+  await webDown();
+  if (await page.eval<boolean>(`!!document.querySelector(".stream .lore-link")`)) {
+    await page.eval(`document.querySelector(".stream .lore-link").click()`);
+    await page.until(`document.querySelector(".side.right .look .lore-entry")`);
+    assert.equal(await barSel(), none, "a lore topic clears the guests");
+    await page.eval(`document.activeElement?.blur()`);
+    await page.key("Escape", 27);
+  }
+  void me;
+});
+
+test("Il Notaio's box in What you heard and saw: expanded over the dialogue with a strip peeking; a click minimizes it to the foot, another expands it; nothing selected, no box", { skip }, async () => {
+  await reopen();
+  await webUp();
+  const guest = await page.eval<string>(`document.querySelector(".web .node:not(.me)").dataset.guest`);
+  await pickNode(guest);
+  await page.until(`document.querySelector('.reading[data-state="expanded"] .reading-text')`);
+  const geo = () =>
+    page.eval<{ pane: { top: number; bottom: number; height: number }; box: { top: number; bottom: number; height: number }; state: string; head: boolean }>(`(() => {
+      const r = (e) => { const b = e.getBoundingClientRect(); return { top: b.top, bottom: b.bottom, height: b.height }; };
+      const box = document.querySelector(".reading"), head = box.querySelector(".reading-head").getBoundingClientRect(), b = box.getBoundingClientRect();
+      return { pane: r(document.querySelector(".record-pane")), box: r(box), state: box.dataset.state, head: head.top >= b.top && head.bottom <= b.bottom && head.height > 0 };
+    })()`);
+  const steady = () => page.until(`document.getAnimations().every((a) => a.effect?.getComputedTiming().iterations === Infinity)`);
+  let g = await geo();
+  assert.ok(g.box.top - g.pane.top > 10 && g.box.top - g.pane.top < 80, `a strip of the dialogue peeks out at the top (${g.box.top - g.pane.top}px)`);
+  assert.ok(g.box.height > g.pane.height * 0.7, "it covers almost all the dialogue");
+  await page.shot("reading-expanded");
+  // A click on the box minimizes it to the column's foot, still showing its first lines.
+  await clickAt(".reading");
+  await page.until(`document.querySelector('.reading[data-state="minimized"]')`);
+  await steady();
+  g = await geo();
+  assert.ok(g.pane.bottom - g.box.bottom < 20 && g.box.height < g.pane.height * 0.4, "minimized at the foot");
+  assert.ok(g.head, "its first lines still show");
+  await page.shot("reading-minimized");
+  // The dialogue can be read, and a click on it leaves the box minimized; clicking the box expands it again.
+  await clickAt({ x: (await page.eval<number>(`(() => { const b = document.querySelector(".record-pane").getBoundingClientRect(); return b.left + 30; })()`)), y: g.pane.top + 12 });
+  assert.equal((await geo()).state, "minimized");
+  await clickAt(".reading");
+  await page.until(`document.querySelector('.reading[data-state="expanded"]')`);
+  // A click on the dialogue behind it (its peeking strip) minimizes it too.
+  await steady();
+  g = await geo();
+  const left = await page.eval<number>(`document.querySelector(".record-pane").getBoundingClientRect().left + 30`);
+  await clickAt({ x: left, y: g.pane.top + (g.box.top - g.pane.top) / 2 });
+  await page.until(`document.querySelector('.reading[data-state="minimized"]')`);
+  // Nothing selected: one line asking for a guest, and no box.
+  await pickNode(guest);
+  await page.until(`document.querySelector(".web-side .record-pick") && !document.querySelector(".reading")`);
+  await page.shot("record-empty");
+  await webDown();
+});
+
+test("the right panel hides to a strip with a handle, the chat widens; selecting doesn't reopen it; remembered on reload", { skip }, async () => {
+  await reopen();
+  const width = (sel: string) => page.eval<number>(`document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect().width`);
+  const centre = await width(".centre");
+  await page.eval(`document.querySelector('[data-hint="hideRight"]').click()`);
+  await page.until(`document.querySelector(".side.right.hidden .right-handle")`);
+  assert.ok((await width(".side.right")) < 60, "a thin strip");
+  assert.ok((await width(".centre")) > centre + 150, "the chat widens");
+  // Selecting a guest doesn't reopen it; the handle shows their small portrait.
+  await page.until(`document.querySelector(".here .guest")`);
+  const name = await page.eval<string>(`document.querySelector(".here .guest").textContent`);
+  await page.eval(`document.querySelector(".here .guest").click()`);
+  await page.until(`document.querySelector(".right-handle-guest .portrait")`);
+  assert.equal(await page.eval<string>(`document.querySelector(".right-handle-guest").dataset.guest`), name);
+  assert.equal(await page.eval<boolean>(`!!document.querySelector(".side.right.hidden")`), true, "still hidden");
+  await page.shot("right-hidden");
+  // Remembered on reload.
+  await reopen();
+  assert.equal(await page.eval<boolean>(`!!document.querySelector(".side.right.hidden")`), true, "still hidden after a reload");
+  // The handle brings it back, and that's remembered too.
+  await page.eval(`document.querySelector('[data-hint="showRight"]').click()`);
+  await page.until(`document.querySelector(".side.right:not(.hidden) .person.talk")`);
+  assert.ok(Math.abs((await width(".centre")) - centre) < 2, "the chat back to its width");
+  await reopen();
+  assert.equal(await page.eval<boolean>(`!!document.querySelector(".side.right:not(.hidden) .person.talk")`), true, "shown after a reload");
+});
+
+test("the rules: a button per section filling the modal; one grows to fill it, its × shrinks it back. The city: a list; a row opens its entry, the arrow goes back", { skip }, async () => {
+  await reopen();
+  await page.eval(`document.querySelector('[data-hint="rules"]').click()`);
+  await page.until(`document.querySelector(".deck-rules button.rules-section")`);
+  const buttons = await page.eval<number>(`document.querySelectorAll(".deck-rules button.rules-section").length`);
+  assert.ok(buttons >= 6, `a button per section (${buttons})`);
+  const fill = await page.eval<number>(`(() => { const m = document.querySelector(".deck-rules .rules-body").getBoundingClientRect(), g = document.querySelector(".rules-buttons").getBoundingClientRect(); return g.width / m.width; })()`);
+  assert.ok(fill > 0.85, "the buttons fill the modal's width");
+  await page.shot("rules-buttons");
+  const title = await page.eval<string>(`document.querySelectorAll(".deck-rules button.rules-section")[1].textContent`);
+  await page.eval(`document.querySelectorAll(".deck-rules button.rules-section")[1].click()`);
+  await page.until(`document.querySelector(".deck-rules section.rules-section.open")`);
+  assert.equal(await page.eval<string>(`document.querySelector(".deck-rules section.rules-section h3").textContent`), title);
+  assert.equal(await page.eval<number>(`document.querySelectorAll(".deck-rules button.rules-section").length`), 0, "the section fills the modal");
+  await page.shot("rules-section");
+  await page.eval(`document.querySelector('[data-hint="rulesShrink"]').click()`);
+  await page.until(`document.querySelectorAll(".deck-rules button.rules-section").length === ${buttons}`);
+  // It remembers an open section.
+  await page.eval(`document.querySelectorAll(".deck-rules button.rules-section")[1].click()`);
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector(".overlay")`);
+  await page.eval(`document.querySelector('[data-hint="rules"]').click()`);
+  await page.until(`document.querySelector(".deck-rules section.rules-section.open")`);
+  await page.eval(`document.querySelector('[data-hint="rulesShrink"]').click()`);
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector(".overlay")`);
+  // The city: rows under subject headers, each a title and a one-line preview; a row opens its entry, with a back arrow.
+  await page.eval(`document.querySelector('[data-hint="city"]').click()`);
+  await page.until(`document.querySelector(".deck-city .city-row")`);
+  const rows = await page.eval<{ n: number; subjects: number; oneLine: boolean; scrolls: boolean }>(`(() => {
+    const list = document.querySelector(".city-list"), p = document.querySelector(".city-preview");
+    return { n: document.querySelectorAll(".city-row").length, subjects: document.querySelectorAll(".city-subject").length, oneLine: p.getBoundingClientRect().height < parseFloat(getComputedStyle(p).lineHeight) * 1.5, scrolls: getComputedStyle(list).overflowY === "auto" };
+  })()`);
+  assert.ok(rows.n > 0 && rows.subjects > 0, "rows under subject headers");
+  assert.ok(rows.oneLine, "a one-line preview");
+  assert.ok(rows.scrolls, "the list scrolls");
+  await page.shot("city-list");
+  const entry = await page.eval<{ id: string; title: string }>(`(() => { const r = document.querySelectorAll(".city-row")[0]; return { id: r.dataset.lore, title: r.querySelector(".city-title").textContent }; })()`);
+  await page.eval(`document.querySelectorAll(".city-row")[0].click()`);
+  await page.until(`document.querySelector(".city-entry")`);
+  assert.equal(await page.eval<string>(`document.querySelector(".city-entry").dataset.lore`), entry.id);
+  assert.equal(await page.eval<string>(`document.querySelector(".city-entry h3").textContent`), entry.title);
+  assert.equal(await page.eval<boolean>(`!!document.querySelector(".side.right .look")`), false, "not on the right: the city opens here");
+  await page.shot("city-entry");
+  await page.eval(`document.querySelector('[data-hint="cityBack"]').click()`);
+  await page.until(`document.querySelector(".city-row") && !document.querySelector(".city-entry")`);
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector(".overlay")`);
+});
+
+test("the placeholder carries the example, with an @ and a /; no example line under the box; the counter stays", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".input textarea")`);
+  const r = await page.eval<{ placeholder: string; example: boolean; count: boolean; commands: string[] }>(`({
+    placeholder: document.querySelector(".input textarea").placeholder,
+    example: !!document.querySelector(".input .example"),
+    count: !!document.querySelector(".input .count"),
+    commands: [],
+  })`);
+  assert.ok(r.placeholder.includes("@") && r.placeholder.includes("/"), r.placeholder);
+  assert.equal(r.example, false);
+  assert.equal(r.count, true);
+  // Only a command allowed now: the one in the placeholder is in the command menu.
+  const named = r.placeholder.match(/\/[a-z]+/)?.[0];
+  await page.eval(`document.querySelector(".input textarea").focus()`);
+  await page.type("/");
+  await page.until(`document.querySelector('[data-menu="commands"]')`);
+  const menu = await page.eval<string[]>(`[...document.querySelectorAll('[data-menu="commands"] .cmd')].map((c) => c.textContent.split(" ")[0])`);
+  if (named) assert.ok(menu.includes(named), `${named} is allowed now (${menu.join(", ")})`);
+  await page.key("Backspace", 8);
+  await page.shot("placeholder");
 });

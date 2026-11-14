@@ -459,40 +459,170 @@ export function hintMoment(v: View, me: string): { key: string; values: Record<s
   return { key: "mingling", values: {} };
 }
 
-// ---- The web (TD v0.40) --------------------------------------------------------------------------------------
+// ---- The web (TD v0.40; Interface v0.5, the ring layout) --------------------------------------------------
 
-/**
- * Where each guest sits in the web: around a circle, each faction together in its own arc, in the
- * setting's faction order. Coordinates are in the diagram's own units (0–100 each way).
- */
-export function webLayout(roster: { name: string; faction: string }[], factions: readonly string[] = []): Map<string, { x: number; y: number }> {
+/** The ring's centre and radius, in the diagram's own units (0–100 each way). */
+const CENTRE = 50;
+const RING = 38;
+/** The faction arcs sit outside the guests and their names; each faction's name at its arc's corner. */
+const ARC_RADIUS = 48;
+const LABEL_RADIUS = 53;
+/** The gap between two factions' arcs, as a share of one guest's slice of the ring. */
+const ARC_GAP = 0.18;
+
+/** The guests in ring order: each faction together, in the setting's faction order. */
+function ringOrder<R extends { name: string; faction: string }>(roster: R[], factions: readonly string[]): R[] {
   // An unknown faction (or no factions list at all: an older server's start information) sorts after the known ones, in roster order.
   const place = (f: string) => (factions.indexOf(f) + factions.length + 1) % (factions.length + 1);
-  const order = [...roster].sort((a, b) => place(a.faction) - place(b.faction));
+  return [...roster].sort((a, b) => place(a.faction) - place(b.faction));
+}
+
+/** The angle of the ring's i-th place of n: from the top, clockwise on the screen. */
+const angle = (i: number, n: number) => (i / n) * 2 * Math.PI - Math.PI / 2;
+const onCircle = (t: number, r: number) => ({ x: CENTRE + r * Math.cos(t), y: CENTRE + r * Math.sin(t) });
+const round = (x: number) => Math.round(x * 100) / 100;
+
+/**
+ * Where each guest sits in the web: around a ring, each faction together in its own part, in the
+ * setting's faction order (Interface v0.5, laid out like the board's Web of Secrets). Coordinates are in
+ * the diagram's own units (0–100 each way).
+ */
+export function webLayout(roster: { name: string; faction: string }[], factions: readonly string[] = []): Map<string, { x: number; y: number }> {
+  const order = ringOrder(roster, factions);
   const at = new Map<string, { x: number; y: number }>();
-  order.forEach((g, i) => {
-    const t = (i / order.length) * 2 * Math.PI - Math.PI / 2;
-    at.set(g.name, { x: 50 + 38 * Math.cos(t), y: 50 + 38 * Math.sin(t) });
-  });
+  order.forEach((g, i) => at.set(g.name, onCircle(angle(i, order.length), RING)));
   return at;
 }
 
 /**
- * Each faction's label in the web (TD v0.44): its name, in its colour, outside the circle at the middle
- * of its guests' arc. Factions with no guest on the web are left out.
+ * Each faction's arc (Interface v0.5): a stroke in the faction's colour around its part of the ring,
+ * outside its guests and their names, with the faction's name at the arc's first corner. `d` is the arc's
+ * SVG path; `anchor` is the name's text-anchor, so it reads away from the arc. Factions with no guest on
+ * the web are left out.
  */
-/** How far out the faction names sit: past the guests' circle (38) and their names. */
-const FACTION_RADIUS = 56;
-
-export function factionLabels(roster: { name: string; faction: string; colour?: string }[], factions: readonly string[], at: Map<string, { x: number; y: number }>): { faction: string; colour: string | undefined; x: number; y: number }[] {
-  const names = [...new Set([...factions, ...roster.map((r) => r.faction)])];
-  return names.flatMap((f) => {
-    const members = roster.filter((r) => r.faction === f && at.has(r.name));
-    if (!members.length) return [];
-    // The mean direction of the members from the centre, pushed out past their names.
-    const dx = members.reduce((s, r) => s + at.get(r.name)!.x - 50, 0);
-    const dy = members.reduce((s, r) => s + at.get(r.name)!.y - 50, 0);
-    const len = Math.hypot(dx, dy) || 1;
-    return [{ faction: f, colour: members[0]!.colour, x: 50 + (FACTION_RADIUS * dx) / len, y: 50 + (FACTION_RADIUS * dy) / len }];
-  });
+export function factionArcs(roster: { name: string; faction: string; colour?: string }[], factions: readonly string[] = []): { faction: string; colour: string | undefined; d: string; x: number; y: number; anchor: "start" | "middle" | "end" }[] {
+  const order = ringOrder(roster, factions);
+  const n = order.length;
+  if (!n) return [];
+  const half = Math.PI / n;
+  const out: { faction: string; colour: string | undefined; d: string; x: number; y: number; anchor: "start" | "middle" | "end" }[] = [];
+  for (let i = 0; i < n; ) {
+    let j = i;
+    while (j + 1 < n && order[j + 1]!.faction === order[i]!.faction) j++;
+    // The whole ring for one faction alone: two half-circles, since one arc can't close on itself.
+    const whole = i === 0 && j === n - 1;
+    const from = angle(i, n) - half * (1 - ARC_GAP);
+    const to = whole ? from + 2 * Math.PI - 2 * half * ARC_GAP : angle(j, n) + half * (1 - ARC_GAP);
+    const a = onCircle(from, ARC_RADIUS);
+    const b = onCircle(to, ARC_RADIUS);
+    const mid = onCircle((from + to) / 2, ARC_RADIUS);
+    const r = ARC_RADIUS;
+    const d = to - from > Math.PI ? `M ${round(a.x)} ${round(a.y)} A ${r} ${r} 0 0 1 ${round(mid.x)} ${round(mid.y)} A ${r} ${r} 0 0 1 ${round(b.x)} ${round(b.y)}` : `M ${round(a.x)} ${round(a.y)} A ${r} ${r} 0 0 1 ${round(b.x)} ${round(b.y)}`;
+    const corner = onCircle(from, LABEL_RADIUS);
+    const side = corner.x - CENTRE;
+    out.push({ faction: order[i]!.faction, colour: order[i]!.colour, d, x: round(corner.x), y: round(corner.y), anchor: Math.abs(side) < 4 ? "middle" : side < 0 ? "end" : "start" });
+    i = j + 1;
+  }
+  return out;
 }
+
+/**
+ * Each faction's label in the web (TD v0.44; Interface v0.5): its name, in its colour, at the corner of
+ * its arc. Factions with no guest on the web are left out.
+ */
+export function factionLabels(roster: { name: string; faction: string; colour?: string }[], factions: readonly string[], _at?: Map<string, { x: number; y: number }>): { faction: string; colour: string | undefined; x: number; y: number }[] {
+  return factionArcs(roster, factions).map(({ faction, colour, x, y }) => ({ faction, colour, x, y }));
+}
+
+/** How far a line between two guests bows toward the ring's centre: 0 straight, 1 through the centre. */
+const BOW = 0.6;
+
+/**
+ * A line between two guests (Interface v0.5): it curves through the middle of the ring rather than running
+ * straight, bowed toward the centre, so lines between neighbours don't run along the ring.
+ */
+export function curve(a: { x: number; y: number }, b: { x: number; y: number }): string {
+  const mx = (a.x + b.x) / 2;
+  const my = (a.y + b.y) / 2;
+  const cx = mx + (CENTRE - mx) * BOW;
+  const cy = my + (CENTRE - my) * BOW;
+  return `M ${round(a.x)} ${round(a.y)} Q ${round(cx)} ${round(cy)} ${round(b.x)} ${round(b.y)}`;
+}
+
+// ---- One selection, shared with the Web of Secrets (Interface v0.6, Selection) ------------------------------
+
+/**
+ * The one selection of guests the chat and the Web of Secrets share, and the chat's lore topic. `guests`
+ * holds up to two, oldest first, so the last is the one picked last: the one the chat shows. A lore topic
+ * takes the chat's one selection, so it holds no guests; `back` is the guest it replaced, for its back control.
+ */
+export interface SharedSelection {
+  guests: string[];
+  lore: { entry: LoreEntry; back: string | null } | null;
+}
+
+export const NO_SELECTION: SharedSelection = { guests: [], lore: null };
+
+/** The guest the chat shows: the one picked last, or none. */
+export const chatGuest = (s: SharedSelection): string | null => (s.lore ? null : (s.guests.at(-1) ?? null));
+
+/**
+ * A guest selected in the chat (the stream, the room, the left, the right panel): a new selection replaces
+ * the last, or the pair, with that one guest; selecting the guest the chat shows clears both places.
+ */
+export function selectInChat(s: SharedSelection, name: string): SharedSelection {
+  return chatGuest(s) === name ? NO_SELECTION : { guests: [name], lore: null };
+}
+
+/**
+ * A guest selected in the web: a first, then a second; a third replaces the older; selecting a selected
+ * guest drops them, so the chat holds the one left.
+ */
+export function selectInWeb(s: SharedSelection, name: string): SharedSelection {
+  const p = s.guests;
+  return { guests: p.includes(name) ? p.filter((x) => x !== name) : p.length < 2 ? [...p, name] : [p[1]!, name], lore: null };
+}
+
+/** A lore topic: it takes the chat's one selection, clearing the guests in both places; the same topic again goes back. */
+export function selectLore(s: SharedSelection, entry: LoreEntry): SharedSelection {
+  if (s.lore?.entry.id === entry.id) return selectBack(s);
+  return { guests: [], lore: { entry, back: s.lore ? s.lore.back : chatGuest(s) } };
+}
+
+/** Back from a lore topic to the guest it replaced, if any; from a guest, a clear. */
+export function selectBack(s: SharedSelection): SharedSelection {
+  return s.lore?.back ? { guests: [s.lore.back], lore: null } : NO_SELECTION;
+}
+
+// ---- The placeholder carries the example (Interface v0.5, The input box) ---------------------------------
+
+/**
+ * The input box's placeholder: one of the setting pack's examples, rotated, using only commands allowed
+ * right now, with a guest the player could address. Each example names its command by action, and fills
+ * `{command}` with that command's name and `{guest}` with the guest. Null when no example fits (no command
+ * allowed, or no one to address), so the box's plain placeholder shows.
+ */
+export function placeholderExample(examples: { action: string; text: string }[], commands: Command[], guest: string | null, turn: number): string | null {
+  if (!guest) return null;
+  const fit = examples.flatMap((e) => {
+    const c = commands.find((x) => x.action === e.action);
+    return c ? [e.text.replace(/\{command\}/g, c.name).replace(/\{guest\}/g, guest)] : [];
+  });
+  return fit.length ? fit[turn % fit.length]! : null;
+}
+
+// ---- The city as a list (Interface v0.5) ------------------------------------------------------------------
+
+/** The city's list: its public entries under subject headers, as cityCards orders them; entries without a subject last. */
+export function cityList(lore: LoreEntry[]): { subject: string | null; entries: LoreEntry[] }[] {
+  const order = cityCards(lore).map((c) => lore.find((e) => e.title === c.title && e.text === c.text)!);
+  const out: { subject: string | null; entries: LoreEntry[] }[] = [];
+  for (const e of order) {
+    if (out.at(-1)?.subject !== e.subject || !out.length) out.push({ subject: e.subject, entries: [] });
+    out.at(-1)!.entries.push(e);
+  }
+  return out;
+}
+
+/** A lore entry's one-line preview for the city's list: its first line. */
+export const preview = (e: LoreEntry): string => e.text.split("\n").find((l) => l.trim())?.trim() ?? "";
