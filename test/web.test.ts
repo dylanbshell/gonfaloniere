@@ -15,12 +15,13 @@ import { castBriefings } from "../src/minigame/cast.ts";
 import type { CharacterName } from "../src/game/roster.ts";
 import { errandText, screenContent } from "../src/minigame/player.ts";
 import type { LoreEntry as StoredLore } from "../src/minigame/lore.ts";
-import { screenInfo } from "../src/minigame/screen-info.ts";
+import { glossary, screenInfo } from "../src/minigame/screen-info.ts";
+import { rulesText } from "../src/prompt/assemble.ts";
 import { settingPack } from "../src/setting/pack.ts";
 import { GameView, Start } from "../web/src/App.tsx";
 import type { Ev } from "../web/src/connection.ts";
 import { canDo, canSpeak, openMenu, trigger, withMention } from "../web/src/input.ts";
-import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityCards, cityList, curve, derive, factionArcs, placeholderExample, preview, selectBack, selectInChat, selectInWeb, selectLore, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, lineStages, loreParts, readingFor, rulesCards, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, midnightLine, notesFor, type LoreEntry, type View } from "../web/src/model.ts";
+import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityCards, cityList, curve, derive, factionArcs, placeholderExample, preview, selectBack, selectInChat, selectInWeb, selectLore, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, lineStages, loreParts, readingFor, rulesCards, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, glossaryList, lineParts, midnightLine, notesFor, rulesSectionFor, type LoreEntry, type View } from "../web/src/model.ts";
 import { notaioHint, setInfo, type StartInfo } from "../web/src/words.ts";
 import { fakeCaller, fakeDocs, fakeSettings } from "./fixtures/fake-game.ts";
 
@@ -71,7 +72,7 @@ async function playedLog(opts: { Game?: typeof MiniGame; midnight?: (guests: str
   return { log, at, game };
 }
 
-const info = { ...screenInfo([F], castBriefings(fakeDocs)), started: null, ws: null } as StartInfo;
+const info = { ...screenInfo([F], castBriefings(fakeDocs), { tunables: fakeDocs.tunables, minigame: true }), started: null, ws: null } as StartInfo;
 setInfo(info);
 const html = (el: ReturnType<typeof createElement>) => renderToString(el);
 /** Words the screen shows but couldn't find in player.json come out as their keys. */
@@ -1117,4 +1118,80 @@ test("the right panel's cards: Open in the Web of Secrets only on a filled talki
   assert.match(css, /prefers-reduced-motion: reduce\)[^@]*\.person\.look\.leaving \{ animation: fade-out/);
   const theme = readFileSync("web/theme.css", "utf8");
   for (const t of ["--motion-card", "--card-follow", "--bar-portrait-size"]) assert.match(theme, new RegExp(`${t}:`));
+});
+
+// ---- CC-20261114-09 (#117, part 2 of 3): four modals in a row, and the glossary (Interface v0.7) -------------
+
+const PACK_GLOSSARY = (JSON.parse(readFileSync("setting/florence-1492/player.json", "utf8")) as { glossary: { entries: { term: string; text: string; fullGame?: boolean; rules?: string[]; match: string[] }[] } }).glossary.entries;
+
+test("the glossary's entries: from the setting pack, amounts filled from the game's tuning values, the full game's terms left out of the mini-game", () => {
+  const g = info.glossary!;
+  const t = fakeDocs.tunables;
+  assert.ok(PACK_GLOSSARY.length >= 25, "the draft's entries");
+  assert.deepEqual(g.map((e) => e.term), PACK_GLOSSARY.filter((e) => !e.fullGame).map((e) => e.term), "the mini-game leaves out the terms marked †");
+  for (const term of ["Ballot", "Candidate", "Gonfaloniere", "/repent", "Run-off", "Speeches"]) assert.ok(PACK_GLOSSARY.find((e) => e.term === term)?.fullGame, `${term} is marked †`);
+  assert.ok(g.every((e) => !/\{\w+\}/.test(e.text)), "every amount filled");
+  // Amounts are written as placeholders in the pack, never typed in.
+  for (const e of PACK_GLOSSARY) assert.doesNotMatch(e.text, /\b\d+\s+Florins\b|\bat \d+\b/, `${e.term}: an amount typed in`);
+  const text = (term: string) => g.find((e) => e.term === term)!.text;
+  assert.ok(text("Florins").includes(`starts with ${t.starting_florins} and receives ${t.income}`), text("Florins"));
+  assert.ok(text("/borrow").includes(`${t.pension_size} Florins`), text("/borrow"));
+  // A different tuning changes the entry, not the pack.
+  const retuned = glossary(PACK_GLOSSARY, { ...t, pension_size: 4 }, "Ducats", false);
+  assert.ok(retuned.find((e) => e.term === "/repay")!.text.includes("4 Ducats"));
+  assert.ok(retuned.some((e) => e.term === "Ballot"), "the full game keeps them");
+  assert.throws(() => glossary([{ term: "X", text: "{nonsense}" }], t, "Florins", true), /doesn't have/);
+  // Il Notaio's entry starts with the gloss (Interface v0.11).
+  assert.match(text("Il Notaio"), /^Italian for "the notary"/);
+  // The glossary's own words aren't the screen's: they arrive filled, apart from player.json's words.
+  assert.equal((info.words as Record<string, unknown>).glossary, undefined);
+});
+
+test("the glossary's list, search, and rules sections; a line's glossary words, with a lore link winning", () => {
+  const g = info.glossary!;
+  const list = glossaryList(g).map((e) => e.term);
+  const key = (x: string) => x.replace(/^\//, "").toLowerCase();
+  assert.deepEqual(list, [...list].sort((a, b) => key(a).localeCompare(key(b))), "alphabetical, a command by its name");
+  assert.ok(list.indexOf("/borrow") < list.indexOf("Colloquio") && list.indexOf("/bribe") > list.indexOf("/borrow"));
+  assert.deepEqual(glossaryList(g, "payroll").map((e) => e.term).sort(), g.filter((e) => /payroll/i.test(e.term + e.text)).map((e) => e.term).sort(), "the search narrows by term or definition");
+  assert.deepEqual(glossaryList(g, "zzzz"), []);
+  const cards = rulesCards(rulesText(fakeDocs.templates, { ...fakeDocs.tunables, plotProtection: false, plotReward: false }));
+  const money = g.find((e) => e.term === "Florins")!;
+  assert.equal(cards[rulesSectionFor(money, cards)!]!.title, "Money");
+  assert.equal(rulesSectionFor(g.find((e) => e.term === "Errand")!, cards), null, "no section behind it, no link");
+  assert.ok(g.filter((e) => e.rules.length).every((e) => rulesSectionFor(e, cards) !== null), "every named section is one the rules have");
+  // In a line: a glossary word is a term; a word that's a lore title too is the lore link.
+  const lore: LoreEntry[] = [{ id: "L9", title: "The council", aliases: [], subject: null, text: "" }];
+  const parts = lineParts("The council met; a Colloquio followed, and Florins changed hands at midnight.", lore, g);
+  assert.deepEqual(
+    parts.map((p) => (typeof p === "string" ? p : "gloss" in p ? `[${p.gloss.term}:${p.text}]` : `<${p.text}>`)),
+    ["<The council>", " met; a ", "[Colloquio:Colloquio]", " followed, and ", "[Florins:Florins]", " changed hands at ", "[Midnight:midnight]", "."],
+  );
+  assert.deepEqual(lineParts("Watch the door.", [], g), ["Watch the door."], "everyday words aren't underlined");
+});
+
+test("the four modals in a row: the open one between its neighbours, nothing before the briefing and nothing after the glossary", async () => {
+  const { at } = await playedLog();
+  const v = derive(at["speak:capannello"]!);
+  const peeks = (h: string) => [...h.matchAll(/<div class="modal-peek (left|right)( empty)?"[^>]*>/g)].map((m) => `${m[1]}:${m[0].match(/data-deck="(\w+)"/)?.[1] ?? "none"}`);
+  assert.deepEqual(peeks(game({ v, deck: "briefing" })), ["left:none", "right:rules"]);
+  assert.deepEqual(peeks(game({ v, deck: "rules" })), ["left:briefing", "right:city"]);
+  assert.deepEqual(peeks(game({ v, deck: "city" })), ["left:rules", "right:glossary"]);
+  assert.deepEqual(peeks(game({ v, deck: "glossary" })), ["left:city", "right:none"]);
+  const h = game({ v, deck: "glossary" });
+  assert.deepEqual(missingWords(h), []);
+  assert.match(h, /class="modal deck deck-glossary"/);
+  assert.match(h, /<input class="glossary-search" type="search"[^>]*data-hint="glossarySearch"/);
+  assert.equal((h.match(/class="glossary-entry"/g) ?? []).length, info.glossary!.length);
+  assert.ok((h.match(/data-hint="glossaryRules"/g) ?? []).length > 5, "More in the rules, where there's a section");
+  // The neighbours are inert and listen for nothing: no buttons in them.
+  const peek = h.slice(h.indexOf('class="modal-peek left'), h.indexOf('class="modal deck'));
+  assert.doesNotMatch(peek, /<button/);
+  // The four buttons, in the row's order.
+  const left = h.slice(h.indexOf('class="buttons decks"'), h.indexOf('class="errand"'));
+  assert.deepEqual([...left.matchAll(/data-hint="(\w+)"/g)].map((m) => m[1]), ["briefing", "rules", "city", "glossary"]);
+  const css = readFileSync("web/src/app.css", "utf8");
+  assert.match(css, /\.modal-peek\.left \{[^}]*mask-image: var\(--peek-fade-left\)/, "the left one's left side faded");
+  assert.match(css, /\.modal-peek\.right \{[^}]*mask-image: var\(--peek-fade-right\)/);
+  assert.match(css, /\.gloss \{ text-decoration: underline dotted var\(--gloss-underline\)/);
 });

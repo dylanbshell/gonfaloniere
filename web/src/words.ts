@@ -2,6 +2,14 @@
 // player.json's words with the start information, and this fills their {named} placeholders. The app's
 // code writes no words of its own.
 
+/** A glossary entry (Interface v0.7): its term, its plain definition, the rules sections behind it, and the words a line underlines. */
+export interface GlossEntry {
+  term: string;
+  text: string;
+  rules: string[];
+  match: string[];
+}
+
 export interface StartInfo {
   setting: string;
   currency: { singular: string; plural: string };
@@ -13,6 +21,8 @@ export interface StartInfo {
   max: number;
   roster: { name: string; faction: string; subtitle: string; initials: string; colour: string }[];
   playable: { name: string; intro: string }[];
+  /** Interface v0.7: the glossary's entries, amounts filled from the game's tuning values; the mini-game's leave out the full game's terms. */
+  glossary?: GlossEntry[];
   started: string | null;
   ws: string | null;
 }

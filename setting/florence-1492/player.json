@@ -310,7 +310,12 @@
       "cityRow": "Read this entry in full. The arrow at its top takes you back to the list.",
       "cityBack": "Back to the list of everything the city knows.",
       "hideRight": "Hide this panel, so the conversation has more room. A handle at the edge brings it back; this browser remembers your choice.",
-      "showRight": "Show the right panel again. While it's hidden, the guest you've selected shows here."
+      "showRight": "Show the right panel again. While it's hidden, the guest you've selected shows here.",
+      "glossary": "The glossary: the evening's words from A to Z, each with a short definition, and a search box.",
+      "glossarySearch": "Type to narrow the glossary to the words that match.",
+      "glossaryRules": "Open the rules at the section behind this word.",
+      "modalPrevious": "The one before this. Click to slide back to it.",
+      "modalNext": "The next one along. Click to slide on to it."
     },
     "city": "The city",
     "rulesModal": {
@@ -399,6 +404,297 @@
     },
     "room": "The room",
     "withYou": "With you",
-    "withYouPrivately": "With you, in private"
+    "withYouPrivately": "With you, in private",
+    "glossary": "Glossary",
+    "glossaryModal": {
+      "search": "Search the glossary",
+      "searchLabel": "Search the glossary",
+      "more": "More in the rules",
+      "none": "No word matches that."
+    },
+    "modalRow": {
+      "previous": "Back to {title}",
+      "next": "On to {title}"
+    }
+  },
+  "glossary": {
+    "_comment": "Interface v0.7, the glossary (Glossary Draft; v0.11's gloss on Il Notaio; v0.12's words). One entry per term: `text` is its plain definition, with every amount a {placeholder} filled from the game's tuning values (Mechanics, Tunable Values: {starting_florins}, {income}, {vote_price}, {pension_size}; {currency} is the setting's plural), never typed in. `fullGame`: marked † in the draft, left out of the mini-game. `rules`: the rules sections \"More in the rules\" opens, by title, the first the rules have. `match`: the words in a line that get the term's dotted underline (none for the midnight acts and Move, whose words are everyday ones). Not shown as the screen's own words: the server sends them filled (screen-info.ts).",
+    "entries": [
+      {
+        "term": "Ballot",
+        "text": "The secret vote that ends the evening. Every living guest casts one vote for any living guest, and may buy extra votes for that guest at {vote_price} {currency} each. Most votes wins; Il Notaio names only the winner.",
+        "fullGame": true,
+        "rules": [
+          "How the evening ends"
+        ],
+        "match": [
+          "ballot"
+        ]
+      },
+      {
+        "term": "/bribe",
+        "text": "Hand {currency} to the guest you're alone with in a Colloquio. Whatever they promise in return is up to them.",
+        "rules": [
+          "Money"
+        ],
+        "match": [
+          "/bribe"
+        ]
+      },
+      {
+        "term": "/borrow",
+        "text": "Go on France's payroll: take one payroll payment of {pension_size} {currency} from the Embassy's treasury. Medici and Pazzi only.",
+        "rules": [
+          "France's payroll",
+          "French pensions"
+        ],
+        "match": [
+          "/borrow"
+        ]
+      },
+      {
+        "term": "Candidate",
+        "text": "The one living guest each of the two great houses, Medici and Pazzi, puts forward for Gonfaloniere.",
+        "fullGame": true,
+        "rules": [
+          "The order of the evening"
+        ],
+        "match": [
+          "candidate",
+          "candidates"
+        ]
+      },
+      {
+        "term": "Group",
+        "text": "An open conversation of two to four guests. Anyone may join while it has room, and only those in it hear what's said.",
+        "rules": [
+          "Conversations"
+        ],
+        "match": [
+          "group",
+          "groups"
+        ]
+      },
+      {
+        "term": "Colloquio",
+        "text": "A private conversation between two guests. No one else can join or hear. Calling one uses your move, and the guest you call can't refuse, but everyone sees the two of you slip away.",
+        "rules": [
+          "Conversations"
+        ],
+        "match": [
+          "Colloquio",
+          "Colloquios"
+        ]
+      },
+      {
+        "term": "/conclude",
+        "text": "Privately record what you've worked out, for an errand that asks you to find something out. Only your latest conclusion counts.",
+        "match": [
+          "/conclude"
+        ]
+      },
+      {
+        "term": "Council",
+        "text": "A private meeting of your own faction. Nothing is shared unless someone says it aloud.",
+        "rules": [
+          "The order of the evening"
+        ],
+        "match": [
+          "council",
+          "councils"
+        ]
+      },
+      {
+        "term": "Dominicans",
+        "text": "The friars' faction. They can't go on France's payroll. They win if the guest elected Gonfaloniere has repented.",
+        "rules": [
+          "How the evening ends"
+        ],
+        "match": [
+          "Dominicans"
+        ]
+      },
+      {
+        "term": "Errand",
+        "text": "Your character's own task tonight, in your briefing. Your errand card says what finishing it earns.",
+        "match": [
+          "errand",
+          "errands"
+        ]
+      },
+      {
+        "term": "Florins",
+        "text": "The evening's money. Everyone starts with {starting_florins} and receives {income} at the start of each round of mingling. Purses are private.",
+        "rules": [
+          "Money"
+        ],
+        "match": [
+          "Florins",
+          "Florin"
+        ]
+      },
+      {
+        "term": "French Embassy",
+        "text": "France's faction. It keeps the treasury that pays France's payroll, and knows who is on it. It wins if anyone in the elected candidate's family is on France's payroll.",
+        "rules": [
+          "How the evening ends"
+        ],
+        "match": [
+          "French Embassy",
+          "the Embassy"
+        ]
+      },
+      {
+        "term": "France's payroll",
+        "text": "Taking a payroll payment, {pension_size} {currency} from the French Embassy, puts a guest on France's payroll. If anyone in the winning candidate's family is still on it at the ballot, France wins. Who is on it is private unless someone tells.",
+        "rules": [
+          "France's payroll",
+          "French pensions"
+        ],
+        "match": [
+          "France's payroll",
+          "payroll"
+        ]
+      },
+      {
+        "term": "Gonfaloniere",
+        "text": "The office the evening decides: the head of Florence's government. Only a Medici or a Pazzi can stand.",
+        "fullGame": true,
+        "match": [
+          "Gonfaloniere"
+        ]
+      },
+      {
+        "term": "Guard",
+        "text": "A midnight act. A guest guarded by two or more others survives an attack.",
+        "rules": [
+          "Midnight"
+        ],
+        "match": []
+      },
+      {
+        "term": "Il Notaio",
+        "text": "Italian for \"the notary\": the one who records the evening. He notes who joins, leaves, and slips away, and announces what all the city hears. He belongs to no faction.",
+        "match": [
+          "Il Notaio"
+        ]
+      },
+      {
+        "term": "Kill",
+        "text": "A midnight act. It's carried out unless the killer was watched by two or more guests, or the target guarded by two or more. Killers are never named.",
+        "rules": [
+          "Midnight"
+        ],
+        "match": []
+      },
+      {
+        "term": "Medici",
+        "text": "One of the two great houses, competing for Gonfaloniere. They win if their candidate is elected, unrepentant, with no one in the family on France's payroll.",
+        "rules": [
+          "How the evening ends"
+        ],
+        "match": [
+          "the Medici"
+        ]
+      },
+      {
+        "term": "Midnight",
+        "text": "When each living guest secretly chooses one act: kill, guard, or watch, each on a different guest. Il Notaio then announces who died, never who killed them.",
+        "rules": [
+          "Midnight"
+        ],
+        "match": [
+          "midnight"
+        ]
+      },
+      {
+        "term": "Move",
+        "text": "Your turn to change company, when it comes: stay, join another guest's group, or call a Colloquio.",
+        "rules": [
+          "Conversations"
+        ],
+        "match": []
+      },
+      {
+        "term": "Pazzi",
+        "text": "The other great house, competing for Gonfaloniere, on the same terms as the Medici.",
+        "rules": [
+          "How the evening ends"
+        ],
+        "match": [
+          "the Pazzi"
+        ]
+      },
+      {
+        "term": "/repay",
+        "text": "Pay back one payroll payment, yours or a relative's, by returning {pension_size} {currency}, any time before the ballot. Private.",
+        "rules": [
+          "France's payroll",
+          "French pensions"
+        ],
+        "match": [
+          "/repay"
+        ]
+      },
+      {
+        "term": "/repent",
+        "text": "A candidate's public confession during the speeches. It can't be taken back, and it makes the Dominicans' win their own.",
+        "fullGame": true,
+        "rules": [
+          "Repentance"
+        ],
+        "match": [
+          "/repent"
+        ]
+      },
+      {
+        "term": "Round of mingling",
+        "text": "Open play, when guests form groups, move, and call Colloquios.",
+        "rules": [
+          "The order of the evening"
+        ],
+        "match": [
+          "round of mingling",
+          "rounds of mingling"
+        ]
+      },
+      {
+        "term": "Run-off",
+        "text": "If the ballot ties, one fresh vote among the tied guests, with no buying. A second tie is decided by lot.",
+        "fullGame": true,
+        "rules": [
+          "How the evening ends"
+        ],
+        "match": [
+          "run-off"
+        ]
+      },
+      {
+        "term": "Speeches",
+        "text": "Each candidate addresses the city, and others may speak. The only time a candidate can repent.",
+        "fullGame": true,
+        "rules": [
+          "The order of the evening"
+        ],
+        "match": [
+          "speeches"
+        ]
+      },
+      {
+        "term": "Watch",
+        "text": "A midnight act. A guest watched by two or more others can't carry out their kill. The watchers learn nothing.",
+        "rules": [
+          "Midnight"
+        ],
+        "match": []
+      },
+      {
+        "term": "Web of Secrets",
+        "text": "Your record of who is tied to whom, what you've heard of each guest, and your notes. The bar at the bottom of the screen.",
+        "match": [
+          "Web of Secrets"
+        ]
+      }
+    ]
   }
 }

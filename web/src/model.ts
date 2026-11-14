@@ -7,6 +7,7 @@
 // sheet (briefing, rules, public content) and the player's own log; nothing here is a model's reading.
 
 import type { Ev } from "./connection.ts";
+import type { GlossEntry } from "./words.ts";
 
 export interface Line {
   item: "line" | "notaio" | "action";
@@ -313,6 +314,52 @@ export function loreParts(text: string, lore: LoreEntry[]): Part[] {
   }
   if (at < text.length) parts.push(text.slice(at));
   return parts;
+}
+
+// ---- The glossary (Interface v0.7, Briefing, rules, the city, and the glossary) ------------------------------
+
+/** A line's text with lore links (as loreParts), and the rest with each glossary word as an underlined term. */
+export type LinePart = Part | { gloss: GlossEntry; text: string };
+
+/**
+ * A line's text with its lore links and glossary words: lore links first, so a word that is both a lore title
+ * and a glossary term is a link; in the text between them, each glossary entry's words (whole words, ignoring
+ * case, the longest first) become its term, to be underlined and explained on hover.
+ */
+export function lineParts(text: string, lore: LoreEntry[], glossary: GlossEntry[]): LinePart[] {
+  const words = glossary.flatMap((g) => g.match.map((m) => ({ m, g }))).sort((a, b) => b.m.length - a.m.length);
+  if (!words.length) return loreParts(text, lore);
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`(?<![\\p{L}\\p{N}/])(${words.map((x) => esc(x.m)).join("|")})(?![\\p{L}\\p{N}])`, "giu");
+  return loreParts(text, lore).flatMap((p): LinePart[] => {
+    if (typeof p !== "string") return [p];
+    const out: LinePart[] = [];
+    let at = 0;
+    for (const m of p.matchAll(re)) {
+      const hit = words.find((x) => x.m.toLowerCase() === m[1]!.toLowerCase())!;
+      if (m.index! > at) out.push(p.slice(at, m.index));
+      out.push({ gloss: hit.g, text: m[1]! });
+      at = m.index! + m[1]!.length;
+    }
+    if (at < p.length) out.push(p.slice(at));
+    return out;
+  });
+}
+
+/** The glossary's list: alphabetical by term (a command by its name, without the slash), narrowed to the entries whose term or definition holds the search. */
+export function glossaryList(glossary: GlossEntry[], search = ""): GlossEntry[] {
+  const key = (g: GlossEntry) => g.term.replace(/^\//, "").toLowerCase();
+  const q = search.trim().toLowerCase();
+  return [...glossary].filter((g) => !q || g.term.toLowerCase().includes(q) || g.text.toLowerCase().includes(q)).sort((a, b) => key(a).localeCompare(key(b)));
+}
+
+/** "More in the rules": the place of the first rules section the entry names that the rules have (by title, ignoring case), or null. */
+export function rulesSectionFor(entry: GlossEntry, cards: Card[]): number | null {
+  for (const t of entry.rules) {
+    const i = cards.findIndex((c) => c.title.toLowerCase() === t.toLowerCase());
+    if (i >= 0) return i;
+  }
+  return null;
 }
 
 // ---- The record: what you heard and saw (TD v0.40, The web viewer) ---------------------------------------

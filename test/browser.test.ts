@@ -1057,3 +1057,126 @@ test("the right panel's card slides down when deselected, and clicking empty bac
   await page.key("Escape", 27);
   await page.until(`!document.querySelector(".side.right .look")`);
 });
+
+// ---- CC-20261114-09 (#117, part 2 of 3) ------------------------------------------------------------------
+
+const HINTS_OFF = async (off: boolean) => {
+  const on = await page.eval<boolean>(`document.querySelector('[data-hint="switch"]').getAttribute("aria-pressed") === "true"`);
+  if (on === off) await page.eval(`document.querySelector('[data-hint="switch"]').click()`);
+};
+
+test("four modals in a row: Your briefing, The rules, The city, Glossary; each between its faded neighbours; clicking one slides to it; nothing before the first or after the last; each keeps its place; Escape closes", { skip }, async () => {
+  await reopen();
+  await page.until(`!document.querySelector('[data-hint="glossary"]').disabled`);
+  const row = () =>
+    page.eval<{ open: string; left: string | null; right: string | null; leftFaded: boolean; rightFaded: boolean; inView: boolean }>(`(() => {
+      const m = document.querySelector(".modal.deck"), l = document.querySelector(".modal-peek.left"), r = document.querySelector(".modal-peek.right");
+      const b = m.getBoundingClientRect();
+      return { open: [...m.classList].find((c) => c.startsWith("deck-")).slice(5), left: l.dataset.deck ?? null, right: r.dataset.deck ?? null,
+        leftFaded: getComputedStyle(l).maskImage.startsWith("linear-gradient(to right"), rightFaded: getComputedStyle(r).maskImage.startsWith("linear-gradient(to left"),
+        inView: b.left >= 0 && b.right <= innerWidth && b.top >= 0 && b.bottom <= innerHeight };
+    })()`);
+  await page.eval(`document.querySelector('[data-hint="briefing"]').click()`);
+  await page.until(`document.querySelector(".deck-briefing .deck-card")`);
+  let r = await row();
+  assert.deepEqual([r.open, r.left, r.right], ["briefing", null, "rules"], "nothing to the briefing's left");
+  assert.ok(r.inView);
+  // The briefing's place: its second card. The arrow keys still turn it.
+  await page.key("ArrowRight", 39);
+  const card = await page.eval<string>(`document.querySelector(".deck .tab.on").textContent`);
+  // Along the row: rules, city, glossary, each with its neighbours, the left side faded on the left and the right on the right.
+  for (const [want, left, right] of [["rules", "briefing", "city"], ["city", "rules", "glossary"], ["glossary", "city", null]] as const) {
+    await page.until(`document.querySelector(".modal.deck").getAnimations().length === 0`);
+    await clickAt(".modal-peek.right");
+    await page.until(`document.querySelector(".modal.deck-${want}")`);
+    r = await row();
+    assert.deepEqual([r.open, r.left, r.right], [want, left, right], want);
+    assert.ok(r.leftFaded, `${want}: the one before shows faded on its left`);
+    if (right) assert.ok(r.rightFaded, `${want}: the next shows faded on its right`);
+    await page.shot(`modal-row-${want}`);
+  }
+  // Nothing to the glossary's right: no neighbour there to move to.
+  assert.equal(await page.eval<boolean>(`document.querySelector(".modal-peek.right").matches(".empty:not([role])")`), true, "nothing right of the glossary");
+  // Back along: left to the briefing, which kept its card.
+  for (const want of ["city", "rules", "briefing"]) {
+    // Once the row has stopped sliding (the open one passes over its neighbour as it comes in).
+    await page.until(`document.querySelector(".modal.deck").getAnimations().length === 0`);
+    await clickAt(".modal-peek.left");
+    await page.until(`document.querySelector(".modal.deck-${want}")`);
+  }
+  assert.equal(await page.eval<string>(`document.querySelector(".deck .tab.on").textContent`), card, "the briefing kept its place");
+  assert.equal(await page.eval<boolean>(`document.querySelector(".modal-peek.left").matches(".empty:not([role])")`), true, "nothing left of the briefing");
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector(".overlay")`);
+});
+
+test("the glossary: alphabetical, a search that narrows as you type and is kept, and More in the rules opening that section", { skip }, async () => {
+  await reopen();
+  await page.until(`!document.querySelector('[data-hint="glossary"]').disabled`);
+  await page.eval(`document.querySelector('[data-hint="glossary"]').click()`);
+  await page.until(`document.querySelector(".glossary-entry")`);
+  const terms = () => page.eval<string[]>(`[...document.querySelectorAll(".glossary-entry dt")].map((d) => d.textContent)`);
+  const all = await terms();
+  const key = (x: string) => x.replace(/^\//, "").toLowerCase();
+  assert.deepEqual(all, [...all].sort((a, b) => key(a).localeCompare(key(b))), "alphabetical");
+  assert.ok(!all.includes("Ballot"), "the mini-game leaves out the full game's terms");
+  await page.eval(`document.querySelector(".glossary-search").focus()`);
+  await page.type("payr");
+  await page.until(`document.querySelectorAll(".glossary-entry").length < ${all.length}`);
+  const narrowed = await terms();
+  assert.ok(narrowed.length > 0 && narrowed.includes("France's payroll"), `narrowed as you type: ${narrowed.join(", ")}`);
+  await page.shot("glossary-search");
+  // The search is kept when the modal closes and opens again.
+  await page.eval(`document.activeElement.blur()`);
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector(".overlay")`);
+  await page.eval(`document.querySelector('[data-hint="glossary"]').click()`);
+  await page.until(`document.querySelector(".glossary-search")`);
+  assert.equal(await page.eval<string>(`document.querySelector(".glossary-search").value`), "payr");
+  // More in the rules: the rules modal, at that section.
+  await page.eval(`document.querySelector(".glossary-search").select()`);
+  await page.key("Backspace", 8);
+  await page.type("Florins");
+  await page.until(`[...document.querySelectorAll(".glossary-entry")].some((e) => e.dataset.term === "Florins" && e.querySelector(".glossary-rules"))`);
+  await page.eval(`[...document.querySelectorAll(".glossary-entry")].find((e) => e.dataset.term === "Florins").querySelector(".glossary-rules").click()`);
+  await page.until(`document.querySelector(".deck-rules section.rules-section.open")`);
+  assert.equal(await page.eval<string>(`document.querySelector(".deck-rules section.rules-section h3").textContent`), "Money");
+  await page.shot("glossary-more-in-the-rules");
+  await page.eval(`document.querySelector('[data-hint="rulesShrink"]').click()`);
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector(".overlay")`);
+  // Clear the search for the tests after.
+  await page.eval(`document.querySelector('[data-hint="glossary"]').click()`);
+  await page.until(`document.querySelector(".glossary-search")`);
+  await page.eval(`document.querySelector(".glossary-search").select()`);
+  await page.key("Backspace", 8);
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector(".overlay")`);
+});
+
+test("a glossary word in the chat: a faint dotted underline, its definition on hover, even with the explanations off; not a link", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".stream .ln")`);
+  // The player's own line, with glossary words in it: the fake game's lines name none. Spoken at once while
+  // the company waits for the player, or at the next pause.
+  await page.until(`document.querySelector(".input textarea")`);
+  await page.eval(`document.querySelector(".input textarea").focus()`);
+  await page.type("Shall we speak of Florins before midnight?");
+  await page.eval(`document.querySelector('[data-hint="speak"]').click()`);
+  await page.until(`document.querySelector(".stream .ln.mine .gloss")`);
+  await HINTS_OFF(true);
+  await page.eval(`document.querySelector(".stream .gloss").scrollIntoView({ block: "center" })`);
+  await page.eval(`new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)))`);
+  const g = await page.eval<{ term: string; style: string; x: number; y: number }>(`(() => { const e = document.querySelector(".stream .ln.mine .gloss"), b = e.getBoundingClientRect(); return { term: e.dataset.gloss, style: getComputedStyle(e).textDecorationStyle, x: b.left + b.width / 2, y: b.top + b.height / 2 }; })()`);
+  assert.equal(g.style, "dotted");
+  await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: g.x, y: g.y });
+  await page.until(`document.querySelector(".tip:not(.measuring)")`);
+  const tip = await page.eval<string>(`document.querySelector(".tip").textContent`);
+  assert.ok(tip.startsWith(`${g.term}: `) && tip.length > g.term.length + 10, `its definition: ${tip}`);
+  await page.shot("glossary-underline");
+  // Not a link: clicking selects nothing.
+  await clickAt({ x: g.x, y: g.y });
+  assert.equal(await page.eval<boolean>(`!!document.querySelector(".side.right .look:not(.leaving)")`), false);
+  await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 5, y: 5 });
+  await HINTS_OFF(false);
+});
