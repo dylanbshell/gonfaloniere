@@ -1,8 +1,16 @@
 # Gonfaloniere
 ## Characters & Briefings — Working Document
-### Version 0.16
+### Version 0.17
 
 ---
+
+## Changes in v0.17
+
+*Clears Lore's handoff: canon-check the ten glosses (Lore v0.13, Lore: Public; approved by Dylan, Nov 14).*
+
+- **Nine glosses pass as written, and one passes once a word changes** (Lore Canon Checks, Glosses). Each says only what its entry already says, and none touches Lore's Held Back list or widens who knows a fact the Shared Canon limits
+- **The office's gloss says "choose him".** The rules let any Medici or Pazzi stand, Clarice and Giorgia included, and the entry itself is neutral, so the gloss shouldn't imply the holder will be a man. Suggested: "to choose the holder by vote at tonight's gathering". Lore makes the change with Dylan's approval; no new check is needed if it's only that
+- No briefing changed, so no prompt changes; the engine's pairing (TD 0.50 with Characters 0.16, #143) is unaffected
 
 ## Changes in v0.16
 
@@ -1156,6 +1164,21 @@ Your title. Everyone here wants something from you, which is its own kind of pow
 | France (`pub-france`) | public | Pass | Emile "the King's young cousin, sent to choose a Florentine bride" matches his, Giorgia's, and Jeanne's briefings. "Can pay for it" matches Jeanne's "every guest knows France can pay"; nothing of Friar Tommaso's letter, Jeanne's pension offer, or the affair. The match isn't promised for tonight |
 | San Frediano (`pub-san-frediano`) | public | Pass | Exactly the Shared Canon's public fact: a Frenchman killed by the north chapel seven years ago, no one charged. "Stabbed" matches Beatrice's briefing. No gambler, name, seal, sacristan, or date beyond the year, so no new path to F2 or F4 |
 | The palazzo (`pub-palazzo`) | public | Pass | A neutral host, which no briefing contradicts. Leaving out a garden and a chapel keeps Piero's ribbon, the Embassy gardens, and both chapels unblurred |
+
+**Glosses** (v0.17, Nov 14: the `gloss` on each of Lore v0.13's ten public entries, as Dylan approved them; checked against Characters v0.16, its entry's own text, and Lore's Held Back list). A gloss is shown to the player after a line that names its entry (Technical Design v0.51, Notes on what was said), so it must hold only what every guest knew at the start.
+
+| Gloss on | Result | Reason |
+|---|---|---|
+| The month's mind (`pub-evening`) | Pass | The requiem a month after Lorenzo's death, days before tonight, and the city in mourning: Shared Canon: Setting |
+| Lorenzo the Magnificent (`pub-lorenzo`) | Pass | Twenty-three years without the highest office; death at Careggi on 8 April, three days after the lightning. All in the entry |
+| The office, this spring (`pub-gonfaloniere`) | **Pass once reworded** | Agrees with the entry and the rules primer, except "choose **him**": any Medici or Pazzi may stand, Clarice and Giorgia included, and the entry is neutral. Suggested: "to choose the holder by vote at tonight's gathering" |
+| The Pazzi conspiracy (`pub-1478`) | Pass | Giuliano stabbed at Mass, the leaders hanged from the Signoria's windows: Shared Canon: Setting, Piero's and Francesco's briefings. No Salviati |
+| The Pazzi now (`pub-pazzi`) | Pass | Disgrace, seized banks, sons kept from office; Francesco leads with Giorgia. Nothing of Lupo |
+| Lorenzo's heirs (`pub-medici`) | Pass | Piero "the Unfortunate", Raffaello better loved, Clarice the quickest wit: their briefings. Nothing of Raffaello's debt or French credit |
+| The friar of San Marco (`pub-savonarola`) | Pass | Savonarola leads San Marco's friars and Friar Tommaso follows him: agrees with Tommaso's briefing and v0.14's "leads the Dominicans at tonight's gathering" |
+| France (`pub-france`) | Pass | Naples, the road south, Prince Emile sent to choose a bride: his, Giorgia's, and Jeanne's briefings. Nothing of payroll payments, Jeanne, or the affair |
+| San Frediano (`pub-san-frediano`) | Pass | Exactly the Shared Canon's public fact (a Frenchman stabbed by the north chapel seven years ago, no one charged). No gambler, name, seal, or sacristan |
+| Tonight's host (`pub-palazzo`) | Pass | A neutral town house with eight places, as the entry and Lore's The Palazzo say |
 
 
 ---
