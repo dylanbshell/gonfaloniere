@@ -94,22 +94,38 @@ export interface StateValues {
    * order, without the character's own conversation or the dead. Absent before v0.45 and outside open play.
    */
   room?: Room;
+  /**
+   * TD v0.49's named places: the place of the character's own conversation, which `{conversation_label}`
+   * names after its kind. Absent before v0.49 and outside a conversation ("the gathering" has none).
+   */
+  place?: string;
 }
 
-/** Where every other living guest is right now: open groups and private pairs, each a list of names. */
-export interface Room {
-  groups: string[][];
-  colloquios: string[][];
+/**
+ * Where every other living guest is right now: open groups and private pairs, each a list of names
+ * (TD v0.45); or from TD v0.49, every other occupied place in the setting's order, with who is in it.
+ */
+export type Room = { groups: string[][]; colloquios: string[][] } | { places: RoomPlace[] };
+
+/** One occupied place in the room line (TD v0.49): its name, its living guests in roster order, and whether it holds a Colloquio. */
+export interface RoomPlace {
+  place: string;
+  members: string[];
+  private: boolean;
 }
 
 /**
  * Block 5's room line text (TD v0.45): `Giorgia Pazzi, Raffaello de' Medici and Captain Armand LeNoir
- * together; Fra Tommaso and Sister Beatrice in private.` The joining words are the setting pack's. Empty
- * when no one else is anywhere to be seen.
+ * together; Fra Tommaso and Sister Beatrice in private.` From TD v0.49, place by place: `the great hall:
+ * Giorgia Pazzi, Raffaello de' Medici and Captain Armand LeNoir; the window bay: Fra Tommaso and Sister
+ * Beatrice, in private.` The joining words are the setting pack's. Empty when no one else is anywhere to be seen.
  */
 export function roomText(r: Room): string {
   const names = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")}${say("notaio", "room.and")}${xs.at(-1)}`);
-  const parts = [...r.groups.map((g) => say("notaio", g.length === 1 ? "room.alone" : "room.together", { members: names(g) })), ...r.colloquios.map((p) => say("notaio", "room.private", { members: names(p) }))];
+  const parts =
+    "places" in r
+      ? r.places.filter((p) => p.members.length).map((p) => say("notaio", p.private ? "room.place_private" : "room.place", { place: p.place, members: names(p.members) }))
+      : [...r.groups.map((g) => say("notaio", g.length === 1 ? "room.alone" : "room.together", { members: names(g) })), ...r.colloquios.map((p) => say("notaio", "room.private", { members: names(p) }))];
   return parts.length ? parts.join(say("notaio", "room.between")) + say("notaio", "room.end") : "";
 }
 
@@ -501,7 +517,7 @@ function stateBlock(t: PromptTemplates, s: StateValues): string {
   const filled = fill(template, {
     room,
     phase_label: s.phaseLabel,
-    conversation_label: conversationLabel(s.conversation),
+    conversation_label: conversationLabel(s.conversation, s.place),
     // TD v0.5: outside a conversation (Murder Round, ballot, run-off) no one is present.
     present_characters: s.conversation.kind === "gathering" && !s.present.length ? "no one; you decide alone" : s.present.join(", "),
     living_others: s.livingOthers.join(", "),
@@ -524,12 +540,14 @@ function stateBlock(t: PromptTemplates, s: StateValues): string {
     .join("\n");
 }
 
-function conversationLabel(c: StateValues["conversation"]): string {
+/** TD v0.49: the place follows the conversation's kind ("a Capannello in the loggia with …"); "the gathering" has none. */
+function conversationLabel(c: StateValues["conversation"], place?: string): string {
   if (c.kind === "gathering") return "the gathering";
+  const at = place ? say("notaio", "room.in_place", { place }) : "";
   if (c.kind === "colloquio") {
-    return `a private Colloquio with ${c.other} (utterance ${c.utterance} of ${c.cap})`;
+    return `a private Colloquio${at} with ${c.other} (utterance ${c.utterance} of ${c.cap})`;
   }
-  return `a Capannello with ${listJoin(c.others)}`;
+  return `a Capannello${at} with ${listJoin(c.others)}`;
 }
 
 function memoryBlock(t: PromptTemplates, ctx: CharacterContext): string {

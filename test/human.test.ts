@@ -13,6 +13,7 @@ import { mentions, parseCommand } from "../src/minigame/player.ts";
 import { castBriefings } from "../src/minigame/cast.ts";
 import { readLoreFile } from "../src/minigame/lore.ts";
 import { buildRecord } from "../src/minigame/record.ts";
+import { settingPack } from "../src/setting/pack.ts";
 import { exportView } from "../src/minigame/view.ts";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -261,16 +262,36 @@ test("isolation: the player's whole event stream is their own History and State,
   assert.ok(readings.length >= 3, "readings were shown");
   for (const r of readings) assert.ok(r.upTo <= r.seq && (r.text === null || game.calls.some((c) => c.raw === r.text)), JSON.stringify(r));
   const states = stream.filter((e) => e.type === "state");
-  // The room (TD v0.45) is public: who stands with whom among the other living guests, never Francesco's own
-  // conversation, and nothing more than names.
-  const withRoom = states.filter((e) => (e as Extract<Outgoing, { type: "state" }>).state.room);
-  assert.ok(withRoom.length > 0, "the room reaches the player in open play");
-  for (const e of withRoom) {
-    const st = (e as Extract<Outgoing, { type: "state" }>).state as { room: { groups: string[][]; colloquios: string[][] }; present: string[] };
-    const named = [...st.room.groups, ...st.room.colloquios].flat();
-    assert.ok(!named.includes(F) && !st.present.some((p) => named.includes(p)), JSON.stringify(st.room));
-    assert.deepEqual(Object.keys(st.room).sort(), ["colloquios", "groups"]);
+  // The places (TD v0.49, from the room of v0.45) are public: every place in the setting's order, who stands
+  // in each among the living guests, whether it holds a Colloquio, and which is Francesco's own; nothing more
+  // than names. They replace block 5's room and own place in the player's state.
+  const PLACES = settingPack().places!;
+  const withPlaces = states.filter((e) => (e as Extract<Outgoing, { type: "state" }>).state.places);
+  assert.ok(withPlaces.length > 0, "the places reach the player in open play");
+  assert.ok(states.every((e) => !("room" in e.state) && !("place" in e.state)), "no room line and no own place beside them");
+  let ownless = 0;
+  for (const e of withPlaces) {
+    const st = (e as Extract<Outgoing, { type: "state" }>).state as { places: { name: string; guests: string[]; private: boolean; own: boolean }[]; present: string[]; conversation: { kind: string } };
+    assert.deepEqual(st.places.map((p) => p.name), PLACES, "every place, occupied or empty, in the pack's order");
+    for (const p of st.places) assert.deepEqual(Object.keys(p).sort(), ["guests", "name", "own", "private"]);
+    const own = st.places.filter((p) => p.own);
+    // Their own place: Francesco and who's with him. None only in the moment a Colloquio has ended and its
+    // place is free, before he's seated again.
+    if (!own.length) {
+      ownless++;
+      assert.equal(st.conversation.kind, "colloquio", JSON.stringify(st));
+      assert.ok(st.places.every((p) => !p.guests.includes(F)), JSON.stringify(st.places));
+      continue;
+    }
+    assert.equal(own.length, 1, JSON.stringify(st.places));
+    assert.deepEqual([...own[0]!.guests].sort(), [F, ...st.present].sort(), "their own place: Francesco and who's with him");
+    assert.equal(own[0]!.private, st.conversation.kind === "colloquio");
+    const named = st.places.flatMap((p) => p.guests);
+    assert.equal(new Set(named).size, named.length, "each guest in one place");
   }
+  assert.ok(ownless < withPlaces.length / 10, `${ownless} of ${withPlaces.length} states between a Colloquio's end and a seat`);
+  // Outside a conversation (midnight, between seats) there's no place to show, as there was no room.
+  assert.ok(states.filter((e) => (e.state as { conversation: { kind: string } }).conversation.kind === "gathering").every((e) => !("places" in e.state)));
   // Block 5 for the player: their own purse, and no ledger (Francesco doesn't keep the treasury).
   assert.ok(states.every((e) => !("embassyLedger" in e.state)));
   // The request options name living guests and groups, as 9c and 9h show them; never a location or an inner state.

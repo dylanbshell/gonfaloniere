@@ -7,7 +7,7 @@
 import { Component, Fragment, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { connect, type Ev } from "./connection.ts";
 import { COMMAND, MENTION, canDo, canSpeak, isCommand, matchCommands, matchGuests, openMenu, withMention, type Trigger } from "./input.ts";
-import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityList, curve, derive, earlierThisStage, errandDeadline, errandLine, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, notesFor, placeholderExample, preview, readingFor, recordUpTo, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, type Card, type Line, type LoreEntry, type Note, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
+import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityList, curve, derive, earlierThisStage, errandDeadline, errandLine, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, notesFor, placeholderExample, preview, readingFor, recordUpTo, roomOf, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, type Card, type Line, type LoreEntry, type Note, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
 import { getInfo, guest, names, narrator, notaioHint, placeholderExamples, setInfo, stageDescription, w, type GlossEntry, type StartInfo } from "./words.ts";
 
 type Send = (m: unknown) => void;
@@ -1201,11 +1201,13 @@ function RoomStack({ names, pair }: { names: string[]; pair?: boolean }) {
  * The room (TD v0.45; Mechanics, Everyone Sees the Room), under the errand card: the player's own group,
  * marked, with its guests by name, then every other group as a cluster of overlapping tokens that spread
  * out on hover, and each private pair as two joined tokens. Clicking a token selects that guest. From the
- * state's `room`, the same data as the AI guests' room line; during midnight and between seats there's no
- * room, so only who's with the player.
+ * state's `places` (TD v0.49: the other occupied places; the place list itself is Interface's, #132), or its
+ * `room` before v0.49, the same data as the AI guests' room line; during midnight and between seats there's
+ * no room, so only who's with the player.
  */
 function RoomView({ v }: { v: View }) {
   const s = v.state;
+  const room = roomOf(s);
   const hint = useHint();
   return (
     <>
@@ -1228,12 +1230,12 @@ function RoomView({ v }: { v: View }) {
             )}
           </ul>
         </div>
-        {s?.room && (s.room.groups.length > 0 || s.room.colloquios.length > 0) && (
+        {room && (room.groups.length > 0 || room.colloquios.length > 0) && (
           <ul className="clusters">
-            {s.room.groups.map((g) => (
+            {room.groups.map((g) => (
               <RoomStack key={g.join("|")} names={g} />
             ))}
-            {s.room.colloquios.map((p) => (
+            {room.colloquios.map((p) => (
               <RoomStack key={p.join("|")} names={p} pair />
             ))}
           </ul>

@@ -20,6 +20,18 @@ export interface PlayerNote {
   guests: string[];
   text: string;
 }
+/**
+ * One of the hall's places in the player's `state` (TD v0.49, Named places): its name from the setting
+ * pack, its living guests in roster order (none if empty), whether it holds a Colloquio, and whether it's
+ * the player's own. Every place, in the pack's order, in open play.
+ */
+export interface PlayerPlace {
+  name: string;
+  guests: string[];
+  private: boolean;
+  own: boolean;
+}
+
 /** Notes are the player's own; this only keeps one from swamping the record. */
 export const NOTE_MAX = 2000;
 

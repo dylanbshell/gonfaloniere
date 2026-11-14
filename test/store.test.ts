@@ -14,7 +14,7 @@ import { embedderFromEnv, hashEmbedder, openAiCompatibleEmbedder, type Embedder 
 import type { CallRequest, MiniGame } from "../src/minigame/engine.ts";
 import { isolationCheck, type IsolationRecord } from "../src/minigame/isolation.ts";
 import { LORE_BUDGET, loreHeader, loreLines, readLoreFile, type LoreEntry } from "../src/minigame/lore.ts";
-import { relationships, type Relationships } from "../src/setting/pack.ts";
+import { relationships, settingPack, type Relationships } from "../src/setting/pack.ts";
 import { MemoryStore, overlapScore, renderReading, type Belief, type GameLine, type Thought } from "../src/minigame/memory.ts";
 import { VectorStore, notebookQuery, openStoreDb, storeRows } from "../src/minigame/store.ts";
 import { docsFor } from "../probe.config.ts";
@@ -214,10 +214,44 @@ test("TD v0.36: every prompt is v0.35's with only the changelog's changes: arriv
   console.log(`block 6: ${(linesBefore / notebooks).toFixed(2)} lines a call on v0.35, ${(linesAfter / notebooks).toFixed(2)} on v0.36 (${notebooks} calls)`);
 });
 
-test("PROBE_TD defaults to 0.45, with Characters v0.12 (CC-20261113-04, #95: the room line ships with the briefings that promise it)", () => {
+test("PROBE_TD defaults to 0.49, with Characters v0.12 and Mechanics v0.35 (CC-20261114-11, #128: named places)", () => {
   if (process.env.PROBE_TD || process.env.PROBE_CHARACTERS) return;
-  assert.equal(fakeDocs.versions.technicalDesign, "0.45");
+  assert.equal(fakeDocs.versions.technicalDesign, "0.49");
   assert.equal(fakeDocs.versions.characters, "0.12");
+  assert.equal(fakeDocs.versions.mechanics, "0.35");
+});
+
+test("TD v0.49: every prompt is v0.48's with only {room} and {conversation_label} changed, to name the places", async () => {
+  const v48 = await playFakeOn(loadDocs(docsFor("0.48", "0.12")));
+  const v49 = await playFakeOn(loadDocs(docsFor("0.49", "0.12")));
+  const places = settingPack().places!;
+  const key = (cs: CallRequest[]) => cs.map((c) => `${c.kind}|${c.character}`);
+  assert.deepEqual(key(v49.calls), key(v48.calls), "the same calls");
+  const ROOM = /^Around the room: .*$/m;
+  const at = new RegExp(` in (${places.join("|")}) with `);
+  let rooms = 0;
+  let labels = 0;
+  v49.calls.forEach((c, i) => {
+    const o = v48.calls[i]!;
+    assert.equal(c.system, o.system, `${c.kind} ${i}: system`);
+    // The room line stays where it was, and is there exactly when it was.
+    assert.equal(ROOM.test(c.user), ROOM.test(o.user), `${c.kind} ${i}: the room line in the same calls`);
+    const lines = c.user.split("\n");
+    const before = o.user.split("\n");
+    assert.equal(lines.length, before.length, `${c.kind} ${i}: no line added or removed`);
+    lines.forEach((l, j) => {
+      if (l === before[j]) return;
+      if (l.startsWith("Around the room: ")) {
+        assert.ok(before[j]!.startsWith("Around the room: "), `${c.kind} ${i}: ${l}`);
+        return rooms++;
+      }
+      // {conversation_label}: v0.48's label with the place after the conversation's kind.
+      assert.match(l, /^You are in /, `${c.kind} ${i}: only the room line and the label: ${l}`);
+      assert.equal(l.replace(at, " with "), before[j], `${c.kind} ${i}: the label, with its place`);
+      labels++;
+    });
+  });
+  assert.ok(rooms > 0 && labels > 0, `${rooms} room lines and ${labels} labels changed`);
 });
 
 test("TD v0.45 with Characters v0.12: every prompt is v0.44's with only the room line added and Characters v0.12's briefing text", async () => {
@@ -254,8 +288,8 @@ test("TD v0.45 with Characters v0.12: every prompt is v0.44's with only the room
     }
   });
   assert.ok(briefed > 0 && rooms > 0, `${briefed} prompts with a v0.12 briefing, ${rooms} with the room line`);
-  // TD v0.46 and v0.47 leave prompts unchanged.
-  for (const td of ["0.46", "0.47"]) assert.equal(promptHash((await playFakeOn(loadDocs(docsFor(td, "0.12")))).calls), promptHash(v45.calls), `TD v${td}`);
+  // TD v0.46, v0.47, and v0.48 leave prompts unchanged, so games before named places replay as they ran.
+  for (const td of ["0.46", "0.47", "0.48"]) assert.equal(promptHash((await playFakeOn(loadDocs(docsFor(td, "0.12")))).calls), promptHash(v45.calls), `TD v${td}`);
 });
 
 test("lore file: only approved, canon-checked entries load; scopes are public or a full name; the hash is of the file's bytes", () => {

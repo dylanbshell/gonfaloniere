@@ -154,6 +154,17 @@
     }
   ],
   "_roster_comment": "Characters' roster: the exact spellings models must use; aliases for matching names in model output; the public subtitle from each briefing (Characters v0.10). `roles`: \"two kills\" is Mechanics' Murder Round special case (two Kill orders that guards and watchers can't stop, and no guard or watch).",
+  "places": [
+    "the great hall",
+    "the window bay",
+    "the anteroom",
+    "the loggia",
+    "the courtyard",
+    "the study",
+    "the painted room",
+    "the dining room"
+  ],
+  "_places_comment": "TD v0.49's Named places (Mechanics v0.35, Named Places; names from Lore v0.8, The Palazzo): the hall's places, in Lore's order and exactly as Lore writes them, lower case with \"the\". Every conversation is in one, one conversation per place. Their count must equal Mechanics' Tunable \"Named places\" (8, never fewer than 7); the engine checks at load. Block 5's joining words for them are notaio.json's `room`.",
   "playable": [
     "Piero de' Medici",
     "Francesco Pazzi"

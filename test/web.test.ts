@@ -21,7 +21,7 @@ import { settingPack } from "../src/setting/pack.ts";
 import { GameView, Opening } from "../web/src/App.tsx";
 import type { Ev } from "../web/src/connection.ts";
 import { canDo, canSpeak, openMenu, trigger, withMention } from "../web/src/input.ts";
-import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityCards, cityList, curve, derive, factionArcs, placeholderExample, preview, selectBack, selectInChat, selectInWeb, selectLore, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, lineStages, loreParts, readingFor, rulesCards, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, glossaryList, lineParts, midnightLine, notesFor, rulesSectionFor, type LoreEntry, type View } from "../web/src/model.ts";
+import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityCards, cityList, curve, derive, factionArcs, placeholderExample, preview, selectBack, selectInChat, selectInWeb, selectLore, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, lineStages, loreParts, readingFor, roomOf, rulesCards, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, glossaryList, lineParts, midnightLine, notesFor, rulesSectionFor, type LoreEntry, type View } from "../web/src/model.ts";
 import { notaioHint, setInfo, type StartInfo } from "../web/src/words.ts";
 import { fakeCaller, fakeDocs, fakeSettings } from "./fixtures/fake-game.ts";
 
@@ -593,27 +593,39 @@ test("the Web of Secrets: a bar always there, a key of the six types that highli
 
 // ---- CC-20261113-04 (#95): the room (TD v0.45) -----------------------------------------------------------
 
-test("the room: your own group marked, by name; every other group as overlapping tokens and each private pair joined, from the state's room", async () => {
+test("the room: your own group marked, by name; every other group as overlapping tokens and each private pair joined, from the state's places (TD v0.49) or room (v0.45–v0.48)", async () => {
   const { at } = await playedLog();
   const v = derive(at["speak:capannello"]!);
-  assert.ok(v.state!.room, "the default TD (v0.45) sends the room in open play");
+  assert.ok(v.state!.places && !v.state!.room, "the default TD (v0.49) sends the places in open play, in place of the room");
   const h = game({ v });
   const left = h.slice(h.indexOf('class="side left"'), h.indexOf('class="centre"'));
   assert.match(left, /class="cluster mine" data-cluster="mine"/);
-  const room = v.state!.room!;
+  const room = roomOf(v.state)!;
+  const others = v.state!.places!.filter((p) => !p.own && p.guests.length);
+  assert.deepEqual(room, { groups: others.filter((p) => !p.private).map((p) => p.guests), colloquios: others.filter((p) => p.private).map((p) => p.guests) }, "the other occupied places");
+  assert.ok(room.groups.length > 0);
   assert.equal((left.match(/data-cluster="group"/g) ?? []).length, room.groups.length);
   assert.equal((left.match(/data-cluster="private"/g) ?? []).length, room.colloquios.length);
   const clusters = left.slice(left.indexOf('class="clusters"'));
   assert.equal((clusters.match(/class="token( selected)?"/g) ?? []).length, [...room.groups, ...room.colloquios].flat().length, "a token for every other guest in the room");
   assert.equal((left.match(/class="joint"/g) ?? []).length, room.colloquios.length, "each pair joined");
-  // A hand-made room: two groups and a pair.
-  const made = { ...v, state: { ...v.state!, room: { groups: [["Lupo", "Fra Tommaso"], ["Sister Beatrice"]], colloquios: [["Piero de' Medici", "Clarice Orsini"]] } } };
+  // Hand-made places: the player's own, two groups (one a guest on their own), a pair, and empty places.
+  const place = (name: string, guests: string[], o: { private?: boolean; own?: boolean } = {}) => ({ name, guests, private: !!o.private, own: !!o.own });
+  const places = [place("the great hall", ["Lupo", "Fra Tommaso"]), place("the window bay", []), place("the anteroom", ["Francesco Pazzi", "Giorgia Pazzi"], { own: true }), place("the loggia", ["Piero de' Medici", "Clarice Orsini"], { private: true }), place("the study", ["Sister Beatrice"]), place("the dining room", [])];
+  const made = { ...v, state: { ...v.state!, places } };
+  assert.deepEqual(roomOf(made.state), { groups: [["Lupo", "Fra Tommaso"], ["Sister Beatrice"]], colloquios: [["Piero de' Medici", "Clarice Orsini"]] });
   const m = game({ v: made, selected: { kind: "guest", name: "Lupo" } });
   assert.equal((m.match(/data-cluster="group"/g) ?? []).length, 2);
+  assert.equal((m.match(/data-cluster="private"/g) ?? []).length, 1);
   assert.match(m, /class="token selected" aria-label="Lupo"/, "a selected guest's token is marked");
-  // Midnight: no room, only who's with you.
+  // Before TD v0.49, the state's room, as before.
+  const { places: _, ...withoutPlaces } = v.state!;
+  const old = { ...v, state: { ...withoutPlaces, room: { groups: [["Lupo", "Fra Tommaso"], ["Sister Beatrice"]], colloquios: [["Piero de' Medici", "Clarice Orsini"]] } } };
+  assert.equal(game({ v: old, selected: { kind: "guest", name: "Lupo" } }), m, "the same room from either shape");
+  // Midnight: no places, only who's with you.
   const mid = derive(at.midnight!);
-  assert.equal(mid.state!.room, undefined);
+  assert.equal(mid.state!.places, undefined);
+  assert.equal(roomOf(mid.state), null);
   assert.doesNotMatch(game({ v: mid }), /data-cluster="(group|private)"/);
 });
 

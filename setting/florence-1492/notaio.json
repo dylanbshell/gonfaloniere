@@ -51,7 +51,11 @@
     "private": "{members} in private",
     "and": " and ",
     "between": "; ",
-    "end": "."
+    "end": ".",
+    "_places_comment": "TD v0.49, Named places: from TD v0.49, {room} is told place by place, each other occupied place in setting.json's order as `place` (a group, or a guest on their own) or `place_private` (a Colloquio), joined by `between`, ending with `end`; the names joined as above. `in_place` follows the conversation's kind in block 5's {conversation_label} (\"a Capannello in the loggia with …\"). TD's words.",
+    "place": "{place}: {members}",
+    "place_private": "{place}: {members}, in private",
+    "in_place": " in {place}"
   },
   "name": {
     "_comment": "Interface v0.11, Il Notaio's name glossed: `gloss` is the caption under his name at the top of the opening; `hover` shows wherever his name appears on the screen (his notes in the stream, his hint, his reading, the tour's cards), even with the hover explanations off. His glossary entry (player.json's glossary) starts with the same gloss.",

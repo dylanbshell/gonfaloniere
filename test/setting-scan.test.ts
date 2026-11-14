@@ -93,10 +93,11 @@ export function literals(code: string): string[] {
 }
 
 const pack = settingPack();
-const words = [...new Set([...pack.roster.flatMap((r) => [r.name, ...r.aliases]), ...pack.factions.map((f) => f.name), pack.currency.singular, pack.currency.plural])];
+// TD v0.49: the hall's named places too ("the loggia"), which live in setting.json's `places`.
+const words = [...new Set([...pack.roster.flatMap((r) => [r.name, ...r.aliases]), ...pack.factions.map((f) => f.name), pack.currency.singular, pack.currency.plural, ...(pack.places ?? [])])];
 const pattern = new RegExp(`(?<![\\p{L}])(${words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).sort((a, b) => b.length - a.length).join("|")})(?![\\p{L}])`, "u");
 
-test("no roster name, faction name, or currency word in a string literal under src/ (TD v0.38, The Setting Pack)", () => {
+test("no roster name, faction name, place name, or currency word in a string literal under src/ (TD v0.38, The Setting Pack; places, TD v0.49)", () => {
   assert.ok(words.length > 40, "the setting's words loaded");
   const found: string[] = [];
   const allowedSeen = new Set<string>();
@@ -119,7 +120,7 @@ test("no roster name, faction name, or currency word in a string literal under s
 test("the scanner catches what it's for", () => {
   assert.deepEqual(literals('const a = "Lupo"; // "Pazzi"\n/* "Medici" */ const b = `x ${f("Isabella")} y`; const r = /gave .* Florins/;'), ["Lupo", "x ", "Isabella", " y", "gave .* Florins"]);
   assert.deepEqual(literals("const q = a / b / c; const s = 'it\\'s';"), ["it\\'s"]);
-  const sample = ["Contessa Isabella gave Lupo 3 Florins.", "the Medici council", "Captain LeNoir"];
+  const sample = ["Contessa Isabella gave Lupo 3 Florins.", "the Medici council", "Captain LeNoir", "a Capannello in the loggia with", "the painted room: Lupo"];
   for (const s of sample) assert.match(s, pattern, s);
-  for (const s of ["No one here.", "a Colloquio", "florid prose"]) assert.doesNotMatch(s, pattern, s);
+  for (const s of ["No one here.", "a Colloquio", "florid prose", "the studying"]) assert.doesNotMatch(s, pattern, s);
 });
