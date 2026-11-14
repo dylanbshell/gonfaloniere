@@ -88,15 +88,16 @@ export function docsFor(td: string, characters?: string) {
   return {
     technicalDesign: technicalDesignPath(td),
     characters: charactersPath(characters),
-    // Only the Tunable Values table is read; v0.30's values are v0.20's, so prompts are unchanged.
-    mechanics: mechanicsPath("0.30"),
+    // Only the Tunable Values table is read; v0.30's values are v0.20's, so prompts are unchanged. From TD
+    // v0.49, v0.35, whose table adds only the Named places row (read outside Tunables), so no value moves.
+    mechanics: mechanicsPath(atLeast(td, "0.49") ? "0.35" : "0.30"),
     // Read only for its version and the secrets judge's rubric, which v0.52 carries unchanged from v0.38 (#59).
     modelsResearch: "docs/Gonfaloniere_Models_Research_v0.52.md",
   };
 }
 
 export const config = {
-  docs: docsFor(process.env.PROBE_TD ?? "0.45"),
+  docs: docsFor(process.env.PROBE_TD ?? "0.49"),
 
   /** Same for every model; 0.7 until Technical Design sets a play value. */
   temperature: 0.7,

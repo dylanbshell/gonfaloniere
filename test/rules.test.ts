@@ -11,6 +11,7 @@ import type { RulesConfig } from "../src/rules/config.ts";
 import { allowedActionTypes, borrow, bribe, newEconomy, rejectAction, repay, seesLedger } from "../src/rules/economy.ts";
 import { actProblems, extraActProblems, resolveMidnight, type Act, type CheckedAct, type Submission } from "../src/rules/midnight.ts";
 import { capannelloStart, fallbackTarget, movementWindow } from "../src/rules/movement.ts";
+import { councilPlaces, emptyPlaces, freePlace, MIN_PLACES, placeConversation, placesProblem, placesRng, roundStart, type PlaceEvent, type PlaceResult, type Places } from "../src/rules/places.ts";
 import { mulberry32 } from "../src/rules/random.ts";
 import { fewestGuests, initiatorSeat, inviteeSeatProblem, leastInvolved, loneSeatOptions, openGroups, returnSeat, type Group } from "../src/rules/seating.ts";
 import { loadDocs, readDoc } from "../src/sources/docs.ts";
@@ -266,6 +267,116 @@ test("A Capannello Left With One Guest: a free move to a guest in a Capannello w
   assert.equal(loneSeatOptions(open), "only one open");
   assert.equal(loneSeatOptions([]), "stays");
   assert.equal(loneSeatOptions([g("C2", [ISABELLA, LENOIR]), g("C5", [GIORGIA, FRANCESCO])]), "choose");
+});
+
+// ---- Named Places (Mechanics v0.35, Movement › Named Places; TD v0.49) ------------------------------------
+
+/** Mechanics v0.35's Tunable Values: "Named places | 8 (never fewer than 7, …)". */
+const NAMED_PLACES = Number(readDoc(mechanicsPath("0.35")).match(/^\| Named places \| (\d+)/m)![1]);
+
+/** One evening's place events, step by step, from one seed: what the game asks the rules, in order. */
+function placesScript(seed: number) {
+  const rng = placesRng(seed);
+  const steps: { name: string; run: (p: Places) => PlaceResult; check: (before: Places, after: Places, events: PlaceEvent[]) => void }[] = [
+    {
+      name: "a round of mingling starts: each random group gets a random place, all different",
+      run: () => roundStart(["C1", "C2", "C3", "C4"], NAMED_PLACES, rng),
+      check: (_, after, events) => {
+        assert.deepEqual([...after.keys()], ["C1", "C2", "C3", "C4"]);
+        assert.ok(events.every((e) => e.type === "placed" && e.why === "round start"));
+      },
+    },
+    {
+      name: "a join: the group keeps its place, so the joiner is in it and nothing is drawn",
+      run: (p) => ({ places: p, events: [] }),
+      check: (before, after) => assert.deepEqual(after, before),
+    },
+    {
+      name: "a Colloquio: both guests go to a random empty place",
+      run: (p) => placeConversation(p, "C5", NAMED_PLACES, rng, "colloquio"),
+      check: (before, after, events) => {
+        assert.ok(emptyPlaces(before, NAMED_PLACES).includes(after.get("C5")!), "an empty place");
+        assert.deepEqual(events, [{ type: "placed", conversation: "C5", place: after.get("C5"), why: "colloquio" }]);
+      },
+    },
+    {
+      name: "the Colloquio ends: its place is free again",
+      run: (p) => freePlace(p, "C5"),
+      check: (before, after, events) => {
+        assert.ok(!after.has("C5") && emptyPlaces(after, NAMED_PLACES).includes(before.get("C5")!));
+        assert.deepEqual(events, [{ type: "freed", conversation: "C5", place: before.get("C5") }]);
+      },
+    },
+    {
+      name: "a group dissolves: its place is free",
+      run: (p) => freePlace(p, "C2"),
+      check: (before, after) => assert.ok(!after.has("C2") && emptyPlaces(after, NAMED_PLACES).includes(before.get("C2")!)),
+    },
+    {
+      name: "two seatless guests pair up: the new group takes a random empty place",
+      run: (p) => placeConversation(p, "C6", NAMED_PLACES, rng, "new group"),
+      check: (before, after) => assert.ok(emptyPlaces(before, NAMED_PLACES).includes(after.get("C6")!)),
+    },
+    {
+      name: "the safety net's group of one takes a random empty place",
+      run: (p) => placeConversation(p, "C7", NAMED_PLACES, rng, "new group"),
+      check: (before, after) => assert.ok(emptyPlaces(before, NAMED_PLACES).includes(after.get("C7")!)),
+    },
+    {
+      name: "a council phase: the four councils take four random places, all different, drawn afresh",
+      run: () => councilPlaces(["Medici", "Pazzi", "Dominicans", "French Embassy"], NAMED_PLACES, rng),
+      check: (_, after, events) => {
+        assert.equal(after.size, 4);
+        assert.ok(events.every((e) => e.type === "placed" && e.why === "council"));
+      },
+    },
+    {
+      name: "the next council phase draws again",
+      run: () => councilPlaces(["Medici", "Pazzi", "Dominicans", "French Embassy"], NAMED_PLACES, rng),
+      check: (_, after) => assert.equal(after.size, 4),
+    },
+  ];
+  let places: Places = new Map();
+  const log: PlaceEvent[][] = [];
+  for (const s of steps) {
+    const r = s.run(places);
+    s.check(places, r.places, r.events);
+    assert.equal(new Set(r.places.values()).size, r.places.size, `${s.name}: no two conversations share a place`);
+    assert.ok([...r.places.values()].every((i) => i >= 0 && i < NAMED_PLACES), s.name);
+    places = r.places;
+    log.push(r.events);
+  }
+  return log;
+}
+
+test("Named Places: round start, a join, a Colloquio and its end, a dissolve, a new pair, the group of one, and a council phase", () => {
+  assert.equal(NAMED_PLACES, 8);
+  const a = placesScript(2000);
+  assert.deepEqual(placesScript(2000), a, "the same seed, the same places");
+  assert.notDeepEqual(placesScript(7), a, "another seed, other places");
+  // Their own generator: not the game's stream, so no other draw moves.
+  assert.notEqual(placesRng(2000)(), mulberry32(2000)());
+});
+
+test("Named Places: no empty place is an event, never a doubled place; the count must agree and be at least 7", () => {
+  const all = roundStart(["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8"], NAMED_PLACES, placesRng(1));
+  assert.deepEqual([...all.places.values()].sort(), [0, 1, 2, 3, 4, 5, 6, 7]);
+  assert.deepEqual(placeConversation(all.places, "C9", NAMED_PLACES, placesRng(1), "colloquio"), { places: all.places, events: [{ type: "no empty place", conversation: "C9", why: "colloquio" }] });
+  assert.deepEqual(roundStart(["A", "B", "C"], 2, placesRng(1)).events.at(-1), { type: "no empty place", conversation: "C", why: "round start" });
+  assert.deepEqual(freePlace(all.places, "C42"), { places: all.places, events: [] }, "freeing a place nothing holds changes nothing");
+  assert.equal(MIN_PLACES, 7);
+  const cases: [number, number | null, RegExp | null][] = [
+    [8, 8, null],
+    [7, 7, null],
+    [7, 8, /names 7 places/],
+    [6, 6, /under the minimum of 7/],
+    [8, null, /no Named places row/],
+  ];
+  for (const [names, count, problem] of cases) {
+    const p = placesProblem(names, count);
+    if (problem) assert.match(p ?? "", problem, `${names} names, count ${count}`);
+    else assert.equal(p, null, `${names} names, count ${count}`);
+  }
 });
 
 // ---- The Election (the checks that exist in code) -------------------------------------------------------------

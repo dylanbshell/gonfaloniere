@@ -21,6 +21,8 @@ export interface SettingPack {
   currency: { singular: string; plural: string };
   factions: { name: string; colour: string | null; pension: PensionRole }[];
   roster: { name: string; faction: string; subtitle: string; aliases: string[]; roles?: string[] }[];
+  /** TD v0.49's named places, in Lore's order ("the great hall", …); absent in a pack without them. */
+  places?: string[];
   playable: string[];
   minigame: { cast: string[]; standins: string[] };
 }

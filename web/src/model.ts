@@ -56,9 +56,35 @@ export interface State {
    * without it, the line's "+1" goes once the check has run rather than claim an act the player may not have.
    */
   plotEarned?: boolean;
-  /** TD v0.45: where every other living guest is, in open play (the AI guests' room line); absent otherwise. */
+  /** TD v0.45–v0.48: where every other living guest is, in open play (the AI guests' room line); absent otherwise. */
   room?: { groups: string[][]; colloquios: string[][] };
+  /**
+   * TD v0.49, Named places: every place in the setting's order, occupied or empty, in open play, in place of
+   * `room`; absent outside a conversation.
+   */
+  places?: Place[];
   [k: string]: unknown;
+}
+
+/** One of the hall's places (TD v0.49): its name, its living guests (none if empty), whether it holds a Colloquio, and whether it's the player's own. */
+export interface Place {
+  name: string;
+  guests: string[];
+  private: boolean;
+  own: boolean;
+}
+
+/**
+ * The room the screen shows beside the player's own conversation: every other group, then every private
+ * pair. From the state's `places` (TD v0.49), the other occupied places in order; before it, its `room`.
+ * Null when there's no room to see (midnight, between seats).
+ */
+export function roomOf(s: State | null): { groups: string[][]; colloquios: string[][] } | null {
+  if (s?.places) {
+    const others = s.places.filter((p) => !p.own && p.guests.length > 0);
+    return { groups: others.filter((p) => !p.private).map((p) => p.guests), colloquios: others.filter((p) => p.private).map((p) => p.guests) };
+  }
+  return s?.room ?? null;
 }
 
 export interface Request {

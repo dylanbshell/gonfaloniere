@@ -15,6 +15,7 @@ import type { RulesConfig } from "../rules/config.ts";
 import { borrow, bribe, newEconomy, rejectAction, repay, seesLedger, type ActionType, type Economy } from "../rules/economy.ts";
 import { capannelloStart, fallbackTarget, movementWindow } from "../rules/movement.ts";
 import { mulberry32 } from "../rules/random.ts";
+import { freePlace, placeConversation, placesProblem, placesRng, roundStart, type PlaceResult, type Places } from "../rules/places.ts";
 import { fewestGuests, initiatorSeat, interimLoneSeat, inviteeSeatProblem, leastInvolved, loneSeatOptions, loneSeatValid, openGroups, returnSeat, type SeatProblem } from "../rules/seating.ts";
 import { say, settingPack } from "../setting/pack.ts";
 import { parseSpeak } from "../output/speak.ts";
@@ -43,6 +44,7 @@ import {
   type SeatGroup,
   type HistoryLine,
   type Room,
+  type RoomPlace,
 } from "../prompt/assemble.ts";
 import type { DocSources } from "../sources/docs.ts";
 import { parseJson } from "../output/json.ts";
@@ -56,7 +58,7 @@ import type { OutgoingBody, RequestKind } from "../core/protocol.ts";
 import { actProblems, extraActProblems, type CheckedAct } from "../rules/midnight.ts";
 import { MemoryStore, renderBelief, tookTargetLine, resolveName, whereLabel, type GameLine, type Thought, type Where } from "./memory.ts";
 import { READING_MAX_TOKENS, readingMaterial, readingPrompt, unfoundQuotes, type ReadingMaterial } from "./reading.ts";
-import { MESSAGE_MAX, NOTE_MAX, PlayerFeed, errandText, screenContent, type PlayerNote, mentions, menu, parseCommand, playable, playerSays, refusal, type CommandAction } from "./player.ts";
+import { MESSAGE_MAX, NOTE_MAX, PlayerFeed, errandText, screenContent, type PlayerNote, type PlayerPlace, mentions, menu, parseCommand, playable, playerSays, refusal, type CommandAction } from "./player.ts";
 
 // ---- Calls -----------------------------------------------------------------------------
 
@@ -259,6 +261,14 @@ export class MiniGame {
   private loneOrder: string[] = [];
   private loneStays = new Set<string>();
   private nextChain = 1;
+  /**
+   * TD v0.49's named places (Movement Implementation › Named places), from TD v0.49 only: the setting's
+   * names, which place each open conversation holds (the rules module's state), and their own generator,
+   * so every other draw is as before. Null before v0.49: no places at all.
+   */
+  private placeNames: string[] | null = null;
+  private places: Places = new Map();
+  private placeRng: (() => number) | null = null;
 
   /** TD v0.39's human player, if any: their character, their feed, and what they've sent between line boundaries. */
   private human: CharacterName | null;
@@ -294,6 +304,14 @@ export class MiniGame {
     // TD v0.36: block 6's cap rises from ~450 to ~490 tokens, time labels included (they always were, as built).
     this.memory.notebookBudget = tdMinor(docs.versions.technicalDesign) >= 36 ? 490 : 450;
     this.namesNotaio = tdMinor(docs.versions.technicalDesign) >= 36;
+    if (tdMinor(docs.versions.technicalDesign) >= 49) {
+      // TD v0.49: the pack's places must agree with Mechanics' Named places, or the game doesn't start.
+      const names = settingPack().places ?? [];
+      const problem = placesProblem(names.length, docs.namedPlaces);
+      if (problem) throw new Error(`Named places: ${problem} (TD v0.49 needs setting.json's places and Mechanics v0.35+)`);
+      this.placeNames = names;
+      this.placeRng = placesRng(s.seed);
+    }
     this.recorder = new Recorder(docs, this.memory, (kind, c, system, user) => this.systemCall(kind, c, system, user), this.events, formatLine, listJoin);
     Object.assign(this.prefixes, this.recorder.prefixes);
     const t = docs.tunables;
@@ -361,13 +379,16 @@ export class MiniGame {
     // absent guests' missing names under "All living guests" as deaths.
     const absent = ROSTER.map((r) => r.name).filter((n) => !this.s.cast.includes(n));
     const smaller = say("notaio", "notes.attendance", { cast: listJoin(this.s.cast), absent: listJoin(absent) });
-    for (const group of start.groups) {
-      const conv = this.newConversation("capannello", group);
+    // Every group forms before anyone hears of it, so the player's first state already shows the whole room.
+    const convs = start.groups.map((group) => this.newConversation("capannello", group));
+    // TD v0.49: each random group gets a random place, all different.
+    if (this.placeNames) this.applyPlaces(roundStart(convs.map((c) => c.id), this.placeNames.length, this.placeRng!));
+    for (const conv of convs) {
       // The attendance note announces the guests here tonight; the groups note names the group formed.
       this.notaio(conv, smaller, this.s.cast);
       this.notaio(conv, say("notaio", "notes.groups", { others: listJoin(conv.members) }), conv.members);
     }
-    this.events.push({ turn: 0, type: "capannelli", groups: [...this.convs.values()].map((c) => [...c.members]), rotation: this.rotation });
+    this.events.push({ turn: 0, type: "capannelli", groups: convs.map((c) => [...c.members]), ...(this.placeNames && { places: convs.map((c) => this.placeOf(c)) }), rotation: this.rotation });
   }
 
   /** No faction meeting in the mini-game: one strategy call (9d) per character to open. */
@@ -755,6 +776,7 @@ export class MiniGame {
     if (!this.seating || conv.kind !== "capannello" || !conv.open) return;
     if (!conv.members.length) {
       conv.open = false;
+      this.freePlace(conv);
       this.events.push({ turn: this.turn, type: "capannello-closed", conversation: conv.id });
     } else if (conv.members.length === 1 && !this.loneOrder.includes(conv.id)) this.loneOrder.push(conv.id);
   }
@@ -869,6 +891,8 @@ export class MiniGame {
     };
     const colloquio = this.newConversation("colloquio", [mover, target]);
     colloquio.seating = seating;
+    // TD v0.49: both guests go to a random empty place, drawn as they're called (before the groups they leave can close).
+    const place = this.placeNew(colloquio, "colloquio");
     if (a?.kind === "capannello") colloquio.returnTo.set(mover, a.id);
     if (b?.kind === "capannello") colloquio.returnTo.set(target, b.id);
     for (const [conv, c] of [
@@ -890,6 +914,7 @@ export class MiniGame {
       position: seating.position,
       free: seating.free,
       snapshot,
+      ...(place !== undefined && { place }),
       ...(opts.waited && { waited: true }),
       ...(opts.calledBack && { note: "called back" }),
     });
@@ -898,6 +923,7 @@ export class MiniGame {
   /** When a Colloquio ends (after the closing think), in TD's order. */
   private async endColloquio(conv: Conversation, why: "ended" | "cap"): Promise<void> {
     conv.open = false;
+    this.freePlace(conv);
     const k = conv.seating!;
     this.events.push({ turn: this.turn, type: "colloquio-close", conversation: conv.id, why, utterances: conv.utterances, ...chainOf(conv) });
     const settled = new Set<CharacterName>();
@@ -988,8 +1014,9 @@ export class MiniGame {
     while (this.seatless.length >= 2) {
       const [a, b] = this.seatless.splice(0, 2) as [CharacterName, CharacterName];
       const conv = this.newConversation("capannello", [a, b]);
+      const place = this.placeNew(conv, "new group");
       this.notaio(conv, say("notaio", "notes.new_group", { actor: a, other: b }), [a, b]);
-      this.events.push({ turn: this.turn, type: "seatless-pair", conversation: conv.id, members: [a, b] });
+      this.events.push({ turn: this.turn, type: "seatless-pair", conversation: conv.id, members: [a, b], ...(place !== undefined && { place }) });
     }
     for (const w of [...this.waitingJoins]) {
       const t = this.seatOf(w.target);
@@ -1063,8 +1090,9 @@ export class MiniGame {
       const offered = this.offeredLog(groups);
       const pick = this.fewest(c, groups);
       const to = pick ? pick.conv : this.newConversation("capannello", []);
+      const place = pick ? undefined : this.placeNew(to, "new group");
       this.place(to, c);
-      this.events.push({ turn: this.turn, type: "seat", form: "safety net", character: c, offered, rule: pick ? pick.rule : "new group of one", to: to.id });
+      this.events.push({ turn: this.turn, type: "seat", form: "safety net", character: c, offered, rule: pick ? pick.rule : "new group of one", to: to.id, ...(place !== undefined && { place }) });
     }
     for (const w of this.waitingJoins.filter((x) => x.turn < this.turn)) {
       this.waitingJoins = this.waitingJoins.filter((x) => x !== w);
@@ -1115,6 +1143,36 @@ export class MiniGame {
   private inColloquio(c: CharacterName): boolean {
     const x = this.seatOf(c);
     return !!x && x.open && x.kind === "colloquio";
+  }
+
+  // ---- Named places (TD v0.49, Movement Implementation › Named places) -------------------------------
+
+  /** The rules module's new places; no empty place is an engine failure, logged, and the game stops. */
+  private applyPlaces(r: PlaceResult): void {
+    this.places = r.places;
+    for (const e of r.events) {
+      if (e.type !== "no empty place") continue;
+      this.events.push({ turn: this.turn, type: "engine-failure", reason: "no empty place", conversation: e.conversation, why: e.why });
+      this.stopped = true;
+    }
+  }
+
+  /** A conversation opened in play takes a random empty place; its name, for the opening event. Nothing before TD v0.49. */
+  private placeNew(conv: Conversation, why: "colloquio" | "new group"): string | undefined {
+    if (!this.placeNames) return undefined;
+    this.applyPlaces(placeConversation(this.places, conv.id, this.placeNames.length, this.placeRng!, why));
+    return this.placeOf(conv);
+  }
+
+  /** A conversation ended or dissolved: its place is free. */
+  private freePlace(conv: Conversation): void {
+    if (this.placeNames) this.applyPlaces(freePlace(this.places, conv.id));
+  }
+
+  /** The name of the place a conversation holds, if any. */
+  private placeOf(conv: Conversation): string | undefined {
+    const i = this.places.get(conv.id);
+    return i === undefined ? undefined : this.placeNames![i];
   }
 
   /** TD v0.6 Memory Writing: ★ pass and claims pass per conversation active this turn, thought pass per character. */
@@ -1237,6 +1295,8 @@ export class MiniGame {
         ...(me.feedback && { actionFeedback: me.feedback }),
         // TD v0.45: everyone sees the room, in open play only.
         ...(!outside && tdMinor(this.docs.versions.technicalDesign) >= 45 && { room: this.roomFor(c) }),
+        // TD v0.49: the place of the character's own conversation, for {conversation_label}.
+        ...(!outside && this.placeOf(conv!) !== undefined && { place: this.placeOf(conv!) }),
     };
   }
 
@@ -1246,6 +1306,8 @@ export class MiniGame {
    * member's place in the roster. The present moment only; never what anyone says.
    */
   private roomFor(c: CharacterName): Room {
+    // TD v0.49: every other occupied place, in the setting's order. Empty places aren't listed for the AI guests.
+    if (this.placeNames) return { places: this.placesFor(c).filter((p) => !p.own && p.members.length).map(({ own: _, ...p }) => p) };
     const place = (n: string) => ROSTER.findIndex((r) => r.name === n);
     const living = new Set(this.living(c));
     const sets = [...this.convs.values()]
@@ -1254,6 +1316,20 @@ export class MiniGame {
       .filter((x) => x.members.length > 0)
       .sort((a, b) => place(a.members[0]!) - place(b.members[0]!));
     return { groups: sets.filter((x) => x.kind !== "colloquio").map((x) => x.members), colloquios: sets.filter((x) => x.kind === "colloquio").map((x) => x.members) };
+  }
+
+  /**
+   * Every place in the setting's order (TD v0.49): its living guests in roster order (none if empty), whether
+   * it holds a Colloquio, and whether it's the character's own. The present moment only.
+   */
+  private placesFor(c: CharacterName): (RoomPlace & { own: boolean })[] {
+    const order = (n: string) => ROSTER.findIndex((r) => r.name === n);
+    const alive = new Set([c, ...this.living(c)]);
+    const held = new Map([...this.convs.values()].filter((cv) => cv.open && this.places.has(cv.id)).map((cv) => [this.places.get(cv.id)!, cv]));
+    return this.placeNames!.map((name, i) => {
+      const cv = held.get(i);
+      return { place: name, members: cv ? cv.members.filter((m) => alive.has(m)).sort((a, b) => order(a) - order(b)) : [], private: cv?.kind === "colloquio", own: !!cv?.members.includes(c) };
+    });
   }
 
   /** The character's rows from the live store, ranked; rows written since the last flush are stored (and embedded) first. */
@@ -1296,7 +1372,8 @@ export class MiniGame {
     const allowed = this.seatOf(h) ? allowedActionTypes(this.actionContext(h)) : [];
     // TD v0.47: the run's `plot_reward` flag reaches the screen with block 5 (a run setting, not a secret).
     // The mini-game runs with it off, so there's never a `{plot_status}` to send.
-    const state = { ...(this.stateFor(h, { gathering: this.gathering }) as unknown as Record<string, unknown>), plotReward: false };
+    const block5 = this.stateFor(h, { gathering: this.gathering });
+    const state = { ...((this.placeNames ? this.withPlaces(h, block5) : block5) as unknown as Record<string, unknown>), plotReward: false };
     this.player.state(state, menu([...allowed, ...extra, "conclude"], { amount: this.rules.pensionSize }), this.speaking, () => ({
       rules: rulesText(this.docs.templates, { ...this.docs.tunables, plotProtection: false, plotReward: false }),
       briefing: this.s.briefings[h]!,
@@ -1308,6 +1385,18 @@ export class MiniGame {
       errandDeadline: null,
       ...screenContent(h, this.s.lore ?? "off"),
     }));
+  }
+
+  /**
+   * TD v0.49: the player's `state` carries every place, occupied or empty, in the setting's order, for the
+   * screen's place list, in place of block 5's room and own place. Outside a conversation there's no place
+   * to show, as there's no room; in the moment a Colloquio has ended (its place free) and the player isn't
+   * seated yet, no place is their own. (In a council the player would get only their own place; the
+   * mini-game has none.)
+   */
+  private withPlaces(h: CharacterName, st: CharacterContext["state"]): Omit<CharacterContext["state"], "room" | "place"> & { places?: PlayerPlace[] } {
+    const { room, place: _, ...rest } = st;
+    return { ...rest, ...(room && { places: this.placesFor(h).map((p) => ({ name: p.place, guests: p.members, private: p.private, own: p.own })) }) };
   }
 
   /** The player's notes (TD v0.40, Notes): kept with the game and in the full record, never in a prompt or a replay. */

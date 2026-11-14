@@ -71,6 +71,11 @@ export interface DocSources {
   tunables: Tunables;
   /** Mechanics' "Guards / Investigations needed to block", for midnight's resolution (src/rules/midnight.ts). Not in Tunables, which every game record's header stores. */
   midnight: { blockAt: number };
+  /**
+   * Mechanics' Tunable "Named places" (v0.35 on; TD v0.49, Named places): how many places the hall has,
+   * or null in a Mechanics without the row. Not in Tunables either, for the same reason.
+   */
+  namedPlaces: number | null;
   /** Characters' standard social awareness text, filled into every briefing. */
   socialAwareness: string;
   /** TD v0.6's system prompts (★ pass, claims pass, thought pass, knowledge check), and from v0.8 the perception pass; absent before v0.6. */
@@ -183,6 +188,7 @@ export function loadDocs(paths: DocPaths): DocSources {
     briefings,
     tunables: parseTunables(mech),
     midnight: { blockAt: tunableRow(mech, "Guards / Investigations needed to block") ?? 2 },
+    namedPlaces: tunableRow(mech, "Named places"),
     judgeRubric: judgeRubric(mr),
     socialAwareness,
     ...(systemPrompts(td) && { systemPrompts: systemPrompts(td)! }),

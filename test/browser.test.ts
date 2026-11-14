@@ -437,6 +437,7 @@ test("the Web of Secrets: a bar along the bottom that slides up to nine-tenths a
 // ---- CC-20261113-04 (#95) --------------------------------------------------------------------------------
 
 test("the room in the left column: your group marked, others as tokens that spread on hover; a token selects its guest", { skip }, async () => {
+  // On the default TD (v0.49, #128) the state carries named places, and the room view builds its clusters from them.
   await reopen();
   await page.until(`document.querySelector('.room [data-cluster="mine"]') && document.querySelector(".room .token")`);
   const name = await page.eval<string>(`document.querySelector(".room .token").getAttribute("aria-label")`);
