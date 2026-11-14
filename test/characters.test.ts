@@ -1,25 +1,29 @@
-// Characters v0.15 by default (CC-20261114-13, #136; v0.12 from CC-20261113-04, #95; v0.11 from CC-20261111-06, #73). The default and the in-world names' minimum are
+// Characters v0.16 by default (CC-20261114-16, #143: France's payroll; v0.15 from CC-20261114-13, #136; v0.12 from CC-20261113-04, #95; v0.11 from CC-20261111-06, #73). The default and the in-world names' minimum are
 // separate: DEFAULT_CHARACTERS in probe.config.ts is what a run loads, `since.characters` in the setting
 // pack is the first version with in-world names. v0.11 changes one phrase in Isabella's briefing.
 
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { test } from "node:test";
-import { DEFAULT_CHARACTERS, charactersPath, config, docsFor } from "../probe.config.ts";
+import { CHARACTERS_BEFORE_PAYROLL, DEFAULT_CHARACTERS, charactersPath, config, docsFor } from "../probe.config.ts";
 import { ROSTER, nameOn, resolveAlias } from "../src/game/roster.ts";
 import { CAST } from "../src/minigame/cast.ts";
 import { atLeast, inWorldNames, usesInWorldNames } from "../src/prompt/names.ts";
 import { loadDocs } from "../src/sources/docs.ts";
 import { playFakeOn } from "./fixtures/fake-game.ts";
 
-test("a default run loads Characters v0.15, so its record header names v0.15; the in-world minimum stays v0.10", () => {
-  assert.equal(DEFAULT_CHARACTERS, "0.15");
+test("a default run loads Characters v0.16, so its record header names v0.16; the in-world minimum stays v0.10", () => {
+  assert.equal(DEFAULT_CHARACTERS, "0.16");
   assert.equal(inWorldNames().since.characters, "0.10");
   assert.ok(atLeast(DEFAULT_CHARACTERS, inWorldNames().since.characters), "the default uses in-world names");
+  assert.equal(docsFor("0.50").characters, charactersPath("0.16"));
+  // TD v0.34–v0.49 load the last Characters before the payroll, which they can be paired with (Retitling).
+  assert.equal(CHARACTERS_BEFORE_PAYROLL, "0.15");
   assert.equal(docsFor("0.34").characters, charactersPath("0.15"));
+  assert.equal(docsFor("0.49").characters, charactersPath("0.15"));
   assert.equal(docsFor("0.33").characters, charactersPath("0.4"), "before TD v0.34, game names and Characters v0.4");
   // The game record's header stores loadDocs(config.docs).versions as `docs`.
-  if (!process.env.PROBE_CHARACTERS) assert.equal(loadDocs(config.docs).versions.characters, "0.15");
+  if (!process.env.PROBE_CHARACTERS) assert.equal(loadDocs(config.docs).versions.characters, "0.16");
 });
 
 test("Friar Tommaso (Characters v0.15): the roster name, with Fra Tommaso kept as an alias; a run pinned to v0.12 loads its own briefings, under the old name", () => {

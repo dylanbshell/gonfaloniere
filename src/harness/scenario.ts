@@ -1,7 +1,7 @@
 // Scenario definitions and how they turn into per-character prompt contexts.
 
 import { ROSTER, factionOf, keepsTreasury, type CharacterName } from "../game/roster.ts";
-import type { CharacterContext, ConversationKind, HistoryLine, RulesValues } from "../prompt/assemble.ts";
+import { payrollLedger, type CharacterContext, type ConversationKind, type HistoryLine, type RulesValues } from "../prompt/assemble.ts";
 import type { ActionContext } from "../game/actions.ts";
 import type { DocSources } from "../sources/docs.ts";
 
@@ -128,7 +128,7 @@ export function characterContext(
       pensionsHeld: 0,
       embassyLedger:
         keepsTreasury(factionOf(character))
-          ? { treasury: tunables.embassy_treasury, pensions: "none" }
+          ? { treasury: tunables.embassy_treasury, pensions: payrollLedger([], docs.retitled) }
           : undefined,
       withdrawalCount: s.withdrawals?.[character] ?? 0,
     },
@@ -150,5 +150,6 @@ export function actionContext(s: Scenario, character: CharacterName, docs: DocSo
     treasury: docs.tunables.embassy_treasury,
     colloquioWith:
       s.conversation.kind === "colloquio" ? (s.conversation.present.find((p) => p !== character) ?? null) : null,
+    ...(docs.retitled && { retitled: true }),
   };
 }

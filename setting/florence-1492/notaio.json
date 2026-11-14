@@ -17,14 +17,31 @@
   },
   "lines": {
     "payment": "{actor} gave {other} {amount} {currency}.",
-    "pension_taken": "You accepted a French pension of {amount} {currency}. Your purse: {purse} {currency}.",
-    "pension_renounced": "You renounced the French pension held by {holder}: {amount} {currency} returned to the Embassy.",
-    "pension_refused": "Your attempt to renounce a pension for {holder} failed: no such pension that you can repay.",
+    "_payroll_comment": "TD v0.50's Retitling: from TD 0.50 a payroll payment, in TD's words; each `_before_td50` key keeps the French pension's wording, so a game on an earlier TD replays as it ran. `embassy_ledger`'s {ledger} is filled from `payroll` below.",
+    "pension_taken": "You took a payroll payment of {amount} {currency} from the French Embassy; you are on France's payroll. Your purse: {purse} {currency}.",
+    "pension_renounced": "You paid back a payroll payment for {holder}: {amount} {currency} returned to the Embassy.",
+    "pension_refused": "Your attempt to pay back a payroll payment for {holder} failed: they have none that you can pay back.",
     "pension_refused_self": "yourself",
-    "ledger_taken": "{actor} accepted a pension",
-    "ledger_renounced": "the pension held by {holder} was renounced",
-    "embassy_ledger": "Embassy treasury: {amount} {currency}. Pensions held: {pensions}.",
-    "embassy_ledger_latest": " Latest: {latest}."
+    "ledger_taken": "{actor} took a payroll payment",
+    "ledger_renounced": "a payroll payment of {holder}'s was paid back",
+    "embassy_ledger": "Embassy treasury: {amount} {currency}. On France's payroll: {ledger}.",
+    "embassy_ledger_latest": " Latest: {latest}.",
+    "pension_taken_before_td50": "You accepted a French pension of {amount} {currency}. Your purse: {purse} {currency}.",
+    "pension_renounced_before_td50": "You renounced the French pension held by {holder}: {amount} {currency} returned to the Embassy.",
+    "pension_refused_before_td50": "Your attempt to renounce a pension for {holder} failed: no such pension that you can repay.",
+    "ledger_taken_before_td50": "{actor} accepted a pension",
+    "ledger_renounced_before_td50": "the pension held by {holder} was renounced",
+    "embassy_ledger_before_td50": "Embassy treasury: {amount} {currency}. Pensions held: {pensions}."
+  },
+  "payroll": {
+    "_comment": "TD v0.50, block 5: {payroll_status} (`no`, or `yes, 1 payment` / `yes, 2 payments`; Dominicans and the French always `no`) and the Embassy ledger's {ledger}, each guest on France's payroll with their payments (\"Piero de' Medici, 1 payment\"), joined by `between`, or `none`. `status_no`, `status_yes`, `one`, `many`, and `entry` are TD's words; `between` and `none` drafted by Claude Code (CC-20261114-16).",
+    "status_no": "no",
+    "status_yes": "yes, {payments}",
+    "one": "1 payment",
+    "many": "{count} payments",
+    "entry": "{holder}, {payments}",
+    "between": "; ",
+    "none": "none"
   },
   "hints": {
     "_comment": "Il Notaio's hint to the player (TD v0.40, Il Notaio's hint): a line or two for what the moment asks, in a box under the stream, styled apart from his announcements. Templates only, no model calls. Drafted by Claude Code for Dylan's review (CC-20261112-03). `council` and `ballot` are for the full game. `errandDeadline` (TD v0.47): with plot_reward on, the last round before the errand's deadline, shown whether or not the errand is done.",
@@ -52,7 +69,7 @@
     "and": " and ",
     "between": "; ",
     "end": ".",
-    "_places_comment": "TD v0.49, Named places: from TD v0.49, {room} is told place by place, each other occupied place in setting.json's order as `place` (a group, or a guest on their own) or `place_private` (a Colloquio), joined by `between`, ending with `end`; the names joined as above. `in_place` follows the conversation's kind in block 5's {conversation_label} (\"a Capannello in the loggia with …\"). TD's words.",
+    "_places_comment": "TD v0.49, Named places: from TD v0.49, {room} is told place by place, each other occupied place in setting.json's order as `place` (a group, or a guest on their own) or `place_private` (a Colloquio), joined by `between`, ending with `end`; the names joined as above. `in_place` follows the conversation's kind in block 5's {conversation_label} (\"a group in the loggia with …\"; in-world-names.json's `conversations`). TD's words.",
     "place": "{place}: {members}",
     "place_private": "{place}: {members}, in private",
     "in_place": " in {place}"

@@ -42,7 +42,7 @@ Work arrives as tasks from Dylan, often relayed from Technical Design (TD). The 
 
 - Don't hard-code character names, faction names, or setting terms (Florence, Florins, Colloquio, Il Notaio, and so on) in engine logic. Load them from `docs/`, `lore/`, `scenarios/`, or the setting pack, `setting/<name>/` (TD v0.38; `src/setting/pack.ts` reads it, and `say()` fills its templates). Dylan may reskin the game to a modern setting.
 - Test fixtures and scenarios may use the setting freely.
-- `test/setting-scan.test.ts` fails on any roster name, faction name, or currency word in a string literal under `src/`; an exception needs an allow-list entry with its reason. Still in code: the conversation names ("Colloquio", "Capannello", "The gathering") in block 5 and 6 labels, and the viewer's words (`tools/viewer/`). Don't add more, and move them out when the task touches them.
+- `test/setting-scan.test.ts` fails on any roster name, faction name, or currency word in a string literal under `src/`; an exception needs an allow-list entry with its reason. The conversation names that fill prompts ("group", "Capannello" before TD 0.50, "Colloquio", "the gathering") are in `setting/<name>/in-world-names.json` › `conversations` (TD v0.50), and the scan checks the prompt-building files for them. Still in code: the viewer's words (`tools/viewer/`). Don't add more, and move them out when the task touches them.
 
 ## Layers
 

@@ -42,10 +42,13 @@ function promptHash(calls: CallRequest[]): string {
 const PROMPTS_BEFORE_STORE = "517f372fd98c75344369f1e9e203384886bd3f3f632bebf1b6ff4841e3b4f494";
 
 /** A game record's fields the isolation check reads. */
-/** `turns`: what the game was played with, which places block 6's in-world time labels. */
-function recordOf(game: MiniGame, turns: number, lore: LoreEntry[] = []): IsolationRecord {
+/**
+ * `turns`: what the game was played with, which places block 6's in-world time labels. `docs`: the versions
+ * it was played on (the default's unless given), which also choose block 6's conversation words (TD v0.50).
+ */
+function recordOf(game: MiniGame, turns: number, lore: LoreEntry[] = [], docs = fakeDocs.versions): IsolationRecord {
   return {
-    header: { docs: { technicalDesign: fakeDocs.versions.technicalDesign, characters: fakeDocs.versions.characters }, notebook: "perceived", config: { turns } },
+    header: { docs: { technicalDesign: docs.technicalDesign, characters: docs.characters }, notebook: "perceived", config: { turns } },
     calls: game.calls,
     lines: game.lines,
     memory: { entries: game.memory.entries, beliefs: game.memory.beliefs, readings: game.memory.readings, lore },
@@ -171,7 +174,7 @@ test("TD v0.36: every prompt is v0.35's with only the changelog's changes: arriv
   const plain = (g: typeof v35.game) => ({ lines: g.lines, readings: g.memory.readings, beliefs: g.memory.beliefs, entries: g.memory.entries.map((e) => ({ ...e, speaker: e.type === "event" ? null : e.speaker, about: e.type === "event" ? [] : e.about })) });
   assert.deepEqual(plain(v36.game), plain(v35.game));
   // Every block 6 line is a rendering of the character's own notebook (a larger cap can admit a line v0.35 never fit).
-  assert.deepEqual(isolationCheck(recordOf(v36.game, 6)).violations, []);
+  assert.deepEqual(isolationCheck(recordOf(v36.game, 6, [], { technicalDesign: "0.36", characters: "0.10", mechanics: "0.30" })).violations, []);
   const HEAD = "WHAT YOU REMEMBER FROM EARLIER TONIGHT\n";
   const split = (u: string) => {
     const a = u.indexOf(HEAD);
@@ -214,10 +217,11 @@ test("TD v0.36: every prompt is v0.35's with only the changelog's changes: arriv
   console.log(`block 6: ${(linesBefore / notebooks).toFixed(2)} lines a call on v0.35, ${(linesAfter / notebooks).toFixed(2)} on v0.36 (${notebooks} calls)`);
 });
 
-test("PROBE_TD defaults to 0.49, with Characters v0.15 and Mechanics v0.36 (CC-20261114-11, #128: named places; CC-20261114-13, #136: Characters v0.15; CC-20261114-14, #139: Mechanics v0.36)", () => {
+test("PROBE_TD defaults to 0.50, with Characters v0.16 and Mechanics v0.36 (CC-20261114-16, #143: France's payroll and groups; #128: named places; #136: Characters v0.15; #139: Mechanics v0.36)", () => {
   if (process.env.PROBE_TD || process.env.PROBE_CHARACTERS) return;
-  assert.equal(fakeDocs.versions.technicalDesign, "0.49");
-  assert.equal(fakeDocs.versions.characters, "0.15");
+  assert.equal(fakeDocs.versions.technicalDesign, "0.50");
+  assert.equal(fakeDocs.versions.characters, "0.16");
+  assert.equal(fakeDocs.retitled, true);
   assert.equal(fakeDocs.versions.mechanics, "0.36");
 });
 
@@ -572,7 +576,7 @@ describe("live store (PostgreSQL + pgvector)", { skip: DB ? false : "TEST_DATABA
     // Plant one of Isabella's readings in Lupo's last think().
     const foreign = game.memory.readings.find((r) => r.character === I && !game.memory.readings.some((x) => x.character === L && x.line === r.line))!;
     const lupo = [...game.calls].reverse().find((c) => c.character === L && c.user.includes("WHAT YOU REMEMBER FROM EARLIER TONIGHT\n- "))!;
-    const planted = renderReading(foreign, game.lines.find((l) => l.id === foreign.line)!, undefined, true, game.memory.timeLabel);
+    const planted = renderReading(foreign, game.lines.find((l) => l.id === foreign.line)!, undefined, true, game.memory.timeLabel, game.memory.words);
     const tampered = { ...recordOf(game, 4), calls: game.calls.map((c) => (c === lupo ? { ...c, user: c.user.replace("WHAT YOU REMEMBER FROM EARLIER TONIGHT\n", `WHAT YOU REMEMBER FROM EARLIER TONIGHT\n- ${planted}\n`) } : c)) };
     assert.deepEqual(isolationCheck(tampered).violations.map((v) => [v.character, v.belongsTo]), [[L, [I]]]);
     assert.ok(calls.length > 100);

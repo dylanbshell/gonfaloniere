@@ -7,7 +7,7 @@
 
 import { z } from "zod";
 import { ALIASES, ROSTER, nameOn, resolveAlias, type CharacterName } from "../game/roster.ts";
-import { inWorldNames } from "../prompt/names.ts";
+import { conversationWords, inWorldNames, type ConversationWords } from "../prompt/names.ts";
 import { settingPack } from "../setting/pack.ts";
 import type { MemoryRules } from "../sources/docs.ts";
 import type { Took, WordsLog } from "../output/think.ts";
@@ -37,12 +37,23 @@ export interface Where {
   members: CharacterName[];
 }
 
-/** "Capannello with A, B" or "Colloquio with A", from one character's point of view (or everyone's). */
-export function whereLabel(w: Where, forChar?: CharacterName): string {
-  if (w.kind === "gathering") return "The gathering";
+/**
+ * The conversation words a label uses when none are given: the game's own names, which the record, the
+ * reports, and the recorder's prompts keep (and every game before TD v0.50 hears). From the setting pack.
+ */
+export const gameWords = (): ConversationWords => conversationWords(false);
+
+/**
+ * "Capannello with A, B" or "Colloquio with A", from one character's point of view (or everyone's). `words`:
+ * the game's names by default; from TD v0.50, block 6 passes the in-world ones ("group with A, B").
+ */
+export function whereLabel(w: Where, forChar?: CharacterName, words = gameWords()): string {
+  if (w.kind === "gathering") return words.type.gathering;
   const others = w.members.filter((m) => m !== forChar);
-  return `${w.kind === "colloquio" ? "Colloquio" : "Capannello"} with ${others.join(", ")}`;
+  return withLabel(words, w.kind, others);
 }
+
+const withLabel = (words: ConversationWords, kind: Where["kind"], others: string[]) => words.with.replace("{type}", words.type[kind]).replace("{others}", others.join(", "));
 
 /** One private thought from any character call (T…). */
 export interface Thought {
@@ -257,6 +268,8 @@ export class MemoryStore {
   quoteDropsPunct = false;
   /** How a block 6 line names its time: `T4` (the default), or from TD v0.34 the in-world label ("1st round, early"). */
   timeLabel: TimeLabel = gameTime;
+  /** How a block 6 line names its conversation: the game's names ("Capannello"), or from TD v0.50 the in-world ones ("group"). */
+  words: ConversationWords = gameWords();
   /**
    * Block 6's similarity fill takes at most `max` readings of each of these labels per call (own
    * readings included): TD v0.17–v0.18 cap pressure at 2; TD v0.19 caps claim, denial, insult, and
@@ -712,7 +725,7 @@ export class MemoryStore {
     const names = (x: Item): string[] => (x.kind === "reading" ? x.r.about : x.kind === "entry" ? ([x.e.speaker, x.e.toward, ...x.e.about].filter(Boolean) as string[]) : []);
     const salient = (x: Item) => (x.kind === "reading" ? x.r.salient : x.kind === "entry" ? x.e.salient : false);
     const text = (x: Item) => (x.kind === "reading" ? this.lineIndex.get(x.r.line)!.text : x.kind === "entry" ? x.e.summary : x.b.statement);
-    const render = (x: Item) => (x.kind === "reading" ? renderReading(x.r, this.lineIndex.get(x.r.line)!, x.r.words_line ? this.lineIndex.get(x.r.words_line) : undefined, this.quoteDropsPunct, this.timeLabel) : x.kind === "entry" ? renderCodeEntryFor(x.e, c, this.timeLabel) : renderBelief(x.b, this.timeLabel));
+    const render = (x: Item) => (x.kind === "reading" ? renderReading(x.r, this.lineIndex.get(x.r.line)!, x.r.words_line ? this.lineIndex.get(x.r.words_line) : undefined, this.quoteDropsPunct, this.timeLabel, this.words) : x.kind === "entry" ? renderCodeEntryFor(x.e, c, this.timeLabel, this.words) : renderBelief(x.b, this.timeLabel));
     const picked: Item[] = [];
     const step = new Map<Item, NotebookStep>();
     const take = (xs: Item[], n: number, accept: (x: Item) => boolean = () => true, as: NotebookStep = "fill") => {
@@ -791,7 +804,7 @@ export class MemoryStore {
       .sort((a, b) => b.s - a.s);
     take(scored.map((s) => s.x), limit - picked.length);
     // Oldest first within the selection, as TD renders it.
-    return picked.sort((a, b) => turnOf(a) - turnOf(b)).map((x) => ("summary" in x ? renderEntry(x, c, this.timeLabel) : renderBelief(x, this.timeLabel)));
+    return picked.sort((a, b) => turnOf(a) - turnOf(b)).map((x) => ("summary" in x ? renderEntry(x, c, this.timeLabel, this.words) : renderBelief(x, this.timeLabel)));
   }
 }
 
@@ -936,8 +949,8 @@ export type TimeLabel = (turn: number) => string;
 export const gameTime: TimeLabel = (turn) => `T${turn}`;
 
 /** TD's block 6 line: `T4 · Colloquio with Lupo · ★ deal: … ("quote")`. */
-export function renderEntry(e: MemoryEntry, forChar?: CharacterName, when: TimeLabel = gameTime): string {
-  return `${when(e.turn)} · ${whereLabel(e.where, forChar)} · ${e.salient ? "★ " : ""}${e.type}: ${e.summary}${e.quote ? ` ("${e.quote}")` : ""}`;
+export function renderEntry(e: MemoryEntry, forChar?: CharacterName, when: TimeLabel = gameTime, words = gameWords()): string {
+  return `${when(e.turn)} · ${whereLabel(e.where, forChar, words)} · ${e.salient ? "★ " : ""}${e.type}: ${e.summary}${e.quote ? ` ("${e.quote}")` : ""}`;
 }
 
 /**
@@ -951,9 +964,9 @@ export function renderEntry(e: MemoryEntry, forChar?: CharacterName, when: TimeL
  * `wordsLine`: the earlier line by the same speaker the words came from (TD v0.14), for placing "…".
  * `dropPunct` (TD v0.15): trailing sentence punctuation is dropped from the words before an "…".
  */
-export function renderReading(r: Reading, line: GameLine, wordsLine?: GameLine, dropPunct = false, when: TimeLabel = gameTime): string {
+export function renderReading(r: Reading, line: GameLine, wordsLine?: GameLine, dropPunct = false, when: TimeLabel = gameTime, words = gameWords()): string {
   const other = line.where.members.filter((m) => m !== r.character);
-  const label = r.own && line.where.kind === "colloquio" && other.length ? `Colloquio with ${other.join(", ")}` : conversationType(line.where);
+  const label = r.own && line.where.kind === "colloquio" && other.length ? withLabel(words, "colloquio", other) : words.type[line.where.kind];
   const who = r.own ? "you" : r.speaker;
   const how = r.own ? `you meant it as ${kindPhrase(r.took)}` : `you took it as ${kindPhrase(r.took)}`;
   return `${when(r.turn)} · ${label} · ${r.salient ? "★ " : ""}${who}: "${r.words ? wordsQuote(r.words, (wordsLine ?? line).text, dropPunct) : trimQuote(line.text)}" (${how})`;
@@ -983,11 +996,9 @@ export function trimQuote(text: string, max = 15): string {
   return end === -1 || !tokens.slice(end + 1).some(isWord) ? tokens.join(" ") : `${tokens.slice(0, end + 1).join(" ").replace(/[,;:]+$/, "")}…`;
 }
 
-const conversationType = (w: Where) => (w.kind === "colloquio" ? "Colloquio" : w.kind === "capannello" ? "Capannello" : "The gathering");
-
 /** TD v0.8's block 6 line for a 10e reading (replay-only perception mode). */
-export function renderPerceptionReading(r: PerceptionReading, when: TimeLabel = gameTime): string {
-  const head = `${when(r.turn)} · ${whereLabel(r.where, r.character)} · ${r.salient ? "★ " : ""}`;
+export function renderPerceptionReading(r: PerceptionReading, when: TimeLabel = gameTime, words = gameWords()): string {
+  const head = `${when(r.turn)} · ${whereLabel(r.where, r.character, words)} · ${r.salient ? "★ " : ""}`;
   const said = r.own ? `your own ${r.took} · you said: "${r.quote}"` : `you took it as ${article(r.took)} ${r.took} · ${r.speaker}: "${r.quote}"`;
   return `${head}${said}${r.reaction ? ` · you thought: "${r.reaction}"` : ""}`;
 }
@@ -998,12 +1009,12 @@ const article = (kind: string) => (/^[aeiou]/.test(kind) ? "an" : "a");
  * A code-written entry in the perceived notebook, from the character's own side (TD v0.9:
  * `T4 · Colloquio · ★ You gave Lupo 3 Florins.`): conversation type only, second person for the actor.
  */
-export function renderCodeEntryFor(e: MemoryEntry, c: CharacterName, when: TimeLabel = gameTime): string {
+export function renderCodeEntryFor(e: MemoryEntry, c: CharacterName, when: TimeLabel = gameTime, words = gameWords()): string {
   // Il Notaio's v0.26 repeat note is the one "X was …" entry; the pre-v0.26 note keeps its "You was" so old replays stay byte-identical.
   const summary = e.summary.startsWith(`${c} `) ? `You ${e.summary.slice(c.length + 1)}`.replace(/^You was (?=once again seen withdrawing)/, "You were ") : e.summary;
   // TD v0.10: Il Notaio's entries are trimmed to 15 words like quotes, shown as `Il Notaio: "…"`.
   if (e.type === "event") return `${when(e.turn)} · ${inWorldNames().narrator.name}: "${trimQuote(summary)}"`;
-  return `${when(e.turn)} · ${conversationType(e.where)} · ${e.salient ? "★ " : ""}${summary}`;
+  return `${when(e.turn)} · ${words.type[e.where.kind]} · ${e.salient ? "★ " : ""}${summary}`;
 }
 
 export function renderBelief(b: Belief, when: TimeLabel = gameTime): string {
