@@ -41,7 +41,7 @@
 
 **For other docs** (tracker): Technical Design gets the command list with reasons, the turn order for the next-move line, the full evening's track and two stage names, the rules primer's order-of-the-evening line, and the rename. Characters gets a role line and a short errand line per guest, and the rename. The Hub and Visualization & Sharing get the rename. The look of the new shadows and floating cards is Art & Design's to settle (The Look).
 
-**Build:** one task builds all of it (tracker). Until then, the demo page shows it.
+**Build:** one task builds all of it, **#177** (the next-move line waits on Technical Design's plumbing). Until then, the demo page shows it.
 
 ## Changes in v0.15
 
@@ -243,7 +243,7 @@ This doc covers **the player screen as the player meets it**: what's on it, wher
 ## Build State *(Nov 15)*
 
 1. **The mini-game is playable** as Francesco, with everything this doc designed through v0.15 built (the first screens, then #102, #109, #113, #114, #117, #128, #132, #141, #146, #148, and #151; v0.15's list). Francesco's errand can't be done there (Friar Tommaso isn't in the cast), and the mini-game runs with `plot_reward` off
-2. **v0.16 is designed and shown in the demo, not built.** Dylan reviewed the demo page (Nov 15), and every v0.16 change was tried there first. **One build task** builds v0.16 (tracker), after Technical Design's plumbing for the command reasons and the turn order; the screen can work them out itself until then, as the demo does. The demo is private to Dylan; **#172** adds `npm run demo` to rebuild it from the repo. Its guests' lines are the fake caller's placeholders
+2. **v0.16 is designed and shown in the demo, not built.** Dylan reviewed the demo page (Nov 15), and every v0.16 change was tried there first. **One build task** builds v0.16: **#177**. Most of it needs nothing new from the engine. The command menu's reasons can be worked out from the player's own state until the engine sends them; **the next-move line and the missed-move hint need the engine** to put the player's next movement window in their state (Technical Design handoff), so the build leaves them out if that isn't there yet. The demo is private to Dylan; **#172** adds `npm run demo` to rebuild it from the repo. Its guests' lines are the fake caller's placeholders
 3. **Then the full game,** once the full game loop is built: councils, Piero, candidate selection, speeches and `/repent`, the ballot and `/buy`, the run-off, and the full death and result screens. Dylan playing a whole game is the milestone's test (tracker, item 2)
 4. **Then v1, the first public release:** Il Notaio's full player-facing role (Onboarding, below)
 
@@ -728,13 +728,13 @@ Every hover explanation, in plain, short English (Dylan, Nov 15). `player.json` 
 
 ---
 
-## The Look *(Art & Design's since Nov 15; v0.15)*
+## The Look *(Art & Design's since Nov 15; v0.15; v0.16)*
 
 How the screen looks (colour, type, texture, icons, and the values of every theme token) is **Art & Design's** (Art & Design, the screen's visual style). This doc keeps the layout and behaviour, and the few things any look has to do for them to work.
 
 **What any look must keep apart,** since the player has to tell these apart at a glance:
 - **The two right-hand cards:** "Talking with" (live, tinted) and "Looking at" (plain, raised), even when one covers the other (Right); and your own card ("This is you"), with its accent edge
-- **Il Notaio's three voices:** his announcements to the room, his hint to the player, and his reading in the Web of Confidences, and within the reading, his sentences and the lore notes beside them (Onboarding; The Web of Secrets)
+- **Il Notaio's three voices:** his announcements to the room, his hint to the player, and his reading in the Web of Confidences, and within the reading, his sentences and the lore notes beside them (Onboarding; The Web of Confidences)
 - **Speak and Do,** so a command never looks like speech, and the ring on Do when a conclusion is waiting (The input box)
 - **The six relationship colours,** different in lightness as well as hue, with line styles for those who can't tell colours apart, the player's own dashed note lines apart from known connections, and the halo on secret ties (The Web of Confidences)
 - **The layers,** each with a shadow that says which is on top (Principles)
