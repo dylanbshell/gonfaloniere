@@ -1,9 +1,18 @@
 # Gonfaloniere
 ## Game Mechanics — Working Document
-### Version 0.36
+### Version 0.37
 *Formerly "Plots in the Palazzo"*
 
 ---
+
+## Changes in v0.37
+
+*Dylan, Nov 15.*
+
+- **Each round now runs mingling first, then the council, then the private plan.** Families meet after mingling to compare what they actually heard, rather than plan before they've heard anything. There's no council before Mingling 1, so guests enter the hall with only their briefings
+- **No separate council before midnight.** Council 3, straight after Mingling 3, is now the last strategy session before midnight, so the old phase D council and plan are gone and phase D is midnight alone. The final council before the ballot is now **Faction Meeting 4** (was 5). Phase letters A–H are unchanged
+- **The errand deadline is unchanged in effect:** by the end of Mingling 3, before Council 3, so guests know about their extra act while they plan
+- **Starting phase lengths set** (new Phase Lengths section and Tunable Values rows): **12 turns per round of mingling**, so every guest gets one movement window each round; **3 turns per council** (2 for the final council); 2 turns of candidate selection; one speech per candidate, then 1 turn of open floor. About 50 turns a game, more than earlier call estimates assumed
 
 ## Changes in v0.36
 
@@ -199,7 +208,7 @@ Gonfaloniere is being built as an all-AI simulation first, with all 12 character
 ## Core Structure
 
 - 12 active characters across 4 factions: Medici, Pazzi, Dominicans, French Embassy
-- 3 rounds of mingling (open play), followed by a Murder Round and the Election
+- 3 rounds of mingling (open play), each followed by a faction council and a private plan, then a Murder Round and the Election
 - Death is permanent and removes the character from active play; a dead character's faction can still win
 - A dead character's Florins and places on France's payroll vanish; nothing is inherited
 - All living characters may vote in the Election regardless of faction
@@ -209,16 +218,18 @@ Gonfaloniere is being built as an all-AI simulation first, with all 12 character
 
 ## Round Structure
 
-The full game unfolds in the following sequence (all turn counts TBD):
+The full game unfolds in the following sequence (lengths in Phase Lengths):
 
-- **A)** Faction Meeting 1 → Individual Strategy 1 → Mingling 1
-- **B)** Faction Meeting 2 → Individual Strategy 2 → Mingling 2
-- **C)** Faction Meeting 3 → Individual Strategy 3 → Mingling 3
-- **D)** Faction Meeting 4 → Individual Strategy 4 → KILL / GUARD / INVESTIGATE
+- **A)** Mingling 1 → Faction Meeting 1 → Individual Strategy 1
+- **B)** Mingling 2 → Faction Meeting 2 → Individual Strategy 2
+- **C)** Mingling 3 → Faction Meeting 3 → Individual Strategy 3
+- **D)** KILL / GUARD / INVESTIGATE
 - **E)** Medici & Pazzi Internal Discussions → Candidate Selection
 - **F)** Speeches (candidate speeches + open interventions; the only window for /repent)
-- **G)** Faction Meeting 5 (final coordination before ballot)
+- **G)** Faction Meeting 4 (final coordination before ballot)
 - **H)** Voting → Endgame
+
+*Why mingling comes first (v0.37):* a council is most useful once there's something to report, so each one follows its round of mingling. Council 3 then doubles as the war council before midnight. Guests enter Mingling 1 with only their briefings, which already put each errand first
 
 *Dramatic shape: Scheme (A–C) → Survive (D) → Nominate (E) → Persuade or betray (F) → Coordinate final vote (G) → Decide (H)*
 
@@ -232,6 +243,20 @@ The full game unfolds in the following sequence (all turn counts TBD):
 - Starting value: 12 utterances per turn, tunable
 
 *End-of-turn memory updates are covered in Technical Design.*
+
+### Phase Lengths
+
+*Starting values (Dylan, Nov 15), all tunable. Check them in the first full games.*
+
+| Phase | Length | Why |
+|---|---|---|
+| Each round of mingling (A–C) | 12 turns | One movement window per turn, so every guest moves by choice once per round. Each guest speaks about 12 times a round |
+| Councils 1–3 | 3 turns each | With four councils of three at once, each member speaks about three times: report, argue, agree |
+| Candidate selection (E) | 2 turns | Only the Medici and Pazzi talk |
+| Speeches (F) | One speech per candidate, then 1 turn of open floor | |
+| Final council (G) | 2 turns | One last word before the ballot |
+
+About 50 turns a game. Midnight, the private plans, and the ballot are single choices, not turns.
 
 ---
 
@@ -251,15 +276,18 @@ Faction meetings are ordinary group conversations limited to living faction memb
 
 - Nothing is pooled automatically: a character only learns what another member chooses to say out loud
 - Characters may withhold being on France's payroll, private plans, or secret alliances even from their own faction
-- Faction Meeting 4 is the last strategy session before the Murder Round
-- Faction Meeting 5 is the final coordination beat before the irreversible ballot, after hearing speeches and any repentance
-- No individual strategy step follows Faction Meeting 5; voting comes next
+- **Each council follows its round of mingling,** so members can compare what they heard. There's no council before Mingling 1
+- Faction Meeting 3, straight after Mingling 3, is the last strategy session before the Murder Round
+- Faction Meeting 4 is the final coordination beat before the irreversible ballot, after hearing speeches and any repentance
+- No individual strategy step follows Faction Meeting 4; voting comes next
 
 ---
 
 ## Individual Strategy
 
-After each faction meeting, every character privately works out their own plan: their current goals, threats, and next moves.
+After each of the first three faction meetings, every character privately works out their own plan: their current goals, threats, and next moves.
+
+- Before Mingling 1, a character's briefing is their only plan
 
 - Each character's plan is entirely their own. Faction meetings inform it but never dictate it
 - Two characters who heard the same information may leave with completely different, even conflicting, plans
@@ -430,7 +458,7 @@ Mutually exclusive, checked in precedence order the moment the Election result i
 - **Permanent** — there is no way to take it back
 - **Converts the repenter:** their win condition becomes the Dominicans' immediately, so their own election becomes their personal victory
 - Must include a short tagline specifying what the candidate is repenting of, broadcast by Il Notaio city-wide
-- The betrayed faction cannot renominate, but can respond in Faction Meeting 5 (e.g. rally behind a write-in or vote elsewhere)
+- The betrayed faction cannot renominate, but can respond in Faction Meeting 4 (e.g. rally behind a write-in or vote elsewhere)
 - *Balance logic:* converting trades the candidate's family votes for Dominican votes plus whatever the Dominicans can buy, so it is roughly an even swap — attractive mainly when the candidate's own path is in trouble
 
 ### /repay
@@ -514,7 +542,7 @@ Ties each character's storyline to their power on the night of the Murder Round.
 - **Two different targets:** as with every act (see above), the two actions must name different characters, so one character can never reach the 2+ threshold alone (e.g. guarding the same ally twice). Saving or restraining someone always takes at least two people
 - **No self-guard:** the extra action can't Guard yourself either
 - **Lupo:** his extra action may be a Kill, Guard, or Investigate, but it follows normal rules: a third Kill *can* be blocked by Guards and Investigations, unlike his two standard Kills. He still can't Guard or Investigate with his standard actions
-- **Deadline:** the plot point must be completed before Faction Meeting 4, so the character knows about the reward while planning. Goals that can only resolve during the Murder Round itself (e.g. "see your brother's killer dead") can't be plot points
+- **Deadline:** the plot point must be completed by the end of Mingling 3, before Faction Meeting 3, so the character knows about the reward while planning. Goals that can only resolve during the Murder Round itself (e.g. "see your brother's killer dead") can't be plot points
 - **Secret:** the character knows they've earned it, but no one else is told. They may reveal it if they choose, but nothing proves the claim
 - **Optional:** the game can be played with or without the Plot Reward
 - **Tunable:** one extra action per completed plot point is the starting value. If the Murder Round proves too deadly or too tame, change the number of extra actions a plot point earns (or switch the reward off) rather than redesigning it
@@ -549,7 +577,7 @@ How they interlock:
 
 - Medici and Pazzi each select one living candidate via internal discussions in phase E
 - Each candidate delivers a speech in phase F; open floor interventions follow. A candidate may /repent during this phase
-- All factions hold a final coordination meeting (Faction Meeting 5, phase G) before the ballot
+- All factions hold a final coordination meeting (Faction Meeting 4, phase G) before the ballot
 - Secret ballot in phase H: every living character casts one vote for any living character, including write-ins, and decides how many extra votes to buy for that same guest
 - **Vote buying:** any character may buy additional votes at **5 Florins per vote**. Bought votes always go to the guest the buyer voted for; they're added on top of the ballot and don't change anyone else's vote. This is the only official way to gain extra votes. Command name TBD
 - Most votes wins. Il Notaio announces the winner without vote counts
@@ -572,6 +600,10 @@ The current value of every number that balancing may adjust. Each is also stated
 | Guards / Investigations needed to block | 2 or more |
 | Plot Reward | 1 extra Murder Round action (Kill, Guard, or Investigate) per completed plot point, or switched off |
 | Utterances per turn | 12 |
+| Mingling length | 12 turns per round |
+| Council length | 3 turns (final council 2) |
+| Candidate selection length | 2 turns |
+| Open floor after speeches | 1 turn |
 | Movement windows per turn | 1 |
 | Colloquio cap | About 6 utterances (3 each) |
 | Named places | 8 (never fewer than 7, so a Colloquio always finds an empty one) |
@@ -619,14 +651,14 @@ The current value of every number that balancing may adjust. Each is also stated
 
 ## Open Questions
 
-- Exact number of turns per round and per phase
+- **Phase lengths** (starting values set in v0.37): check in the first full games whether errands get done in time, what a game costs (Models & Research), and whether a human's sitting, about 36 messages in mingling alone, drags. If it does, shorten mingling first; human games could run shorter than the simulation
 - Refining the draft plot points during the briefing rewrites
 - **Invitee's free Colloquio:** watch for endless chains (A calls B, B calls C for free, C calls D…). Left free on purpose for now; limit it only if testing shows a problem. *Data so far (6-guest mini-games, Oct 28–29): invitees mostly chose a free Colloquio, and one chain reached 6 links. The 12-guest full games, where invitees can usually join a group, are the real test*
 - **Balance watch list** (from Characters' review of the full cast, Characters v0.9, Open Questions: Reservations). Check each in the first full games before changing rules:
   - **France may be strong:** Jeanne's plot point is half of France's win, and the Plot Reward adds an extra act on top
   - **Jeanne may be stuck instead:** Medici and Pazzi briefings forbid French money; Characters is softening that to the real stakes
   - **The room is visible to all:** every Colloquio is now seen by the whole hall, so private meetings cost more. Watch whether guests stop calling them, and whether secret pairs (Clarice and Francesco, Giorgia and LeNoir) avoid each other to stay hidden, which would slow the errands that need private meetings (Clarice's, Giorgia's, Emile's). Models & Research checks how AI guests move with the room in view before the full games' baseline
-- **The Medici collide:** Piero's plot point spoils Clarice's. Kept as intended drama; watch whether the Medici tear themselves apart
+  - **The Medici collide:** Piero's plot point spoils Clarice's. Kept as intended drama; watch whether the Medici tear themselves apart
   - **Isabella may be over-hunted:** LeNoir, Raffaello, and Beatrice all point at her. If her secret falls in the first round every game, San Frediano ends early
   - **Beatrice's clue speeds LeNoir:** she can name Lupo, one step from Isabella. Weigh against Isabella's plot point
   - **Lupo is the hub:** games where he dies or talks early will diverge
