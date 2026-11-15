@@ -11,6 +11,7 @@
 - **The look is handed over** (The Look): the three directions, the leaning (the palazzo ledger, rounded corners), and what's left to settle now belong to Art & Design. The section keeps them as handed over until Art & Design's doc has them, and states what this doc still asks of any look: which parts must look different from each other, and why
 - **About This Document:** this doc no longer decides how the screen looks. A new row names Art & Design for the screen's visual style, and "Art" becomes **Art & Design**. "Words and looks live in content" now splits the job: this doc says which parts need their own token, and Art & Design gives the tokens their values
 - **References updated:** the sheet, the two card kinds, and the movement card point to Art & Design rather than The Look. The open question on the look moves to Art & Design
+- **The Private section goes:** its one note was about the look, so it's handed to Art & Design too (tracker)
 - **Build State** brought up to date: everything designed through v0.14 is built, and **the demo page** (Dylan, Nov 15) lets Dylan click through the current screen on the fake game, with #172 to rebuild it after each screen task
 
 ## Changes in v0.14
