@@ -1,8 +1,18 @@
 # Gonfaloniere
 ## Interface & Experience — Working Document
-### Version 0.14
+### Version 0.15
 
 ---
+
+## Changes in v0.15
+
+*Nov 15. Interface's part of "The screen's visual style moves to Art & Design" (the Hub, for Dylan, Nov 14). Layout and behaviour stay here; how the screen looks is Art & Design's.*
+
+- **The look is handed over** (The Look): the three directions, the leaning (the palazzo ledger, rounded corners), and what's left to settle now belong to Art & Design. The section keeps them as handed over until Art & Design's doc has them, and states what this doc still asks of any look: which parts must look different from each other, and why
+- **About This Document:** this doc no longer decides how the screen looks. A new row names Art & Design for the screen's visual style, and "Art" becomes **Art & Design**. "Words and looks live in content" now splits the job: this doc says which parts need their own token, and Art & Design gives the tokens their values
+- **References updated:** the sheet, the two card kinds, and the movement card point to Art & Design rather than The Look. The open question on the look moves to Art & Design
+- **The Private section goes:** its one note was about the look, so it's handed to Art & Design too (tracker)
+- **Build State** brought up to date: everything designed through v0.14 is built, and **the demo page** (Dylan, Nov 15) lets Dylan click through the current screen on the fake game, with #172 to rebuild it after each screen task
 
 ## Changes in v0.14
 
@@ -151,7 +161,7 @@
 
 ## About This Document
 
-This doc covers **the player screen as the player meets it**: what's on it, where, how it behaves, what it says, how it looks, and how a new player learns it. It also keeps **the playtest findings** and what was decided because of them.
+This doc covers **the player screen as the player meets it**: what's on it, where, how it behaves, what it says, and how a new player learns it. How it looks is Art & Design's *(v0.15)*. It also keeps **the playtest findings** and what was decided because of them.
 
 **What it doesn't own:**
 
@@ -159,13 +169,14 @@ This doc covers **the player screen as the player meets it**: what's on it, wher
 |---|---|
 | The rules a human plays by (one message a turn, answering a direct question, commands, `/conclude`, death as a spectator, the jailbreak rule) | **Mechanics** (Human Player; Everyone Sees the Room) |
 | How the software runs it: the protocol, what the screen may receive, the pause logic, command validation, Il Notaio's reading's prompt, the game record, the build | **Technical Design** (Player Interface) |
-| Portraits and illustration | **Art** |
+| Portraits and illustration | **Art & Design** |
+| How the screen looks: colour, type, texture, icons, and the values of the theme's tokens *(v0.15)* | **Art & Design** (the screen's visual style) |
 | The board's Web of Secrets slide | **Visualization & Sharing** |
 | The relationship lines the web draws | **Characters** (Shared Canon: Relationships) |
 
 **The boundary test:** if a change alters what the engine sends, decides, or records, it's Technical Design's. If it changes only what the player sees or does with what's already sent, it's this doc's. If a rule and this doc disagree, Mechanics wins; if this doc asks the screen to show something Technical Design says it may not receive, Technical Design wins.
 
-**Words and looks live in content.** Every word the screen shows is in the setting pack, `setting/<name>/player.json` (and Il Notaio's hints and corrections in `notaio.json`). Every colour, font, size, spacing, and radius is a token in `web/theme.css`. This doc decides what they say and how they look; the files are where they live (Technical Design, The Setting Pack).
+**Words and looks live in content.** Every word the screen shows is in the setting pack, `setting/<name>/player.json` (and Il Notaio's hints and corrections in `notaio.json`). Every colour, font, size, spacing, and radius is a token in `web/theme.css`. This doc decides what the words say, and which parts need a token of their own so they can look different (a tint for the "talking with" card, a ring on Do); **Art & Design gives the tokens their values** *(v0.15)*. The files are where they live (Technical Design, The Setting Pack).
 
 ---
 
@@ -190,28 +201,23 @@ This doc covers **the player screen as the player meets it**: what's on it, wher
 
 ---
 
-## Build State *(Nov 14)*
+## Build State *(Nov 15)*
 
-1. **The mini-game is playable** as Francesco: the screen from Technical Design v0.40–v0.46 is built (#80, #81, the Hub's browser fixes #88, and v0.44–v0.46's screen #90), and the room (#95). Francesco's errand can't be done there (Friar Tommaso isn't in the cast), and the mini-game runs with `plot_reward` off
-2. **Queued, screen only:**
-   - #102 (Technical Design's: the errand card's reward line, the deadline mark, the hint, the midnight card's extra-act row)
-   - #109: the note's conclusion button (v0.2–v0.3)
-   - #113: the stage bar and past stages (v0.5; Fable suggested)
-   - #114: the web's ring layout, Il Notaio's box in its column, the hideable right panel, rules buttons, the city list, the placeholder, and the shared selection (v0.5–v0.7)
-   - #117: the opening and the tour, four modals with the glossary, one Notes tab, and smaller fixes (v0.7–v0.8)
-   - #132: the place list (v0.9), after Technical Design's #128
-   - #141: the retitled words (v0.12)
-3. **Queued with Technical Design's plumbing, #146** (Technical Design v0.51): Il Notaio's guarded reading and the dialogue-only column, the past-stage summaries, the knowledge-errand flag for the conclusion button, and the game holding its first line during the tour
-4. **Then the full game,** once the full game loop is built: councils, Piero, candidate selection, speeches and `/repent`, the ballot and `/buy`, the run-off, and the full death and result screens. Dylan playing a whole game is the milestone's test (tracker, item 2)
-5. **Then v1, the first public release:** Il Notaio's full player-facing role (Onboarding, below)
+1. **The mini-game is playable** as Francesco, with everything this doc designed through v0.14 built:
+   - The first screens: Technical Design v0.40–v0.46 (#80, #81, the Hub's browser fixes #88, #90) and the room (#95)
+   - #102 (the errand's reward on the card, the hint, and the midnight card), #109 (the conclusion button), #113 (the stage bar and past stages), #114 (the web's ring, Il Notaio's box, the hideable right panel, the rules and the city, the placeholder, the shared selection), #117 (the opening, the tour, four modals with the glossary, one Notes tab), #128 and #132 (the named places), #141 (the retitled words), #146 (Il Notaio's guarded reading, past-stage summaries, the knowledge-errand flag, the tour's hold), #148 (Lore's placeholder opening), and #151 (the tour's warning)
+   - Francesco's errand can't be done there (Friar Tommaso isn't in the cast), and the mini-game runs with `plot_reward` off
+2. **Reviewing it** *(Dylan, Nov 15)*: a demo page plays the current screen on the fake game in the browser, with no server and no model calls, so Dylan can click through it and comment on the page. It's private to Dylan, and this chat rebuilds it after screen tasks. **#172** adds `npm run demo` to build it from the repo. Its guests' lines are the fake caller's placeholders, so it shows the screen, not the conversation
+3. **Then the full game, once the full game loop is built: councils, Piero, candidate selection, speeches and `/repent`, the ballot and `/buy`, the run-off, and the full death and result screens. Dylan playing a whole game is the milestone's test (tracker, item 2)
+4. **Then v1, the first public release:** Il Notaio's full player-facing role (Onboarding, below)
 
-To try it: `npm run play -- --as "Francesco Pazzi" --minigame` (add `--fake` for no model calls).
+To try it: `npm run play -- --as "Francesco Pazzi" --minigame` (add `--fake` for no model calls), or the demo page (above).
 
 ---
 
 ## The Screen
 
-A single page in the style of a Slack chat. Placeholder portraits until Art's are ready: initials in a circle, coloured by faction.
+A single page in the style of a Slack chat. Placeholder portraits until Art & Design's are ready: initials in a circle, coloured by faction.
 
 ```
 ┌─────────────────┬────────────────────────────────────┬──────────────────┐
@@ -233,7 +239,7 @@ A single page in the style of a Slack chat. Placeholder portraits until Art's ar
 ### Left: you
 
 In this order *(Dylan, Nov 13)*:
-- **Your sheet:** portrait, name, faction, purse, payroll payments (v0.12), Colloquio withdrawals, and **midnight** *(v0.8)*. These should read as more than a list (a purse with its count, a pension seal, tally marks for withdrawals), but how they look is settled with the look (The Look, below)
+- **Your sheet:** portrait, name, faction, purse, payroll payments (v0.12), Colloquio withdrawals, and **midnight** *(v0.8)*. These should read as more than a list (a purse with its count, a payroll seal, tally marks for withdrawals); how they look is Art & Design's (The Look, below)
 - **The midnight line** *(Dylan, Nov 14; v0.8)*: **"Midnight: 1 act (kill, guard, or watch)."** With `plot_reward` on, a second line in the errand card's words: **"+1 if you finish your errand before the last council."** Once the errand check has run, it becomes "+1 earned" or disappears. It never gives a check's result away early. The count and the reward come from what the errand card already uses
 - **Your name or portrait opens your briefing** *(v0.7)*, the same as its button, at the place you left it. Its hover says "Your briefing". It's the one portrait that doesn't select its guest
 - **Four buttons:** **Your briefing**, **The rules**, **The city**, and **Glossary** (Briefing, rules, the city, and the glossary, below). There's no button for the Web of Secrets, which is always at the bottom
@@ -306,7 +312,7 @@ In the chat view, **one thing is selected at a time:** a guest or a lore topic (
 - **Two kinds of card, so they're never confused** *(Dylan, Nov 13)*:
   - **The "talking with" card** is live: it sits in the conversation's tint, is labelled "Talking with", and shows a small dot while that guest is speaking. In a group, a row of the other members' small tokens sits under it, filled or not. When covered, its header strip keeps the tint and label, so it reads as "back to the conversation"
   - **A selected guest's card** is plain: paper-coloured, raised with a shadow, labelled "Looking at", with a close control (×) that deselects
-  - The differences are theme tokens (a tint, a shadow, a label style), so the chosen look restyles both
+  - The differences are theme tokens (a tint, a shadow, a label style), so Art & Design's chosen look restyles both, as long as they stay unmistakably different (The Look)
 - **Selecting a guest slides their card up over** the "talking with" card, whose header (portrait and name) still **peeks out at the top,** so one click on it, or deselecting, returns to them
 - **Deselecting slides the card back down** *(v0.7)*, however it's done: the ×, Escape, clicking the selected guest again, or clearing it in the web. **Clicking empty space also deselects:** the empty background of the stream or of the right panel, never a name, link, button, or the message box
 - **Switching** from one guest or lore topic to another slides the current card down and the new one up right behind it, quickly enough to feel like one motion. The timing is theme tokens; with reduced motion set, the cards fade instead
@@ -405,7 +411,7 @@ Every control and panel has a short explanation on hover or focus. A switch in a
 
 When the game waits for one of the player's choices, a card appears in the stream and the message box closes. *What each card offers, and when the game pauses, are Technical Design's (How the game waits for the player) and Mechanics'; this is how the cards present it.*
 
-- **Movement window:** stay, move toward a guest, or call a Colloquio with a guest, from every living guest. Leaning: three choice tiles (Stay, Join, Colloquio) with a guest picker below (The Look)
+- **Movement window:** stay, move toward a guest, or call a Colloquio with a guest, from every living guest. Leaning: three choice tiles (Stay, Join, Colloquio) with a guest picker below; how the tiles look is Art & Design's
 - **Seat choices:** as an invitee when a Colloquio ends, join a group with room or call a free Colloquio (or wait, only when no group has room); as a lone guest, join a group with room. The groups are shown with their guests named
 - **Midnight:** one act (kill, guard, or watch) and a living guest. **When the errand earned it, the extra act is its own optional row,** labelled "Your extra act (for your errand)". The same checks as an AI guest's answer apply: different targets, and no guarding yourself
 - **Full game only:** candidate selection, the speech if they're the candidate, the ballot (vote and buy), and the run-off. Their cards wait on the full game loop's spec (Open Questions)
@@ -445,7 +451,7 @@ Il Notaio introduces himself as the narrator before the player meets anyone.
 - **His last paragraph ends on the orientation line** in his voice: **"Speak as your character would, plainly."** *(Lore v0.13; v0.14)*. The warning about modern talk is the tour's (The Tour, step 6), so the story ends in the story
 - **Public only:** the story gives away no one's secrets. **Lore writes it, and Characters canon-checks it** (tracker handoff). Until the final text is written, Lore's six-paragraph placeholder stands (Lore v0.13, Il Notaio's Opening; #148)
 - The writing speed and the pause are theme tokens. With reduced motion set, each paragraph appears whole
-- **Later, maybe v2:** a storybook opening with illustrations, more interactive, with Art (Open Questions)
+- **Later, maybe v2:** a storybook opening with illustrations, more interactive, with Art & Design (Open Questions)
 
 ---
 
@@ -519,13 +525,24 @@ The setting pack's player-facing strings the retitling touches (Mechanics v0.36)
 
 ---
 
-## The Look *(undecided; Dylan, Nov 10)*
+## The Look *(Art & Design's since Nov 15; v0.15)*
 
-- **Three directions** are on a [design canvas](https://claude.ai/artifact/MgVNN1NijQxXrbuy56Tof2): a "palazzo ledger" (parchment and ink, serif type), a dark modern chat, and a clean light style with period accents
-- **Leaning:** the palazzo ledger, with **rounded corners** rather than square boxes, and the movement card as three choice tiles with a guest picker below, in the ledger's styling. Decide after the first playtests
-- **Applied through the theme file only.** The first build is plain and neutral; a chosen look is applied by editing `web/theme.css`, not the components. The card styles above (tint, shadow, label), the relationship colours, and the faction colours are all tokens
-- **To settle with the look:** how the sheet reads as more than a list (purse, payroll seal, tally marks), the two card kinds, the hint versus the announcements, and the Web of Secrets' bar
-- **Portraits** are Art's; until they're ready, initials in a faction-coloured circle
+How the screen looks (colour, type, texture, icons, and the values of every theme token) is **Art & Design's** (Art & Design, the screen's visual style). This doc keeps the layout and behaviour, and the few things any look has to do for them to work.
+
+**What any look must keep apart,** since the player has to tell these apart at a glance:
+- **The two right-hand cards:** "Talking with" (live, tinted) and "Looking at" (plain, raised), even when one covers the other (Right)
+- **Il Notaio's three voices:** his announcements to the room, his hint to the player, and his reading in the Web of Secrets, and within the reading, his sentences and the lore notes beside them (Onboarding; The Web of Secrets)
+- **Speak and Do,** so a command never looks like speech, and the ring on Do when a conclusion is waiting (The input box)
+- **The six relationship colours,** different in lightness as well as hue, with line styles for those who can't tell colours apart, and the player's own dashed note lines apart from known connections (The Web of Secrets)
+- **The layers,** each with a shadow that says which is on top (Principles)
+- **Reduced motion** wherever something slides, glides, or writes itself out
+
+**Handed over** *(Nov 15)*, for Art & Design's doc to take up; this list goes once it has them:
+- **Three directions** on a [design canvas](https://claude.ai/artifact/MgVNN1NijQxXrbuy56Tof2): a "palazzo ledger" (parchment and ink, serif type), a dark modern chat, and a clean light style with period accents
+- **Dylan's leaning** (Nov 10): the palazzo ledger, with **rounded corners** rather than square boxes, and the movement card's three choice tiles in the ledger's styling. Decide after the first playtests
+- **Applied through the theme file only:** a chosen look edits `web/theme.css`, never the components. The card styles, the relationship colours, and the faction colours are already tokens
+- **Still to settle:** how the sheet reads as more than a list (a purse with its count, a payroll seal, tally marks for withdrawals), the two card kinds, the hint versus the announcements, and the Web of Secrets' bar
+- **Portraits:** until Art & Design's are ready, initials in a faction-coloured circle
 
 ---
 
@@ -617,6 +634,12 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | Councils held in random places; the room hidden then (Mechanics) | Only your council's place shows | Left, The places |
 | The eight names (Lore) | Used exactly as written; capitalized only as a heading | Left, The places; Centre |
 
+**The look moves to Art & Design** (the Hub, for Dylan, Nov 14; v0.15):
+
+| Settled elsewhere | Decision here | Here |
+|---|---|---|
+| The screen's visual style is Art & Design's; layout and behaviour stay here | The look's notes are handed over; this doc keeps what any look must keep apart | About This Document; The Look |
+
 **Technical Design's guard** (Technical Design v0.51; v0.13):
 
 | Settled elsewhere | Decision here | Here |
@@ -635,7 +658,6 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 
 ## Open Questions
 
-- **The look:** the palazzo ledger is the leaning; decide after the first playtests (The Look)
 - **Your midnight choices in the sheet afterwards** ("You guarded Giorgia; you watched Lupo"), and **"Choosing now"** during midnight: ideas for later, not decided (Dylan, Nov 14: the count is what's wanted for now)
 - **A storybook opening, maybe in v2** (Dylan): illustrations and more interaction, with Art. Until then, Il Notaio's written opening
 - **Does the full game's stage bar fit?** It has about fifteen stages to the mini-game's handful. If the circles get too small to read, consider grouping each council with its round of mingling. Check on the first full game
