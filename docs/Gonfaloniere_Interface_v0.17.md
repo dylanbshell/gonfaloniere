@@ -8,7 +8,7 @@
 
 *Nov 15–16. The rest of Dylan's review of the demo page, after v0.16 merged, over two sessions: comments on the page and screenshots in the chat. Each change was tried in the demo first, then written here. Detail in the sections named; the record is in Playtest Findings, Demo review, part 2.*
 
-**Screen sizes, a new section** (Screen Sizes): limits on everything that grew or shrank too far. The side panels grow with the window (left 284–360px, right 280–480px); the conversation, Il Notaio's boxes, and the message box share one centred reading column, at most 820px; the stage bar keeps within 900px; the Web of Confidences' drawing stops at 820px, its key at its normal size, its side column at 480px. In small windows, the right panel and the web's side column fold to strips, Il Notaio's hint folds to keep the conversation at least 200px tall, and the web's key folds below 1200px wide. Short screens get a capped message box and tighter modal margins. **Phones are left out for now:** under 760px wide, a note says the game is made for a larger screen. **Touchscreens:** a long press shows an explanation without pressing the thing.
+**Screen sizes, a new section** (Screen Sizes): limits on everything that grew or shrank too far. The side panels grow with the window (left 284–332px, right 280–480px); the conversation, Il Notaio's boxes, and the message box share one centred reading column, at most 820px; the stage bar keeps within 900px; the Web of Confidences' drawing stops at 820px, its key at its normal size, its side column at 480px. In small windows, the right panel and the web's side column fold to strips, Il Notaio's hint folds to keep the conversation at least 200px tall, and the web's key folds below 1200px wide. Short screens get a capped message box and tighter modal margins. **Phones are left out for now:** under 760px wide, a note says the game is made for a larger screen. **Touchscreens:** a long press shows an explanation without pressing the thing.
 
 **Three typefaces** (Dylan; The Look): the screen's own words stay in a plain sans; **what the guests say** (and what you type) is in a book serif; **Il Notaio** writes in a Renaissance one. His chat lines lose their italics. **His open boxes read larger** (16px against 13px minimized), his box titles sized from that and fixed, and every one of his boxes that opens and closes says **Show / Hide**.
 
@@ -312,7 +312,7 @@ A single page in the style of a Slack chat. Placeholder portraits until Art & De
 
 ### Left: you
 
-**It grows and shrinks with the window** *(Dylan; v0.17)*, from 284 to 360px (Screen Sizes). In this order *(Dylan, Nov 13; v0.16)*:
+**It grows and shrinks with the window** *(Dylan; v0.17)*, from 284 to 332px (Screen Sizes). In this order *(Dylan, Nov 13; v0.16)*:
 - **Show me around** and **Explanations: on/off,** centred at the top, on their own line with room around them
 - **You:** your portrait, then **"You are Francesco Pazzi"**, then your role in plain words, **"head of the Pazzi family"** *(v0.16)*, all centred, **a size up from the panel's other words** *(Dylan; v0.17: the portrait 84px, your name 18px, your role 15px)*, with no box, ring, or "You" label: the words say it. The role line is a new per-guest line from Characters (tracker); the public subtitle stands in until it exists. **Your name or portrait opens your briefing** *(v0.7)*, at the place you left it
 - **Your sheet:** **Purse**, **Payments from France** *(v0.16)*, **Secret conversations** *(v0.16; the count of your Colloquios)*, and **the midnight line** *(v0.8)*: "Midnight: 1 act (kill, guard, or watch)." With `plot_reward` on, a second line: "+1 if you finish your errand before the last council." Once the errand check has run, it becomes "+1 earned" or disappears. It never gives a check's result away early. How the sheet reads (a purse with its count, a seal, tally marks) is Art & Design's
@@ -506,7 +506,7 @@ The screen is laid out for **a laptop, a desktop, or a tablet held sideways.** W
 
 | Part | Size |
 |---|---|
-| Left panel | Grows with the window, 284 to 360px (about a quarter of the window) |
+| Left panel | Grows with the window, 284 to 332px (about a quarter of the window) |
 | Right panel ("Talking With") | Grows with the window, 280 to 480px; starts folded under 1044px wide |
 | The conversation's column | At least 540px wide, so the stage bar fits; its reading column (the lines, Il Notaio's boxes, the message box) at most 820px, centred |
 | The stage bar | At most 900px, centred |
@@ -1091,7 +1091,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | What Dylan found or asked | Decision | Here |
 |---|---|---|
 | The message box should grow as it fills; then grow fully; then cap at nine lines; the cursor jumped to the end when editing | Grows to nine lines, then scrolls; cursor stays put; in a short window, a fifth of its height | The input box; Screen Sizes |
-| The left panel should grow with the window; the chat column needs a minimum; the right panel and the web's side column should get out of the way when it's narrow | 284–360px; at least 540px for the conversation; the right panel starts folded under 1044px; the web's column folds under 840px | Left; Right; The Web of Confidences; Screen Sizes |
+| The left panel should grow with the window; the chat column needs a minimum; the right panel and the web's side column should get out of the way when it's narrow | 284–332px (then a little narrower); at least 540px for the conversation; the right panel starts folded under 1044px; the web's column folds under 840px | Left; Right; The Web of Confidences; Screen Sizes |
 | Should the card's slide-up replay every time the right panel reopens? | No: it's simply there; it slides only when the selection changes | Right |
 | Too much highlights when you click around; then: everything in the chat, names included, and What You Heard and Saw | Only what's worth copying can be selected | Selection |
 | The order of the evening in the rules: deeper, or a new section? Retitle, reorganize? | A new Stages and Turns section and the player's own rules text, reordered and renamed | Briefing, rules, the city, and the glossary; The Player's Words |
