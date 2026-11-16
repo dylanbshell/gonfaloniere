@@ -21,6 +21,7 @@
 - **The message box is three lines tall** at least, with its example at the top (and a blank line under it when the example takes two lines); it still grows to nine
 
 **Elsewhere:**
+- **The left panel** (Left): wider margins, and everything in it a little larger, **growing and shrinking with the panel's width**, icons included. Your own card on the right loses its accent line along the bottom
 - **The opening in two sizes** (The Opening): from 1400px wide, a wider column and larger text (800px, 22px); below, as before. When the choice comes, the page leaves room below it, so the choice sits a little below the middle of the screen. **The choice cards are taller, each with a short description** of the character (Characters', tracker)
 - **The Web of Confidences** (The Web of Confidences): its contents stop at 1600px wide, centred; the drawing centres in the room between the key and the side column (across the whole width when the key is folded); the side column folds to its strip under 1100px wide (was 840px)
 
@@ -350,7 +351,7 @@ A single page in the style of a Slack chat. Placeholder portraits until Art & De
 
 ### Left: you
 
-**It grows and shrinks with the window** *(Dylan; v0.17)*, from 284 to 332px (Screen Sizes). In this order *(Dylan, Nov 13; v0.16)*:
+**It grows and shrinks with the window** *(Dylan; v0.17)*, from 284 to 332px (Screen Sizes), **and since v0.19 everything in it grows and shrinks with it** *(Dylan)*: its margins, text, portraits, and tokens are all sized from the panel's width, so they're a little larger than before at either end (in the demo: margins 23 to 27px, was 16; body text 13 to 15.5px; your name 18.5 to 21.5px; your portrait 85 to 100px; the places' tokens 29 to 34px). Your name stays on one line at both widths. In this order *(Dylan, Nov 13; v0.16)*:
 - **Show me around** and **Explanations: on/off,** centred at the top, on their own line with room around them
 - **You:** your portrait, then **"You are Francesco Pazzi"**, then your role in plain words, **"head of the Pazzi family"** *(v0.16)*, all centred, **a size up from the panel's other words** *(Dylan; v0.17: the portrait 84px, your name 18px, your role 15px)*, with no box, ring, or "You" label: the words say it. The role line is a new per-guest line from Characters (tracker); the public subtitle stands in until it exists. **Your name or portrait opens your briefing** *(v0.7)*, at the place you left it
 - **Your sheet:** **Purse**, **Payments from France** *(v0.16)*, **Secret conversations** *(v0.16; the count of your Colloquios)*, and **the midnight line** *(v0.8)*: "Midnight: 1 act (kill, guard, or watch)." With `plot_reward` on, a second line: "+1 if you finish your errand before the last council." Once the errand check has run, it becomes "+1 earned" or disappears. It never gives a check's result away early. How the sheet reads (a purse with its count, a seal, tally marks) is Art & Design's
@@ -446,7 +447,7 @@ In the chat view, **one thing is selected at a time:** a guest or a lore topic. 
 - **By default, whoever you're talking to** *(v0.5)*: in a Colloquio, the other guest; in a group, the guest last @-addressed by or addressing the player; otherwise empty, with "No one has your ear"
 - **Two kinds of card** *(v0.5)*: the **"Talking with" card** (live, tinted, labelled, a dot while they speak) and **a selected guest's card** (plain, raised, "Looking at", with ×). Art & Design's look keeps them apart (The Look)
   - **The "talking with" card has no row of the other guests' tokens** *(Dylan; v0.16)*: the places list already shows who's with you, and selects them the same way
-- **Your own card** *(Dylan; v0.16)*: selecting yourself shows **"This is you"** as the label, a small **"You"** tag under your name, and an accent edge all the way round. What it shows is what everyone knows of you, the same as anyone's card ("Your own card: what everyone knows about you.")
+- **Your own card** *(Dylan; v0.16)*: selecting yourself shows **"This is you"** as the label, a small **"You"** tag under your name, and an accent edge round the sides and top (not along the bottom, where the card meets the panel's foot; Dylan, v0.19). What it shows is what everyone knows of you, the same as anyone's card ("Your own card: what everyone knows about you.")
 - **No faction line above the subtitle** *(Dylan; v0.16)*: the subtitle already opens with the faction ("Dominicans · a penitent widow"), so cards show the name, then the subtitle. The same goes for the opening's cards
 - **Selecting slides a card up over** the "talking with" card; **deselecting slides it back down** (the ×, Escape, clicking again, clearing in the web, or clicking empty space)
   - **Where it stops** *(Dylan; v0.19)*: **when someone has your ear,** **in a wide panel** (380px and up), **40% of the way down,** so the player can read both cards; **in a narrower one, just under the "talking with" card's portrait.** If the panel is resized across the line with a card up, the card glides to its new place. Where the card covers the name under that portrait, the name shows beside "Talking with" instead. (Just under the heading, then just under the name, were tried first.) **When no one has your ear** ("No one has your ear"), there's nothing worth seeing under it, so **it comes up to just under the heading,** at any width; when someone takes your ear, it glides down
@@ -558,7 +559,7 @@ The screen is laid out for **a laptop, a desktop, or a tablet held sideways.** W
 
 | Part | Size |
 |---|---|
-| Left panel | Grows with the window, 284 to 332px (about a quarter of the window) |
+| Left panel | Grows with the window, 284 to 332px (about a quarter of the window); its margins, text, portraits, and tokens grow with it |
 | Right panel ("Talking With") | Grows with the window, 280 to 480px; starts folded under 1044px wide; 48px below the window's top. Its cards' side margins 24 to 40px; with someone at your ear, the card that slides up stops at 40% from 380px wide, under their portrait below that; with no one, under the heading |
 | The conversation's column | At least 540px wide, so the stage bar fits; its reading column (the lines, Il Notaio's boxes, the message box) at most 820px, centred |
 | The stage bar | At most 1280px, centred; its card's side margins grow beyond the reading column's width; its circles sized from its own width |
@@ -1003,6 +1004,7 @@ How the screen looks (colour, type, texture, icons, and the values of every them
 - **The conversation's lines** at 17px (line height 1.55), Il Notaio's with them
 - **The opening's two sizes** (620px and 18px; from 1400px wide, 800px and 22px) and **the choice cards'** height and description
 - **The stage bar card's** growing side margins (about 15% of the room beyond the reading column)
+- **The left panel's sizes,** set from its width: one unit is the panel's width over 300 (about a pixel), and its margins, text sizes, portraits, and tokens are each a number of units. Your own card's accent edge without its bottom line
 
 ---
 
@@ -1194,6 +1196,8 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | The last stages cut off at some widths | The circles are sized from the bar's own width | The stage bar |
 | More Below on the right panel's cards | Done | Right |
 | The card that slides up shouldn't stop halfway when there's nothing worth seeing under it | Only when someone has your ear; otherwise just under the heading | Right |
+| The left panel's margins bigger, and everything in it a little bigger, growing and shrinking with the panel, icons included | Sized from the panel's width | Left; Screen Sizes |
+| No blue line along the bottom of your own card | The accent edge on the sides and top only | Right |
 
 ---
 
