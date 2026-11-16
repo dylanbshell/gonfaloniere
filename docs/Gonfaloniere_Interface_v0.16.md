@@ -25,6 +25,7 @@
 - **The stage bar shows the full evening** (Mechanics v0.37): eleven stages, mingling before each council, no private-plan steps. It's a standard step bar again, with a tooltip under the hovered stage and no motion (Centre, The stage bar)
 - **Decision cards take the message box's place,** instead of appearing at the end of the conversation (Decision Cards)
 - **Over the box:** the prompt at the left, **"Your next move: in 3 turns"** at the right, and the character count above the buttons. **End conversation** also sits under Speak and Pass, and both End buttons are red (The input box)
+- **Generate** (Dylan): a button inside the message box, after @ and /, that has the model write a line in your character's voice into the box, for you to change or send. Nothing is said until you press Speak (The input box)
 - **Il Notaio's hint** flashes when he says something new, explains a refused command in plain words, says when a chance to move was missed, and steps aside while an earlier stage is open (Onboarding)
 
 **Past stages:** Il Notaio's summary opens a fifth of the way down, and what's behind it fades until it's minimized. With a decision waiting, the bottom card is one wide Return button (Past stages).
@@ -39,9 +40,9 @@
 
 **The opening** writes a phrase at a time and fast-forwards on a click; the full game's other playable character shows greyed out (The Opening).
 
-**For other docs** (tracker): Technical Design gets the command list with reasons, the turn order for the next-move line, the full evening's track and two stage names, the rules primer's order-of-the-evening line, and the rename. Characters gets a role line and a short errand line per guest, and the rename. The Hub and Visualization & Sharing get the rename. The look of the new shadows and floating cards is Art & Design's to settle (The Look).
+**For other docs** (tracker): Technical Design gets the command list with reasons, the turn order for the next-move line, Generate's model call, the full evening's track and two stage names, the rules primer's order-of-the-evening line, and the rename. Characters gets a role line and a short errand line per guest, and the rename. The Hub and Visualization & Sharing get the rename. The look of the new shadows and floating cards is Art & Design's to settle (The Look).
 
-**Build:** one task builds all of it, **#177** (the next-move line waits on Technical Design's plumbing). Until then, the demo page shows it.
+**Build:** one task builds all of it, **#177** (the next-move line and Generate wait on Technical Design's plumbing). Until then, the demo page shows it.
 
 ## Changes in v0.15
 
@@ -243,7 +244,7 @@ This doc covers **the player screen as the player meets it**: what's on it, wher
 ## Build State *(Nov 15)*
 
 1. **The mini-game is playable** as Francesco, with everything this doc designed through v0.15 built (the first screens, then #102, #109, #113, #114, #117, #128, #132, #141, #146, #148, and #151; v0.15's list). Francesco's errand can't be done there (Friar Tommaso isn't in the cast), and the mini-game runs with `plot_reward` off
-2. **v0.16 is designed and shown in the demo, not built.** Dylan reviewed the demo page (Nov 15), and every v0.16 change was tried there first. **One build task** builds v0.16: **#177**. Most of it needs nothing new from the engine. The command menu's reasons can be worked out from the player's own state until the engine sends them; **the next-move line and the missed-move hint need the engine** to put the player's next movement window in their state (Technical Design handoff), so the build leaves them out if that isn't there yet. The demo is private to Dylan; **#172** adds `npm run demo` to rebuild it from the repo. Its guests' lines are the fake caller's placeholders
+2. **v0.16 is designed and shown in the demo, not built.** Dylan reviewed the demo page (Nov 15), and every v0.16 change was tried there first. **One build task** builds v0.16: **#177**. Most of it needs nothing new from the engine. The command menu's reasons can be worked out from the player's own state until the engine sends them; **the next-move line and the missed-move hint need the engine** to put the player's next movement window in their state (Technical Design handoff), so the build leaves them out if that isn't there yet. **Generate needs a model call Technical Design hasn't specified** (handoff), so #177 leaves it out. The demo is private to Dylan; **#172** adds `npm run demo` to rebuild it from the repo. Its guests' lines are the fake caller's placeholders
 3. **Then the full game,** once the full game loop is built: councils, Piero, candidate selection, speeches and `/repent`, the ballot and `/buy`, the run-off, and the full death and result screens. Dylan playing a whole game is the milestone's test (tracker, item 2)
 4. **Then v1, the first public release:** Il Notaio's full player-facing role (Onboarding, below)
 
@@ -334,6 +335,7 @@ The message box is a floating card *(v0.16)*. Its top line holds **the prompt** 
 | **Pass** | Give up the turn's message | Secondary, outlined. Speak and Pass are centred beside the box |
 | **End conversation** | End a Colloquio | **In two places** *(v0.16)*: on the conversation's header line, and **under Speak and Pass,** the width of the two, whenever it's on offer. **Both red** (outlined, in the theme's danger colour), so ending reads as final |
 | **@** and **/** | Open the guest and command menus | Small icon buttons inside the box, at its bottom left |
+| **Generate** *(Dylan; v0.16)* | Have the model write a line for your character | Inside the box, **after @ and /**: the same small button as theirs, a little longer, with **only its words different**: their own colour, in the body type, italic, not bold. Not shown in a past stage |
 | **Return to current stage** | Leave a past stage | Replaces Speak/Do and Pass while a past stage is open (Past stages) |
 
 - **The prompt** *(v0.16)*, in the accent, says what the moment asks, in plain words: "Your turn: speak or pass." / "Giorgia spoke to you. Answer or pass." / "Lupo ended the conversation. Say a last word or pass." / "Your words will be said at the next pause." (The Player's Words)
@@ -343,6 +345,7 @@ The message box is a floating card *(v0.16)*. Its top line holds **the prompt** 
 - **No scrollbar on the empty box;** it comes back once there's text to scroll *(v0.16)*
 - **The menus open and close with their character** (typing `@` or `/`; deleting it, Escape, or clicking away closes)
 - **The command menu** lists every command the character can ever use, available ones first (Commands, below)
+- **Generate** *(Dylan; v0.16)* writes a line in your character's voice, from your briefing and what you've heard, **into the box**, with the cursor at its end. **It replaces any draft** and never sends: nothing is said until you press Speak, so the line can be changed or thrown away. If someone has your ear, the line starts with @ them. While it works, the button reads "Generating…" and can't be pressed again. *The call is Technical Design's (tracker handoff): like Il Notaio's reading, it's the player screen's own call, and never reaches another guest's prompt*
 
 ### Selection *(Dylan, Nov 12; v0.6–v0.7; v0.16)*
 
@@ -602,6 +605,7 @@ The setting pack's strings v0.16 changes or adds. Keys that exist keep their nam
 | Key | Words |
 |---|---|
 | `screen.youAre` | You are {name} |
+| `screen.input.generate`, `generating` | Generate · Generating… |
 | `screen.nextMoveLine` | Your next move: {when} |
 | `screen.nextMoveIn` | `now` this turn · `nowAside` this turn, but you're aside · `one` in 1 turn · `many` in {n} turns · `none` next round |
 | `screen.notaioHint.moveMissed` | Your chance to move came while you were in a secret conversation, so you missed it. You'll get another. |
@@ -725,6 +729,7 @@ Every hover explanation, in plain, short English (Dylan, Nov 15). `player.json` 
 | `nextMove` **new** | When you next get to move. Each turn one guest gets a chance; if yours comes during a secret conversation, you miss it. Click for the rules. |
 | `factLink` **new** | Click for the rules on this. |
 | `lookingAtSelf` **new** | Your own card: what everyone knows about you. |
+| `generate` **new** | Have the model write a line for your character. It goes in the box for you to change; nothing is said until you press Speak. |
 
 ---
 
@@ -753,6 +758,7 @@ How the screen looks (colour, type, texture, icons, and the values of every them
 - **The breathing highlight** (a soft pulsing outline) on the way forward or back, and the filled Close at either end of the modals' chain
 - **The light "world" card** for hovers about the world, apart from the dark explanations
 - **The red** of End conversation (the theme's danger colour); **the "Secret" halo** on the web; **your own card's accent edge**
+- **Generate's words:** their own colour (a new token; the demo's teal is a placeholder), on the same button as @ and /
 
 ---
 
@@ -896,6 +902,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | Editorial pass: one name for a Colloquio, the payroll, midnight, no ornate directions | "Secret conversation", "Payments from France", "for midnight", plain prompts and hints | The Player's Words |
 | "Web of Confidences" | Renamed everywhere | The Web of Confidences |
 | The errand card's reasons in the sidebar | Just the task there; the reasons stay in the briefing | Left |
+| A Generate button that has the model write a response for you; then inside the box by @ and /, the same button with only its words coloured, not bold | Fills the box, never sends; after @ and / | The input box |
 
 ---
 
@@ -915,6 +922,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 - **Public and private ties for the same pair** *(v0.16)*: Francesco's briefing repeats three public ties in his own words (Piero, Giorgia, Lupo; `relationships.json`). The screen now draws one line each. Whether the repetition is intended is Characters' to say (tracker)
 - **The short errand line** *(v0.16)*: until Characters writes one per guest, the screen cuts the errand after its bold part, which would drop a condition from Lupo's ("Money from the French Embassy treasury doesn't count")
 - **Small things Dylan may want** *(v0.16)*: solid red rather than outlined for End conversation; stronger shadows; the conversation's scrollbar outside its fade; the web's slide at 800 ms rather than 600
+- **Generate** *(v0.16)*: should it keep your draft rather than replace it, and should the record mark a line as generated (for the replay, and for Models & Research's study of how players play)? Defaults: it replaces, and the record question is Technical Design's
 - **A card click on a modal's last item** turns nowhere; whether it should carry on into the next modal, as "On to …" does, is open
 - **The large portrait at the top of the left panel** opens your briefing, while your portrait in the places selects you. Keep, or make both select? Keep for now
 
