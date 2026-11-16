@@ -2,6 +2,8 @@
 // player.json's words with the start information, and this fills their {named} placeholders. The app's
 // code writes no words of its own.
 
+import { titleCase, titleRule } from "./model.ts";
+
 /** A glossary entry (Interface v0.7): its term, its plain definition, the rules sections behind it, and the words a line underlines. */
 export interface GlossEntry {
   term: string;
@@ -56,6 +58,12 @@ export function w(key: string, values: Record<string, string | number> = {}): st
   const all: Record<string, string | number> = { currency: info?.currency.plural ?? "", ...values };
   return t.replace(/\{(\w+)\}/g, (m, k: string) => (k in all ? String(all[k]) : m));
 }
+
+/** A name, heading, or button from another doc's text, in title case for display (Interface v0.17; player.json's titleCase). */
+export const tc = (text: string): string => titleCase(text, titleRule(packValue("titleCase")));
+
+/** A label from player.json that carries another label inside it ("Back to {title}"), filled, then title-cased as one. */
+export const wt = (key: string, values: Record<string, string | number> = {}): string => tc(w(key, values));
 
 /** Il Notaio's hint for a moment (notaio.json's hints), filled. */
 export function notaioHint(key: string, values: Record<string, string | number> = {}): string {

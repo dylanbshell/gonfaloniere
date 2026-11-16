@@ -7,8 +7,8 @@
 import { Component, Fragment, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { connect, type Ev } from "./connection.ts";
 import { COMMAND, MENTION, canDo, canSpeak, isCommand, matchCommands, matchGuests, openMenu, withMention, type Trigger } from "./input.ts";
-import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityList, commandMenu, curve, derive, earlierThisStage, errandCardAt, errandDeadline, errandLine, errandTask, factLink, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, noteGroups, ownPlace, payrollSize, placeHeading, playerBriefing, placeList, placeholderExample, preview, readingFor, recordUpTo, refusalWhy, roomOf, rulesLink, runFrom, summaryFor, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, webLines, webNames, NODE_RADIUS, type Card, type FactLink, type Line, type GuardedReading, type LoreEntry, type Note, type NotaioItem, type Place, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
-import { allCommands, getInfo, guest, names, narrator, notaioHint, packValue, placeDescription, placeholderExamples, setInfo, stageDescription, w, type GlossEntry, type StartInfo } from "./words.ts";
+import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityList, commandMenu, curve, derive, earlierThisStage, errandCardAt, errandDeadline, errandLine, errandTask, factLink, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, noteGroups, ownPlace, payrollSize, placeHeading, playerBriefing, placeList, placeholderExample, preview, readingFor, recordUpTo, refusalWhy, roomOf, rulesLink, runFrom, summaryFor, playerRules, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, webLines, webNames, NODE_RADIUS, type Card, type FactLink, type Line, type GuardedReading, type LoreEntry, type Note, type NotaioItem, type Place, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
+import { allCommands, getInfo, guest, names, narrator, notaioHint, packValue, placeDescription, placeholderExamples, setInfo, stageDescription, tc, w, wt, type GlossEntry, type StartInfo } from "./words.ts";
 
 type Send = (m: unknown) => void;
 
@@ -567,6 +567,17 @@ function briefingDeck(sheet: Sheet): Card[] {
   return [...cards, ...(past.length ? [{ title: w("screen.decks.past"), text: past.map((p) => `**${p.title}**\n${p.text}`).join("\n\n") }] : [])];
 }
 
+/**
+ * The rules as the player reads them (Interface v0.17): the player's own text from the setting pack, filled
+ * with the game's values from the sheet (TD v0.52) and nothing else. The errand's ending goes by the run's
+ * plot_reward flag, and the moving paragraph by the living guests. From a server that sends no values, the
+ * primer, as before.
+ */
+function rulesDeck(sheet: Sheet, s: State | null): Card[] {
+  if (!sheet.values) return rulesCards(sheet.rules);
+  return playerRules(packValue("rules"), sheet.values, { plotReward: !!s?.plotReward, living: s ? s.livingOthers.length + 1 : (getInfo()?.roster.length ?? 0) });
+}
+
 /** Which way the player is going through the modals (Interface v0.16): the highlights point that way, and cards slide in from that side. */
 type Way = "forward" | "back";
 
@@ -608,7 +619,7 @@ function DeckFoot({ prev, next, way, counter }: { prev: Step; next: Step; way: W
  * becomes "On to …" and opens the next modal at its beginning; on its first item Previous becomes "Back to
  * …" and opens the one before at its last. Escape closes.
  */
-function ModalRow({ deck, sheet, places, onPlaces, onDeck, onClose }: { deck: DeckName; sheet: Sheet; places: DeckPlaces; onPlaces: (p: DeckPlaces) => void; onDeck: (d: DeckName) => void; onClose: () => void }) {
+function ModalRow({ deck, sheet, state, places, onPlaces, onDeck, onClose }: { deck: DeckName; sheet: Sheet; state: State | null; places: DeckPlaces; onPlaces: (p: DeckPlaces) => void; onDeck: (d: DeckName) => void; onClose: () => void }) {
   const hint = useHint();
   const at = DECKS.indexOf(deck);
   const before = DECKS[at - 1];
@@ -617,7 +628,7 @@ function ModalRow({ deck, sheet, places, onPlaces, onDeck, onClose }: { deck: De
   const [from, setFrom] = useState<"left" | "right" | null>(null);
   const [way, setWay] = useState<Way>("forward");
   const cards = useMemo(() => briefingDeck(sheet), [sheet]);
-  const rules = useMemo(() => rulesCards(sheet.rules), [sheet]);
+  const rules = useMemo(() => rulesDeck(sheet, state), [sheet, state?.plotReward, state?.livingOthers.length]);
   const lore = sheet.lore ?? [];
   const topics = useMemo(() => cityList(lore).flatMap((g) => g.entries), [sheet]);
   /** A modal's beginning, and its last item. */
@@ -636,8 +647,8 @@ function ModalRow({ deck, sheet, places, onPlaces, onDeck, onClose }: { deck: De
     onPlaces({ ...places, ...place });
   };
   const title = (d: DeckName) => w(`screen.${d}`);
-  const onTo = (d: DeckName | undefined): Step => (d ? { label: w("screen.modalRow.next", { title: title(d) }), go: () => move(d, "forward"), chain: true } : null);
-  const backTo = (d: DeckName | undefined): Step => (d ? { label: w("screen.modalRow.previous", { title: title(d) }), go: () => move(d, "back", end(d)), chain: true } : null);
+  const onTo = (d: DeckName | undefined): Step => (d ? { label: wt("screen.modalRow.next", { title: title(d) }), go: () => move(d, "forward"), chain: true } : null);
+  const backTo = (d: DeckName | undefined): Step => (d ? { label: wt("screen.modalRow.previous", { title: title(d) }), go: () => move(d, "back", end(d)), chain: true } : null);
   const card = Math.min(places.briefing, Math.max(0, cards.length - 1));
   const rule = places.rules !== null && rules[places.rules] ? places.rules : null;
   const topic = places.city === null ? -1 : topics.findIndex((e) => e.id === places.city);
@@ -677,7 +688,7 @@ function ModalRow({ deck, sheet, places, onPlaces, onDeck, onClose }: { deck: De
         data-deck={d}
         role="button"
         tabIndex={0}
-        aria-label={w(side === "left" ? "screen.modalRow.previous" : "screen.modalRow.next", { title: title(d) })}
+        aria-label={wt(side === "left" ? "screen.modalRow.previous" : "screen.modalRow.next", { title: title(d) })}
         onClick={(e) => (e.stopPropagation(), move(d, side === "left" ? "back" : "forward"))}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
@@ -792,14 +803,14 @@ function BriefingDeck({ cards, place, onPlace, steps, way }: { cards: Card[]; pl
         <nav className="tabs">
           {cards.map((c, i) => (
             <button key={i} className={`tab${i === at ? " on" : ""}`} aria-current={i === at} onClick={() => onPlace(i)} {...hint("deckTab")}>
-              {c.title}
+              {tc(c.title)}
             </button>
           ))}
         </nav>
       )}
       {card ? (
         <div className={`deck-card${way === "back" ? " from-left" : ""}`} key={at} onClick={() => within(steps.next)} {...hint("deckCard", { focusable: true })}>
-          <h3>{card.title}</h3>
+          <h3>{tc(card.title)}</h3>
           <div className="deck-text">
             <Rich text={card.text} />
           </div>
@@ -833,15 +844,15 @@ function RulesSections({ cards, open, onOpen, steps, way }: { cards: Card[]; ope
         <div className="rules-buttons" inert={!!card} onClick={(e) => e.target === e.currentTarget && onOpen(0)}>
           {cards.map((c, i) => (
             <button key={i} className="rules-section" data-section={i} onClick={() => onOpen(i)} {...hint("rulesSection")}>
-              {c.title}
+              {tc(c.title)}
             </button>
           ))}
         </div>
         {card && (
           <div className="rules-over" onClick={() => onOpen(null)}>
-            <section key={open} className={`rules-section open${grows ? " grows" : way === "back" ? " from-left" : " from-right"}`} data-section={open!} aria-label={card.title} onClick={(e) => (e.stopPropagation(), steps.next && !steps.next.chain && steps.next.go())}>
+            <section key={open} className={`rules-section open${grows ? " grows" : way === "back" ? " from-left" : " from-right"}`} data-section={open!} aria-label={tc(card.title)} onClick={(e) => (e.stopPropagation(), steps.next && !steps.next.chain && steps.next.go())}>
               <div className="rules-section-head">
-                <h3>{card.title}</h3>
+                <h3>{tc(card.title)}</h3>
                 <button className="icon close" aria-label={w("screen.rulesModal.shrink")} onClick={(e) => (e.stopPropagation(), onOpen(null))} {...hint("rulesShrink")}>
                   {w("screen.rulesModal.mark")}
                 </button>
@@ -882,7 +893,7 @@ function CityList({ lore, open, onOpen, steps, way }: { lore: LoreEntry[]; open:
             {w("screen.cityList.back")}
           </button>
           <section key={entry.id} className={`city-entry${way === "back" ? " from-left" : ""}`} data-lore={entry.id} onClick={() => steps.next && !steps.next.chain && steps.next.go()}>
-            <h3>{entry.title}</h3>
+            <h3>{tc(entry.title)}</h3>
             <div className="deck-text">{entry.text}</div>
           </section>
         </div>
@@ -907,7 +918,7 @@ function CityList({ lore, open, onOpen, steps, way }: { lore: LoreEntry[]; open:
                     }}
                     {...hint("cityRow")}
                   >
-                    <span className="city-title">{e.title}</span>
+                    <span className="city-title">{tc(e.title)}</span>
                     <span className="city-preview muted">{preview(e)}</span>
                   </button>
                 </li>
@@ -964,6 +975,7 @@ export function GameView({
   send,
   status,
   deck: initialDeck = null,
+  places: initialPlaces,
   selected = null,
   web: initialWeb = null,
   webTab,
@@ -978,6 +990,8 @@ export function GameView({
   send: Send;
   status: "open" | "closed" | "connecting";
   deck?: DeckName | null;
+  /** Where the modals stand from the start (an open rules section, a briefing card), for the tests. */
+  places?: Partial<DeckPlaces>;
   selected?: ChatSel;
   /** The Web of Secrets open from the start, with these guests selected in it. */
   web?: string[] | null;
@@ -994,7 +1008,7 @@ export function GameView({
   onTourEnd?: (how: TourEnd) => void;
 }) {
   const [deck, setDeck] = useState<DeckName | null>(initialDeck);
-  const [places, setPlaces] = useState<DeckPlaces>(NO_PLACES);
+  const [places, setPlaces] = useState<DeckPlaces>({ ...NO_PLACES, ...initialPlaces });
   // One selection of guests, shared by the chat and the Web of Secrets (Interface v0.6).
   const selection = useSharedSelection(initialSelection(selected, initialWeb));
   // The Web of Secrets is always there (TD v0.44); open or down, it shows the shared selection.
@@ -1078,7 +1092,7 @@ export function GameView({
       {/* After everything, and above it all in theme.css's order, so nothing covers it. */}
       {deck && v.sheet && (
         <Boundary panel="deck" fallback={(n) => <FailedOverlay notice={n} onClose={() => setDeck(null)} />}>
-          <ModalRow deck={deck} sheet={v.sheet} places={places} onPlaces={setPlaces} onDeck={setDeck} onClose={() => setDeck(null)} />
+          <ModalRow deck={deck} sheet={v.sheet} state={v.state} places={places} onPlaces={setPlaces} onDeck={setDeck} onClose={() => setDeck(null)} />
         </Boundary>
       )}
       {tour.step !== null && (
@@ -1310,7 +1324,7 @@ function Left({ me, v, onDeck, onTour, nudge = false }: { me: string; v: View; o
   const hint = useHint();
   const m = useMoreBelow();
   // Interface v0.16: each line of the sheet opens the rules where it's explained, by its glossary word.
-  const rules = useMemo(() => (v.sheet ? rulesCards(v.sheet.rules) : []), [v.sheet]);
+  const rules = useMemo(() => (v.sheet ? rulesDeck(v.sheet, s) : []), [v.sheet, s?.plotReward, s?.livingOthers.length]);
   const glossary = getInfo()?.glossary ?? [];
   const word = (k: string) => packValue(`screen.factLinks.${k}`) as string | undefined;
   const link = (k: string) => (v.sheet ? factLink(word(k), glossary, rules) : null);
@@ -1683,9 +1697,9 @@ function PastStage({ stage, v, me }: { stage: string; v: View; me: string }) {
   const runs = stageRuns(v, stage);
   const lore = v.sheet?.lore ?? [];
   return (
-    <section className="past-stage" data-stage={stage} aria-label={stage}>
+    <section className="past-stage" data-stage={stage} aria-label={tc(stage)}>
       <div className="label" {...hint("pastStage", { focusable: true })}>
-        {w("screen.pastStage.heading", { stage })}
+        {wt("screen.pastStage.heading", { stage })}
       </div>
       {runs.length ? (
         runs.map((r) => (
@@ -1839,10 +1853,10 @@ function StageBar({ stages, now, deadline, open, beckon, dots, onOpen }: { stage
             onFocus: (e: { currentTarget: Element }) => show(m.stage, e.currentTarget, true),
             onBlur: away,
           };
-          const inner = m.at === "now" ? <span className="stage-name">{m.stage}</span> : <span className="num">{i + 1}</span>;
+          const inner = m.at === "now" ? <span className="stage-name">{tc(m.stage)}</span> : <span className="num">{i + 1}</span>;
           const classes = ["mark", m.at, m.deadline && "deadline", m.stage === open && "open", m.at === "now" && beckon && "beckon"].filter(Boolean).join(" ");
           return (
-            <li key={m.stage} className={classes} aria-label={m.stage} aria-current={m.at === "now" ? "step" : undefined}>
+            <li key={m.stage} className={classes} data-stage={m.stage} aria-label={tc(m.stage)} aria-current={m.at === "now" ? "step" : undefined}>
               {/* TD v0.47: with `plot_reward` on, the errand's deadline carries a small errand mark with its own explanation. */}
               {m.deadline && <span className="errand-mark" role="img" aria-label={w("screen.errandDeadline")} {...hint("trackDeadline", { focusable: true })} />}
               {m.at === "next" ? (
@@ -1861,7 +1875,7 @@ function StageBar({ stages, now, deadline, open, beckon, dots, onOpen }: { stage
       </ol>
       {tipped && (
         <div ref={card} className={`stage-tip${left === null ? " measuring" : ""}`} role="tooltip" data-stage={tipped.stage} style={left === null ? undefined : { left }}>
-          <div className="stage-tip-name">{tipped.stage}</div>
+          <div className="stage-tip-name">{tc(tipped.stage)}</div>
           {stageDescription(tipped.stage) && <div className="stage-tip-desc">{stageDescription(tipped.stage)}</div>}
           {hints.on && <div className="stage-tip-hint">{explain(tipped).text}</div>}
         </div>
@@ -2196,7 +2210,7 @@ function CoverCard({ over, v, me, leaving, follows, onGone, onWeb }: { over: Ove
         </>
       ) : (
         <div className="lore-entry" data-lore={over.id}>
-          <h3>{over.title}</h3>
+          <h3>{tc(over.title)}</h3>
           <p>{over.text}</p>
         </div>
       )}

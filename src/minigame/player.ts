@@ -7,6 +7,7 @@ import type { HumanController } from "../core/human.ts";
 import type { OutgoingBody } from "../core/protocol.ts";
 import { ALIASES, type CharacterName } from "../game/roster.ts";
 import { relationships, say, settingPack } from "../setting/pack.ts";
+import type { Tunables } from "../sources/docs.ts";
 import { readLoreFile, type LoreEntry, type LoreSetting } from "./lore.ts";
 import type { GameLine } from "./memory.ts";
 
@@ -79,6 +80,42 @@ export function screenContent(me: CharacterName, lore: LoreSetting, loadable: Lo
     ],
     lore: entries.filter((e) => e.scope === "public").map((e) => ({ id: e.id, title: e.title, aliases: e.aliases ?? [], subject: e.subject ?? null, text: e.text, ...(e.gloss && { gloss: e.gloss }) })),
     past: lore === "on" ? entries.filter((e) => e.scope === me).map((e) => ({ id: e.id, title: e.title, text: e.text })) : [],
+  };
+}
+
+/**
+ * The game's values for the player's rules text (TD v0.52, Player Interface, The screen): the money, from the
+ * tunables the engine reads from Mechanics and fills block 2 with; the turn numbers, from the schedule this
+ * run plays (`null` for a phase the run doesn't have); and the setting's currency words. All public: the
+ * same numbers the AI guests' primer states. They go with the player's sheet, never into a prompt or a record.
+ */
+export interface GameValues {
+  start: number;
+  income: number;
+  payroll: number;
+  vote: number;
+  treasury: number;
+  linesPerTurn: number;
+  minglingTurns: number;
+  councilTurns: number | null;
+  finalCouncilTurns: number | null;
+  selectionTurns: number | null;
+  openFloorTurns: number | null;
+  colloquioCap: number;
+  currency: { singular: string; plural: string };
+}
+type Turns = Pick<GameValues, "linesPerTurn" | "minglingTurns" | "councilTurns" | "finalCouncilTurns" | "selectionTurns" | "openFloorTurns">;
+export function gameValues(tunables: Tunables, turns: Turns): GameValues {
+  const { singular, plural } = settingPack().currency;
+  return {
+    start: tunables.starting_florins,
+    income: tunables.income,
+    payroll: tunables.pension_size,
+    vote: tunables.vote_price,
+    treasury: tunables.embassy_treasury,
+    ...turns,
+    colloquioCap: tunables.colloquio_cap,
+    currency: { singular, plural },
   };
 }
 
