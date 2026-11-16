@@ -1,8 +1,30 @@
 # Gonfaloniere
 ## Interface & Experience — Working Document
-### Version 0.16
+### Version 0.17
 
 ---
+
+## Changes in v0.17
+
+*Nov 15–16. The rest of Dylan's review of the demo page, after v0.16 merged, over two sessions: comments on the page and screenshots in the chat. Each change was tried in the demo first, then written here. Detail in the sections named; the record is in Playtest Findings, Demo review, part 2.*
+
+**Screen sizes, a new section** (Screen Sizes): limits on everything that grew or shrank too far. The side panels grow with the window (left 284–332px, right 280–480px); the conversation, Il Notaio's boxes, and the message box share one centred reading column, at most 820px; the stage bar keeps within 900px; the Web of Confidences' drawing stops at 820px, its key at its normal size, its side column at 480px. In small windows, the right panel and the web's side column fold to strips, Il Notaio's hint folds to keep the conversation at least 200px tall, and the web's key folds below 1200px wide. Short screens get a capped message box and tighter modal margins. **Phones are left out for now:** under 760px wide, a note says the game is made for a larger screen. **Touchscreens:** a long press shows an explanation without pressing the thing.
+
+**Three typefaces** (Dylan; The Look): the screen's own words stay in a plain sans; **what the guests say** (and what you type) is in a book serif; **Il Notaio** writes in a Renaissance one. His chat lines lose their italics. **His open boxes read larger** (16px against 13px minimized), his box titles sized from that and fixed, and every one of his boxes that opens and closes says **Show / Hide**.
+
+**Title case** (Dylan; The Player's Words): names, headings, and buttons ("Your Briefing", "The First Round of Mingling", "Back to the Rules"); sentences, prompts, and status lines stay as they are. The setting pack holds the rule's small words, so a pack in another language can turn it off.
+
+**The modals** (Briefing, rules, the city, and the glossary):
+- **The side modals in two sizes:** in a wide window (1408px and up), **the whole previous and next modals,** drawn as themselves at their start, scaled to fit, never more than 80% of the one in focus, evenly blurred, their titles at full size toward the middle. Narrower, **two paddles** with the title on end and an arrow. Hovering either lights its title and rings it; a clicked paddle flashes
+- **Room and margins:** the row keeps a minimum width and scrolls sideways below it; wider margins at the screen's edges; the screen behind softly blurred; **rounder corners** (30px)
+- **Margins and text:** wider, even margins in every modal, text centred top to bottom, titles centred, no rule lines, body text 15px, **real bulleted and numbered lists**, edges that fade where there's more to scroll, and smaller **More Below** buttons in line with the page counter
+- **The briefing:** bigger tabs that wrap and stay put, and the tabs are the cards' titles. **The rules:** the player's own rules text, a new **Stages and Turns** section, Roman numerals on the section buttons and in the open section's title, and a lighter, blurred backdrop behind an open section. **The glossary:** smaller term names; opened from the chat, its way back to The City pulses
+
+**Elsewhere:** the message box grows with what's typed (up to nine lines); only what's worth copying can be selected; the right panel's and its cards' top corners are rounder; your portrait and name at the top of the left panel are larger; a skipped tour's **Your Briefing** glows filled in; the web's faction names sit at 11, 1, 5, and 7 o'clock, and its drawing stands clear of the screen's edge (The Screen; The Web of Confidences).
+
+**For other docs** (tracker): **Technical Design** gets the player's own rules text (a template in the setting pack, filled with the game's values; block 2 stays the AI guests' primer), for **Mechanics** to check against v0.37. **Art & Design** gets the new looks: the typefaces and Il Notaio's sizes, the corners, the blurs, the scroll fades, the numeral badges, the list marks, the paddles and their rings (The Look). No Characters handoff after all: the briefing's tab titles are title-cased on the screen, not in the briefings.
+
+**Build:** **#179** builds v0.17, after #177 (Build State). **Notes for the build** (a new section) gather what the real build should do differently from the demo: relative text sizes, layouts that answer to their own space, the screen's own More Below, and components in place of the demo's page scripts.
 
 ## Changes in v0.16
 
@@ -237,18 +259,31 @@ This doc covers **the player screen as the player meets it**: what's on it, wher
 
 **The player reads at their own pace.** Nothing auto-advances, and nothing moves under the player's eye while they read (Dylan, Nov 12).
 
-**One layer at a time, clearly stacked.** The Web of Confidences sits above everything, the floating stage bar and message box above the conversation *(v0.16)*, a selected card above the "talking with" card, Il Notaio's box above the dialogue it covers (which fades while he's open), a modal over the screen, never under it. Each layer's shadow says which is on top.
+**One layer at a time, clearly stacked.** The Web of Confidences sits above everything, the floating stage bar and message box above the conversation *(v0.16)*, a selected card above the "talking with" card, Il Notaio's box above the dialogue it covers (which fades while he's open), a modal over the screen, never under it. Each layer's shadow says which is on top. **Behind an open modal the screen is dimmed and softly blurred** *(v0.17)*, so nothing behind it has a hard edge for the side modals to seem to tuck under.
 
 ---
 
 ## Build State *(Nov 15)*
 
 1. **The mini-game is playable** as Francesco, with everything this doc designed through v0.15 built (the first screens, then #102, #109, #113, #114, #117, #128, #132, #141, #146, #148, and #151; v0.15's list). Francesco's errand can't be done there (Friar Tommaso isn't in the cast), and the mini-game runs with `plot_reward` off
-2. **v0.16 is designed and shown in the demo, not built.** Dylan reviewed the demo page (Nov 15), and every v0.16 change was tried there first. **One build task** builds v0.16: **#177**. Most of it needs nothing new from the engine. The command menu's reasons can be worked out from the player's own state until the engine sends them; **the next-move line and the missed-move hint need the engine** to put the player's next movement window in their state (Technical Design handoff), so the build leaves them out if that isn't there yet. **Generate needs a model call Technical Design hasn't specified** (handoff), so #177 leaves it out. The demo is private to Dylan; **#172** adds `npm run demo` to rebuild it from the repo. Its guests' lines are the fake caller's placeholders
+2. **v0.16 and v0.17 are designed and shown in the demo, not built.** Dylan reviewed the demo page (Nov 15), and every v0.16 change was tried there first. **One build task** builds v0.16: **#177**. Most of it needs nothing new from the engine. The command menu's reasons can be worked out from the player's own state until the engine sends them; **the next-move line and the missed-move hint need the engine** to put the player's next movement window in their state (Technical Design handoff), so the build leaves them out if that isn't there yet. **Generate needs a model call Technical Design hasn't specified** (handoff), so #177 leaves it out. The demo is private to Dylan; **#172** adds `npm run demo` to rebuild it from the repo. Its guests' lines are the fake caller's placeholders. **v0.17** (Dylan's further review, Nov 15–16) is built by **#179**, after #177, since both change the same screen; Notes for the Build says what it should do differently from the demo. *In the demo, the mini-game's last third of its round shows as the second round of mingling, so the bar has an example of a later stage*
 3. **Then the full game,** once the full game loop is built: councils, Piero, candidate selection, speeches and `/repent`, the ballot and `/buy`, the run-off, and the full death and result screens. Dylan playing a whole game is the milestone's test (tracker, item 2)
 4. **Then v1, the first public release:** Il Notaio's full player-facing role (Onboarding, below)
 
 To try it: `npm run play -- --as "Francesco Pazzi" --minigame` (add `--fake` for no model calls), or the demo page.
+
+---
+
+## Notes for the Build *(v0.17)*
+
+The demo is built by patching the screen and adding scripts to the page, which is quick to change but not how the real screen should do it. What the build should do differently:
+- **Text sizes in relative units** (`rem`), so a reader's own font-size setting is respected, not only the browser's zoom. A mechanical change across `web/theme.css`
+- **Layouts that answer to their own space** (container queries) rather than to the window: the side modals' two sizes, the web's key folding, and the web's side column folding all go by window width in the demo, which is wrong when a panel is hidden or open
+- **The screen's own More Below** (`useMoreBelow` / `MoreBelow`) for the modals' reading areas, rather than the demo's buttons placed over the page; likewise the scroll fades, Il Notaio's hint and the web's key folding themselves, the long press, and the phone note, which the demo does with page scripts, become components
+- **The whole side modals** are the modal components drawn still (inert, no keys, no More Below), at their start, with no Escape handlers of their own
+- **The typefaces** served with the page, under their licence (both SIL Open Font License), with a `size-adjust` so each matches the sans's x-height and every size token means what it says
+- **The words** move into the setting pack: title case and its small words, the player's rules text, the phone note, the paddles' arrows (The Player's Words)
+- **A long-labels check:** the demo's `?long` lengthens every short label by half, as a translation might. A test that does the same and checks no control spills would keep it honest
 
 ---
 
@@ -277,12 +312,12 @@ A single page in the style of a Slack chat. Placeholder portraits until Art & De
 
 ### Left: you
 
-In this order *(Dylan, Nov 13; v0.16)*:
+**It grows and shrinks with the window** *(Dylan; v0.17)*, from 284 to 332px (Screen Sizes). In this order *(Dylan, Nov 13; v0.16)*:
 - **Show me around** and **Explanations: on/off,** centred at the top, on their own line with room around them
-- **You:** your portrait, then **"You are Francesco Pazzi"**, then your role in plain words, **"head of the Pazzi family"** *(v0.16)*, all centred, with no box, ring, or "You" label: the words say it. The role line is a new per-guest line from Characters (tracker); the public subtitle stands in until it exists. **Your name or portrait opens your briefing** *(v0.7)*, at the place you left it
+- **You:** your portrait, then **"You are Francesco Pazzi"**, then your role in plain words, **"head of the Pazzi family"** *(v0.16)*, all centred, **a size up from the panel's other words** *(Dylan; v0.17: the portrait 84px, your name 18px, your role 15px)*, with no box, ring, or "You" label: the words say it. The role line is a new per-guest line from Characters (tracker); the public subtitle stands in until it exists. **Your name or portrait opens your briefing** *(v0.7)*, at the place you left it
 - **Your sheet:** **Purse**, **Payments from France** *(v0.16)*, **Secret conversations** *(v0.16; the count of your Colloquios)*, and **the midnight line** *(v0.8)*: "Midnight: 1 act (kill, guard, or watch)." With `plot_reward` on, a second line: "+1 if you finish your errand before the last council." Once the errand check has run, it becomes "+1 earned" or disappears. It never gives a check's result away early. How the sheet reads (a purse with its count, a seal, tally marks) is Art & Design's
 - **Each line of the sheet opens where it's explained** *(v0.16)*: the rules section behind its glossary word (Purse → Florins, Payments from France → France's payroll, Secret conversations → Colloquio, Midnight → Midnight), or the word in the glossary if no section explains it. The setting pack names the word for each line. They underline on hover, with the explanation "Click for the rules on this."
-- **Four buttons:** **Your briefing**, **The rules**, **The city**, and **Glossary** (Briefing, rules, the city, and the glossary, below). No button for the Web of Confidences, which is always at the bottom
+- **Four buttons:** **Your Briefing**, **The Rules**, **The City**, and **Glossary** *(title case, v0.17)* (Briefing, rules, the city, and the glossary, below). No button for the Web of Confidences, which is always at the bottom. **After a skipped tour, Your Briefing glows filled in** *(Dylan; v0.17)*, with the breathing accent fill of the modals' way-on buttons, rather than an outline
 - **The errand card,** pinned:
   - **Just the task** *(Dylan; v0.16)*: "This comes first: it is what you came for. Before the last council before midnight, **give Friar Tommaso at least 3 Florins in total**, in one gift or several." The why ("a gift to the friars that the city will hear of…") stays in the briefing. The screen needs a short errand line per guest from Characters (tracker). Until then it cuts the errand at the first colon or full stop after its bold part, which is right for Francesco but would drop a condition from Lupo's
   - **Clicking it opens your briefing at the errand's card** *(v0.16)*, found by the errand's own words, so it works in any setting pack
@@ -295,6 +330,8 @@ In this order *(Dylan, Nov 13; v0.16)*:
 
 ### Centre: the conversation
 
+- **One reading column** *(Dylan; v0.17)*: the conversation's lines, Il Notaio's hint, the message box, and his summary of a past stage share one centred column, at most 820px wide, so on a wide screen a line stays a comfortable length and the four line up (Screen Sizes)
+- **Typefaces** *(Dylan; v0.17)*: the guests' words in a book serif, Il Notaio's in a Renaissance one, the screen's own in its sans (The Look). His lines in the chat are upright, not italic: the typeface sets him apart, and its italic is the harder read
 - **Two floating cards** *(Dylan; v0.16)*: the stage bar at the top and the message box at the bottom sit as rounded cards over the conversation, each casting a shadow onto it. **The conversation fades out where it slides under them** (the top bar and Il Notaio's box), so a line dissolves rather than being cut off. How the cards and shadows look is Art & Design's (The Look)
 - **The conversation's members** sit under the stage bar, centred ("In the loggia with Giorgia and Lupo"; in a Colloquio, "In the study, in secret with Clarice"). **End conversation** sits on that line in a Colloquio, solid red *(v0.16)*
 - **Only the current conversation is open.** Earlier conversations in this stage collapse into **Earlier this stage**, one line each, opening in place. Earlier stages live in the bar
@@ -307,7 +344,8 @@ In this order *(Dylan, Nov 13; v0.16)*:
 
 - **The full evening, as the player lives it** *(Mechanics v0.37; v0.16)*: one stage per round of mingling and per council, with no private-plan steps, since the player plans in their own head. For a Pazzi player: the first round of mingling, the first Pazzi council, the second round, the second council, the third round, the third council, Midnight, the choosing of candidates, the speeches, the last Pazzi council, and the ballot. That's **eleven stages.** Each council carries the player's own faction's name. The engine sends this track (Technical Design handoff); two of the names, the choosing of candidates and the last council, need in-world names in the setting pack (tracker)
 - **A standard step bar** *(Dylan; v0.16)*: circles joined by lines, done ones filled, the current one an oval holding its name **with no number**, centred in the floating card. Hovering changes nothing in the row. **A tooltip under the row** shows the hovered stage's name, its description, and, with explanations on, its explanation. It waits a moment before the first tooltip, then switches at once between neighbours while one is showing. Focus shows it at once
-- **It stretches with the window:** the bar spans most of the card, the lines between circles share out the room, and the circles grow a little with it. With eleven stages, the side inset is small and the circles smaller, so **all of them fit without scrolling from a 1100-pixel window up**
+- **Stage names in title case** *(v0.17)*: "The First Round of Mingling", "The Last Pazzi Council"
+- **It stretches with the window,** up to 900px *(v0.17)*: the bar spans most of the card, the lines between circles share out the room, and the circles grow a little with it. With eleven stages, the side inset is small and the circles smaller, so **all of them fit without scrolling from a 1100-pixel window up**
 - **No motion:** no glide, no magnification. (Every variant with motion was tried and dropped: the row moved under the pointer.)
 - **The errand's deadline mark** stays on its stage; **a selected guest's dots** mark the stages they appear in
 - **A past stage opens when clicked,** read-only (Past stages); a future stage can't be clicked
@@ -316,8 +354,8 @@ In this order *(Dylan, Nov 13; v0.16)*:
 
 Clicking a past stage in the bar opens it in the conversation, read-only.
 - **The stage's conversations,** everything the player was in during that stage, in order, with lore links and highlighting
-- **Il Notaio's summary** opens over it, **starting a fifth of the way down** *(v0.16)*, so a good stretch of the dialogue shows above it. **While it's open, the dialogue behind it fades** *(v0.16)*: the content fades, not a tint laid over it, so no edge shows between the cards. Bullet points grouped by conversation, as in v0.13
-- **Clicking anywhere in the conversation minimizes his box** to a strip at the bottom; clicking the strip opens it again. It casts the same upward shadow as the message box
+- **Il Notaio's summary** opens over it, **as wide as the message box below it** *(Dylan; v0.17)*, **starting a fifth of the way down** *(v0.16)*, so a good stretch of the dialogue shows above it. **While it's open, the dialogue behind it fades** *(v0.16)*: the content fades, not a tint laid over it, so no edge shows between the cards. Bullet points grouped by conversation, as in v0.13
+- **Clicking anywhere in the conversation minimizes his box** to a strip at the bottom; clicking the strip opens it again. It casts the same upward shadow as the message box. **Show / Hide** at the right of his title says which a click will do *(Dylan; v0.17)*, and **his words read larger while it's open** (Onboarding, His boxes)
 - **Il Notaio's hint steps aside** while a past stage is open *(v0.16)*: his summary is already there
 - **The message box stays,** and the player can draft: Speak/Do and Pass become **Return to current stage**, as tall as the box beside it and narrower, its words on two lines *(v0.16)*. The draft stays, and **nothing is sent until the player presses Speak or Do back in the current stage**
 - **With a decision waiting in the current stage** *(Dylan; v0.16)*, there's nothing to draft, so the bottom card holds **one Return button filling it**, with even space around it. Returning brings the decision card back as it was
@@ -343,6 +381,9 @@ The message box is a floating card *(v0.16)*. Its top line holds **the prompt** 
 - **The character count** ("0/500") sits at the right end of the same line, over the buttons
 - **The placeholder carries the example** *(v0.5; v0.16)*, now on two lines: *Speak as your character would…* then *"@Giorgia Pazzi My family never forgets, and rarely forgives", or "/borrow"*. All four rotating examples follow that shape, with a comma before "or". They use only commands allowed right now
 - **No scrollbar on the empty box;** it comes back once there's text to scroll *(v0.16)*
+- **The box grows with what's typed** *(Dylan; v0.17)*, a line at a time, **up to nine lines**, then scrolls. It's never shorter than its placeholder. In a short window it stops at about a fifth of the window's height (three lines at least), so it can't crowd out the conversation. Editing in the middle of the text leaves the cursor where it is
+- **What you type is in the guests' typeface** *(v0.17)*, since it's what your character will say
+- **Return to current stage grows taller** rather than spilling if its words run to a third line *(v0.17; a translation might)*
 - **The menus open and close with their character** (typing `@` or `/`; deleting it, Escape, or clicking away closes)
 - **The command menu** lists every command the character can ever use, available ones first (Commands, below)
 - **Generate** *(Dylan; v0.16)* writes a line in your character's voice, from your briefing and what you've heard, **into the box**, with the cursor at its end. **It replaces any draft** and never sends: nothing is said until you press Speak, so the line can be changed or thrown away. If someone has your ear, the line starts with @ them. While it works, the button reads "Generating…" and can't be pressed again. *The call is Technical Design's (tracker handoff): like Il Notaio's reading, it's the player screen's own call, and never reaches another guest's prompt*
@@ -351,11 +392,15 @@ The message box is a floating card *(v0.16)*. Its top line holds **the prompt** 
 
 In the chat view, **one thing is selected at a time:** a guest or a lore topic. **A guest's name or portrait selects them wherever it appears,** and since v0.16 **that includes your own portrait in the places,** which selects you. Your name and large portrait at the top of the left panel still open your briefing. A new selection replaces the last, clicking it again deselects, and Escape clears it. **Two guests can be selected only in the Web of Confidences.**
 
+**Only what's worth copying can be selected as text** *(Dylan; v0.17)*: the guests' lines and their names, Il Notaio's lines, what you type, What You Heard and Saw, and your notes. Buttons, labels, and the rest can't be highlighted by a stray drag or double-click. A copied line keeps the spaces between the speaker's name, "to …", and the words.
+
 **One selection, shared with the Web of Confidences** *(v0.6)*, unchanged: a guest selected anywhere is selected in the web too, and a pair stays a pair there while the chat holds the one picked last.
 
 ### Right: whoever you're looking at
 
-- **The panel stops a little short of the top, with rounded top corners** *(v0.16)*
+- **The panel stops a little short of the top, with rounded top corners** *(v0.16)*, **rounder since v0.17** (22px, as are the cards that slide up over it)
+- **It grows and shrinks with the window** *(Dylan; v0.17)*, from 280 to 480px (Screen Sizes). **In a window under 1044px wide it starts folded** to its strip, so the conversation keeps room for the stage bar; it can still be opened
+- **Reopening the panel doesn't replay the card's slide** *(Dylan; v0.17)*: the card that was showing is simply there. A card slides up only when the selection changes
 - **By default, whoever you're talking to** *(v0.5)*: in a Colloquio, the other guest; in a group, the guest last @-addressed by or addressing the player; otherwise empty, with "No one has your ear"
 - **Two kinds of card** *(v0.5)*: the **"Talking with" card** (live, tinted, labelled, a dot while they speak) and **a selected guest's card** (plain, raised, "Looking at", with ×). Art & Design's look keeps them apart (The Look)
   - **The "talking with" card has no row of the other guests' tokens** *(Dylan; v0.16)*: the places list already shows who's with you, and selects them the same way
@@ -367,42 +412,64 @@ In the chat view, **one thing is selected at a time:** a guest or a lore topic. 
 - **What it shows is public and fixed:** portrait, name, subtitle, and the public connection lines. A lore link opens its entry here, with a way back
 - **"Open in the Web of Confidences"** on a filled card *(v0.6–v0.7)*
 
-### Briefing, rules, the city, and the glossary *(v0.5–v0.7; v0.16)*
+### Briefing, rules, the city, and the glossary *(v0.5–v0.7; v0.16; v0.17)*
 
 Each opens as a modal over the screen. **Four modals in a row:** Your briefing, The rules, The city, Glossary.
 
-**The row** *(v0.16)*:
-- **The neighbouring modals** show to the left and right, solid (not see-through), their contents dimmed, each with **a one-line summary** of what it is rather than its list of topics: "Who you are, what you know, and what you came here to do." / "How the evening works, from the first word to midnight." / "What every guest knew of Florence before tonight." / "The game's words, each explained in a line or two." Clicking one moves to it
-- **The focused modal's title is centred** in its header; **Close** stays at the right
+**The row** *(v0.16; reworked v0.17)*:
+- **The side modals come in two sizes,** by the room the window leaves beside the modal in focus *(Dylan; v0.17)*:
+  - **Wide** (1408px and up): **the whole previous and next modals,** each drawn as itself at its start (the briefing's first card, the rules' buttons, the city's list, an empty glossary search), still, and scaled to fit the room, **never more than 80% of the modal in focus.** Each is evenly blurred, and the same colour as the modal in focus. **Its title lies flat in its header, toward the modal in focus, at the focused modal's title size** (it doesn't shrink with the rest). Where it's the way you're heading, it has the accent ring
+  - **Narrower: two paddles,** 40px wide and as tall as the whole side modals were when they gave way (55% of a modal's height), the same colour as the modal, with **the title on end** in the middle (top to bottom on the left, bottom to top on the right, so both read facing the middle) and an arrow below. A title too long for its paddle ends in "…" before the arrow. Square-ish corners (12px)
+  - **Hovering** either lights its title in the accent and traces it with a thin accent ring (hover devices only). **A click on a paddle flashes** it: it fills with the accent and rings, its words turn light, for about two-thirds of a second. The modal arriving moves as it always has
+  - Where there's no modal before or after (the briefing, the glossary), nothing is drawn
+  - *Tried and dropped:* a middle size (a fading slice with its title and summary), titles on end on the whole modals, darkening, and a blur graded from the outer edge in (it read as uneven)
+- **Room** *(v0.17)*: wider margins at the screen's edges (3% of the window, 24 to 64px). **The row never shrinks below the modal and both paddles;** in a window narrower than that, the overlay scrolls sideways, opening centred on the modal in focus. Behind the row, the screen is dimmed and **softly blurred**
+- **Rounder corners** *(Dylan; v0.17)*: 30px on the modal, the whole side modals, and an open rules section's card
+- **The focused modal's title is centred** in its header; **Close** stays at the right. Every visible modal's title is the same size
 - **Every modal starts from its beginning** whenever you move to it, however you get there
 
-**Footers that chain them** *(Dylan; v0.16)*: every modal has **Previous** and **Next** at its foot, worded for what it holds ("← Previous briefing" / "Next briefing →", "← Previous rule" / "Next rule →", "← Previous topic" / "Next topic →").
-- **On a modal's last item, Next becomes "On to <next modal>"** and opens that modal at its first item. **On its first item, Previous becomes "Back to <previous modal>"** and opens that at its last
-- **Going forward,** on the last item the way on breathes (a soft pulsing outline) and the next modal's peek lights up. At the Glossary, the end of the chain, the header's **Close** fills in instead; the Glossary's footer holds only the way back to The city
+**Inside every modal** *(Dylan; v0.17)*:
+- **Margins:** wider, even margins around the header, the tabs, the content, and the footer, all scaled from one number so they keep their proportions; **the reading text sits further in still, centred top to bottom** in its card. In a window under 760px tall, the top and bottom margins come in
+- **No rule lines** under the header or the tabs, or over the footer
+- **Body text** at 15px, a little larger than the screen's; the city's list and the glossary keep the screen's size
+- **Lists** in the text are lists: lines that start "- " become bullets with a small accent dot, lines that start "1." a numbered list with quiet numerals, both with a hanging indent and a little room around them
+- **Edges that fade where there's more to scroll,** top or bottom; **a card whose text only just fits doesn't scroll at all** (its bottom margin gives way), so nothing moves without showing more
+- **More Below** on any reading area that scrolls (not the city's list or the glossary's), **in line with the page counter** where there is one, small (10px). Clicking it scrolls on; it doesn't change which way the modals' highlights point
+
+**Footers that chain them** *(Dylan; v0.16)*: every modal has **Previous** and **Next** at its foot, worded for what it holds ("← Previous Briefing" / "Next Briefing →", "← Previous Rule" / "Next Rule →", "← Previous Topic" / "Next Topic →").
+- **On a modal's last item, Next becomes "On to <next modal>"** and opens that modal at its first item. **On its first item, Previous becomes "Back to <previous modal>"** and opens that at its last ("Back to the Rules": the modal's name keeps its title case, its "The" goes lower case after "to", *v0.17*)
+- **Going forward,** on the last item the way on breathes (a soft pulsing outline) and the next modal's peek lights up. At the Glossary, the end of the chain, the header's **Close** fills in instead; the Glossary's footer holds only the way back to The City
 - **Going backward,** everything mirrors: **cards slide in from the left**, the back button carries the breathing outline, Next and "On to …" go plain, and on the first item the back button fills and the previous modal's peek lights up. At the briefing's first card, the start of the chain, Close fills in
+- **The Glossary opened straight from the chat** *(Dylan; v0.17)*, not walked to from The City, has nowhere further to go, so **its way back to The City carries the breathing outline**
 - **Motion is subtle** *(Dylan; v0.16)*: a card or city entry slides 24 pixels, one modal giving way to the next 48, anything that grows starts at 97%; all in 300 ms. Theme tokens; with reduced motion set, nothing slides
 
-**Your briefing is a card deck, five cards for the player** *(Dylan; v0.16)*: **Who you are → Your errand tonight → What you want → What you know → Relationships,** then **Your past** where there is one.
+**Your briefing is a card deck, five cards for the player** *(Dylan; v0.16)*: **Who You Are → Your Errand Tonight → What You Want → What You Know → Relationships,** then **Your Past** where there is one.
 - **Left out for the player:** How you speak, Resources, and Social awareness. They serve the AI guests' prompts (the briefing text is unchanged); the screen already shows what Social awareness says
-- **Merged:** **What you want** is the faction's aims, then **Your own reasons** (the other goals). **What you know** is what you know, then **Keep to yourself** (the secrets)
+- **Merged:** **What You Want** is the faction's aims, then **Your Own Reasons** (the other goals). **What You Know** is what you know, then **Keep to Yourself** (the secrets)
 - The setting pack lists the cards to leave out and the merges (new title, the cards in order, a subheading for each later card), so a reskin names its own (The Player's Words)
+- **The tabs are the cards' titles** *(Dylan; v0.17)*: larger (16px), **wrapping onto a second line** rather than reaching into the side margins, and **fixed under the modal's title**, so they never move as you change cards. The card doesn't repeat its title; its text starts a short way below the tabs. *(Centring the tabs and text together was tried and dropped: the tabs jumped from card to card)*
 - **Clicking anywhere below the card,** the footer's blank space included, turns to the next; tabs along the top jump; the arrow keys work
 
-**The rules** are buttons, one per section, that **stay in view** *(v0.16)*: a section opens as a card over them. A click on the card turns to the next section; ×, Escape, or a click outside the card goes back to the buttons; a click on the empty space around the buttons opens the first section. The primer's capitalized opening heading shows in sentence case ("The evening"), like the others.
+**The rules** are buttons, one per section, that **stay in view** *(v0.16)*: a section opens as a card over them. A click on the card turns to the next section; ×, Escape, or a click outside the card goes back to the buttons; a click on the empty space around the buttons opens the first section.
+- **The player's own rules** *(Dylan; v0.17)*: the rules modal no longer shows the AI guests' primer (Technical Design's block 2) but **a text written for the player**, in the order a player learns the evening: The Evening, How to Win, Your Errand, The Order of the Evening, **Stages and Turns** (new: stages, turns, what you can say when, and moving), Conversations, Money and Bribes, France's Payroll, Midnight, Candidates and the Vote. Its words are in The Player's Words; its numbers are the game's own (Technical Design handoff)
+- **Roman numerals** *(Dylan; v0.17)*: each section button carries its numeral in a small round badge at its left, its name centred; an open section's title reads "V. Stages and Turns", the numeral in plain text
+- **Behind an open section,** the buttons are dimmed lightly and slightly blurred *(Dylan; v0.17)*, so the card stands out while the buttons stay just readable. The dimmed backdrop stops at the modal's header and footer, square at its corners
+- The glossary's "More in the Rules" follows the new section names (Ballot, Candidate, Run-off, Speeches, and /repent open Candidates and the Vote; Move, Round of mingling, and Council open Stages and Turns; Gonfaloniere opens The Evening; Errand opens Your Errand)
 
-**The city** is an inbox-style list under subject headers. An open entry has **Previous and Next topic** at its foot, and a click anywhere on it turns to the next topic; the way back to the list stays put while only the topic slides.
+**The city** is an inbox-style list under subject headers. An open entry has **Previous and Next Topic** at its foot, and a click anywhere on it turns to the next topic; the way back to the list stays put while only the topic slides. *(v0.17)* The list's subject headings stick at its top as you scroll, with a fade under them, and nothing shows above the stuck heading; on the first topic, the way back to the list has nothing to its left, so it isn't shown twice.
 
-**The glossary** is alphabetical, searchable, with "More in the rules" under an entry with a section behind it, and dotted underlines in the chat (v0.7).
+**The glossary** is alphabetical, searchable, with "More in the Rules" under an entry with a section behind it, and dotted underlines in the chat (v0.7). **Its terms' names are 14px** *(Dylan; v0.17)*, a step down from 15px over their 13px definitions.
 
-### The Web of Confidences *(Dylan, Nov 12–13; renamed and reworked v0.16)*
+### The Web of Confidences *(Dylan, Nov 12–13; renamed and reworked v0.16; v0.17)*
 
 **Renamed** *(Dylan, Nov 15)*: the Web of Secrets is **the Web of Confidences**. "Web of Confidences" as a title or label (the bar, the glossary's term), "the Web of Confidences" in a sentence.
 
 **The dock** *(v0.16)*: a raised bar along the bottom with ▲, the title, and the selected guests. **It's the top layer:** it slides up over everything, the floating cards included, with a deep, wide shadow that grows as it opens. **It slides up and down over 600 ms** (with reduced motion, it doesn't slide). Up to two guests can be selected in it; the selection is shared with the chat.
 
 **The web** *(v0.5; v0.16)*:
-- **A fixed ring, read like a clock** *(Dylan; v0.16)*: with twelve guests, the first in the roster sits at half past nine and the rest follow clockwise, an hour apart. In Florence's roster that puts the Medici at the upper left, the Pazzi upper right, the Dominicans lower right, and the French Embassy lower left. **Each faction's name sits outside the middle of its arc,** except the first faction's, which sits half an hour later (the Medici at 11:00) to clear the key. The rule is by roster order, not names
+- **A fixed ring, read like a clock** *(Dylan; v0.16)*: with twelve guests, the first in the roster sits at half past nine and the rest follow clockwise, an hour apart. In Florence's roster that puts the Medici at the upper left, the Pazzi upper right, the Dominicans lower right, and the French Embassy lower left. **Each faction's name sits outside its arc at a set hour** *(Dylan; v0.17)*: the first at 11:00, the second at 1:00, the third at 5:00, the fourth at 7:00 (the Medici, the Pazzi, the Dominicans, the French Embassy). The rule is by roster order, not names. **A long name** (two words or more, over a dozen letters: the French Embassy) **wraps onto two lines.** A clicked name has no focus box; reached by keyboard, it's underlined
 - **Roomier,** and **fitted to its space:** the drawing's frame is fitted to what's drawn, so the web draws as large as the panel allows, centred in the space left of the side column, with the key over its top-left corner and the web moved aside so nothing runs under the key
+- **With margins round it, and a limit** *(Dylan; v0.17)*: the whole drawing shrinks to stand clear of the screen's left edge (56 to 120px) and of the side column (32 to 80px), and it never draws larger than 820px across, so its names stay their size on a big screen. Nothing in it is redrawn: it's the same picture, smaller. *(Widening the ring's gaps at 3 and 9 o'clock was tried instead and dropped: Dylan wanted the margins, not a different drawing)*
 - **Names under their circles.** Where two guests sit side by side at the top or bottom of the ring, each name moves outward as far as it can without reaching the next guest's circle
 - **Selecting:** a selected guest's ring is twice as thick, and there's no focus box around a clicked guest (keyboard focus gets a thin dashed ring instead). **Every line that doesn't touch the selection fades,** as lines of other types do when one is picked in the key
 
@@ -410,11 +477,11 @@ Each opens as a modal over the screen. **Four modals in a row:** Your briefing, 
 - **One line per pair and type.** Where your briefing gives your own take on a tie everyone knows, the one line drawn is the public one; your take still shows on the guest's card and in Il Notaio's reading
 - **The halo marks a secret** *(Dylan)*: only your ties that no public tie matches (for Francesco: his romance with Clarice, his rivalry with Raffaello, his alliance with Friar Tommaso). Ties everyone knows are drawn plain
 - **Pairs with two different ties** still draw their lines close together; side-by-side lines were tried and parked (Open Questions)
-- **The key:** the six types, then a **"Secret"** row with its halo swatch and a short line under it: "A tie no other guest knows of. Ties everyone knows are drawn plain." **Every row is selectable,** "Secret" included: it lights its lines and fades the rest; clicking again clears. The key is collapsible, and **grows and shrinks with the window** (about 0.8× to 1.45× its size at a 1440-pixel window), keeping its proportions
+- **The key:** the six types, then a **"Secret"** row with its halo swatch and a short line under it: "A tie no other guest knows of. Ties everyone knows are drawn plain." **Every row is selectable,** "Secret" included: it lights its lines and fades the rest; clicking again clears. The key is collapsible, and **shrinks a little in a small window but grows no larger than its size at a 1440-pixel window** *(v0.17; it grew to 1.45× before)*, keeping its proportions. **Below 1200px wide it folds itself away** so it doesn't cover the drawing, and comes back above that, unless the player has folded or opened it themselves (Screen Sizes)
 
-**The side column** (What you heard and saw, and Notes) **grows and shrinks with the window,** about 28% of its width *(v0.16)*.
+**The side column** (What You Heard and Saw, and Notes) **grows and shrinks with the window,** about 28% of its width *(v0.16)*, **from 280 to 480px** *(v0.17)*. **In a window under 840px wide it folds to a strip** with a handle along the web's right edge ("What You Heard and Saw · Notes"), so the web keeps at least 560px; the handle opens it over the web *(Dylan; v0.17)*.
 - **One guest:** their lines in your presence, newest first. **A pair:** what one said to the other. **An empty pair** says why: "You haven't yet heard Giorgia Pazzi or Lupo speak to the other. Only what one says to the other shows here." *(v0.16)*
-- **Il Notaio's reading** opens **a little higher than the stage summary,** about a seventh of the way down the column, with the column behind it faded and an upward shadow; a click minimizes it to the foot (v0.5; v0.13; v0.16)
+- **Il Notaio's reading** opens **a little higher than the stage summary,** about a seventh of the way down the column, with the column behind it faded and an upward shadow; a click minimizes it to the foot (v0.5; v0.13; v0.16). **Show / Hide** at the right of its title, and **his words read larger while it's open** *(Dylan; v0.17; Onboarding, His boxes)*
 
 **Notes** *(Dylan, Nov 12; v0.7; reworked v0.16)*:
 - **The Notes tab always lists every note,** grouped: each guest, then each pair, then free notes, newest first within a group. Selecting no longer narrows the list
@@ -427,7 +494,36 @@ Each opens as a modal over the screen. **Four modals in a row:** Your briefing, 
 
 Every control and panel has a short explanation on hover or focus, **in plain, short English** (Explanations, near the end). A switch turns them off, remembered in the browser. **The switch governs only the explanations** *(Dylan; v0.16)*: turning them off no longer stills the breathing highlights. Only the system's reduced-motion setting does that.
 
+**On a touchscreen** *(v0.17)*, which has no hover, **a long press** (about half a second) shows the explanation without pressing the thing; a tap still acts at once. A glossary word in the chat shows its meaning on a tap. The highlights that only answer a hover (the side modals' and paddles' rings) show only where there is hover, so a tap can't leave one stuck.
+
 **Hovers that tell you about the world** *(v0.16)*, rather than about the screen (a place's description, a glossary word, Il Notaio's name), **show as a light card,** like the stage bar's tooltip, so they read apart from the dark explanations. They show even with explanations off.
+
+---
+
+## Screen Sizes *(Dylan, Nov 16; v0.17)*
+
+The screen is laid out for **a laptop, a desktop, or a tablet held sideways.** What grows, what shrinks, and where each stops:
+
+| Part | Size |
+|---|---|
+| Left panel | Grows with the window, 284 to 332px (about a quarter of the window) |
+| Right panel ("Talking With") | Grows with the window, 280 to 480px; starts folded under 1044px wide |
+| The conversation's column | At least 540px wide, so the stage bar fits; its reading column (the lines, Il Notaio's boxes, the message box) at most 820px, centred |
+| The stage bar | At most 900px, centred |
+| The conversation's height | At least 200px; Il Notaio's hint folds itself first |
+| The message box | Grows to nine lines, or about a fifth of the window's height in a short window (three lines at least) |
+| The modals | 640px wide, 30px corners; their row never narrower than the modal and two paddles, scrolling sideways below that |
+| The side modals | Whole modals from 1408px wide, up to 80% of the modal in focus; paddles below |
+| The Web of Confidences' drawing | At most 820px across, with margins round it |
+| Its key | No larger than its size at a 1440px window; folds itself under 1200px wide |
+| Its side column | 280 to 480px; folds to a strip under 840px wide |
+| The smallest labels | A pixel larger from 1800px wide (11 to 12px; More Below 10 to 11px) |
+
+- **Short screens** (a laptop with the browser's bars leaves 650 to 700px): the message box caps as above, **the modals stay clear of the Web of Confidences' bar,** and under 760px tall their top and bottom margins come in
+- **Things that fold themselves** (Il Notaio's hint, the web's key) come back on their own when there's room, **unless the player has folded or opened them,** which takes them over
+- **Phones are left out for now** *(Dylan)*. Under 760px wide, **a note** stands in for the screen: **"Made for a Larger Screen"**, "Gonfaloniere is laid out for a laptop, a desktop, or a tablet held sideways. On a screen this narrow it won't fit well yet. Turn your device sideways, or open the game on a bigger screen.", and **Continue Anyway**, which holds for the visit. The screen behind is set aside while it shows, so the page fits the phone. A one-column phone layout is an open question
+- **Touchscreens:** a long press for explanations (Hover explanations)
+- **Long labels:** a translation or a reskin can run longer. With every short label half again as long, nothing spilled; the two places that would at greater lengths were fixed (Return to current stage grows taller; a paddle's title ends in "…"). Notes for the Build asks for a test
 
 ---
 
@@ -496,7 +592,7 @@ Right after the choice of character, a short guided tour: one part of the screen
 6. **The conversation and the message box:** "Type what your character says, then click Speak. Start with @ to talk to one guest, or / to act. The other guests think it's 1492, so modern talk will confuse them." It keeps the warning (v0.14), shorter
 7. **The right panel:** "The guest you're talking with, or the one you clicked. Only what everyone knows."
 8. **The Web of Confidences:** "The Web of Confidences: who's connected, what you've heard, and your notes."
-- **It ends on the Your briefing button:** "Start with your briefing." Clicking it opens the briefing and ends the tour. **If the tour is skipped, Your briefing breathes** (a soft pulsing outline) until the player clicks it or anywhere else *(v0.16)*
+- **It ends on the Your briefing button:** "Start with your briefing." Clicking it opens the briefing and ends the tour. **If the tour is skipped, Your Briefing breathes,** filled in with the accent *(v0.17; an outline in v0.16)*, until the player clicks it or anywhere else
 - **It runs once,** remembered in the browser; **Show me around** runs it again. The game holds its first line until it ends (Technical Design v0.51; #146)
 - Its words live in the setting pack's `notaio.json` › `tour`
 
@@ -521,8 +617,15 @@ How a new player learns the game without a tutorial up front.
   - **Whenever he says something new, his box flashes** (a brief accent glow) **and the new words fade in** *(v0.16)*, so the player notices. Going back to the line he gave before a refusal doesn't flash
   - **No first-council note at the start** *(Mechanics v0.37)*: the evening now opens on the first round of mingling, so his first line is the mingling one. His council line ("Your faction is meeting alone. Only your own people can hear you.") shows at each council
   - **It steps aside while an earlier stage is open** (Past stages)
+  - **In a short window it folds itself** *(Dylan; v0.17)* when the conversation would have less than about 200px, and opens again by itself once there's room, unless the player has folded or opened it in the meantime (Screen Sizes)
   - Templates only, from `notaio.json`, no model calls. Styled apart from his announcements to the room
 - **Hover explanations** (The Screen, above); **Il Notaio's reading and past-stage summaries** (Principles)
+
+**His boxes** *(Dylan; v0.17)*: his hint ("Il Notaio, to You"), his reading in the Web of Confidences, and his summary of a past stage all open and close, and all behave alike:
+- **His words in his typeface,** the Renaissance one (The Look); the boxes' titles stay in the screen's sans
+- **Larger while open:** his words at 16px open, 13px minimized (never smaller than today's); his small lore notes grow in step (11px to about 13px). The size changes in one step as the box opens or closes, never animated, so the lines rewrap once
+- **The title is sized from his open words** (about 87% of them, about 14px) and stays that size open or minimized
+- **Show / Hide** at the right of the title, in the small label size (11px), saying what a click will do
 
 **Il Notaio for the player in v1** (Mechanics, Il Notaio — Player-Facing Duties; not needed for the milestone):
 - **Questions:** the player can @-mention Il Notaio to ask about the rules or the game, as a private aside. *The call is Technical Design's*
@@ -627,7 +730,73 @@ The setting pack's strings v0.16 changes or adds. Keys that exist keep their nam
 | `notaio.json` › `tour.steps` | The eight short cards and "Start with your briefing." (The Tour) |
 | `screen.hints` | Every explanation (Explanations, below) |
 
-**Not this doc's words** (tracker handoffs): each guest's **role line** ("head of the Pazzi family") and **short errand line** are Characters'; the stage names **"The choosing of candidates"** and **"The last <faction> council"** go in the in-world names, Technical Design's; the glossary's **Errand** entry should point to the rules section on errands once the primer has one.
+**Not this doc's words** (tracker handoffs): each guest's **role line** ("head of the Pazzi family") and **short errand line** are Characters'; the stage names **"The choosing of candidates"** and **"The last <faction> council"** go in the in-world names, Technical Design's; the glossary's **Errand** entry should point to the rules section on errands once the primer has one *(v0.17: the player's own rules have one, Your Errand, and it does)*.
+
+### v0.17: title case, the player's rules, and new words
+
+**Title case** *(Dylan; v0.17)*. Names, headings, and buttons are in title case: modal and panel names ("Your Briefing", "The Web of Confidences", "Talking With", "The Places"), the briefing's tabs, the rules' section names, the city's topic titles, stage names, Il Notaio's box titles, the left panel's labels ("Payments from France", "Secret Conversations"), and buttons ("Show Me Around", "End Conversation", "Next Briefing", "More Below", "Explanations: On"). **Sentences, prompts, placeholders, descriptions, and status lines stay as they are** ("No one has your ear", "Your turn: speak or pass."), and so does what's already in capitals. **The places stay as Lore writes them** ("The great hall"), since they also appear mid-sentence ("In the great hall with…").
+- **The rule:** every word capitalized, except small words (a, an, the, and, but, or, nor, for, of, on, in, to, at, by, with, as, from, into, per, vs) and a name's own particles (de', di, d', da, del, della), which stay lower case unless they open or close the name; a small word that arrives capitalized inside a name goes lower case ("Back to the Rules"). Words already carrying capitals keep them ("LeNoir")
+- **Applied on the screen, not in the source:** the briefing's tabs, the rules' sections, the city's topics, and the stage names come from other docs' text, so the screen title-cases them for display and matches them without regard to case. The setting pack's own labels are simply written in title case. **The small words live in the setting pack** (`player.json` › `titleCase.small`, **new**), so a pack in another language can empty the list or turn the rule off (`titleCase.on`, **new**)
+
+**The player's rules** (`player.json` › `rules`, **new**). The rules modal's text, in place of the AI guests' primer. `{start}`, `{income}`, `{payroll}`, `{vote}`, and `{currency}` are the game's values; the errand section has two endings, by whether `plot_reward` is on. Paragraphs that open "Name:" start a section; the paragraphs under it continue it.
+
+> THE EVENING
+> Tonight the city's factions (the Medici, the Pazzi, the Dominicans, and the French Embassy) scheme over who will be elected Gonfaloniere, the head of Florence's government. Only a Medici or a Pazzi may stand.
+>
+> How to win: the moment the vote is announced, the winner is decided in this order.
+> 1. The Dominicans win if the elected candidate has publicly repented.
+> 2. Otherwise, the French Embassy wins if anyone in the winner's family is on France's payroll, as long as one member of the Embassy still lives.
+> 3. Otherwise, the elected candidate's family, Medici or Pazzi, wins.
+> A faction needs at least one living member to win. You win if your faction does, even if you died along the way.
+>
+> Your errand: your briefing gives you one task of your own tonight, and it comes first. *(reward on)* Finish it before the last council before midnight and you secretly earn one extra act at midnight: a second kill, guard, or watch, on a different guest. No one else is told. *(reward off)* In this game, finishing it earns no extra act at midnight.
+>
+> The order of the evening: three rounds of mingling, each followed by a council of your own faction. Then midnight. Then the Medici and Pazzi each choose a candidate, the candidates give speeches, every faction holds one last council, and the secret ballot ends the evening.
+>
+> Stages and turns: the evening moves in stages, shown in the bar at the top of the screen. The rounds of mingling and the councils are made of turns; midnight and the ballot are single choices.
+>
+> A turn is twelve lines spoken across the whole house, in every conversation at once. With four groups of three, that's about one line from each guest. A round of mingling lasts 12 turns, a council 3, and the last council 2.
+>
+> In a group or a council, you say one thing each turn. Type whenever you like, and your words are said at the next pause in your conversation. Pass gives up your line for the turn. If someone speaks to you directly, the game waits for your answer, and answering doesn't use up your line.
+>
+> In a secret conversation, the two of you take turns, and the game waits for you each time. It lasts six lines at most, and either of you can end it sooner; the other then gets a last word.
+>
+> Moving. At the end of every turn, one guest gets a chance to move, in an order drawn fresh at the start of each round of mingling, so you get one chance each round. When yours comes, you can stay, join another guest's group, or start a secret conversation with any guest. You move toward a person, not to a place. If your chance comes while you're in a secret conversation, you stay where you are and the chance is lost. The line above the message box says when yours is next.
+>
+> Conversations: guests talk in groups of two to four, or two slip away into a secret conversation (a Colloquio), which no one else can join or hear. Starting one uses your chance to move, and the guest you choose can't refuse.
+>
+> Il Notaio, the evening's notary, notes who joins, who leaves, and who slips away, and everyone present hears his notes, so slipping away often invites suspicion. Everyone can see who is in which part of the house, but only those in a conversation hear what's said.
+>
+> When a secret conversation ends, the guest who was invited chooses first, from the groups with room or a secret conversation of their own, which costs them no move. The one who started it goes back to the group they left, or to the smallest group if that one is full.
+>
+> Money and bribes: everyone begins with {start} {currency} and receives {income} more at the start of each round of mingling. Purses are private. A bribe is {currency} handed to the guest you're in a secret conversation with (/bribe); whatever is promised in return is a matter of honor, not law.
+>
+> France's payroll: any Medici or Pazzi may take a payroll payment of {payroll} {currency} from the French Embassy at any time (/borrow), which puts them on France's payroll. Each payment can be paid back before the ballot, {payroll} {currency} at a time (/repay), by the one who took it or by a relative who knows of it; with every payment paid back, they're off the payroll. The payroll is private; only the Embassy keeps the full ledger.
+>
+> Midnight: each living guest secretly chooses one act: to kill, guard, or watch someone. All acts take effect at once, so a guest who dies at midnight still carries out their own act. A guest guarded by two or more survives an attack. A guest watched by two or more can't carry out their kill. You can't guard yourself. Killers are never named. The dead lose their {currency} and their place on France's payroll; nothing is inherited.
+>
+> Candidates and the vote: after midnight, the Medici and the Pazzi each choose one living member as their candidate. Each candidate gives a speech, and then anyone may speak.
+>
+> During the speeches only, a candidate may publicly repent (/repent). It's permanent, and if a repentant candidate is elected, the Dominicans win.
+>
+> After one last council, every living guest casts one secret vote for any living guest, and may buy extra votes for that same guest at {vote} {currency} each (/buy). Most votes wins, and Il Notaio names only the winner. If the top guests tie, everyone votes once more among only those guests, with no buying; if that ties too, the winner is drawn by lot.
+
+*How the screen gets the values is Technical Design's (tracker handoff); the demo reads them from the primer. Every rule here restates Mechanics v0.37, which Mechanics checks (tracker). The glossary's `rules` pointers follow the new names (Briefing, rules, the city, and the glossary).*
+
+**New words** (`player.json`, all **new**):
+
+| Key | Words |
+|---|---|
+| `screen.modalRow.paddle.left` / `.right` | ‹ / › |
+| `screen.web.sideShow` | What You Heard and Saw · Notes |
+| `screen.web.sideShowLabel` / `sideHideLabel` | Show what you heard and saw, and your notes / Hide what you heard and saw, and your notes |
+| `screen.narrow.title` | Made for a Larger Screen |
+| `screen.narrow.text` | Gonfaloniere is laid out for a laptop, a desktop, or a tablet held sideways. On a screen this narrow it won't fit well yet. Turn your device sideways, or open the game on a bigger screen. |
+| `screen.narrow.go` | Continue Anyway |
+| `titleCase.on` / `titleCase.small` | true / the small words above |
+
+**Show / Hide** on Il Notaio's reading and his summary reuse `screen.notaioHint.show` and `.hide`.
+
 
 ---
 
@@ -730,6 +899,7 @@ Every hover explanation, in plain, short English (Dylan, Nov 15). `player.json` 
 | `factLink` **new** | Click for the rules on this. |
 | `lookingAtSelf` **new** | Your own card: what everyone knows about you. |
 | `generate` **new** | Have the model write a line for your character. It goes in the box for you to change; nothing is said until you press Speak. |
+| `webSide` **new in v0.17** | What you heard and saw, and your notes. Click to open or close. |
 
 ---
 
@@ -759,6 +929,18 @@ How the screen looks (colour, type, texture, icons, and the values of every them
 - **The light "world" card** for hovers about the world, apart from the dark explanations
 - **The solid red** of End conversation, with its words and hover, in light and dark (its own tokens, since dark mode's danger colour is a light text pink); **the "Secret" halo** on the web; **your own card's accent edge**
 - **Generate's words:** their own colour (a new token; the demo's teal is a placeholder), on the same button as @ and /
+
+**New in v0.17, for Art & Design to give values** (the demo's values are placeholders, Dylan's choices in the review where noted):
+- **Three typefaces** *(Dylan)*: the screen's words in its sans; **the guests' words**, and what the player types, in a book serif (the demo uses Source Serif 4); **Il Notaio's** in a Renaissance face (the demo uses EB Garamond), upright in the chat. Each needs a token, and each a size adjustment to match the sans's x-height. Dylan's brief: nothing tacky, ostentatious, or hard to read
+- **Il Notaio's sizes:** his words 16px open and 13px minimized, his notes in step, his title about 87% of his open size, his Show / Hide 11px (Onboarding, His boxes)
+- **Corners:** the modals 30px, the right panel's top and its cards' 22px, the paddles 12px
+- **Blurs:** the screen behind an open modal (5px), the whole side modals (3.5px), the rules' buttons behind an open section (2.5px, dimmed 26%, 40% in dark mode)
+- **The side modals and paddles:** the same colour as the modal in focus; their hover ring and accent title; a clicked paddle's flash (accent fill and ring, light words)
+- **The modals' margins** (one scale for all), their body text (15px, line height 1.6), and **the scroll fades** (36px) where there's more to read
+- **The rules' numeral badges** (a small round badge, the numeral in a serif) and **the list marks** (an accent dot; quiet, bold numerals)
+- **More Below** at 10px; **the smallest labels** a pixel up from 1800px wide
+- **The filled, breathing Your Briefing** after a skipped tour, and the breathing outline on the Glossary's way back
+- **The phone note's** page
 
 ---
 
@@ -904,13 +1086,40 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | The errand card's reasons in the sidebar | Just the task there; the reasons stay in the briefing | Left |
 | A Generate button that has the model write a response for you; then inside the box by @ and /, the same button with only its words coloured, not bold | Fills the box, never sends; after @ and / | The input box |
 
+**Demo review, part 2** (Dylan, Nov 15–16; v0.17). The rest of the review, after v0.16 merged: comments on the page and screenshots in the chat, each tried in the demo first. The main points:
+
+| What Dylan found or asked | Decision | Here |
+|---|---|---|
+| The message box should grow as it fills; then grow fully; then cap at nine lines; the cursor jumped to the end when editing | Grows to nine lines, then scrolls; cursor stays put; in a short window, a fifth of its height | The input box; Screen Sizes |
+| The left panel should grow with the window; the chat column needs a minimum; the right panel and the web's side column should get out of the way when it's narrow | 284–332px (then a little narrower); at least 540px for the conversation; the right panel starts folded under 1044px; the web's column folds under 840px | Left; Right; The Web of Confidences; Screen Sizes |
+| Should the card's slide-up replay every time the right panel reopens? | No: it's simply there; it slides only when the selection changes | Right |
+| Too much highlights when you click around; then: everything in the chat, names included, and What You Heard and Saw | Only what's worth copying can be selected | Selection |
+| The order of the evening in the rules: deeper, or a new section? Retitle, reorganize? | A new Stages and Turns section and the player's own rules text, reordered and renamed | Briefing, rules, the city, and the glossary; The Player's Words |
+| The modals' margins: bigger, then the text further in and centred top to bottom, then smaller again; then about 15% more for everything | One scale for all the margins, text centred in its card | Briefing, rules, the city, and the glossary |
+| Titles centred; no lines; body text a little larger, but not on the city's list or the glossary | Done | Briefing, rules, the city, and the glossary |
+| Scrolling: a fade where something slides under; More Below buttons; cards that scroll without showing anything; More Below changed the highlights | Scroll fades; More Below on reading areas; a nearly-fitting card doesn't scroll; More Below leaves the highlights alone | Briefing, rules, the city, and the glossary |
+| Roman numerals on the rules' buttons, and in the open section's title as plain text; shadows on the buttons and a fade on the backdrop (dropped) | Numeral badges; numbered titles; the backdrop lighter and slightly blurred | Briefing, rules, the city, and the glossary |
+| The briefing's tabs bigger, wrapping, no repeated titles; centring them with the text made them jump | Tabs as titles, fixed under the modal's title | Briefing, rules, the city, and the glossary |
+| The right side modal seemed to slide under the right panel | The screen behind a modal is blurred, so no hard edge shows | Principles |
+| The side modals: larger; whole cards when there's room, then paddles; titles on end, then flat; blur, then graded, then even; darkened, then the modal's colour; hover and click cues; a minimum width; margins at the screen's edges; never as large as the modal in focus | Two sizes, whole modals and paddles, as described | Briefing, rules, the city, and the glossary |
+| Rounder corners on the modals (then rounder still), but not the paddles; rounder tops on the right panel | 30px, 12px, 22px | The Look |
+| Il Notaio's words larger when his box is open, never smaller than now; his title in proportion; Show / Hide on all his boxes; his summary as wide as the message box | His boxes, all alike | Onboarding, His boxes; Past stages |
+| A different typeface for dialogue and for Il Notaio | Three typefaces | The Look |
+| Title case where it makes sense | A rule in the setting pack, applied to names, headings, and buttons | The Player's Words |
+| What could use a maximum or minimum size? (the web and its key first) | Limits across the screen; phones left out, with a note; touch, short screens, small labels, long labels | Screen Sizes |
+| The web's faction names at 1, 5, and 7 o'clock, "French Embassy" wrapped, no blue box on click; then more room around the drawing (widening the ring's gaps was the wrong fix) | Set hours by roster order; margins round the whole drawing | The Web of Confidences |
+| Bullets and numbered lists in the modals' text should look better | Real lists | Briefing, rules, the city, and the glossary |
+| Your portrait and name bigger; the skipped tour's Your Briefing filled in; the Glossary's way back highlighted when opened from the chat | Done | Left; The Tour; Briefing, rules, the city, and the glossary |
+
 ---
 
 ## Open Questions
 
 - **Your midnight choices in the sheet afterwards** ("You guarded Giorgia; you watched Lupo"), and **"Choosing now"** during midnight: ideas for later, not decided (Dylan, Nov 14)
 - **A storybook opening, maybe in v2** (Dylan): illustrations and more interaction, with Art & Design
-- **Does the full game's stage bar fit?** *(v0.16)* Eleven stages fit from a 1100-pixel window up in the demo. Check on the first full game, and at narrower windows
+- **Does the full game's stage bar fit?** *(v0.16)* Eleven stages fit from a 1100-pixel window up in the demo, and the conversation's column now never narrows below them (v0.17). Check on the first full game
+- **Phones** *(v0.17)*: left out for now, with a note. A one-column layout (the side panels as drawers) is a bigger job, if phones are ever wanted
+- **Touch** *(v0.17)*: the long press for explanations is untried on a real tablet; check it there
 - **A missed movement window** *(v0.16; watch item, not a handoff)*: a window that falls while you're in a Colloquio is lost (Mechanics). The screen now says when yours is due and when one was missed. If playtests show it feels unfair, ask Mechanics whether a lost window should come back afterwards
 - **Is Il Notaio conservative enough, or too thin?** Read his readings and summaries in the first playtests (v0.13). Without "He may be wrong" *(v0.16)*, check that players still read his boxes as his report, not the game's truth
 - **Should his box start minimized?** It stays expanded, now opening lower with the column faded behind it (v0.13; v0.16)
@@ -943,7 +1152,7 @@ A first draft of the glossary's entries, from Mechanics v0.34, in the in-world n
 | **/conclude** | Privately record what you've worked out, for an errand that asks you to find something out. Only your latest conclusion counts |
 | **Council** | A private meeting of your own faction. Nothing is shared unless someone says it aloud |
 | **Dominicans** | The friars' faction. They can't go on France's payroll. They win if the guest elected Gonfaloniere has repented |
-| **Errand** | Your character's own task tonight, in your briefing. Your errand card says what finishing it earns. *(v0.16: once the rules primer has a section on errands, the entry points to it)* |
+| **Errand** | Your character's own task tonight, in your briefing. Your errand card says what finishing it earns. *(v0.17: its "More in the Rules" opens Your Errand, in the player's rules)* |
 | **Florins** | The evening's money. Everyone starts with 10 and receives 1 at the start of each round of mingling. Purses are private |
 | **French Embassy** | France's faction. It keeps the treasury that pays France's payroll, and knows who is on it. It wins if anyone in the elected candidate's family is on France's payroll |
 | **France's payroll** | Taking a payroll payment, 3 Florins from the French Embassy, puts a guest on France's payroll. If anyone in the winning candidate's family is still on it at the ballot, France wins. Who is on it is private unless someone tells |
