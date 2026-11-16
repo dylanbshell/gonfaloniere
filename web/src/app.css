@@ -1,7 +1,10 @@
 /* The components' styles. Only theme.css's tokens: no colour, font, size, spacing, or radius is written here. */
 
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: var(--text-md); line-height: var(--line-height); }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: var(--text-md); line-height: var(--line-height); -webkit-user-select: none; user-select: none; }
+/* Interface v0.17, Selection: only what's worth copying can be selected as text: the guests' lines and their names, Il Notaio's
+   lines, what the player types, What You Heard and Saw, and their notes. A stray drag or double-click highlights nothing else. */
+.ln, .heard, .saw, .note-text, textarea, input, .opening-story, .end { -webkit-user-select: text; user-select: text; }
 button, select, textarea, input { font: inherit; color: inherit; }
 button, .button { background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-md); padding: var(--space-1) var(--space-3); cursor: pointer; text-decoration: none; display: inline-block; }
 button:disabled { opacity: var(--opacity-disabled); cursor: default; }
@@ -33,6 +36,8 @@ h3 { font-size: var(--text-md); margin: 0 0 var(--space-3); }
 /* Portraits: initials in a faction-coloured circle */
 .portrait { display: inline-flex; align-items: center; justify-content: center; flex: none; width: var(--portrait-size); height: var(--portrait-size); border-radius: var(--radius-round); color: var(--portrait-text); font-size: var(--text-sm); font-weight: var(--weight-bold); }
 .portrait.large { width: var(--portrait-size-lg); height: var(--portrait-size-lg); font-size: var(--text-lg); }
+/* Interface v0.17: the player's own portrait, name, and role at the top of the left panel, a size up from the panel's other words */
+.me-briefing .portrait.large { width: var(--portrait-size-me); height: var(--portrait-size-me); font-size: var(--text-xl); }
 .who { display: flex; align-items: center; gap: var(--space-3); }
 .who.column { flex-direction: column; text-align: center; }
 .guest { text-decoration: underline dotted; text-underline-offset: var(--space-1); cursor: pointer; }
@@ -85,13 +90,18 @@ button.fact:hover .fact-label, button.fact:focus-visible .fact-label, button.lin
 .stream.behind > * { opacity: var(--behind-opacity); }
 .stream > * { transition: opacity var(--motion-slow) ease-out; }
 .ln { padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); }
-.ln .sp { font-weight: var(--weight-bold); font-size: var(--text-sm); margin-right: var(--space-2); }
-.ln .to { color: var(--text-muted); font-size: var(--text-sm); margin-right: var(--space-2); }
+/* A space stands between the speaker's name, "to …", and the words, so a copied line keeps them apart */
+.ln .sp { font-weight: var(--weight-bold); font-size: var(--text-sm); margin-right: var(--space-1); }
+.ln .to { color: var(--text-muted); font-size: var(--text-sm); margin-right: var(--space-1); }
 .ln .tx { white-space: pre-wrap; }
+/* Interface v0.17, three typefaces: what the guests say in the book serif, Il Notaio's words in his own face */
+.ln.speech .tx, .heard, .field textarea { font-family: var(--font-guest); }
+.heard .sp, .heard .muted { font-family: var(--font-body); }
+.ln.notaio .tx, .hint-text, .reading-text, .summary-items, .tour-text, .opening-story { font-family: var(--font-notaio); }
 .ln.mine { background: var(--surface-2); }
 .ln.to-you { background: var(--to-you-bg); }
-.ln.notaio { background: var(--notaio-bg); color: var(--notaio); font-style: italic; }
-.ln.notaio .sp { font-style: normal; }
+/* His lines in the chat are upright: the typeface sets him apart */
+.ln.notaio { background: var(--notaio-bg); color: var(--notaio); }
 .ln.action { color: var(--text-muted); font-size: var(--text-sm); }
 .ln.private { border: var(--border-width) dashed var(--border); }
 /* Earlier this stage: one line per earlier conversation in the current stage, opening in place */
@@ -187,8 +197,13 @@ button.lore-link.selected { background: var(--select-bg); }
 
 /* Il Notaio's hint: docked under the stream, apart from his announcements */
 .notaio-hint { position: relative; z-index: var(--z-float); margin: 0 var(--float-gap) var(--space-2); box-shadow: var(--shadow-up); background: var(--hint-bg); border: var(--border-width) solid var(--hint-border); border-radius: var(--radius-md); color: var(--hint-text); font-size: var(--text-sm); }
-.hint-head { display: flex; justify-content: space-between; width: 100%; border: none; background: transparent; color: inherit; font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-label); padding: var(--space-1) var(--space-3); }
-.hint-text { min-height: var(--hint-text-height); margin: 0; padding: 0 var(--space-3) var(--space-2); }
+/* Interface v0.17, His boxes: his hint, his reading, and his summary of a past stage behave alike. The title is sized from his
+   open words and stays that size open or minimized; Show / Hide at its right, in the small label size, says what a click will do. */
+.hint-head, .reading-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); width: 100%; border: none; background: transparent; color: inherit; font-family: var(--font-body); text-transform: uppercase; letter-spacing: var(--tracking-label); }
+.hint-head { padding: var(--space-1) var(--space-3); }
+.notaio-title { font-size: var(--text-notaio-title); text-align: left; }
+.notaio-toggle { flex: none; font-size: var(--text-xs); color: var(--text-muted); }
+.hint-text { min-height: var(--hint-text-height); margin: 0; padding: 0 var(--space-3) var(--space-2); font-size: var(--text-notaio-open); }
 /* Interface v0.16: whenever he says something new, his box flashes (a brief glow in the accent) and the new words fade in */
 .hint-glow { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; animation: hint-flash var(--motion-flash) ease-out; }
 .hint-text.fresh { animation: fade-in var(--motion-flash) ease-out; }
@@ -300,7 +315,7 @@ button.note-fold { font-size: var(--text-xs); padding: 0 var(--space-1); }
 /* Short windows, failed panels, and a steady layout (CC-20261113-01, #88) */
 .buttons.decks { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); margin-top: var(--space-3); }
 .buttons.decks button { font-size: var(--text-sm); padding: var(--space-1) var(--space-2); }
-.more-below { position: sticky; bottom: 0; display: block; margin: var(--space-3) auto 0; font-size: var(--text-xs); background: var(--surface); box-shadow: var(--shadow-raised); border-radius: var(--radius-round); }
+.more-below { position: sticky; bottom: 0; display: block; margin: var(--space-3) auto 0; font-size: var(--text-more); background: var(--surface); box-shadow: var(--shadow-raised); border-radius: var(--radius-round); }
 .notice.status { margin: 0; }
 .panel-error { margin: var(--space-2) 0; }
 
@@ -325,8 +340,9 @@ button.key-secret { align-items: flex-start; }
 .record-pane { position: relative; flex: 1; min-height: 0; }
 .record-scroll { height: 100%; overflow-y: auto; }
 .record-pane.covered .record-scroll { overflow: hidden; cursor: pointer; }
-.reading { position: absolute; left: var(--space-3); right: var(--space-3); bottom: var(--space-3); top: var(--reading-peek); overflow-y: auto; background: var(--hint-bg); border: var(--border-width) solid var(--hint-border); border-radius: var(--radius-md); box-shadow: var(--shadow-raised); color: var(--hint-text); font-size: var(--text-sm); padding: var(--space-2) var(--space-3); cursor: pointer; transition: top var(--motion-slow) ease-out; }
-.reading[data-state="minimized"] { top: auto; max-height: var(--reading-min-height); overflow: hidden; }
+.reading { position: absolute; left: var(--space-3); right: var(--space-3); bottom: var(--space-3); top: var(--reading-peek); overflow-y: auto; background: var(--hint-bg); border: var(--border-width) solid var(--hint-border); border-radius: var(--radius-md); box-shadow: var(--shadow-raised); color: var(--hint-text); font-size: var(--text-notaio-open); padding: var(--space-2) var(--space-3); cursor: pointer; transition: top var(--motion-slow) ease-out; }
+/* His words read larger while his box is open; the size changes in one step, never animated, so the lines rewrap once */
+.reading[data-state="minimized"] { top: auto; max-height: var(--reading-min-height); overflow: hidden; font-size: var(--text-notaio-min); }
 /* Interface v0.16: his summary of a past stage opens a fifth of the way down, with an upward shadow */
 .reading.past-summary { top: var(--summary-top); box-shadow: var(--shadow-up); }
 .reading.past-summary[data-state="minimized"] { top: auto; }
@@ -335,21 +351,25 @@ button.key-secret { align-items: flex-start; }
 .record-pane > .reading { top: var(--reading-top); box-shadow: var(--shadow-up); }
 .record-pane > .reading[data-state="minimized"] { top: auto; }
 .record-pane.covered .record-scroll > * { opacity: var(--behind-opacity); }
-.reading-head { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-label); margin-bottom: var(--space-1); }
+.reading-head { margin-bottom: var(--space-1); }
 .reading-text { margin: 0; }
-.reading-text.tally, .reading-tally { font-style: italic; }
+/* The tally is the screen's count, not his words: in the sans, at his notes' size */
+.reading-text.tally, .reading-tally { font-family: var(--font-body); font-style: italic; font-size: var(--text-notaio-note-open); }
+.reading[data-state="minimized"] .reading-text.tally, .reading[data-state="minimized"] .reading-tally { font-size: var(--text-notaio-note-min); }
 /* TD v0.51 (Interface v0.13): his guarded reading, background then a paragraph per stage, then the tally. A
    lore note is code's, set apart from his sentences in a smaller style, its title a link. */
 .reading-text.guarded p { margin: 0 0 var(--space-2); }
 .reading-text.guarded p:last-child { margin-bottom: 0; }
-.reading-stage-head { font-weight: var(--weight-bold); }
+.reading-stage-head { font-family: var(--font-body); font-weight: var(--weight-bold); font-size: var(--text-notaio-note-open); }
 .reading-event { color: var(--text-muted); }
-.reading-note { font-size: var(--text-xs); color: var(--text-muted); }
-.reading-note .lore-link { font-size: var(--text-xs); }
+/* His small lore notes grow in step with his words */
+.reading-note { font-size: var(--text-notaio-note-open); color: var(--text-muted); }
+.reading-note .lore-link { font-size: inherit; }
+.reading[data-state="minimized"] .reading-note, .reading[data-state="minimized"] .reading-stage-head { font-size: var(--text-notaio-note-min); }
 /* His summary over a past stage: the box over the chat window, under a peeking strip of the dialogue. */
 .stream-area { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .summary-group { margin: 0 0 var(--space-2); }
-.summary-where { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-label); }
+.summary-where { font-family: var(--font-body); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-label); }
 .summary-items { margin: var(--space-1) 0 0; padding-left: var(--space-4); display: flex; flex-direction: column; gap: var(--space-1); }
 
 /* The stage bar (Interface v0.5; reworked v0.16): a standard step bar. Circles joined by lines that share out
@@ -397,7 +417,7 @@ button.key-secret { align-items: flex-start; }
 /* The right panel (TD v0.44–v0.46): the live "talking with" card, a selected guest's card over it, a resize handle */
 /* The conversation's tint fills the panel, under the talking-with card */
 /* Interface v0.16: the panel stops a little short of the top, with rounded top corners */
-.side.right { position: relative; padding: 0; background: var(--talk-bg); margin-top: var(--right-top-gap); border-top: var(--border-width) solid var(--border); border-radius: var(--radius-float) var(--radius-float) 0 0; }
+.side.right { position: relative; padding: 0; background: var(--talk-bg); margin-top: var(--right-top-gap); border-top: var(--border-width) solid var(--border); border-radius: var(--radius-panel) var(--radius-panel) 0 0; }
 /* While a drag is past the point where letting go hides it, the panel fades */
 .side.right.hiding { opacity: var(--right-hiding-opacity); }
 /* The player's own card: an accent edge all the way round, and a small "You" tag under the name */
@@ -416,7 +436,7 @@ button.person-head { cursor: pointer; }
 .no-ear { font-style: italic; }
 /* The cards over the "talking with" card, in a frame that hides them as they slide down out of it (Interface v0.7) */
 .covers { position: absolute; left: 0; right: 0; top: calc(var(--peek-height) + var(--space-4) - var(--cover-shadow-room)); bottom: 0; overflow: hidden; pointer-events: none; }
-.person.look { position: absolute; left: 0; right: 0; top: var(--cover-shadow-room); bottom: 0; overflow-y: auto; background: var(--paper); box-shadow: var(--shadow-raised); border-radius: var(--radius-lg) var(--radius-lg) 0 0; pointer-events: auto; animation: slide-up var(--motion-card) ease-out; }
+.person.look { position: absolute; left: 0; right: 0; top: var(--cover-shadow-room); bottom: 0; overflow-y: auto; background: var(--paper); box-shadow: var(--shadow-raised); border-radius: var(--radius-panel) var(--radius-panel) 0 0; pointer-events: auto; animation: slide-up var(--motion-card) ease-out; }
 .person.look.follows { animation-delay: var(--card-follow); animation-fill-mode: backwards; }
 .person.look.leaving { pointer-events: none; animation: slide-down var(--motion-card) ease-in forwards; }
 @keyframes slide-down { from { transform: none; } to { transform: translateY(100%); } }
@@ -461,8 +481,8 @@ button.token.large .portrait { width: var(--portrait-size-lg); height: var(--por
 /* The player's own name and portrait open their briefing (Interface v0.7) */
 button.me-briefing { display: flex; width: 100%; border: none; background: transparent; padding: 0; gap: var(--space-1); }
 button.me-briefing:hover:not(:disabled) .name { text-decoration: underline; }
-.me-briefing .name { margin-top: var(--space-2); }
-.me-briefing .role { font-size: var(--text-sm); }
+.me-briefing .name { margin-top: var(--space-2); font-size: var(--text-lg); }
+.me-briefing .role { font-size: var(--text-md); }
 /* Interface v0.8: the midnight line, and the extra act an errand can earn in the errand card's accent */
 .midnight-line { margin-top: var(--space-1); font-size: var(--text-sm); }
 .midnight-extra { color: var(--errand-accent); }
@@ -571,7 +591,7 @@ button.opening-skip { position: fixed; right: var(--space-4); bottom: var(--spac
 .tour-spot.none { top: 50%; left: 50%; width: 0; height: 0; padding: 0; margin: 0; }
 .tour-card { position: fixed; width: var(--tour-card-width); background: var(--hint-bg); border: var(--border-width) solid var(--hint-border); border-radius: var(--radius-md); box-shadow: var(--shadow-raised); color: var(--hint-text); font-size: var(--text-sm); padding: var(--space-2) var(--space-3); }
 .tour-card.measuring { visibility: hidden; top: 0; left: 0; }
-.tour-head { display: flex; justify-content: space-between; align-items: baseline; font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-label); }
+.tour-head { display: flex; justify-content: space-between; align-items: baseline; font-family: var(--font-body); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-label); }
 .tour-text { margin: var(--space-2) 0; }
 .tour-controls { display: flex; justify-content: space-between; gap: var(--space-2); }
 @media (prefers-reduced-motion: reduce) {

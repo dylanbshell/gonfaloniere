@@ -5,7 +5,7 @@
 
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { promisify } from "node:util";
 import { keyFindings } from "../src/minigame/view.ts";
+import { withoutFonts } from "../tools/demo/build.ts";
 import { demoData } from "../tools/demo/data.ts";
 import { closeChrome, launchChrome, skip } from "./fixtures/chrome.ts";
 
@@ -55,7 +56,12 @@ test("npm run demo writes one self-contained page and prints its path and size",
   assert.match(html, /<div id="root"><\/div>/);
   // One inline script, closed only once: every "</script" inside the bundle is escaped.
   assert.equal(html.match(/<\/script/gi)!.length, 1);
-  assert.deepEqual(keyFindings(html, {}), [], "nothing key-shaped");
+  assert.deepEqual(keyFindings(withoutFonts(html), {}), [], "nothing key-shaped (the typefaces' own bytes apart: they're the repo's files)");
+  // Interface v0.17: the typefaces are in the page itself, each as a data URI, with nothing left to fetch.
+  assert.doesNotMatch(html, /url\("\/fonts\//);
+  for (const f of readdirSync("web/fonts").filter((x) => x.endsWith(".woff2"))) assert.ok(html.includes(readFileSync(join("web/fonts", f)).toString("base64")), `${f} is inline`);
+  assert.equal((html.match(/url\("data:font\/woff2;base64,/g) ?? []).length, 2, "the guests' face and Il Notaio's");
+  assert.ok(statSync(out).size < 2 * 1024 * 1024, "the page stays under 2 MB with its typefaces in it");
 });
 
 test("the build-time data round-trips through JSON unchanged", () => {

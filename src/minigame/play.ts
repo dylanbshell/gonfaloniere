@@ -11,7 +11,7 @@
 // process. Afterwards the game's replay-viewer export is served at /replay.
 
 import { spawn } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createServer as createNetServer } from "node:net";
 import { join, resolve } from "node:path";
@@ -128,8 +128,10 @@ function startReal(name: string, wsPort: number): Promise<void> {
   });
 }
 
-const TYPES: Record<string, string> = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".map": "application/json" };
+const TYPES: Record<string, string> = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".map": "application/json", ".woff2": "font/woff2" };
 const FILES: Record<string, string> = { "/": join(WEB, "index.html"), "/theme.css": join(WEB, "theme.css"), "/app.js": join(WEB, "dist/app.js"), "/app.css": join(WEB, "dist/app.css"), "/app.js.map": join(WEB, "dist/app.js.map") };
+// Interface v0.17: the typefaces are served with the page (web/fonts/, with their licence), never fetched from elsewhere.
+for (const f of readdirSync(join(WEB, "fonts"))) if (f.endsWith(".woff2")) FILES[`/fonts/${f}`] = join(WEB, "fonts", f);
 
 function send(res: ServerResponse, status: number, body: string | Buffer, type = "application/json") {
   res.writeHead(status, { "content-type": type, "cache-control": "no-store" });
