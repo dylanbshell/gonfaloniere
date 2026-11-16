@@ -150,6 +150,8 @@ export interface Sheet {
   track?: string[];
   /** TD v0.47: the track's stage that is the errand's deadline (the last council before midnight), or null when the schedule has none. */
   errandDeadline?: string | null;
+  /** TD v0.52: the game's values (`payroll`: one payroll payment's size, and the rest). No engine sends them yet. */
+  values?: Record<string, unknown>;
 }
 
 /** Il Notaio's reading (TD v0.44) for one or two guests, up to a place in the record; `text` null: the tally instead. */
@@ -200,6 +202,12 @@ export interface Command {
   name: string;
   usage: string;
   hint: string;
+  /**
+   * Technical Design's handoff (Interface v0.16, Commands): the engine may send the commands that aren't open
+   * now too, each with its reason. No engine does yet; until then the screen works the reasons out (`commandMenu`).
+   */
+  available?: boolean;
+  reason?: string;
 }
 
 export interface View {
@@ -214,7 +222,8 @@ export interface View {
   speaking: string | null;
   sheet: Sheet | null;
   pending: Request | null;
-  refusal: { seq: number; reason: string } | null;
+  /** The latest refusal: the game's reason, and what the player had typed (null for a choice or an End). */
+  refusal: { seq: number; reason: string; input: string | null } | null;
   deaths: { name: string; you: boolean; seq: number }[];
   result: Result | null;
   notes: Note[];
@@ -301,7 +310,7 @@ export function derive(log: Ev[]): View {
     } else if (e.type === "request") {
       if (e.closed) open.delete(e.id as string);
       else open.set(e.id as string, e as unknown as Request);
-    } else if (e.type === "refusal") v.refusal = { seq: e.seq, reason: e.reason as string };
+    } else if (e.type === "refusal") v.refusal = { seq: e.seq, reason: e.reason as string, input: typeof e.input === "string" ? e.input : null };
     else if (e.type === "death") v.deaths.push({ name: e.name as string, you: !!e.you, seq: e.seq });
     else if (e.type === "result") v.result = e.result as Result;
     else if (e.type === "note") v.notes.push({ id: e.id as string, seq: e.seq, turn: e.turn as number, guests: e.guests as string[], text: e.text as string });
@@ -651,6 +660,72 @@ export function hintMoment(v: View, me: string): { key: string; values: Record<s
   // TD v0.47: the last round to finish the errand for its extra act, whether or not it's done.
   if (lastRoundBeforeDeadline(v)) return { key: "errandDeadline", values: {} };
   return { key: "mingling", values: {} };
+}
+
+// ---- Commands (Interface v0.16, Commands, as the Player Meets Them) -----------------------------------------
+
+/** Why a command isn't open now: one of player.json's screen.commandWhy keys. */
+export type CommandWhy = "colloquio" | "noFlorins" | "repay" | "midnight" | "conclude" | "notNow";
+
+/** One payroll payment's size, from the sheet's values (TD v0.52) once the engine sends them; null until then. */
+export const payrollSize = (v: View): number | null => (typeof v.sheet?.values?.payroll === "number" ? v.sheet.values.payroll : null);
+
+/**
+ * Why a command isn't open, worked out from the player's own state (Mechanics, Commands & Public Actions):
+ * money changes hands only in a secret conversation, and only with something to give; paying a payment back
+ * takes a whole one; the midnight acts wait for midnight; a conclusion is for an errand that asks the player
+ * to find something out. Anything the state can't say (who may go on the payroll, the treasury) is "not now".
+ */
+export function commandWhy(action: string | undefined, s: State | null, payroll: number | null): CommandWhy {
+  if (action === "bribe") return s?.conversation.kind !== "colloquio" ? "colloquio" : s.florins <= 0 ? "noFlorins" : "notNow";
+  if (action === "repay") return s && payroll !== null && s.florins < payroll ? "repay" : "notNow";
+  if (action === "kill" || action === "guard" || action === "investigate") return "midnight";
+  if (action === "conclude") return s?.knowledgeErrand === false ? "conclude" : "notNow";
+  return "notNow";
+}
+
+/** A command that isn't open now, with why: the engine's own reason if it sent one, else the screen's key. */
+export interface ClosedCommand {
+  command: Command;
+  why: CommandWhy;
+  reason?: string;
+}
+
+/**
+ * The command menu (Interface v0.16): every command the character can ever use (`all`, the setting pack's),
+ * what's open now first (`sent`, the engine's menu, in its order), the rest after, each with its reason. A
+ * command the engine sends marked unavailable goes with the rest, with the engine's reason. /conclude is
+ * always in the engine's menu; the screen holds it back unless the errand can be finished by one.
+ */
+export function commandMenu(all: Command[], sent: Command[], s: State | null, payroll: number | null): { open: Command[]; closed: ClosedCommand[] } {
+  const isOpen = (c: Command) => c.available !== false && !(c.action === "conclude" && s?.knowledgeErrand === false);
+  const open = sent.filter(isOpen);
+  const known = [...all, ...sent.filter((c) => !all.some((a) => a.action === c.action))];
+  const closed = known
+    .filter((a) => !open.some((c) => c.action === a.action))
+    .map((a) => {
+      const c = sent.find((x) => x.action === a.action) ?? a;
+      return { command: c, why: commandWhy(c.action, s, payroll), ...(c.reason ? { reason: c.reason } : {}) };
+    });
+  return { open, closed };
+}
+
+/** The command a refused input began with, by its name (ignoring case), or null when it wasn't a command. */
+export function refusedCommand(input: string | null, all: Command[]): Command | null {
+  const word = input?.trim().split(/\s+/)[0]?.toLowerCase();
+  return (word && all.find((c) => c.name.toLowerCase() === word)) || null;
+}
+
+/**
+ * Why a refused command was refused, for Il Notaio's plain line (screen.notaioRefusal): the menu's own reason
+ * when the command wasn't open, or "other" (the game's reason) when it was open and something else was
+ * wrong, or the state can't say. Null when the refusal wasn't a command's.
+ */
+export function refusalWhy(v: View, all: Command[]): { command: Command; why: Exclude<CommandWhy, "notNow"> | "other" } | null {
+  const command = v.refusal ? refusedCommand(v.refusal.input, all) : null;
+  if (!command) return null;
+  const closed = commandMenu(all, v.commands, v.state, payrollSize(v)).closed.find((c) => c.command.action === command.action);
+  return { command, why: !closed || closed.why === "notNow" ? "other" : closed.why };
 }
 
 // ---- The web (TD v0.40; Interface v0.5, the ring layout) --------------------------------------------------

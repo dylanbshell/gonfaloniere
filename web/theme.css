@@ -73,6 +73,39 @@
   /* The web's names: a halo of the panel's colour, in the diagram's units */
   --label-halo: 0.9;
   --shadow-raised: 0 2px 8px rgba(20, 20, 18, 0.18);
+  /* Interface v0.16, the layers (placeholders for Art & Design): the stage bar and the message box float as
+     rounded cards over the conversation. Downward under the stage bar; upward over the conversation from Il
+     Notaio's hint, the message box, and his summary. The conversation fades where it slides under them. */
+  --float-gap: 12px;
+  --radius-float: 14px;
+  --shadow-float-down: 0 6px 16px rgba(20, 20, 18, 0.16);
+  --shadow-up: 0 -6px 16px rgba(20, 20, 18, 0.14);
+  --stream-fade: 24px;
+  --stream-mask: linear-gradient(to bottom, transparent, #000 var(--stream-fade), #000 calc(100% - var(--stream-fade)), transparent);
+  --z-float: 5;
+  /* A past stage: Il Notaio's summary opens a fifth of the way down, and the dialogue behind it fades */
+  --summary-top: 20%;
+  --behind-opacity: 0.35;
+  /* Il Notaio's hint: the flash when he says something new */
+  --motion-flash: 900ms;
+  --hint-flash-ring: 2px;
+  --hint-flash-glow: 14px;
+  /* Decision cards in the message box's place, and their controls */
+  --decision-max-height: 50vh;
+  --field-height: 32px;
+  --select-arrow-size: 5px;
+  --select-arrow-inset: 10px;
+  --act-kind-width: 110px;
+  --card-field-width: 320px;
+  /* Return to current stage, beside the box: narrower than Speak and Pass together, its words on two lines */
+  --return-width: 120px;
+  /* A command that isn't open now, greyed in the menu */
+  --closed-opacity: 0.7;
+  /* The right panel: how far it stops short of the top; how far past its narrowest a drag hides it, and its fade meanwhile; the player's own card's accent edge */
+  --right-top-gap: 12px;
+  --right-hide-past: 60px;
+  --right-hiding-opacity: 0.35;
+  --self-edge: 2px;
   /* The Web of Secrets' bar: a shadow above it, so it reads as one layer over everything (TD v0.44) */
   --shadow-dock: 0 -4px 16px rgba(20, 20, 18, 0.22);
   /* Il Notaio's box in the What you heard and saw column (Interface v0.5): the dialogue's strip peeking out
@@ -99,9 +132,15 @@
   --note-dash: 1.2 1;
   /* The evening's track: the stage bar (Interface v0.5) */
   --mark-ring: 2px;
-  --stage-size: 22px;
+  /* Interface v0.16: a step bar that stretches with the window. The circles grow a little with it, the lines
+     share out the room (never shorter than the minimum), and the side inset is small, so eleven stages fit
+     without scrolling from a 1100-pixel window up. The tooltip under the row waits a moment before the first. */
+  --stage-size: clamp(18px, 1.7vw, 26px);
   --stage-stroke: 2px;
-  --stage-stroke-length: 14px;
+  --stage-stroke-min: 6px;
+  --stage-bar-inset: clamp(0px, calc((100vw - 1100px) * 0.08), 40px);
+  --stage-tip-width: 260px;
+  --stage-tip-delay: 350ms;
   --stage-bar-height: 30px;
   --stage-desc-width: 240px;
   --stage-dot-size: 8px;
@@ -180,6 +219,10 @@
   --notice-bg: #fff4dc;
   --danger: #a33a2e;
   --danger-bg: #fbe9e6;
+  /* Interface v0.16: End conversation's solid red, its words, and its hover (its own tokens: dark mode's danger is a light text pink) */
+  --end-bg: #b3261e;
+  --end-text: #ffffff;
+  --end-hover: #8f1d17;
   --notaio: #4b6b5a;
   --notaio-bg: #eef3ef;
   --to-you-bg: #eef2f9;
@@ -244,6 +287,11 @@
     --notice-bg: #3a3020;
     --danger: #f0a196;
     --danger-bg: #3b2220;
+    --end-bg: #c2362d;
+    --end-text: #ffffff;
+    --end-hover: #d9483e;
+    --shadow-float-down: 0 8px 22px rgba(0, 0, 0, 0.55);
+    --shadow-up: 0 -8px 22px rgba(0, 0, 0, 0.5);
     --notaio: #9fc4ae;
     --notaio-bg: #1f2a24;
     --to-you-bg: #1f2633;

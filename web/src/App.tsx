@@ -7,8 +7,8 @@
 import { Component, Fragment, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { connect, type Ev } from "./connection.ts";
 import { COMMAND, MENTION, canDo, canSpeak, isCommand, matchCommands, matchGuests, openMenu, withMention, type Trigger } from "./input.ts";
-import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityList, curve, derive, earlierThisStage, errandCardAt, errandDeadline, errandLine, errandTask, factLink, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, notesFor, ownPlace, placeHeading, placeList, placeholderExample, preview, readingFor, recordUpTo, roomOf, rulesLink, runFrom, summaryFor, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, type Card, type FactLink, type Line, type GuardedReading, type LoreEntry, type Note, type NotaioItem, type Place, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
-import { getInfo, guest, names, narrator, notaioHint, packValue, placeDescription, placeholderExamples, setInfo, stageDescription, w, type GlossEntry, type StartInfo } from "./words.ts";
+import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityList, commandMenu, curve, derive, earlierThisStage, errandCardAt, errandDeadline, errandLine, errandTask, factLink, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, notesFor, ownPlace, payrollSize, placeHeading, placeList, placeholderExample, preview, readingFor, recordUpTo, refusalWhy, roomOf, rulesLink, runFrom, summaryFor, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, type Card, type FactLink, type Line, type GuardedReading, type LoreEntry, type Note, type NotaioItem, type Place, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
+import { allCommands, getInfo, guest, names, narrator, notaioHint, packValue, placeDescription, placeholderExamples, setInfo, stageDescription, w, type GlossEntry, type StartInfo } from "./words.ts";
 
 type Send = (m: unknown) => void;
 
@@ -327,7 +327,7 @@ export function Opening({ onStart, written = false }: { onStart: (me: string, ws
                     <Portrait name={p.name} large />
                     <div>
                       <div className="name">{p.name}</div>
-                      <div className="muted">{g?.faction}</div>
+                      {/* Interface v0.16: no separate faction line; the subtitle opens with the faction. */}
                       <div className="muted subtitle">{g?.subtitle}</div>
                     </div>
                   </div>
@@ -1411,6 +1411,9 @@ function Centre({ me, v, send, dead, status, boxFill, initialPast = null, onEntr
   // window folds it to the foot, and a click on it brings it back.
   const [covered, setCovered] = useState(true);
   useEffect(() => setCovered(true), [past]);
+  // Interface v0.16: a refusal is explained by Il Notaio, in his hint, until the player types again.
+  const [typedAt, setTypedAt] = useState(0);
+  const refused = v.refusal && v.refusal.seq > typedAt ? refusalLine(v) : null;
   /** Earlier conversations the player opened or closed by hand, by their first line; the rest follow the selected guest. */
   const [manual, setManual] = useState<Map<string, boolean>>(() => new Map());
   // The current stage keeps its newest line in view; a past stage holds still while the player reads, and
@@ -1447,7 +1450,7 @@ function Centre({ me, v, send, dead, status, boxFill, initialPast = null, onEntr
               {conversationLabel(v.state, me)}
             </span>
             {canEnd && (
-              <button className="secondary" onClick={() => send({ type: "end" })} {...hint("end")}>
+              <button className="end" onClick={() => send({ type: "end" })} {...hint("end")}>
                 {w("screen.input.end")}
               </button>
             )}
@@ -1457,7 +1460,7 @@ function Centre({ me, v, send, dead, status, boxFill, initialPast = null, onEntr
         {status !== "open" && <div className="notice status">{w(status === "closed" ? "screen.reconnecting" : "screen.connecting")}</div>}
       </header>
       <div className="stream-area">
-      <div className="stream" ref={stream} onClick={sel ? deselectOnBackground(clear) : undefined} onClickCapture={past && covered ? (e) => (e.stopPropagation(), e.preventDefault(), setCovered(false)) : undefined}>
+      <div className={`stream${past && covered && summaryFor(v, past) ? " behind" : ""}`} ref={stream} onClick={sel ? deselectOnBackground(clear) : undefined} onClickCapture={past && covered ? (e) => (e.stopPropagation(), e.preventDefault(), setCovered(false)) : undefined}>
         <Boundary panel="stream">
           {past ? (
             <PastStage stage={past} v={v} me={me} />
@@ -1492,7 +1495,6 @@ function Centre({ me, v, send, dead, status, boxFill, initialPast = null, onEntr
                 </div>
               ))}
               {v.speaking && <div className="speaking">{w("screen.speaking", { name: v.speaking })}</div>}
-              {card && !dead && <Card req={card} send={send} me={me} />}
             </>
           )}
         </Boundary>
@@ -1504,16 +1506,32 @@ function Centre({ me, v, send, dead, status, boxFill, initialPast = null, onEntr
         </Boundary>
       )}
       </div>
-      <Boundary panel="hint">
-        <NotaioHint me={me} v={v} />
-      </Boundary>
+      {/* Interface v0.16: his hint steps aside while an earlier stage is open; his summary is already there. */}
+      {!past && (
+        <Boundary panel="hint">
+          <NotaioHint me={me} v={v} refused={refused} />
+        </Boundary>
+      )}
       {!dead && (
         <Boundary panel="input" fallback={(n) => <div className="input">{n}</div>}>
-          <InputBox me={me} v={v} send={send} closed={!!card} fill={boxFill} past={!!past} onReturn={() => setPast(null)} />
+          {/* Interface v0.16: a decision card takes the message box's place, in the same floating card. */}
+          <InputBox me={me} v={v} send={send} card={card ? <Card req={card} send={send} me={me} /> : null} fill={boxFill} past={!!past} onReturn={() => setPast(null)} canEnd={canEnd} onEnd={() => send({ type: "end" })} onType={() => setTypedAt(v.refusal?.seq ?? 0)} />
         </Boundary>
       )}
     </main>
   );
+}
+
+/**
+ * Il Notaio's plain line for a refusal (Interface v0.16, Commands): a refused command's specific reason, in
+ * the setting pack's words (screen.notaioRefusal), worked out as the command menu works out its reasons; or
+ * the game's own reason, then where to look. Anything else refused (a line too long) is the game's reason alone.
+ */
+function refusalLine(v: View): string {
+  const r = v.refusal!;
+  const why = refusalWhy(v, allCommands());
+  if (!why) return r.reason;
+  return w(`screen.notaioRefusal.${why.why}`, { command: why.command.name, amount: payrollSize(v) ?? "", reason: r.reason });
 }
 
 /**
@@ -1612,89 +1630,103 @@ function ReadingItem({ item, onEntry }: { item: NotaioItem; onEntry: (id: string
 }
 
 /**
- * The stage bar (Interface v0.5): a circle per stage, joined by a stroke, each with its numeral; past ones
- * filled, future ones outlined, the current one stretched into an oval with its name. Hovering (or focusing)
- * another stage expands that one instead, with its name and description, and the current one shrinks back
- * meanwhile. Past stages open read-only when clicked, the current one returns, and future ones can't be
- * opened. With a guest selected, a dot marks each past stage they appear in; from a past stage while the
- * game waits for the player, the current stage beckons. The errand's deadline mark stays on its stage
- * (TD v0.47). On a narrow window the bar scrolls sideways, keeping the current (or open) stage in view.
+ * The stage bar (Interface v0.5; reworked v0.16): a standard step bar. A circle per stage, joined by lines
+ * that share out the room, done ones filled, future ones outlined, the current one an oval holding its name
+ * with no number. Hovering changes nothing in the row: a tooltip under it shows the hovered stage's name, its
+ * description, and, with the explanations on, its explanation. It waits a moment before the first tooltip,
+ * then switches at once between neighbours while one is showing; focus shows it at once. No motion. Past
+ * stages open read-only when clicked, the current one returns, and future ones can't be opened. With a guest
+ * selected, a dot marks each past stage they appear in; from a past stage while the game waits for the
+ * player, the current stage beckons. The errand's deadline mark stays on its stage (TD v0.47).
  */
 function StageBar({ stages, now, deadline, open, beckon, dots, onOpen }: { stages: string[]; now: string | undefined; deadline: string | null; open: string | null; beckon: boolean; dots: Set<string> | null; onOpen: (stage: string | null) => void }) {
   const hint = useHint();
-  const [hover, setHover] = useState<string | null>(null);
-  const bar = useRef<HTMLOListElement>(null);
-  const shown = open ?? now;
-  // Keep the shown stage in view: when it changes, and when the window is resized (not on hover, so
-  // nothing moves under the pointer).
-  useLayoutEffect(() => {
-    const keep = () => {
-      const ol = bar.current;
-      const el = ol?.querySelector<HTMLElement>(".mark.shown");
-      if (!ol || !el) return;
-      const left = el.offsetLeft - ol.offsetLeft;
-      // Wider than the bar, it shows from its start (its numeral and the start of its name).
-      if (left < ol.scrollLeft || el.offsetWidth > ol.clientWidth) ol.scrollLeft = left;
-      else if (left + el.offsetWidth > ol.scrollLeft + ol.clientWidth) ol.scrollLeft = left + el.offsetWidth - ol.clientWidth;
+  const hints = useContext(HintsContext);
+  /** The stage whose tooltip shows, and where its middle is along the bar. */
+  const [tip, setTip] = useState<{ stage: string; at: number } | null>(null);
+  const [left, setLeft] = useState<number | null>(null);
+  const wrap = useRef<HTMLDivElement>(null);
+  const card = useRef<HTMLDivElement>(null);
+  const wait = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showing = useRef(false);
+  showing.current = !!tip;
+  const still = () => {
+    if (wait.current) clearTimeout(wait.current);
+    wait.current = null;
+  };
+  useEffect(() => still, []);
+  const show = (stage: string, el: Element, atOnce: boolean) => {
+    const set = () => {
+      const b = wrap.current?.getBoundingClientRect();
+      const r = el.getBoundingClientRect();
+      if (b) setTip({ stage, at: r.left + r.width / 2 - b.left });
     };
-    keep();
-    window.addEventListener("resize", keep);
-    return () => window.removeEventListener("resize", keep);
-  }, [shown, stages.length]);
+    still();
+    if (atOnce || showing.current) set();
+    else wait.current = setTimeout(set, themeMs("--stage-tip-delay", 350));
+  };
+  const away = () => {
+    still();
+    setTip(null);
+  };
+  // Under the hovered stage, kept inside the bar's own width.
+  useLayoutEffect(() => {
+    const c = card.current;
+    const b = wrap.current;
+    if (!tip || !c || !b) return setLeft(null);
+    const half = c.offsetWidth / 2;
+    setLeft(Math.max(half, Math.min(tip.at, b.clientWidth - half)));
+  }, [tip]);
   if (!stages.length)
     return (
       <div className="phase" {...hint("track", { focusable: true })}>
         {now}
       </div>
     );
-  // Hover is cleared only on leaving the bar, so a neighbour shifting as the oval moves never flickers it.
-  const expanded = hover ?? shown;
+  const marks = trackMarks(stages, now, deadline);
+  const tipped = tip ? marks.find((m) => m.stage === tip.stage) : undefined;
+  const explain = (m: { stage: string; at: "past" | "now" | "next" }) => ({ key: m.at === "past" ? "trackPast" : m.at === "now" ? "trackNow" : "trackNext", text: w(`screen.hints.${m.at === "past" ? "trackPast" : m.at === "now" ? "trackNow" : "trackNext"}`, { stage: m.stage }) });
   return (
-    <ol className="track stage-bar" ref={bar} aria-label={w("screen.hints.track")} onMouseLeave={() => setHover(null)}>
-      {trackMarks(stages, now, deadline).map((m, i) => {
-        const h = hint(m.at === "past" ? "trackPast" : m.at === "now" ? "trackNow" : "trackNext", { values: { stage: m.stage } });
-        const on = {
-          ...h,
-          onMouseEnter: (e: { currentTarget: Element }) => {
-            h.onMouseEnter(e);
-            setHover(m.stage);
-          },
-          onFocus: (e: { currentTarget: Element }) => {
-            h.onFocus(e);
-            setHover(m.stage);
-          },
-          onBlur: () => {
-            h.onBlur();
-            setHover(null);
-          },
-        };
-        const description = m.stage === hover ? stageDescription(m.stage) : "";
-        const inner = (
-          <>
-            <span className="num">{i + 1}</span>
-            {m.stage === expanded && <span className="stage-name">{m.stage}</span>}
-            {description && <span className="stage-desc">{description}</span>}
-          </>
-        );
-        const classes = ["mark", m.at, m.deadline && "deadline", m.stage === expanded && "expanded", m.stage === shown && "shown", m.stage === open && "open", m.at === "now" && beckon && "beckon"].filter(Boolean).join(" ");
-        return (
-          <li key={m.stage} className={classes} aria-label={m.stage} aria-current={m.at === "now" ? "step" : undefined}>
-            {/* TD v0.47: with `plot_reward` on, the errand's deadline carries a small errand mark with its own explanation. */}
-            {m.deadline && <span className="errand-mark" role="img" aria-label={w("screen.errandDeadline")} {...hint("trackDeadline", { focusable: true })} />}
-            {m.at === "next" ? (
-              <span className="stage" tabIndex={0} aria-disabled="true" {...on}>
-                {inner}
-              </span>
-            ) : (
-              <button className="stage" aria-pressed={m.at === "past" ? m.stage === open : undefined} onClick={() => onOpen(m.at === "past" ? m.stage : null)} {...on}>
-                {inner}
-              </button>
-            )}
-            {m.at === "past" && dots?.has(m.stage) && <span className="stage-dot" aria-hidden="true" />}
-          </li>
-        );
-      })}
-    </ol>
+    <div className="stage-bar-wrap" ref={wrap} onMouseLeave={away}>
+      <ol className="track stage-bar" aria-label={w("screen.hints.track")}>
+        {marks.map((m, i) => {
+          const x = explain(m);
+          // The tooltip under the row carries the explanation, so the stage has no hover explanation of its own.
+          const on = {
+            "aria-description": x.text,
+            "data-hint": x.key,
+            onMouseEnter: (e: { currentTarget: Element }) => show(m.stage, e.currentTarget, false),
+            onFocus: (e: { currentTarget: Element }) => show(m.stage, e.currentTarget, true),
+            onBlur: away,
+          };
+          const inner = m.at === "now" ? <span className="stage-name">{m.stage}</span> : <span className="num">{i + 1}</span>;
+          const classes = ["mark", m.at, m.deadline && "deadline", m.stage === open && "open", m.at === "now" && beckon && "beckon"].filter(Boolean).join(" ");
+          return (
+            <li key={m.stage} className={classes} aria-label={m.stage} aria-current={m.at === "now" ? "step" : undefined}>
+              {/* TD v0.47: with `plot_reward` on, the errand's deadline carries a small errand mark with its own explanation. */}
+              {m.deadline && <span className="errand-mark" role="img" aria-label={w("screen.errandDeadline")} {...hint("trackDeadline", { focusable: true })} />}
+              {m.at === "next" ? (
+                <span className="stage" tabIndex={0} aria-disabled="true" {...on}>
+                  {inner}
+                </span>
+              ) : (
+                <button className="stage" aria-pressed={m.at === "past" ? m.stage === open : undefined} onClick={() => onOpen(m.at === "past" ? m.stage : null)} {...on}>
+                  {inner}
+                </button>
+              )}
+              {m.at === "past" && dots?.has(m.stage) && <span className="stage-dot" aria-hidden="true" />}
+            </li>
+          );
+        })}
+      </ol>
+      {tipped && (
+        <div ref={card} className={`stage-tip${left === null ? " measuring" : ""}`} role="tooltip" data-stage={tipped.stage} style={left === null ? undefined : { left }}>
+          <div className="stage-tip-name">{tipped.stage}</div>
+          {stageDescription(tipped.stage) && <div className="stage-tip-desc">{stageDescription(tipped.stage)}</div>}
+          {hints.on && <div className="stage-tip-hint">{explain(tipped).text}</div>}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1770,13 +1802,34 @@ function StreamLine({ l, me, lore }: { l: Line; me: string; lore: LoreEntry[] })
   );
 }
 
-/** Il Notaio's hint (TD v0.40): a line or two for the moment, docked under the stream, and collapsible. */
-function NotaioHint({ me, v }: { me: string; v: View }) {
+/**
+ * Il Notaio's hint (TD v0.40): a line or two for the moment, docked under the stream, and collapsible.
+ * Interface v0.16: whenever he says something new, his box flashes (a brief glow in the accent) and the new
+ * words fade in. A refused command gets its reason here (`refused`), in place of his usual line, and his box
+ * opens if it was folded; his usual line comes back once the player types again, without a flash.
+ */
+function NotaioHint({ me, v, refused = null }: { me: string; v: View; refused?: string | null }) {
   const hint = useHint();
   const [open, setOpen] = useState(true);
-  const m = hintMoment(v, me);
+  // His usual line is the moment's; a refusal is his to explain here, so it isn't a moment of its own.
+  const m = hintMoment(v.refusal ? { ...v, refusal: null } : v, me);
+  const usual = notaioHint(m.key, m.values);
+  const text = refused ?? usual;
+  /** How many times he has said something new since the screen opened: restarts the flash and the fade. */
+  const [fresh, setFresh] = useState(0);
+  const said = useRef({ text, usual });
+  useEffect(() => {
+    const was = said.current;
+    said.current = { text, usual };
+    if (text === was.text) return;
+    if (refused) setOpen(true);
+    // Back to the line he gave before a refusal: nothing new, so no flash.
+    else if (text === was.usual) return;
+    setFresh((n) => n + 1);
+  }, [text]);
   return (
     <aside className={`notaio-hint${open ? "" : " collapsed"}`}>
+      {fresh > 0 && <span key={fresh} className="hint-glow" aria-hidden="true" />}
       <button className="hint-head" aria-expanded={open} onClick={() => setOpen(!open)} {...hint("notaioHint")}>
         <span>
           <Narrated template={w("screen.notaioHint.title")} />
@@ -1784,8 +1837,8 @@ function NotaioHint({ me, v }: { me: string; v: View }) {
         <span className="muted">{w(open ? "screen.notaioHint.hide" : "screen.notaioHint.show")}</span>
       </button>
       {open && (
-        <p className="hint-text" data-moment={m.key}>
-          {notaioHint(m.key, m.values)}
+        <p key={fresh} className={`hint-text${fresh > 0 ? " fresh" : ""}`} data-moment={refused ? "refusal" : m.key}>
+          {text}
         </p>
       )}
     </aside>
@@ -1795,12 +1848,10 @@ function NotaioHint({ me, v }: { me: string; v: View }) {
 /** The right panel's width (TD v0.44): dragged by its handle, within theme.css's limits, remembered in the browser. */
 const WIDTH_KEY = "player-screen.right-width";
 
-function useRightWidth(layout: RefObject<HTMLDivElement | null>) {
-  const limits = () => {
-    const css = getComputedStyle(document.documentElement);
-    const px = (t: string, d: number) => parseFloat(css.getPropertyValue(t)) || d;
-    return { min: px("--right-min", 220), max: px("--right-max", 560) };
-  };
+function useRightWidth(layout: RefObject<HTMLDivElement | null>, onHide: () => void) {
+  const css = () => getComputedStyle(document.documentElement);
+  const px = (t: string, d: number) => parseFloat(css().getPropertyValue(t)) || d;
+  const limits = () => ({ min: px("--right-min", 220), max: px("--right-max", 560) });
   const apply = (width: number) => {
     const { min, max } = limits();
     const w = Math.round(Math.max(min, Math.min(max, width)));
@@ -1816,23 +1867,49 @@ function useRightWidth(layout: RefObject<HTMLDivElement | null>) {
       // Blocked storage: the theme's width.
     }
   }, []);
-  return (e: { clientX: number; preventDefault: () => void }) => {
+  /**
+   * Interface v0.16: dragging well past the narrowest hides the panel, as its hide control does; while the
+   * drag is past that point the panel fades, to show what letting go will do. The handle keeps the pointer
+   * for the whole drag, so letting go anywhere, even off the window, finishes it.
+   */
+  return (e: { clientX: number; pointerId: number; currentTarget: HTMLElement; preventDefault: () => void }) => {
     e.preventDefault();
+    const handle = e.currentTarget;
     const panel = layout.current?.querySelector(".side.right");
     const start = { x: e.clientX, width: panel?.getBoundingClientRect().width ?? 0 };
+    const hideAt = limits().min - px("--right-hide-past", 60);
     let width = start.width;
-    const move = (m: PointerEvent) => void (width = apply(start.width + start.x - m.clientX));
-    const up = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
+    let hiding = false;
+    try {
+      handle.setPointerCapture(e.pointerId);
+    } catch {
+      // No capture (an older browser): the drag still ends on a release over the page.
+    }
+    const move = (m: PointerEvent) => {
+      const raw = start.width + start.x - m.clientX;
+      hiding = raw < hideAt;
+      panel?.classList.toggle("hiding", hiding);
+      width = apply(raw);
+    };
+    const ends = ["pointerup", "pointercancel", "lostpointercapture"];
+    const done = () => {
+      handle.removeEventListener("pointermove", move);
+      for (const x of ends) handle.removeEventListener(x, done);
+      panel?.classList.remove("hiding");
+      if (hiding) {
+        // Hidden: the width it had before the drag is the one it comes back at.
+        apply(start.width);
+        onHide();
+        return;
+      }
       try {
         localStorage.setItem(WIDTH_KEY, String(width));
       } catch {
         // The width lasts until the page closes.
       }
     };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+    handle.addEventListener("pointermove", move);
+    for (const x of ends) handle.addEventListener(x, done);
   };
 }
 
@@ -1884,10 +1961,12 @@ function RightHandle({ onShow }: { onShow: () => void }) {
 }
 
 /**
- * A guest's public card: portrait, name, faction, subtitle, and the public lines everyone knows. On the
- * "talking with" card the portrait selects them (`selects`), as portraits do everywhere.
+ * A guest's public card: portrait, name, subtitle, and the public lines everyone knows. No faction line above
+ * the subtitle (Interface v0.16): the subtitle already opens with the faction. On the "talking with" card the
+ * portrait selects them (`selects`), as portraits do everywhere. The player's own card (`self`) carries a
+ * small "You" tag under the name.
  */
-function PublicCard({ who, v, selects }: { who: string; v: View; selects?: boolean }) {
+function PublicCard({ who, v, selects, self }: { who: string; v: View; selects?: boolean; self?: boolean }) {
   const g = guest(who);
   const known = (v.sheet?.connections ?? []).filter((c) => !c.private && c.between.includes(who));
   return (
@@ -1895,7 +1974,7 @@ function PublicCard({ who, v, selects }: { who: string; v: View; selects?: boole
       <div className="who column">
         {selects ? <PortraitButton name={who} large /> : <Portrait name={who} large />}
         <div className="name">{who}</div>
-        <div className="muted">{g?.faction}</div>
+        {self && <div className="you-tag">{w("screen.right.youTag")}</div>}
         <div className="muted">{g?.subtitle}</div>
       </div>
       {known.length > 0 && (
@@ -1936,23 +2015,25 @@ function useCoverCards(over: Over | null) {
 }
 
 /** One card over the "talking with" card: a selected guest's plain raised card, or a lore entry. */
-function CoverCard({ over, v, leaving, follows, onGone, onWeb }: { over: Over; v: View; leaving?: boolean; follows?: boolean; onGone?: () => void; onWeb: (guest: string | null) => void }) {
+function CoverCard({ over, v, me, leaving, follows, onGone, onWeb }: { over: Over; v: View; me: string; leaving?: boolean; follows?: boolean; onGone?: () => void; onWeb: (guest: string | null) => void }) {
   const hint = useHint();
   const { back, clear } = useContext(SelContext);
   // Whether it came up behind another sliding down, fixed when it first shows, so its slide never restarts.
   const [behind] = useState(!!follows);
   const isGuest = typeof over === "string";
+  // Interface v0.16: the player's own card says "This is you", with a "You" tag and an accent edge all the way round.
+  const self = isGuest && over === me;
   return (
     <section
-      className={`person look${leaving ? " leaving" : ""}${behind && !leaving ? " follows" : ""}`}
+      className={`person look${self ? " self" : ""}${leaving ? " leaving" : ""}${behind && !leaving ? " follows" : ""}`}
       data-guest={isGuest ? over : undefined}
       aria-hidden={leaving || undefined}
       inert={leaving || undefined}
       onAnimationEnd={leaving ? (e) => e.target === e.currentTarget && onGone?.() : undefined}
     >
       <header className="person-head">
-        <span className="label" {...hint(isGuest ? "lookingAt" : "loreEntry", { focusable: true })}>
-          {w(isGuest ? "screen.right.lookingAt" : "screen.right.lore")}
+        <span className="label" {...hint(self ? "lookingAtSelf" : isGuest ? "lookingAt" : "loreEntry", { focusable: true })}>
+          {w(self ? "screen.right.lookingAtSelf" : isGuest ? "screen.right.lookingAt" : "screen.right.lore")}
         </span>
         {isGuest ? (
           <button className="icon close" aria-label={w("screen.close")} onClick={clear} {...hint("deselect")}>
@@ -1966,7 +2047,7 @@ function CoverCard({ over, v, leaving, follows, onGone, onWeb }: { over: Over; v
       </header>
       {isGuest ? (
         <>
-          <PublicCard who={over} v={v} />
+          <PublicCard who={over} v={v} self={self} />
           <div className="buttons">
             <button className="secondary" onClick={() => onWeb(over)} {...hint("openWeb")}>
               {w("screen.right.openWeb")}
@@ -1994,11 +2075,10 @@ function Right({ me, v, onWeb, onHide, layout }: { me: string; v: View; onWeb: (
   const s = v.state;
   const hint = useHint();
   const { sel, clear } = useContext(SelContext);
-  const drag = useRightWidth(layout);
+  const drag = useRightWidth(layout, onHide);
   // TD v0.46: whoever has the player's ear (the other guest in a Colloquio; in a group, the last address
   // either way), or no one; never just the group's last speaker.
   const talk = talkingWith(v, me);
-  const others = (s?.present ?? []).filter((p) => p !== talk);
   const over: Over | null = sel?.kind === "guest" ? sel.name : sel?.kind === "lore" ? sel.entry : null;
   const cards = useCoverCards(over);
   const filled = !!talk && talk !== me;
@@ -2024,13 +2104,7 @@ function Right({ me, v, onWeb, onHide, layout }: { me: string; v: View; onWeb: (
           </div>
         )}
         {filled ? <PublicCard who={talk} v={v} selects /> : <p className="muted no-ear">{w("screen.right.noEar")}</p>}
-        {others.length > 0 && (
-          <div className="tokens">
-            {others.map((p) => (
-              <PortraitButton key={p} name={p} />
-            ))}
-          </div>
-        )}
+        {/* Interface v0.16: no row of the other guests' tokens here; the places list shows who's with you. */}
         {/* Interface v0.7: only a filled card opens the web; the empty one has no button. */}
         {filled && (
           <div className="buttons">
@@ -2042,9 +2116,9 @@ function Right({ me, v, onWeb, onHide, layout }: { me: string; v: View; onWeb: (
       </section>
       {(over || cards.leaving.length > 0) && (
         <div className="covers">
-          {over && <CoverCard key={overKey(over)} over={over} v={v} follows={cards.leaving.length > 0} onWeb={onWeb} />}
+          {over && <CoverCard key={overKey(over)} over={over} v={v} me={me} follows={cards.leaving.length > 0} onWeb={onWeb} />}
           {cards.leaving.map((o) => (
-            <CoverCard key={`leaving:${overKey(o)}`} over={o} v={v} leaving onGone={() => cards.gone(o)} onWeb={onWeb} />
+            <CoverCard key={`leaving:${overKey(o)}`} over={o} v={v} me={me} leaving onGone={() => cards.gone(o)} onWeb={onWeb} />
           ))}
         </div>
       )}
@@ -2446,7 +2520,32 @@ function RecordPane({ box, children }: { box: ReactNode; children: ReactNode }) 
  * Return to current stage button in the same spot, and Enter does the same: the draft, a handed conclusion,
  * and Do's highlight all stay as they were, and nothing is sent until Speak or Do back in the current stage.
  */
-function InputBox({ me, v, send, closed, fill, past = false, onReturn = () => {} }: { me: string; v: View; send: Send; closed: boolean; fill: BoxFill | null; past?: boolean; onReturn?: () => void }) {
+function InputBox({
+  me,
+  v,
+  send,
+  card = null,
+  fill,
+  past = false,
+  onReturn = () => {},
+  canEnd = false,
+  onEnd = () => {},
+  onType = () => {},
+}: {
+  me: string;
+  v: View;
+  send: Send;
+  /** A decision card waiting (Interface v0.16): it takes the box's place, and the draft waits behind it. */
+  card?: ReactNode;
+  fill: BoxFill | null;
+  past?: boolean;
+  onReturn?: () => void;
+  /** End conversation is on offer: it sits under Speak and Pass too (Interface v0.16). */
+  canEnd?: boolean;
+  onEnd?: () => void;
+  /** The player typed: Il Notaio's line for a refusal gives way to his usual one. */
+  onType?: () => void;
+}) {
   const info = getInfo();
   const hint = useHint();
   const [text, setText] = useState("");
@@ -2454,7 +2553,8 @@ function InputBox({ me, v, send, closed, fill, past = false, onReturn = () => {}
   /** The command menu opened from its button while the box holds words: choosing a command replaces them. */
   const [forced, setForced] = useState(false);
   const [held, setHeld] = useState<string | null>(null);
-  const [actedAt, setActedAt] = useState(0);
+  /** The folded "Not available now" section of the command menu, opened by hand. */
+  const [showClosed, setShowClosed] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const area = useRef<HTMLTextAreaElement>(null);
   /**
@@ -2494,8 +2594,11 @@ function InputBox({ me, v, send, closed, fill, past = false, onReturn = () => {}
   const t = forced ? { kind: "commands" as const, query: "", at: -1 } : openMenu(text, dismissed);
   const present = v.state?.present ?? [];
   const guestList = t?.kind === "guests" ? matchGuests(present, t.query) : [];
-  const commandList = t?.kind === "commands" ? matchCommands(v.commands, t.query) : [];
-  const menuOpen = guestList.length > 0 || commandList.length > 0;
+  // Interface v0.16: every command the character can ever use; what's open now first, the rest folded below with their reasons.
+  const commands = commandMenu(allCommands(), v.commands, v.state, payrollSize(v));
+  const commandList = t?.kind === "commands" ? matchCommands(commands.open, t.query) : [];
+  const closedList = t?.kind === "commands" ? matchCommands(commands.closed.map((c) => ({ ...c, name: c.command.name })), t.query) : [];
+  const menuOpen = guestList.length > 0 || commandList.length > 0 || closedList.length > 0;
   // Clicking away closes either menu, until its character is typed again.
   useEffect(() => {
     if (!menuOpen) return;
@@ -2516,6 +2619,7 @@ function InputBox({ me, v, send, closed, fill, past = false, onReturn = () => {}
       setHanded(null);
     }
     if (!isCommand(next)) setDoLit(false);
+    if (next !== text) onType();
     setText(next);
     setForced(false);
     // Deleting a menu's character forgets that it was dismissed, so typing it again opens it.
@@ -2533,10 +2637,7 @@ function InputBox({ me, v, send, closed, fill, past = false, onReturn = () => {}
     : held
       ? w("screen.input.held")
       : null;
-  const act = (m: unknown) => {
-    send(m);
-    setActedAt(v.refusal?.seq ?? 0);
-  };
+  const act = (m: unknown) => send(m);
   const submit = () => {
     if (command) {
       act({ type: "command", text: text.trim() });
@@ -2548,23 +2649,32 @@ function InputBox({ me, v, send, closed, fill, past = false, onReturn = () => {}
     change("");
   };
   const focus = () => area.current?.focus();
-  // From a past stage the box stays open, with the draft, even while a decision card waits in the current one.
-  if (closed && !past)
-    return (
-      <div className="input closed">
-        <span className="muted">{w("screen.input.closed")}</span>
-      </div>
-    );
-  const refusal = v.refusal && v.refusal.seq > actedAt ? v.refusal.reason : null;
   /** The game waits for the player (a request is open): from a past stage, Return beckons and the placeholder says so. */
   const beckon = past && !!v.pending;
+  // Interface v0.16: a decision card takes the message box's place, in the same floating card; if it runs
+  // tall, it scrolls there. Reading an earlier stage while one waits, there's nothing to draft, so the card
+  // holds one Return button filling it; returning brings the decision card back as it was.
+  if (card)
+    return past ? (
+      <div className="input past decision">
+        <button className={`primary return wide${beckon ? " beckon" : ""}`} onClick={onReturn} {...hint("return")}>
+          {w("screen.input.return")}
+        </button>
+      </div>
+    ) : (
+      <div className="input decision">{card}</div>
+    );
   // Interface v0.5: the placeholder carries the example, with an @ and a /, using only commands allowed now.
-  const example = placeholderExample(placeholderExamples(), v.commands, talkingWith(v, me) ?? present[0] ?? null, v.spoken);
+  const example = placeholderExample(placeholderExamples(), commands.open, talkingWith(v, me) ?? present[0] ?? null, v.spoken);
+  const folded = !showClosed && commandList.length > 0;
   return (
     <div className={`input${past ? " past" : ""}`} ref={box}>
-      {/* The prompt's line is always laid out, so the box keeps its height as it comes and goes. */}
-      <div className={`prompt${req ? " waiting" : ""}`}>{prompt}</div>
-      {refusal && <div className="notice">{refusal}</div>}
+      {/* The prompt's line is always laid out, so the box keeps its height as it comes and goes. Interface
+          v0.16: the prompt at the left, the character count at the right, over the buttons. */}
+      <div className="prompt-line">
+        <div className={`prompt${req ? " waiting" : ""}`}>{prompt}</div>
+        <span className={`count${!command && text.length > info.max ? " over" : ""}`}>{command ? "" : w("screen.input.count", { count: text.length, max: info.max })}</span>
+      </div>
       {guestList.length > 0 && (
         <ul className="dropdown" data-menu="guests">
           {guestList.map((p) => (
@@ -2582,11 +2692,12 @@ function InputBox({ me, v, send, closed, fill, past = false, onReturn = () => {}
           ))}
         </ul>
       )}
-      {commandList.length > 0 && (
+      {(commandList.length > 0 || closedList.length > 0) && (
         <ul className="dropdown menu" data-menu="commands">
           {commandList.map((c) => (
             <li key={c.name}>
               <button
+                data-command={c.action}
                 onClick={() => {
                   change(`${c.name} `);
                   focus();
@@ -2597,12 +2708,32 @@ function InputBox({ me, v, send, closed, fill, past = false, onReturn = () => {}
               </button>
             </li>
           ))}
+          {/* The rest wait in a folded section, greyed, each with its reason in place of its hint. With nothing
+              open now, the section opens by itself. Clicking one does nothing. */}
+          {closedList.length > 0 && (
+            <li className="menu-closed">
+              <button className="menu-more" aria-expanded={!folded} onClick={() => (setShowClosed(folded), focus())}>
+                {w("screen.commandWhy.more", { n: closedList.length })}
+              </button>
+              {!folded && (
+                <ul>
+                  {closedList.map((c) => (
+                    <li key={c.name} className="cmd-closed" data-command={c.command.action} data-why={c.why} aria-disabled="true">
+                      <span className="cmd">{c.command.usage}</span>
+                      <span className="why">{c.reason ?? w(`screen.commandWhy.${c.why}`, { amount: payrollSize(v) ?? "" })}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          )}
         </ul>
       )}
       <div className="row">
         <div className="field">
           <textarea
             ref={area}
+            className={text ? undefined : "empty"}
             value={text}
             placeholder={past ? w(beckon ? "screen.input.pastWaiting" : "screen.input.pastPlaceholder") : (example ?? w("screen.input.placeholder"))}
             onChange={(e) => change(e.target.value)}
@@ -2643,25 +2774,32 @@ function InputBox({ me, v, send, closed, fill, past = false, onReturn = () => {}
           </div>
         </div>
         <div className="actions">
-          <span className={`count${!command && text.length > info.max ? " over" : ""}`}>{command ? "" : w("screen.input.count", { count: text.length, max: info.max })}</span>
           {past ? (
             <button className={`primary return${beckon ? " beckon" : ""}`} onClick={onReturn} {...hint("return")}>
               {w("screen.input.return")}
             </button>
           ) : (
             <>
-              {command ? (
-                <button className={`do${doLit ? " lit" : ""}`} onClick={submit} disabled={!canDo(text)} {...hint("do")}>
-                  {w("screen.input.do")}
+              <div className="actions-row">
+                {command ? (
+                  <button className={`do${doLit ? " lit" : ""}`} onClick={submit} disabled={!canDo(text)} {...hint("do")}>
+                    {w("screen.input.do")}
+                  </button>
+                ) : (
+                  <button className="primary" onClick={submit} disabled={!canSpeak(text)} {...hint("speak")}>
+                    {w("screen.input.speak")}
+                  </button>
+                )}
+                <button className="secondary" onClick={() => act({ type: "pass" })} {...hint("pass")}>
+                  {w("screen.input.pass")}
                 </button>
-              ) : (
-                <button className="primary" onClick={submit} disabled={!canSpeak(text)} {...hint("speak")}>
-                  {w("screen.input.speak")}
+              </div>
+              {/* Interface v0.16: End conversation under Speak and Pass too, the width of the two, solid red. */}
+              {canEnd && (
+                <button className="end" onClick={onEnd} {...hint("end")}>
+                  {w("screen.input.end")}
                 </button>
               )}
-              <button className="secondary" onClick={() => act({ type: "pass" })} {...hint("pass")}>
-                {w("screen.input.pass")}
-              </button>
             </>
           )}
         </div>
@@ -2714,7 +2852,7 @@ function MoveCard({ req, send }: { req: Request; send: Send }) {
         ))}
       </div>
       {choice && choice !== "stay" && <GuestPicker guests={guests} value={target} onChange={setTarget} label={w("screen.move.pick")} />}
-      <button className="primary" disabled={!ok} onClick={() => send({ type: "choice", request: req.id, value: { choice, target: choice === "stay" ? null : target } })} {...hint("confirm")}>
+      <button className="primary confirm" disabled={!ok} onClick={() => send({ type: "choice", request: req.id, value: { choice, target: choice === "stay" ? null : target } })} {...hint("confirm")}>
         {w("screen.move.confirm")}
       </button>
     </div>
@@ -2730,6 +2868,8 @@ function SeatCard({ req, send }: { req: Request; send: Send }) {
   return (
     <div className="card">
       <h3 {...hint("seat", { focusable: true })}>{o.form === "invitee" ? w("screen.seat.inviteeTitle", { initiator: o.initiator ?? "" }) : w("screen.seat.loneTitle")}</h3>
+      {/* Interface v0.16: when no group has room, the card says so, so the missing join choices don't look like a fault. */}
+      {o.groups.length === 0 && <p className="muted card-note">{w("screen.seat.allFull")}</p>}
       <div className="tiles column">
         {o.groups.map((g) => (
           <button key={g.members.join("|")} className="tile" onClick={() => choose({ choice: "join", target: g.members[0]! })} {...hint("join")}>
@@ -2750,7 +2890,7 @@ function SeatCard({ req, send }: { req: Request; send: Send }) {
       {calling && (
         <>
           <GuestPicker guests={o.colloquio} value={target} onChange={setTarget} label={w("screen.seat.pick")} />
-          <button className="primary" disabled={!target} onClick={() => choose({ choice: "colloquio", target })} {...hint("confirm")}>
+          <button className="primary confirm" disabled={!target} onClick={() => choose({ choice: "colloquio", target })} {...hint("confirm")}>
             {w("screen.seat.confirm")}
           </button>
         </>
@@ -2763,7 +2903,7 @@ function SeatCard({ req, send }: { req: Request; send: Send }) {
 function ActRow({ a, words, guests, onChange }: { a: { type: string; target: string }; words: string[]; guests: string[]; onChange: (a: Partial<{ type: string; target: string }>) => void }) {
   return (
     <>
-      <select value={a.type} onChange={(e) => onChange({ type: e.target.value })}>
+      <select className="act-kind" value={a.type} onChange={(e) => onChange({ type: e.target.value })}>
         {words.map((x) => (
           <option key={x} value={x}>
             {w(`screen.midnight.acts.${x}`)}
@@ -2793,7 +2933,7 @@ function MidnightCard({ req, send, me }: { req: Request; send: Send; me: string 
   return (
     <div className="card">
       <h3 {...hint("midnight", { focusable: true })}>{w("screen.midnight.title")}</h3>
-      <p className="muted">{most > 1 ? w("screen.midnight.introTwo") : w("screen.midnight.intro")}</p>
+      <p className="muted card-note">{most > 1 ? w("screen.midnight.introTwo") : w("screen.midnight.intro")}</p>
       {acts.map((a, i) => (
         <div className="act" key={i}>
           <ActRow a={a} words={words} guests={guests} onChange={(x) => set(i, x)} />
@@ -2808,7 +2948,7 @@ function MidnightCard({ req, send, me }: { req: Request; send: Send; me: string 
           <p className={extraOk ? "muted" : "notice"}>{w(extraOk ? "screen.midnight.extraNote" : "screen.midnight.extraSame")}</p>
         </div>
       )}
-      <button className="primary" disabled={!ok} onClick={() => send({ type: "choice", request: req.id, value })} {...hint("confirm")}>
+      <button className="primary confirm" disabled={!ok} onClick={() => send({ type: "choice", request: req.id, value })} {...hint("confirm")}>
         {w("screen.midnight.submit")}
       </button>
     </div>
