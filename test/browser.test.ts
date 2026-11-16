@@ -205,8 +205,8 @@ test("a deck swipes to the next card on a click, goes back with the arrow key, a
 });
 
 test("selecting a guest shows them on the right; Escape clears it", { skip }, async () => {
-  const name = await page.eval<string>(`document.querySelector(".place.own button.token[data-guest]").dataset.guest`);
-  await page.eval(`document.querySelector(".place.own button.token[data-guest]").click()`);
+  const name = await page.eval<string>(`document.querySelector(".place.own button.token[data-guest]:not([data-guest='Francesco Pazzi'])").dataset.guest`);
+  await page.eval(`document.querySelector(".place.own button.token[data-guest]:not([data-guest='Francesco Pazzi'])").click()`);
   await page.until(`document.querySelector('.side.right .look')?.dataset.guest === ${JSON.stringify(name)} && document.querySelector('.side.right [data-hint="lookingAt"]')`);
   await page.shot("looking-at");
   await page.eval(`document.querySelector(".input textarea").blur()`);
@@ -368,10 +368,18 @@ test("the Web of Secrets: a bar along the bottom that slides up to nine-tenths a
  * The screen sees only what its connection delivers, so this is a fixture state, not a change to the screen.
  */
 async function withStates(transform: string, check: () => Promise<void>): Promise<void> {
+  return withEvents(`(e) => { if (e.type === "state" && e.state) e.state = (${transform})(e.state); return e; }`, check);
+}
+
+/**
+ * The same for any incoming event: `transform` (a function's source, event => event, or => a list of events to
+ * deliver in its place) can change a sheet's track or follow an event with a request the fake game doesn't make.
+ */
+async function withEvents(transform: string, check: () => Promise<void>): Promise<void> {
   // The Page domain must be on for a script to run on the next document.
   await page.send("Page.enable");
   const { identifier } = await page.send<{ identifier: string }>("Page.addScriptToEvaluateOnNewDocument", {
-    source: `(() => { const T = ${transform}; const W = window.WebSocket; window.WebSocket = class extends W { set onmessage(f) { super.onmessage = (m) => { const e = JSON.parse(m.data); if (e.type === "state" && e.state) e.state = T(e.state); f({ data: JSON.stringify(e) }); }; } get onmessage() { return super.onmessage; } }; })()`,
+    source: `(() => { const T = ${transform}; const W = window.WebSocket; window.WebSocket = class extends W { set onmessage(f) { super.onmessage = (m) => { for (const e of [T(JSON.parse(m.data))].flat()) f({ data: JSON.stringify(e) }); }; } get onmessage() { return super.onmessage; } }; })()`,
   });
   try {
     await reopen();
@@ -559,6 +567,178 @@ test("the left panel (Interface v0.16): the switches centred at the top; You are
   await page.until(`!document.querySelector(".overlay")`);
 });
 
+// ---- CC-20261116-04 (#177): Interface v0.16, the centre, decision cards, commands, and the right panel -------
+
+test("a decision card sits in the message box's place (Interface v0.16); every group full says so; from a past stage, one wide Return brings it back", { skip }, async () => {
+  // A fixture: a seat choice with no group to join, delivered right after the first state, in place of the game's own requests.
+  const seat = `(() => { let sent = false; return (e) => { if (e.type === "request") return []; if (e.type !== "state" || sent || !e.state) return e; sent = true; return [e, { type: "request", seq: 100000, id: "fixture-seat", kind: "seat", options: { form: "invitee", initiator: e.state.livingOthers[0], groups: [], colloquio: e.state.livingOthers.slice(1, 3), wait: true } }]; }; })()`;
+  await withEvents(seat, async () => {
+    await page.until(`document.querySelector(".input.decision .card")`);
+    const geo = await page.eval<{ inBox: boolean; inStream: boolean; textarea: boolean; atFoot: boolean; note: string; shadow: boolean; radius: number }>(`(() => {
+      const box = document.querySelector(".input.decision"), b = box.getBoundingClientRect(), c = document.querySelector(".centre").getBoundingClientRect();
+      return { inBox: !!box.querySelector(".card"), inStream: !!document.querySelector(".stream .card"), textarea: !!document.querySelector(".input textarea"), atFoot: c.bottom - b.bottom < 20 && b.top > c.top + c.height / 2, note: box.querySelector(".card-note")?.textContent ?? "", shadow: getComputedStyle(box).boxShadow !== "none", radius: parseFloat(getComputedStyle(box).borderTopLeftRadius) };
+    })()`);
+    assert.ok(geo.inBox && !geo.inStream && !geo.textarea, "the card is in the box's place, not at the end of the conversation");
+    assert.ok(geo.atFoot, "at the foot of the centre");
+    assert.equal(geo.note, "Every group is full.");
+    assert.ok(geo.shadow && geo.radius > 6, "the same floating card");
+    // The controls: starting a secret conversation shows the picker and the confirm button at the right.
+    await page.eval(`[...document.querySelectorAll(".input.decision .tile")].find((t) => t.dataset.hint === "colloquio").click()`);
+    await page.until(`document.querySelector(".input.decision select") && document.querySelector(".input.decision button.confirm")`);
+    const controls = await page.eval<{ selectH: number; right: boolean; appearance: string }>(`(() => { const s = document.querySelector(".input.decision select"), k = document.querySelector(".input.decision button.confirm").getBoundingClientRect(), c = document.querySelector(".input.decision .card").getBoundingClientRect(); return { selectH: s.getBoundingClientRect().height, right: Math.abs(k.right - c.right) < 2 && k.width < c.width / 2, appearance: getComputedStyle(s).appearance }; })()`);
+    assert.equal(controls.selectH, 32);
+    assert.equal(controls.appearance, "none", "its own arrow, not the browser's");
+    assert.ok(controls.right, "the confirm button at the right, at its own width");
+    await page.shot("decision-card");
+    // Reading an earlier stage while it waits: one wide Return button fills the bottom card.
+    if (await page.eval<boolean>(`!!document.querySelector(".stage-bar .mark.past .stage")`)) {
+      await page.eval(`document.querySelector(".stage-bar .mark.past .stage").click()`);
+      await page.until(`document.querySelector(".input.past.decision button.return.wide")`);
+      const ret = await page.eval<{ buttons: number; fills: boolean; card: boolean }>(`(() => { const box = document.querySelector(".input.past.decision"), b = box.getBoundingClientRect(), r = box.querySelector("button.return").getBoundingClientRect(); return { buttons: box.querySelectorAll("button, textarea").length, fills: r.width > b.width * 0.85 && r.height > b.height * 0.5, card: !!document.querySelector(".card") }; })()`);
+      assert.deepEqual(ret, { buttons: 1, fills: true, card: false });
+      await page.shot("decision-return");
+      await page.eval(`document.querySelector(".input.past.decision button.return").click()`);
+      await page.until(`document.querySelector(".input.decision .card") && !document.querySelector(".past-stage")`);
+      assert.equal(await page.eval<string>(`document.querySelector(".input.decision .card-note").textContent`), "Every group is full.", "returning brings the card back");
+    }
+  });
+});
+
+test("the command menu lists every command (Interface v0.16): what's open first, the rest folded under Not available now, greyed, each with its reason; a refused command is explained in Il Notaio's hint until the player types", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".input textarea") && document.querySelector(".prompt")`);
+  await page.eval(`document.querySelector(".input textarea").focus()`);
+  await page.type("/");
+  await page.until(`document.querySelector('[data-menu="commands"] .menu-more')`);
+  const folded = await page.eval<{ open: string[]; more: string; expanded: string; closed: number }>(`(() => { const m = document.querySelector('[data-menu="commands"]'); return { open: [...m.querySelectorAll(":scope > li > button[data-command]")].map((b) => b.dataset.command), more: m.querySelector(".menu-more").textContent, expanded: m.querySelector(".menu-more").getAttribute("aria-expanded"), closed: m.querySelectorAll(".cmd-closed").length }; })()`);
+  assert.ok(folded.open.length > 0 && !folded.open.includes("bribe"), `what's open now comes first (${folded.open})`);
+  assert.equal(folded.more, `Not available now (${7 - folded.open.length})`);
+  assert.deepEqual([folded.expanded, folded.closed], ["false", 0], "the rest wait in a folded section");
+  await page.eval(`document.querySelector('[data-menu="commands"] .menu-more').click()`);
+  await page.until(`document.querySelector('[data-menu="commands"] .cmd-closed')`);
+  const closed = await page.eval<Record<string, { usage: string; why: string; opacity: number; button: boolean }>>(`Object.fromEntries([...document.querySelectorAll('[data-menu="commands"] .cmd-closed')].map((c) => [c.dataset.command, { usage: c.querySelector(".cmd").textContent, why: c.querySelector(".why").textContent, opacity: Number(getComputedStyle(c).opacity), button: !!c.closest("button") || !!c.querySelector("button") }]))`);
+  assert.equal(closed.bribe!.why, "Only in a secret conversation.", "an unavailable command, with its reason in place of its hint");
+  assert.equal(closed.kill!.why, "Only at midnight.");
+  assert.equal(closed.conclude!.why, "Only for an errand that asks you to find something out.");
+  assert.ok(closed.bribe!.opacity < 1 && !closed.bribe!.button, "greyed, and not a control");
+  await page.shot("command-menu-unavailable");
+  // Clicking an unavailable command does nothing.
+  await page.eval(`document.querySelector('[data-menu="commands"] .cmd-closed[data-command="bribe"]').click()`);
+  assert.equal(await page.eval<string>(`document.querySelector(".input textarea").value`), "/");
+  // Narrowed to a command that isn't open, the section opens by itself.
+  await page.type("br");
+  await page.until(`document.querySelectorAll('[data-menu="commands"] .cmd-closed').length === 1 && document.querySelector('[data-menu="commands"] .menu-more').getAttribute("aria-expanded") === "true"`);
+  // Running it anyway: Il Notaio explains the refusal in his hint, which flashes; no notice above the box.
+  const usual = await page.eval<string>(`document.querySelector(".hint-text").textContent`);
+  await page.type("ibe @Giorgia 2");
+  await page.key("Enter", 13);
+  await page.until(`document.querySelector('.hint-text[data-moment="refusal"]')`);
+  assert.equal(await page.eval<string>(`document.querySelector(".hint-text").textContent`), "Money can only change hands in a secret conversation. Start one with the guest first, then try /bribe again.");
+  assert.equal(await page.eval<boolean>(`!!document.querySelector(".notaio-hint .hint-glow") && document.querySelector(".hint-text").classList.contains("fresh")`), true, "his box flashes and the new words fade in");
+  assert.equal(await page.eval<boolean>(`!document.querySelector(".input .notice")`), true, "no notice above the box");
+  await page.shot("notaio-refusal");
+  // Folded, his box opens for a refusal.
+  await page.eval(`document.querySelector(".hint-head").click()`);
+  await page.until(`!document.querySelector(".hint-text")`);
+  await page.eval(`document.querySelector(".input textarea").focus()`);
+  await page.type("/kill @Giorgia");
+  await page.key("Enter", 13);
+  await page.until(`document.querySelector('.hint-text[data-moment="refusal"]')?.textContent === "That has to wait for midnight."`);
+  // His usual line comes back as soon as the player types again.
+  await page.type("W");
+  await page.until(`document.querySelector(".hint-text")?.dataset.moment !== "refusal"`);
+  assert.equal(await page.eval<string>(`document.querySelector(".hint-text").textContent`), usual);
+  await page.key("Backspace", 8);
+});
+
+test("the centre's floating cards and the message box (Interface v0.16): shadows and rounded corners, the conversation fading at its edges, the count over the buttons, a two-line placeholder, no scrollbar on the empty box", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".input textarea") && document.querySelector(".stream .ln")`);
+  const c = await page.eval<{ head: { shadow: boolean; radius: number; inset: number }; box: { shadow: boolean; radius: number; inset: number }; mask: boolean; count: { right: number; top: number; text: string }; buttons: { right: number; top: number }; prompt: { left: number; top: number }; field: { left: number }; placeholder: string; overflow: string; members: boolean }>(`(() => {
+    const r = (e) => e.getBoundingClientRect();
+    const centre = r(document.querySelector(".centre")), head = document.querySelector(".conv-head"), box = document.querySelector(".input"), count = document.querySelector(".input .count"), ta = document.querySelector(".input textarea");
+    const look = (e) => ({ shadow: getComputedStyle(e).boxShadow !== "none", radius: parseFloat(getComputedStyle(e).borderTopLeftRadius), inset: r(e).left - centre.left });
+    const m = r(document.querySelector(".members .muted")), h = r(head);
+    return { head: look(head), box: look(box), mask: getComputedStyle(document.querySelector(".stream")).maskImage.includes("gradient"), count: { right: r(count).right, top: r(count).top, text: count.textContent }, buttons: { right: r(document.querySelector(".input .actions")).right, top: r(document.querySelector(".input .actions")).top }, prompt: { left: r(document.querySelector(".input .prompt")).left, top: r(document.querySelector(".input .prompt")).top }, field: { left: r(ta).left }, placeholder: ta.placeholder, overflow: getComputedStyle(ta).overflowY, members: Math.abs(m.left + m.width / 2 - (h.left + h.width / 2)) < 2 };
+  })()`);
+  for (const k of ["head", "box"] as const) assert.ok(c[k].shadow && c[k].radius > 6 && c[k].inset > 4, `${k}: a rounded card with a shadow, clear of the column's edge`);
+  assert.ok(c.mask, "the conversation fades where it slides under the cards");
+  assert.match(c.count.text, /^0\/\d+$/);
+  assert.ok(Math.abs(c.count.right - c.buttons.right) < 2 && c.count.top < c.buttons.top, "the character count at the right, over the buttons");
+  assert.ok(Math.abs(c.prompt.left - c.field.left) < 2 && Math.abs(c.prompt.top - c.count.top) < 8, "the prompt at the left of the same line");
+  assert.match(c.placeholder, /^Speak as your character would…\n“@[^”]+”, or “\/\w+/, "the example on two lines");
+  assert.equal(c.overflow, "hidden", "no scrollbar on the empty box");
+  assert.ok(c.members, "the members line is centred under the bar");
+  await page.eval(`document.querySelector(".input textarea").focus()`);
+  await page.type("A word.");
+  assert.equal(await page.eval<string>(`getComputedStyle(document.querySelector(".input textarea")).overflowY`), "auto", "it comes back once there's text");
+  for (let i = 0; i < 7; i++) await page.key("Backspace", 8);
+});
+
+test("End conversation is in the header and under Speak and Pass, both solid red (Interface v0.16); Return to current stage is as tall as the box and narrower", { skip }, async () => {
+  // A fixture: a secret conversation with the first other guest.
+  const aside = `(s) => ({ ...s, conversation: { kind: "colloquio", other: s.livingOthers[0] }, present: [s.livingOthers[0]] })`;
+  await withStates(aside, async () => {
+    await page.until(`document.querySelectorAll('[data-hint="end"]').length === 2`);
+    const ends = await page.eval<{ where: string; bg: string; color: string; width: number }[]>(`[...document.querySelectorAll('[data-hint="end"]')].map((b) => ({ where: b.closest(".members") ? "header" : b.closest(".actions") ? "actions" : "?", bg: getComputedStyle(b).backgroundColor, color: getComputedStyle(b).color, width: b.getBoundingClientRect().width }))`);
+    assert.deepEqual(ends.map((e) => e.where), ["header", "actions"]);
+    for (const e of ends) {
+      const [r, g, b] = e.bg.match(/\d+/g)!.map(Number);
+      assert.ok(r! > 150 && g! < 90 && b! < 90, `solid red (${e.bg})`);
+      assert.equal(e.color, "rgb(255, 255, 255)", "white words");
+    }
+    const row = await page.eval<number>(`document.querySelector(".input .actions-row").getBoundingClientRect().width`);
+    assert.ok(Math.abs(ends[1]!.width - row) < 2, "under Speak and Pass, the width of the two");
+    await page.shot("end-conversation");
+  });
+  await page.until(`document.querySelector(".stage-bar .mark.past .stage")`);
+  await page.eval(`document.querySelector(".stage-bar .mark.past .stage").click()`);
+  await page.until(`document.querySelector(".input.past button.return")`);
+  const ret = await page.eval<{ tall: boolean; narrow: boolean; lines: number }>(`(() => { const b = document.querySelector(".input.past button.return"), r = b.getBoundingClientRect(), f = document.querySelector(".input .field").getBoundingClientRect(); return { tall: Math.abs(r.height - f.height) < 2, narrow: r.width <= 124, lines: Math.round((r.height - 10) / parseFloat(getComputedStyle(b).lineHeight)) >= 2 ? Math.round(b.scrollHeight ? (() => { const range = document.createRange(); range.selectNodeContents(b); return range.getClientRects().length; })() : 0) : 0 }; })()`);
+  assert.ok(ret.tall, "as tall as the box beside it");
+  assert.ok(ret.narrow, "and narrower");
+  assert.equal(ret.lines, 2, "its words on two lines");
+  await page.eval(`document.querySelector(".input.past button.return").click()`);
+  await page.until(`!document.querySelector(".past-stage")`);
+});
+
+test("the right panel (Interface v0.16): short of the top with rounded top corners; dragging well past its narrowest fades it, and letting go hides it; your own card", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".side.right .resize")`);
+  const top = await page.eval<{ gap: number; radius: number; tokens: boolean }>(`(() => { const p = document.querySelector(".side.right"), l = document.querySelector(".layout").getBoundingClientRect(); return { gap: p.getBoundingClientRect().top - l.top, radius: parseFloat(getComputedStyle(p).borderTopLeftRadius), tokens: !!p.querySelector(".tokens") }; })()`);
+  assert.ok(top.gap >= 8 && top.gap <= 24, `it stops a little short of the top (${top.gap}px)`);
+  assert.ok(top.radius > 6, "rounded top corners");
+  assert.equal(top.tokens, false, "no row of tokens on the talking-with card");
+  // Your own card.
+  await page.eval(`document.querySelector('.places button.token[data-guest="Francesco Pazzi"]').click()`);
+  await page.until(`document.querySelector(".side.right .look.self:not(.leaving)")`);
+  const own = await page.eval<{ label: string; tag: string; edge: boolean; faction: number }>(`(() => { const c = document.querySelector(".side.right .look.self"); return { label: c.querySelector(".person-head .label").textContent, tag: c.querySelector(".you-tag").textContent, edge: getComputedStyle(c).boxShadow.includes("inset"), faction: c.querySelectorAll(".who .muted").length }; })()`);
+  assert.deepEqual(own, { label: "This is you", tag: "You", edge: true, faction: 1 });
+  await page.shot("own-card");
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector(".side.right .look:not(.leaving)")`);
+  // Drag the handle to the right, past the narrowest and then well past it.
+  const h = await page.eval<{ x: number; y: number; width: number }>(`(() => { const b = document.querySelector(".side.right .resize").getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + 200, width: document.querySelector(".side.right").getBoundingClientRect().width }; })()`);
+  const mouse = (type: string, x: number, y = h.y) => page.send("Input.dispatchMouseEvent", { type, x, y, button: "left", buttons: type === "mouseReleased" ? 0 : 1, clickCount: 1 });
+  await mouse("mouseMoved", h.x);
+  await mouse("mousePressed", h.x);
+  await mouse("mouseMoved", h.x + (h.width - 220) + 20);
+  const atMin = await page.eval<{ width: number; hiding: boolean }>(`({ width: document.querySelector(".side.right").getBoundingClientRect().width, hiding: document.querySelector(".side.right").classList.contains("hiding") })`);
+  assert.deepEqual(atMin, { width: 220, hiding: false }, "at its narrowest, not yet hiding");
+  await mouse("mouseMoved", h.x + (h.width - 220) + 90);
+  await page.until(`document.querySelector(".side.right").classList.contains("hiding")`);
+  assert.ok((await page.eval<number>(`Number(getComputedStyle(document.querySelector(".side.right")).opacity)`)) < 1, "past the point, the panel fades to show what letting go will do");
+  await page.shot("right-hiding");
+  // Letting go off the window still finishes the drag.
+  await mouse("mouseMoved", VIEW.width + 40, -20);
+  await mouse("mouseReleased", VIEW.width + 40, -20);
+  await page.until(`document.querySelector(".side.right.hidden .right-handle")`);
+  await page.eval(`document.querySelector(".right-handle").click()`);
+  await page.until(`document.querySelector(".side.right .resize")`);
+  assert.equal(await page.eval<number>(`document.querySelector(".side.right").getBoundingClientRect().width`), h.width, "it comes back at the width it had");
+  assert.equal(await page.eval<boolean>(`!document.querySelector(".side.right").classList.contains("hiding")`), true);
+});
+
 // ---- CC-20261114-04 (#102) -------------------------------------------------------------------------------
 
 test("the errand card with plot_reward off (the mini-game): the no-extra-act line in the card's accent, and no deadline mark", { skip }, async () => {
@@ -734,13 +914,20 @@ test("TD v0.51: Il Notaio's summary over a past stage, expanded with a strip of 
   const steady = () => page.until(`document.getAnimations().every((a) => a.effect?.getComputedTiming().iterations === Infinity)`);
   await steady();
   let g = await geo();
-  assert.ok(g.box.top - g.area.top > 10 && g.box.top - g.area.top < 80, `a strip of the dialogue peeks out at the top (${g.box.top - g.area.top}px)`);
+  // Interface v0.16: it opens a fifth of the way down, so a good stretch of the dialogue shows above it, faded while it's open.
+  const down = (g.box.top - g.area.top) / g.area.height;
+  assert.ok(down > 0.17 && down < 0.23, `it opens a fifth of the way down (${down})`);
   assert.ok(g.box.height > g.area.height * 0.7, "it covers the window down to the input box");
+  const faded = () => page.eval<number>(`Number(getComputedStyle(document.querySelector(".past-stage")).opacity)`);
+  assert.ok((await faded()) < 0.6, "the dialogue behind it fades");
+  assert.equal(await page.eval<boolean>(`getComputedStyle(document.querySelector(".past-summary")).boxShadow !== "none"`), true, "an upward shadow");
+  assert.equal(await page.eval<boolean>(`!document.querySelector(".notaio-hint")`), true, "Il Notaio's hint steps aside");
   assert.ok(g.groups > 0 && g.heads === g.groups, "bullets grouped under each conversation's line");
   await page.shot("past-summary");
   await clickAt({ x: (await page.eval<number>(`document.querySelector(".stream-area").getBoundingClientRect().left + 40`)), y: g.area.top + 12 });
   await page.until(`document.querySelector('.past-summary[data-state="minimized"]')`);
   await steady();
+  assert.equal(await faded(), 1, "minimized, the dialogue is back");
   g = await geo();
   assert.ok(g.area.bottom - g.box.bottom < 20 && g.box.height < g.area.height * 0.4, "minimized at the foot, its first lines showing");
   await clickAt(".past-summary");
@@ -751,7 +938,7 @@ test("TD v0.51: Il Notaio's summary over a past stage, expanded with a strip of 
 
 // ---- CC-20261114-06 (#113) -------------------------------------------------------------------------------
 
-test("the stage bar: hovering expands a past or a future stage; a past stage opens read-only with Return; a draft survives; nothing is sent from it; a future stage can't be opened; a selected guest's dots", { skip }, async () => {
+test("the stage bar (Interface v0.16): hovering changes nothing in the row, and a tooltip under it shows the stage's name, description, and explanation; a past stage opens read-only with Return; a draft survives; nothing is sent from it; a future stage can't be opened; a selected guest's dots", { skip }, async () => {
   await reopen();
   await page.until(`document.querySelector(".stage-bar .mark.past") && document.querySelector(".stage-bar .mark.next") && document.querySelector(".input textarea")`);
   await page.eval(`(() => { window.__sent = []; const send = WebSocket.prototype.send; WebSocket.prototype.send = function (d) { window.__sent.push(JSON.parse(d)); return send.call(this, d); }; })()`);
@@ -765,18 +952,36 @@ test("the stage bar: hovering expands a past or a future stage; a past stage ope
   };
   const nowName = () => page.eval<boolean>(`!!document.querySelector(".stage-bar .mark.now .stage-name")`);
   assert.equal(await nowName(), true, "the current stage is an oval with its name");
-  // Hovering a past stage, then a future one, expands it with its name and description; the current one shrinks back.
+  // Hovering a past stage, then a future one, changes nothing in the row; a tooltip under the row shows its
+  // name, its description, and its explanation. It switches at once between neighbours.
+  const row = () => page.eval<string>(`JSON.stringify([...document.querySelectorAll(".stage-bar .mark .stage")].map((x) => { const b = x.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.width), x.textContent]; }))`);
+  const before = await row();
+  await HINTS_OFF(false);
   for (const kind of ["past", "next"]) {
+    const stage = await page.eval<string>(`document.querySelector(".stage-bar .mark.${kind}").getAttribute("aria-label")`);
     await move(await centre(`.stage-bar .mark.${kind} .stage`));
-    await page.until(`document.querySelector(".stage-bar .mark.${kind}.expanded .stage-desc")`);
-    const m = await page.eval<{ stage: string; name: string; desc: string }>(`(() => { const li = document.querySelector(".stage-bar .mark.${kind}.expanded"); return { stage: li.getAttribute("aria-label"), name: li.querySelector(".stage-name").textContent, desc: li.querySelector(".stage-desc").textContent }; })()`);
-    assert.equal(m.name, m.stage);
-    assert.equal(m.desc, words.screen.stageBar.descriptions[m.stage], `${kind}: its description`);
-    assert.equal(await nowName(), false, `${kind}: the current stage shrinks back`);
+    await page.until(`document.querySelector(".stage-tip:not(.measuring)")?.dataset.stage === ${JSON.stringify(stage)}`);
+    const m = await page.eval<{ name: string; desc: string; hint: string; under: boolean; inside: boolean }>(`(() => { const t = document.querySelector(".stage-tip"); const b = t.getBoundingClientRect(); const bar = document.querySelector(".stage-bar").getBoundingClientRect(); return { name: t.querySelector(".stage-tip-name").textContent, desc: t.querySelector(".stage-tip-desc").textContent, hint: t.querySelector(".stage-tip-hint").textContent, under: b.top >= bar.bottom - 1, inside: b.left >= bar.left - 1 && b.right <= bar.right + 1 }; })()`);
+    assert.equal(m.name, stage);
+    assert.equal(m.desc, words.screen.stageBar.descriptions[stage], `${kind}: its description`);
+    assert.equal(m.hint, kind === "past" ? `${stage}: over. Click to read it again.` : `${stage}: still to come.`, `${kind}: its explanation`);
+    assert.ok(m.under && m.inside, `${kind}: under the row, within the bar`);
+    assert.equal(await row(), before, `${kind}: nothing in the row moves or changes`);
+    assert.equal(await nowName(), true, `${kind}: the current stage keeps its name`);
+    assert.equal(await page.eval<boolean>(`!document.querySelector(".tip")`), true, `${kind}: no second explanation`);
     await page.shot(`stage-bar-hover-${kind}`);
   }
   await move({ x: VIEW.width / 2, y: VIEW.height / 2 });
-  await page.until(`document.querySelector(".stage-bar .mark.now .stage-name")`);
+  await page.until(`!document.querySelector(".stage-tip")`);
+  // With the explanations off, the tooltip keeps the name and description, without the explanation.
+  await HINTS_OFF(true);
+  await move(await centre(`.stage-bar .mark.past .stage`));
+  await page.until(`document.querySelector(".stage-tip:not(.measuring)")`);
+  assert.equal(await page.eval<boolean>(`!!document.querySelector(".stage-tip-name") && !document.querySelector(".stage-tip-hint")`), true);
+  await move({ x: VIEW.width / 2, y: VIEW.height / 2 });
+  await page.until(`!document.querySelector(".stage-tip")`);
+  await HINTS_OFF(false);
+  assert.equal(await page.eval<number>(`document.querySelector(".stage-bar").getAnimations({ subtree: true }).length`), 0, "no motion");
   // A future stage can't be opened: it isn't a button, and clicking it changes nothing.
   assert.equal(await page.eval<string>(`document.querySelector(".stage-bar .mark.next .stage").tagName`), "SPAN");
   await click(".stage-bar .mark.next .stage");
@@ -833,7 +1038,7 @@ test("the stage bar: hovering expands a past or a future stage; a past stage ope
     await page.eval(`document.querySelector(".past-stage .guest").click()`);
   } else {
     await click(`[data-hint="return"]`);
-    await page.eval(`document.querySelector(".place.own button.token[data-guest]").click()`);
+    await page.eval(`document.querySelector(".place.own button.token[data-guest]:not([data-guest='Francesco Pazzi'])").click()`);
   }
   await page.until(`document.querySelector(".side.right .look:not(.leaving)")`);
   const picked = await page.eval<string>(`document.querySelector(".side.right .look:not(.leaving)").dataset.guest`);
@@ -847,18 +1052,59 @@ test("the stage bar: hovering expands a past or a future stage; a past stage ope
   if (await page.eval<boolean>(`!!document.querySelector(".past-stage")`)) await click(`[data-hint="return"]`);
   await page.until(`!document.querySelector(".past-stage")`);
   assert.deepEqual(await sent(), [], "still nothing sent");
-  // On a narrow window the bar scrolls sideways, keeping the current stage in view.
-  await page.send("Emulation.setDeviceMetricsOverride", { width: 900, height: VIEW.height, deviceScaleFactor: 1, mobile: false });
-  await page.until(`innerWidth === 900`);
-  await new Promise((r) => setTimeout(r, 100));
-  const narrow = await page.eval<{ scrolls: boolean; inView: boolean }>(`(() => {
-    const ol = document.querySelector(".stage-bar"), bar = ol.getBoundingClientRect(), now = document.querySelector(".stage-bar .mark.now .stage").getBoundingClientRect();
-    return { scrolls: ol.scrollWidth > ol.clientWidth, inView: now.left >= bar.left - 1 && now.right <= bar.right + 1 };
-  })()`);
-  await page.shot("stage-bar-narrow");
-  assert.ok(narrow.scrolls, "the bar is wider than its column, so it scrolls sideways");
-  assert.ok(narrow.inView, "with the current stage in view");
-  await page.send("Emulation.setDeviceMetricsOverride", { ...VIEW, deviceScaleFactor: 1, mobile: false });
+});
+
+/** The full evening's track for a Pazzi player (Mechanics v0.37; Interface v0.16): eleven stages. A fixture: the mini-game's own track stays as the engine sends it. */
+const ELEVEN = ["The first round of mingling", "The first Pazzi council", "The second round of mingling", "The second Pazzi council", "The third round of mingling", "The third Pazzi council", "Midnight", "The choosing of candidates", "The speeches", "The last Pazzi council", "The ballot"];
+
+test("the stage bar fits eleven stages without scrolling from a 1100-pixel window up, stretching with the window (Interface v0.16)", { skip }, async () => {
+  // The fifth stage is now, so the oval holds a long name.
+  const full = `(e) => { if (e.type === "state") { if (e.sheet) e.sheet.track = ${JSON.stringify(ELEVEN)}; if (e.state) e.state.phaseLabel = ${JSON.stringify(ELEVEN[4])}; } return e; }`;
+  const measure = () =>
+    page.eval<{ marks: number; fits: boolean; inside: boolean; apart: boolean; name: string; whole: boolean; circle: number; line: number; span: number }>(`(() => {
+      const ol = document.querySelector(".stage-bar"), bar = ol.getBoundingClientRect(), card = document.querySelector(".conv-head").getBoundingClientRect();
+      const stages = [...ol.querySelectorAll(".mark .stage")].map((x) => x.getBoundingClientRect());
+      const name = ol.querySelector(".mark.now .stage-name");
+      return {
+        marks: stages.length,
+        fits: ol.scrollWidth <= ol.clientWidth && getComputedStyle(ol).overflowX === "visible",
+        inside: stages.every((b) => b.left >= card.left && b.right <= card.right),
+        apart: stages.every((b, i) => i === 0 || b.left >= stages[i - 1].right + 4),
+        name: name.textContent,
+        whole: name.scrollWidth <= name.clientWidth,
+        circle: stages[0].width,
+        line: stages[1].left - stages[0].right,
+        span: (stages[stages.length - 1].right - stages[0].left) / card.width,
+      };
+    })()`);
+  try {
+    await page.send("Emulation.setDeviceMetricsOverride", { width: 1100, height: VIEW.height, deviceScaleFactor: 1, mobile: false });
+    await withEvents(full, async () => {
+      await page.until(`innerWidth === 1100 && document.querySelectorAll(".stage-bar .mark").length === 11`);
+      const narrow = await measure();
+      assert.equal(narrow.marks, 11);
+      assert.ok(narrow.fits, "no scrolling at 1100 pixels");
+      assert.ok(narrow.inside, "every stage is inside the floating card");
+      assert.ok(narrow.apart, "with a line between each pair");
+      assert.equal(narrow.name, ELEVEN[4]);
+      assert.ok(narrow.whole, "the current stage's name shows whole");
+      assert.equal(await page.eval<boolean>(`!document.querySelector(".stage-bar .mark.now .num")`), true, "no number in the current oval");
+      await page.shot("stage-bar-eleven-1100");
+      // Wider, the lines share out the room, the circles grow a little, and the bar spans most of the card.
+      await page.send("Emulation.setDeviceMetricsOverride", { width: 1600, height: VIEW.height, deviceScaleFactor: 1, mobile: false });
+      await page.until(`innerWidth === 1600`);
+      await new Promise((r) => setTimeout(r, 100));
+      const wide = await measure();
+      assert.ok(wide.fits && wide.inside && wide.apart && wide.whole);
+      assert.ok(wide.circle > narrow.circle, `the circles grow a little (${narrow.circle} to ${wide.circle})`);
+      assert.ok(wide.line > narrow.line, `the lines stretch (${narrow.line} to ${wide.line})`);
+      assert.ok(wide.span > 0.8, `the bar spans most of the card (${wide.span})`);
+      await page.shot("stage-bar-eleven-1600");
+      await page.send("Emulation.setDeviceMetricsOverride", { width: 1100, height: VIEW.height, deviceScaleFactor: 1, mobile: false });
+    });
+  } finally {
+    await page.send("Emulation.setDeviceMetricsOverride", { ...VIEW, deviceScaleFactor: 1, mobile: false });
+  }
 });
 
 // ---- CC-20261114-07 (#114) -------------------------------------------------------------------------------
@@ -884,13 +1130,13 @@ const looking = () => page.eval<string | null>(`document.querySelector(".side.ri
 
 test("one selection, shared with the Web of Secrets: chat to web, web to chat, a pair, clearing, and Open in the Web of Secrets", { skip }, async () => {
   await reopen();
-  await page.until(`document.querySelector(".place.own button.token[data-guest]")`);
+  await page.until(`document.querySelector(".place.own button.token[data-guest]:not([data-guest='Francesco Pazzi'])")`);
   // Interface v0.7: with no one selected the bar shows no names at all.
   const none = "";
   const me = await page.eval<string>(`document.querySelector(".web .node.me").dataset.guest`);
   // Chat to web: a guest selected in the chat shows on the web's bar while it's down, and is selected when it opens.
-  const name = await page.eval<string>(`document.querySelector(".place.own button.token[data-guest]").dataset.guest`);
-  await page.eval(`document.querySelector(".place.own button.token[data-guest]").click()`);
+  const name = await page.eval<string>(`document.querySelector(".place.own button.token[data-guest]:not([data-guest='Francesco Pazzi'])").dataset.guest`);
+  await page.eval(`document.querySelector(".place.own button.token[data-guest]:not([data-guest='Francesco Pazzi'])").click()`);
   await page.until(`document.querySelector(".side.right .look")`);
   assert.equal(await barSel(), name, "on the bar while the web is down");
   await page.shot("shared-bar");
@@ -907,7 +1153,7 @@ test("one selection, shared with the Web of Secrets: chat to web, web to chat, a
   assert.equal(await looking(), a, "the chat holds the one picked last");
   assert.equal(await barSel(), pairBar, "and the bar keeps the pair while the web is down");
   // A new selection in the chat replaces the pair.
-  await page.eval(`document.querySelector(".place.own button.token[data-guest]").click()`);
+  await page.eval(`document.querySelector(".place.own button.token[data-guest]:not([data-guest='Francesco Pazzi'])").click()`);
   await page.until(`document.querySelector(".side.right .look")?.dataset.guest === ${JSON.stringify(name)}`);
   assert.equal(await barSel(), name, "the pair is replaced by the chat's one guest");
   // Clearing in the chat clears both.
@@ -931,7 +1177,7 @@ test("one selection, shared with the Web of Secrets: chat to web, web to chat, a
   assert.equal(await looking(), null, "cleared in the web, cleared in the chat");
   assert.equal(await barSel(), none);
   // "Open in the Web of Secrets" just opens the web, with the selection it already has.
-  await page.eval(`document.querySelector(".place.own button.token[data-guest]").click()`);
+  await page.eval(`document.querySelector(".place.own button.token[data-guest]:not([data-guest='Francesco Pazzi'])").click()`);
   await page.until(`document.querySelector('.side.right .look [data-hint="openWeb"]')`);
   await page.eval(`document.querySelector('.side.right .look [data-hint="openWeb"]').click()`);
   await page.until(`document.querySelector(".web-dock.open") && ${settled}`);
@@ -1000,9 +1246,9 @@ test("the right panel hides to a strip with a handle, the chat widens; selecting
   assert.ok((await width(".side.right")) < 60, "a thin strip");
   assert.ok((await width(".centre")) > centre + 150, "the chat widens");
   // Selecting a guest doesn't reopen it; the handle shows their small portrait.
-  await page.until(`document.querySelector(".place.own button.token[data-guest]")`);
-  const name = await page.eval<string>(`document.querySelector(".place.own button.token[data-guest]").dataset.guest`);
-  await page.eval(`document.querySelector(".place.own button.token[data-guest]").click()`);
+  await page.until(`document.querySelector(".place.own button.token[data-guest]:not([data-guest='Francesco Pazzi'])")`);
+  const name = await page.eval<string>(`document.querySelector(".place.own button.token[data-guest]:not([data-guest='Francesco Pazzi'])").dataset.guest`);
+  await page.eval(`document.querySelector(".place.own button.token[data-guest]:not([data-guest='Francesco Pazzi'])").click()`);
   await page.until(`document.querySelector(".right-handle-guest .portrait")`);
   assert.equal(await page.eval<string>(`document.querySelector(".right-handle-guest").dataset.guest`), name);
   assert.equal(await page.eval<boolean>(`!!document.querySelector(".side.right.hidden")`), true, "still hidden");
@@ -1109,7 +1355,7 @@ test("the midnight line in the sheet: one act, and with plot_reward off (the min
 
 test("the web's bar is one centered group; with someone selected, a dot and their small portraits and names", { skip }, async () => {
   await reopen();
-  await page.until(`document.querySelector(".place.own button.token[data-guest]")`);
+  await page.until(`document.querySelector(".place.own button.token[data-guest]:not([data-guest='Francesco Pazzi'])")`);
   const centred = () =>
     page.eval<{ off: number; names: boolean; arrow: string }>(`(() => {
       const bar = document.querySelector(".web-bar").getBoundingClientRect(), g = document.querySelector(".web-bar-group").getBoundingClientRect();
@@ -1119,8 +1365,8 @@ test("the web's bar is one centered group; with someone selected, a dot and thei
   assert.ok(c.off < 2, `centered (${c.off}px off)`);
   assert.equal(c.names, false, "no one selected: just the arrow and the title");
   assert.equal(c.arrow, "▲");
-  const name = await page.eval<string>(`document.querySelector(".place.own button.token[data-guest]").dataset.guest`);
-  await page.eval(`document.querySelector(".place.own button.token[data-guest]").click()`);
+  const name = await page.eval<string>(`document.querySelector(".place.own button.token[data-guest]:not([data-guest='Francesco Pazzi'])").dataset.guest`);
+  await page.eval(`document.querySelector(".place.own button.token[data-guest]:not([data-guest='Francesco Pazzi'])").click()`);
   await page.until(`document.querySelector(".web-bar-sel")`);
   c = await centred();
   assert.ok(c.off < 2, `still centered with a selection (${c.off}px off)`);
@@ -1198,13 +1444,13 @@ test("one Notes tab: the writing box on top, and one list filtered by the select
 
 test("portraits select like names; the player's own name or portrait opens Your briefing, with the hover \"Your briefing\"", { skip }, async () => {
   await reopen();
-  await page.until(`document.querySelector(".place.own button.token[data-guest]")`);
-  const name = await page.eval<string>(`document.querySelector(".place.own button.token[data-guest]").dataset.guest`);
-  await page.eval(`document.querySelector(".place.own button.token[data-guest]").click()`);
+  await page.until(`document.querySelector(".place.own button.token[data-guest]:not([data-guest='Francesco Pazzi'])")`);
+  const name = await page.eval<string>(`document.querySelector(".place.own button.token[data-guest]:not([data-guest='Francesco Pazzi'])").dataset.guest`);
+  await page.eval(`document.querySelector(".place.own button.token[data-guest]:not([data-guest='Francesco Pazzi'])").click()`);
   await page.until(`document.querySelector(".side.right .look:not(.leaving)")?.dataset.guest === ${JSON.stringify(name)}`);
-  assert.equal(await page.eval<boolean>(`document.querySelector(".place.own button.token[data-guest]").getAttribute("aria-pressed") === "true"`), true, "marked as selected");
+  assert.equal(await page.eval<boolean>(`document.querySelector(".place.own button.token[data-guest]:not([data-guest='Francesco Pazzi'])").getAttribute("aria-pressed") === "true"`), true, "marked as selected");
   // Again: deselects.
-  await page.eval(`document.querySelector(".place.own button.token[data-guest]").click()`);
+  await page.eval(`document.querySelector(".place.own button.token[data-guest]:not([data-guest='Francesco Pazzi'])").click()`);
   await page.until(`!document.querySelector(".side.right .look:not(.leaving)")`);
   // The tokens under the "talking with" card, where there are any.
   if (await page.eval<boolean>(`!!document.querySelector(".side.right .tokens button.token")`)) {
@@ -1230,9 +1476,9 @@ test("portraits select like names; the player's own name or portrait opens Your 
 
 test("the right panel's card slides down when deselected, and clicking empty background in the stream or the panel deselects; names, buttons, and the box don't", { skip }, async () => {
   await reopen();
-  await page.until(`document.querySelector(".place.own button.token[data-guest]") && document.querySelector(".stream .ln")`);
+  await page.until(`document.querySelector(".place.own button.token[data-guest]:not([data-guest='Francesco Pazzi'])") && document.querySelector(".stream .ln")`);
   const select = async () => {
-    await page.eval(`document.querySelector(".place.own button.token[data-guest]").click()`);
+    await page.eval(`document.querySelector(".place.own button.token[data-guest]:not([data-guest='Francesco Pazzi'])").click()`);
     await page.until(`document.querySelector(".side.right .look:not(.leaving)") && document.querySelector(".side.right .look").getAnimations().every((a) => a.playState === "finished")`);
   };
   const isSelected = () => page.eval<boolean>(`!!document.querySelector(".side.right .look:not(.leaving)")`);

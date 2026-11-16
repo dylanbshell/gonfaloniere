@@ -21,7 +21,7 @@ import { settingPack } from "../src/setting/pack.ts";
 import { GameView, Opening } from "../web/src/App.tsx";
 import type { Ev } from "../web/src/connection.ts";
 import { canDo, canSpeak, openMenu, trigger, withMention } from "../web/src/input.ts";
-import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityCards, cityList, curve, derive, factionArcs, placeholderExample, preview, selectBack, selectInChat, selectInWeb, selectLore, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, lineStages, loreParts, readingFor, roomOf, summaryFor, rulesCards, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, glossaryList, lineParts, midnightLine, notesFor, rulesSectionFor, type LoreEntry, type View, factLink, rulesLink, errandTask, errandCardAt } from "../web/src/model.ts";
+import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityCards, cityList, curve, derive, factionArcs, placeholderExample, preview, selectBack, selectInChat, selectInWeb, selectLore, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, lineStages, loreParts, readingFor, roomOf, summaryFor, rulesCards, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, glossaryList, lineParts, midnightLine, notesFor, rulesSectionFor, type LoreEntry, type View, factLink, rulesLink, errandTask, errandCardAt, commandMenu, commandWhy, payrollSize, refusalWhy, refusedCommand } from "../web/src/model.ts";
 import { notaioHint, setInfo, type StartInfo } from "../web/src/words.ts";
 import { fakeCaller, fakeDocs, fakeSettings } from "./fixtures/fake-game.ts";
 
@@ -82,14 +82,14 @@ const html = (el: ReturnType<typeof createElement>) => renderToString(el);
 /** Words the screen shows but couldn't find in player.json come out as their keys. */
 const missingWords = (h: string) => h.match(/\bscreen\.[\w.]+|\b(?:refusals|commands|hints)\.[\w.]+|undefined|\[object Object\]/g) ?? [];
 
-test("the opening's choice (Interface v0.7): one card, for Francesco, with his portrait, name, faction, and public subtitle", () => {
+test("the opening's choice (Interface v0.7): one card, for Francesco, with his portrait, name, and public subtitle (no separate faction line, Interface v0.16)", () => {
   const h = html(createElement(Opening, { onStart: () => {}, written: true }));
   assert.deepEqual(missingWords(h), []);
   assert.equal(info.playable.length, 1);
   const card = h.slice(h.indexOf('class="start-card"'));
   const g = info.roster.find((r) => r.name === F)!;
   assert.match(card, /class="portrait large"/);
-  assert.ok(card.includes(`<div class="name">${F}</div><div class="muted">${g.faction}</div><div class="muted subtitle">${esc(g.subtitle)}</div>`), "name, faction, subtitle");
+  assert.ok(card.includes(`<div class="name">${F}</div><div class="muted subtitle">${esc(g.subtitle)}</div>`), "name, then subtitle");
   assert.match(card, /data-hint="play"/);
 });
 
@@ -165,7 +165,7 @@ test("the errand card: pinned under the sheet, with the briefing's errand sectio
   assert.ok(card > h.indexOf('class="facts"') && card < h.indexOf('class="room'), "between the sheet and the places");
 });
 
-test("buttons by job: Speak is the one filled button, disabled with nothing to say; Pass is outlined; End sits in the header", async () => {
+test("buttons by job: Speak is the one filled button, disabled with nothing to say; Pass is outlined; End sits in the header and under Speak and Pass, solid red", async () => {
   for (const t of ["", "  ", "@", "/", " / ", "@ ", "@@"]) assert.equal(canSpeak(t), false, JSON.stringify(t));
   for (const t of ["Good evening.", "@Lupo stay close.", "a"]) assert.equal(canSpeak(t), true, t);
   // A command (a `/` and a name) is Do's, never Speak's; a lone `/` is neither yet.
@@ -179,9 +179,18 @@ test("buttons by job: Speak is the one filled button, disabled with nothing to s
   assert.match(h, /<button class="primary" disabled=""[^>]*>Speak</, "Speak disabled while the box is empty");
   assert.match(h, /<button class="secondary"[^>]*data-hint="pass"/);
   const head = h.slice(h.indexOf('class="conv-head"'), h.indexOf("</header>", h.indexOf('class="conv-head"')));
-  assert.match(head, /data-hint="end"/, "End conversation is in the Colloquio's header");
+  assert.match(head, /<button class="end"[^>]*data-hint="end"/, "End conversation is in the Colloquio's header");
   const input = h.slice(h.indexOf('class="input"'));
-  assert.doesNotMatch(input, /data-hint="end"/);
+  // Interface v0.16: and under Speak and Pass, the width of the two; both solid red with white words, their own tokens.
+  assert.match(input, /<div class="actions"><div class="actions-row"><button class="primary"[^>]*>Speak<\/button><button class="secondary"[^>]*>Pass<\/button><\/div><button class="end"[^>]*data-hint="end"[^>]*>End conversation<\/button><\/div>/);
+  const group = html(createElement(GameView, { me: F, v: derive(at["speak:capannello"]!), send: () => {}, status: "open" }));
+  assert.doesNotMatch(group, /data-hint="end"/, "only when it's on offer");
+  const css = readFileSync("web/src/app.css", "utf8");
+  assert.match(css, /button\.end \{[^}]*background: var\(--end-bg\)[^}]*color: var\(--end-text\)/);
+  const theme = readFileSync("web/theme.css", "utf8");
+  for (const t of ["--end-bg", "--end-text", "--end-hover"]) assert.equal((theme.match(new RegExp(`${t}: `, "g")) ?? []).length, 2, `${t}: light and dark`);
+  // The prompt's line: the prompt at the left, the character count at the right.
+  assert.match(input, /<div class="prompt-line"><div class="prompt[^"]*">[^<]*<\/div><span class="count">0\/\d+<\/span><\/div>/);
   assert.match(input, /class="field-icons"><button class="icon"[^>]*>@<\/button><button class="icon"[^>]*>\/<\/button>/, "@ and / are icons inside the box");
 });
 
@@ -558,7 +567,7 @@ test("the right panel: the live talking-with card, empty when no one has his ear
   const q = game({ v: { ...quiet, sheet: v.sheet } });
   assert.match(q, /class="person talk">/);
   assert.match(q, /No one has your ear/);
-  assert.equal((q.match(/class="tokens"/g) ?? []).length, 1, "the group's tokens, whether or not the card is filled");
+  assert.doesNotMatch(q, /class="tokens"/, "no row of the other guests' tokens (Interface v0.16): the places list shows who's with you");
   assert.match(q, /data-hint="resize"/, "a handle to resize it");
 });
 
@@ -902,7 +911,7 @@ test("each line's stage is the phase it was spoken in, from what the screen alre
   assert.deepEqual([...stages], [[1, "A"], [3, "A"], [5, "C"], [7, "C"], [8, "C"]]);
 });
 
-test("the stage bar: a circle per stage with its numeral, past ones buttons, future ones not, the current one an oval with its name; words and looks from the pack and the theme", async () => {
+test("the stage bar: a standard step bar (Interface v0.16): a circle per stage with its numeral, past ones buttons, future ones not, the current one an oval with its name and no number; words and looks from the pack and the theme", async () => {
   const v = await earlierView();
   const track = v.sheet!.track!;
   const now = track.indexOf(v.state!.phaseLabel);
@@ -915,18 +924,22 @@ test("the stage bar: a circle per stage with its numeral, past ones buttons, fut
   marks.forEach(([, cls, inner], i) => {
     const at = i < now ? "past" : i === now ? "now" : "next";
     assert.ok(cls!.startsWith(`mark ${at}`), `${i}: ${cls}`);
-    assert.match(inner!, new RegExp(`<span class="num">${i + 1}</span>`), "its numeral");
+    assert.equal(inner!.includes(`<span class="num">${i + 1}</span>`), at !== "now", "its numeral, except in the current oval");
     if (at === "next") assert.match(inner!, /^<span class="stage" tabindex="0" aria-disabled="true"[^>]*data-hint="trackNext"/, "a future stage isn't a button");
     else assert.match(inner!, /^<button class="stage"/, "past and current are buttons");
     assert.equal(inner!.includes('class="stage-name"'), at === "now", "only the current one shows its name");
   });
-  assert.ok(marks[now]![1]!.includes("expanded"));
+  assert.doesNotMatch(bar, /expanded|stage-desc/, "nothing in the row changes on hover: the description is in the tooltip under it");
+  assert.doesNotMatch(h, /class="stage-tip/, "no tooltip until a stage is hovered or focused");
   // Every stage of the mini-game has its one-line description in the pack; the hovers say what a click does.
   for (const stage of track) assert.ok(typeof PLAYER.screen.stageBar.descriptions[stage] === "string", stage);
   for (const k of ["trackPast", "trackNow", "trackNext", "return", "pastStage"]) assert.ok(PLAYER.screen.hints[k].length > 10, k);
   const css = readFileSync("web/src/app.css", "utf8");
   for (const sel of [".stage-bar", ".stage", ".stage-dot", ".members"]) assert.match(css, new RegExp(`${sel.replace(/\./g, "\\.")} \\{`), sel);
-  assert.match(css, /\.stage-bar \{[^}]*overflow-x: auto/, "it scrolls sideways on a narrow window");
+  assert.doesNotMatch(css, /\.stage-bar \{[^}]*overflow/, "it never scrolls: it stretches with the window");
+  assert.match(css, /\.stage-bar \.mark \+ \.mark::before \{[^}]*flex: 1 0 var\(--stage-stroke-min\)/, "the lines share out the room, never shorter than the minimum");
+  assert.doesNotMatch(css.slice(css.indexOf("/* The stage bar"), css.indexOf("/* A selected guest's dot")), /transition|animation/, "no motion");
+  assert.match(css, /\.stage-tip \{[^}]*background: var\(--world-bg\)/, "the tooltip is a light card");
 });
 
 test("Earlier this stage, and a selected guest's dots on the past stages they appear in", async () => {
@@ -949,14 +962,15 @@ test("a past stage opens read-only: its conversations in order, Return in place 
   assert.ok(runs.length > 0);
   const h = game({ v, pastStage: stage });
   assert.deepEqual(missingWords(h), []);
-  const view = h.slice(h.indexOf('class="past-stage"'), h.indexOf('class="notaio-hint'));
+  assert.doesNotMatch(h, /class="notaio-hint/, "Il Notaio's hint steps aside while an earlier stage is open (Interface v0.16)");
+  const view = h.slice(h.indexOf('class="past-stage"'), h.indexOf('class="input'));
   assert.ok(view.includes(esc(w2("pastStage.heading", { stage }))), "headed with the stage");
   assert.equal((view.match(/class="past-conv"/g) ?? []).length, runs.length, "each conversation under its line");
   const ids = [...view.matchAll(/data-line="(\w+)"/g)].map((m) => m[1]);
   assert.deepEqual(ids, runs.flatMap((r) => r.lines.map((l) => l.id)), "every line of the stage, in order, and nothing else");
   assert.doesNotMatch(view, /class="earlier"|class="card"|class="speaking"/, "nothing of the current stage");
   // The bar marks the open stage; the input box keeps its draft field, with Return alone in Speak's place.
-  assert.match(h, new RegExp(`<li class="mark past expanded shown open" aria-label="${esc(stage)}"`));
+  assert.match(h, new RegExp(`<li class="mark past open" aria-label="${esc(stage)}"`));
   const input = h.slice(h.indexOf('class="input past"'));
   assert.ok(input.length > 0 && input.includes("<textarea"));
   assert.match(input, /<button class="primary return( beckon)?"[^>]*data-hint="return"[^>]*>Return to current stage</);
@@ -970,11 +984,18 @@ test("a past stage opens read-only: its conversations in order, Return in place 
   const calm = game({ v: { ...v, pending: null }, pastStage: stage });
   assert.ok(calm.includes(`placeholder="${esc(PLAYER.screen.input.pastPlaceholder)}"`));
   assert.doesNotMatch(calm, /beckon/);
-  // A decision card waiting doesn't close the box while a past stage is open.
+  // With a decision waiting in the current stage (Interface v0.16), there's nothing to draft: the bottom card is one wide Return button.
   const { at } = await playedLog();
   const moving = derive(at.move!);
   const past = moving.sheet!.track!.find((t) => trackMarks(moving.sheet!.track!, moving.state!.phaseLabel).find((m) => m.stage === t)!.at === "past")!;
-  assert.match(game({ v: moving, pastStage: past }), /class="primary return beckon"/);
+  const waiting = game({ v: moving, pastStage: past });
+  assert.match(waiting, /<div class="input past decision"><button class="primary return wide beckon"[^>]*data-hint="return"[^>]*>Return to current stage<\/button><\/div>/);
+  assert.doesNotMatch(waiting, /class="card"|<textarea/, "no card and no box while reading the earlier stage");
+  // Back in the current stage, the decision card sits in the message box's place, not in the conversation.
+  const back = game({ v: moving });
+  assert.match(back, /<div class="input decision"><div class="card">/);
+  assert.doesNotMatch(back.slice(back.indexOf('class="stream'), back.indexOf('class="notaio-hint')), /class="card"/);
+  assert.doesNotMatch(back, /<textarea/);
 });
 
 test("Il Notaio's summary of a past stage (TD v0.51; Interface v0.13): over the window, expanded, bullets under each conversation's line; none until the game has written it", async () => {
@@ -999,14 +1020,20 @@ test("Il Notaio's summary of a past stage (TD v0.51; Interface v0.13): over the 
   for (const i of items.filter((x) => x.kind === "sentence")) assert.ok(box.includes(esc(i.text)), i.text);
   assert.equal((box.match(/class="reading-note"/g) ?? []).length, items.filter((i) => i.kind === "note").length);
   // The box sits over the stream, outside its scroll, so the dialogue scrolls under it once minimized.
-  assert.ok(h.indexOf('class="reading past-summary"') > h.indexOf('class="past-stage"') && h.indexOf('class="stream-area"') < h.indexOf('class="stream"'));
+  assert.ok(h.indexOf('class="reading past-summary"') > h.indexOf('class="past-stage"') && h.indexOf('class="stream-area"') < h.indexOf('class="stream behind"'));
+  // Interface v0.16: it opens a fifth of the way down; while it's open the dialogue behind it fades (the content, not a tint), and it casts an upward shadow.
+  assert.match(h, /<div class="stream behind">/);
   // A stage the game hasn't summarized (or a game before TD v0.51): its dialogue alone.
   const none = game({ v: { ...v, summaries: [] }, pastStage: stage });
   assert.doesNotMatch(none, /past-summary/);
+  assert.doesNotMatch(none, /class="stream behind"/, "nothing fades without his box");
   // The current stage has no box.
   assert.doesNotMatch(game({ v }), /past-summary/);
   const css = readFileSync("web/src/app.css", "utf8");
   assert.match(css, /\.stream-area \{[^}]*position: relative/);
+  assert.match(css, /\.reading\.past-summary \{[^}]*top: var\(--summary-top\)[^}]*box-shadow: var\(--shadow-up\)/);
+  assert.match(css, /\.stream\.behind > \* \{[^}]*opacity: var\(--behind-opacity\)/);
+  assert.match(readFileSync("web/theme.css", "utf8"), /--summary-top: 20%/);
 });
 
 test("Il Notaio's guarded reading in his box (TD v0.51): the background, then a paragraph per stage, his lines and the events in order, notes apart, the tally last", async () => {
@@ -1267,10 +1294,6 @@ test("portraits select their guest wherever they appear, the player's own in the
   const left = h.slice(h.indexOf('class="side left"'), h.indexOf('class="centre"'));
   // Who's with you, in your own place: a portrait button each, selecting.
   for (const p of v.state!.present) assert.match(left, new RegExp(`<button class="token" aria-label="${esc(p)}" aria-pressed="false" data-guest="${esc(p)}"[^>]*data-hint="roomToken"`), `${p}'s portrait selects`);
-  // The tokens under the "talking with" card select too.
-  const right = h.slice(h.indexOf('class="side right'), h.indexOf('class="web-dock'));
-  const others = v.state!.present.filter((p) => p !== talkingWith(v, F));
-  assert.equal((right.slice(right.indexOf('class="tokens"')).match(/<button class="token"/g) ?? []).length, others.length, "a button per token");
   // The player's own name and large portrait at the top: open the briefing, with the hover "Your briefing".
   // Interface v0.16: "You are …" over the role line (the public subtitle, until Characters writes a role), centred, with no "You" label.
   assert.match(left, new RegExp(`<button class="who column me-briefing"[^>]*aria-description="Your briefing" data-hint="myBriefing"><span class="portrait large"[^>]*>[^<]*</span><span class="name">You are ${esc(F)}</span><span class="muted role">${esc(info.roster.find((r) => r.name === F)!.subtitle)}</span></button>`));
@@ -1563,4 +1586,136 @@ test("hovers about the world are a light card, apart from the dark explanations;
   }
   // The explanations' switch governs only the explanations: nothing in the styles or the code stills motion by it.
   assert.doesNotMatch(css, /hints-off|explanations-off/);
+});
+
+// ---- CC-20261116-04 (#177): Interface v0.16's centre, decision cards, commands, and right panel -------------
+
+const COMMANDS = Object.entries((JSON.parse(readFileSync("setting/florence-1492/player.json", "utf8")) as { commands: Record<string, { name: string; usage: string; hint: string }> }).commands)
+  .filter(([k]) => !k.startsWith("_"))
+  .map(([action, c]) => ({ action, ...c }));
+
+test("the command menu lists every command the character can ever use (Interface v0.16): what's open first, the rest with their reasons, worked out from the player's own state", async () => {
+  const { at } = await playedLog();
+  const group = derive(at["speak:capannello"]!);
+  const aside = derive(at["speak:colloquio"]!);
+  assert.equal(COMMANDS.length, 7);
+  // In a group, with a full purse: /bribe waits for a secret conversation, the midnight acts for midnight, and a
+  // conclusion is for an errand that asks the player to find something out (Francesco's doesn't).
+  assert.equal(group.state!.knowledgeErrand, false);
+  const g = commandMenu(COMMANDS, group.commands, group.state, null);
+  assert.deepEqual(g.open.map((c) => c.action), group.commands.filter((c) => c.action !== "conclude").map((c) => c.action), "what the engine allows now, in its order");
+  const why = (m: ReturnType<typeof commandMenu>) => Object.fromEntries(m.closed.map((c) => [c.command.action, c.why]));
+  assert.deepEqual(why(g), { bribe: "colloquio", kill: "midnight", guard: "midnight", investigate: "midnight", conclude: "conclude" });
+  assert.equal(g.open.length + g.closed.length, COMMANDS.length, "every command, once");
+  // In a secret conversation /bribe is open; with an empty purse it isn't, and the reason says so.
+  assert.ok(commandMenu(COMMANDS, aside.commands, aside.state, null).open.some((c) => c.action === "bribe"));
+  const broke = { ...aside.state!, florins: 0 };
+  const b = commandMenu(COMMANDS, aside.commands.filter((c) => c.action === "conclude"), broke, 3);
+  assert.deepEqual(why(b), { bribe: "noFlorins", borrow: "notNow", repay: "repay", kill: "midnight", guard: "midnight", investigate: "midnight", conclude: "conclude" });
+  // Without the game's values (TD v0.52's sheet.values, which no engine sends yet), /repay's reason can't name its amount.
+  assert.equal(commandWhy("repay", broke, null), "notNow");
+  assert.equal(payrollSize(group), null);
+  assert.equal(payrollSize({ ...group, sheet: { ...group.sheet!, values: { payroll: 3 } } }), 3);
+  // An errand a conclusion can finish keeps /conclude open; an engine that doesn't send the flag does too.
+  assert.ok(commandMenu(COMMANDS, group.commands, knowing(group).state, null).open.some((c) => c.action === "conclude"));
+  const { knowledgeErrand: _, ...older } = group.state!;
+  assert.ok(commandMenu(COMMANDS, group.commands, older as View["state"], null).open.some((c) => c.action === "conclude"));
+  // The engine's own reasons, once it sends them (Technical Design's handoff), are used as they are.
+  const sent = [...group.commands, { action: "bribe", name: "/bribe", usage: "/bribe @Name n", hint: "", available: false, reason: "The engine's reason." }];
+  assert.equal(commandMenu(COMMANDS, sent, group.state, null).closed.find((c) => c.command.action === "bribe")!.reason, "The engine's reason.");
+  // Every reason has its words, and the section's heading counts them.
+  const words = PLAYER.screen.commandWhy as Record<string, string>;
+  for (const k of ["colloquio", "noFlorins", "repay", "midnight", "conclude", "notNow"]) assert.ok(words[k]!.length > 10, k);
+  assert.equal(words.more, "Not available now ({n})");
+  // The placeholder's example uses only what's open now.
+  assert.doesNotMatch(game({ v: group }), /placeholder="[^"]*\/conclude/);
+});
+
+test("a refused command is explained by Il Notaio in his hint (Interface v0.16): its specific reason, in place of the notice above the box; anything else, the game's own reason", async () => {
+  const { at } = await playedLog();
+  const group = derive(at["speak:capannello"]!);
+  const refused = (input: string | null, reason: string): View => ({ ...group, refusal: { seq: group.activity + 1, reason, input } });
+  const words = PLAYER.screen.notaioRefusal as Record<string, string>;
+  // The refusal's input reaches the view from the player's own log.
+  const log = [...at["speak:capannello"]!, { type: "refusal", seq: 9999, reason: "/bribe can't be used now.", input: "/bribe @Lupo 2" } as unknown as Ev];
+  assert.deepEqual(derive(log).refusal, { seq: 9999, reason: "/bribe can't be used now.", input: "/bribe @Lupo 2" });
+  assert.equal(refusedCommand("/BRIBE @Lupo 2", COMMANDS)!.action, "bribe");
+  assert.equal(refusedCommand("Good evening", COMMANDS), null);
+  assert.equal(refusedCommand(null, COMMANDS), null);
+  // /bribe in a group: money only changes hands in a secret conversation.
+  const bribe = refused("/bribe @Lupo 2", "/bribe can't be used now.");
+  assert.equal(refusalWhy(bribe, COMMANDS)!.why, "colloquio");
+  const h = game({ v: bribe });
+  const hint = h.slice(h.indexOf('class="notaio-hint'), h.indexOf("</aside>", h.indexOf('class="notaio-hint')));
+  assert.ok(hint.includes(`data-moment="refusal">${esc(words.colloquio!.replace("{command}", "/bribe"))}</p>`), hint);
+  assert.doesNotMatch(h.slice(h.indexOf('class="input"')), /class="notice"/, "no notice above the box");
+  // A midnight act typed early; an open command with something else wrong (the game's reason, then where to look).
+  assert.equal(refusalWhy(refused("/kill @Lupo", "x"), COMMANDS)!.why, "midnight");
+  const other = refused("/borrow now", "There's no guest here called now.");
+  assert.equal(refusalWhy(other, COMMANDS)!.why, "other");
+  assert.ok(game({ v: other }).includes(`data-moment="refusal">${esc("There's no guest here called now. Type / to see what you can do now.")}</p>`));
+  // Something that wasn't a command (a line too long): the game's reason alone.
+  assert.equal(refusalWhy(refused("a very long line", "That's 600 characters; keep it to 500."), COMMANDS), null);
+  assert.ok(game({ v: refused("a very long line", "That's 600 characters; keep it to 500.") }).includes(`data-moment="refusal">${esc("That's 600 characters; keep it to 500.")}</p>`));
+  for (const k of ["colloquio", "noFlorins", "repay", "midnight", "conclude", "other"]) assert.ok(words[k]!.length > 10, k);
+  // His box flashes and the new words fade in: theme tokens, and still with reduced motion.
+  const css = readFileSync("web/src/app.css", "utf8");
+  assert.match(css, /\.hint-glow \{[^}]*animation: hint-flash var\(--motion-flash\)/);
+  assert.match(css, /\.hint-text\.fresh \{[^}]*animation: fade-in/);
+  assert.match(css, /prefers-reduced-motion: reduce\) \{\s*\.hint-glow, \.hint-text\.fresh \{ animation: none; \}/);
+  assert.doesNotMatch(game({ v: group }), /hint-glow|hint-text fresh/, "nothing flashes on the first render");
+});
+
+test("decision cards take the message box's place (Interface v0.16): in the bottom card, not the conversation; the seat card says when every group is full", async () => {
+  const { at } = await playedLog();
+  for (const k of ["move", "seat", "midnight"]) {
+    if (!at[k]) continue;
+    const h = game({ v: derive(at[k]!) });
+    assert.deepEqual(missingWords(h), [], k);
+    assert.match(h, /<div class="input decision"><div class="card">/, `${k}: the card is in the box's place`);
+    assert.equal((h.match(/class="card"/g) ?? []).length, 1, k);
+    if (k !== "seat") assert.match(h, /<button class="primary confirm"/, `${k}: the confirm button`);
+  }
+  // The seat card: with no group to join, "Every group is full." under its question.
+  const base = derive(at.move!);
+  const seat = (groups: { members: string[]; room: number }[]): View => ({ ...base, pending: { id: "r1", kind: "seat", options: { form: "invitee", initiator: "Lupo", groups, colloquio: ["Giorgia Pazzi"], wait: true } } });
+  const full = game({ v: seat([]) });
+  assert.match(full, /<h3[^>]*>[^<]*<\/h3><p class="muted card-note">Every group is full\.<\/p>/);
+  assert.doesNotMatch(game({ v: seat([{ members: ["Giorgia Pazzi"], room: 2 }]) }), /Every group is full/);
+  // The controls, tidied: the theme's field height and arrow, the act narrow, the confirm at the right.
+  const css = readFileSync("web/src/app.css", "utf8");
+  assert.match(css, /\nselect \{[^}]*appearance: none[^}]*height: var\(--field-height\)[^}]*font-size: var\(--text-sm\)/);
+  assert.match(css, /\.card button\.confirm \{[^}]*align-self: flex-end/);
+  assert.match(css, /\.act \.act-kind \{[^}]*width: var\(--act-kind-width\)/);
+  assert.match(css, /\.card h3, \.card \.card-note \{ margin: 0; \}/);
+  assert.match(css, /\.input\.decision \{[^}]*max-height: var\(--decision-max-height\)[^}]*overflow-y: auto/, "a tall card scrolls within that space");
+});
+
+test("the floating cards and the right panel (Interface v0.16): layer shadows, the conversation's fade, your own card, and the looks as theme tokens", async () => {
+  const { at } = await playedLog();
+  const v = derive(at["speak:capannello"]!);
+  const css = readFileSync("web/src/app.css", "utf8");
+  const theme = readFileSync("web/theme.css", "utf8");
+  assert.match(css, /\.conv-head \{[^}]*border-radius: var\(--radius-float\)[^}]*box-shadow: var\(--shadow-float-down\)/);
+  assert.match(css, /\n\.input \{[^}]*border-radius: var\(--radius-float\)[^}]*box-shadow: var\(--shadow-up\)/);
+  assert.match(css, /\.notaio-hint \{[^}]*box-shadow: var\(--shadow-up\)/);
+  assert.match(css, /\.stream \{[^}]*mask-image: var\(--stream-mask\)/, "the conversation fades at its top and bottom edges");
+  assert.match(css, /\.field textarea\.empty \{ overflow: hidden; \}/, "no scrollbar on the empty box");
+  assert.match(game({ v }), /<textarea class="empty"/);
+  for (const t of ["--shadow-float-down", "--shadow-up"]) assert.equal((theme.match(new RegExp(`${t}: `, "g")) ?? []).length, 2, `${t}: light and dark`);
+  for (const t of ["--float-gap", "--radius-float", "--stream-fade", "--stream-mask", "--return-width", "--right-top-gap", "--right-hide-past", "--right-hiding-opacity", "--self-edge"]) assert.match(theme, new RegExp(`${t}: `), t);
+  // The right panel stops short of the top, with rounded top corners; a drag past its narrowest fades it.
+  assert.match(css, /\.side\.right \{[^}]*margin-top: var\(--right-top-gap\)[^}]*border-radius: var\(--radius-float\) var\(--radius-float\) 0 0/);
+  assert.match(css, /\.side\.right\.hiding \{ opacity: var\(--right-hiding-opacity\); \}/);
+  // Your own card: "This is you", a "You" tag under your name, an accent edge, and its own explanation.
+  const own = game({ v, selected: { kind: "guest", name: F } });
+  const card = own.slice(own.indexOf('<section class="person look self"'));
+  assert.match(card, /^<section class="person look self" data-guest="Francesco Pazzi"><header class="person-head"><span class="label" aria-description="Your own card: what everyone knows about you\." data-hint="lookingAtSelf" tabindex="0">This is you<\/span>/);
+  assert.match(card, /<div class="name">Francesco Pazzi<\/div><div class="you-tag">You<\/div><div class="muted">/);
+  assert.match(css, /\.person\.look\.self \{[^}]*var\(--self-edge\) var\(--accent\)/);
+  // No card repeats the faction above the subtitle: the name, then the subtitle.
+  const other = game({ v, selected: { kind: "guest", name: "Lupo" } });
+  const lupo = info.roster.find((r) => r.name === "Lupo")!;
+  assert.ok(other.includes(`<div class="name">Lupo</div><div class="muted">${esc(lupo.subtitle)}</div>`));
+  assert.doesNotMatch(other, /class="person look self"|you-tag/);
 });

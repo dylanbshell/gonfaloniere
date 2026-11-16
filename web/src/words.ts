@@ -101,3 +101,16 @@ export const narrator = {
   paragraphs: () => info?.notaio?.opening?.paragraphs ?? [],
   tourStep: (key: string) => info?.notaio?.tour?.steps[key] ?? `tour.${key}`,
 };
+
+/**
+ * Every command the game has (player.json's commands, by the game's action), for the command menu's
+ * "Not available now" (Interface v0.16): the name and usage as the pack gives them. Malformed entries are left out.
+ */
+export function allCommands(): { action: string; name: string; usage: string; hint: string }[] {
+  const t = packValue("commands");
+  if (!t || typeof t !== "object") return [];
+  return Object.entries(t as Record<string, unknown>).flatMap(([action, c]) => {
+    const e = c as { name?: unknown; usage?: unknown; hint?: unknown } | null;
+    return e && typeof e.name === "string" && typeof e.usage === "string" ? [{ action, name: e.name, usage: e.usage, hint: typeof e.hint === "string" ? e.hint : "" }] : [];
+  });
+}

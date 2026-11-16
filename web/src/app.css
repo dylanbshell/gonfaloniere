@@ -15,6 +15,11 @@ button.icon { border: none; background: var(--surface-2); border-radius: var(--r
 button.switch { font-size: var(--text-xs); padding: 0 var(--space-2); background: transparent; color: var(--text-muted); }
 button.switch[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
 select, textarea, input { background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-md); padding: var(--space-1) var(--space-2); }
+/* Interface v0.16: dropdowns match the other fields: one height, one text size, and their own arrow rather than the browser's */
+select { appearance: none; -webkit-appearance: none; height: var(--field-height); font-size: var(--text-sm); padding-right: calc(var(--select-arrow-inset) * 2 + var(--select-arrow-size) * 2); background-image: linear-gradient(45deg, transparent 50%, var(--text-muted) 50%), linear-gradient(135deg, var(--text-muted) 50%, transparent 50%); background-position: calc(100% - var(--select-arrow-inset) - var(--select-arrow-size)) 50%, calc(100% - var(--select-arrow-inset)) 50%; background-size: var(--select-arrow-size) var(--select-arrow-size); background-repeat: no-repeat; cursor: pointer; }
+/* Interface v0.16: End conversation is solid red with white words, in both its places, so ending reads as final */
+button.end { background: var(--end-bg); border-color: var(--end-bg); color: var(--end-text); }
+button.end:hover, button.end:focus-visible { background: var(--end-hover); border-color: var(--end-hover); }
 h1 { font-size: var(--text-xl); margin: 0 0 var(--space-3); }
 h2 { font-size: var(--text-lg); margin: var(--space-4) 0 var(--space-2); }
 h3 { font-size: var(--text-md); margin: 0 0 var(--space-3); }
@@ -72,8 +77,13 @@ button.fact:hover .fact-label, button.fact:focus-visible .fact-label, button.lin
 .errand button.link { display: block; width: 100%; border: none; border-radius: 0; background: transparent; padding: 0; font-size: inherit; text-align: left; }
 
 .centre { display: flex; flex-direction: column; min-width: 0; height: calc(var(--screen-height) - var(--web-bar-height)); }
-.conv-head { min-height: var(--head-height); padding: var(--space-3) var(--space-4); border-bottom: var(--border-width) solid var(--border); background: var(--surface); display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
-.stream { flex: 1; overflow-y: auto; padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
+/* Interface v0.16: the stage bar and the message box are floating cards, rounded, each casting a shadow onto
+   the conversation, which fades out where it slides under them */
+.conv-head { position: relative; z-index: var(--z-float); min-height: var(--head-height); margin: var(--float-gap) var(--float-gap) 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-float); box-shadow: var(--shadow-float-down); background: var(--surface); display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
+.stream { flex: 1; overflow-y: auto; padding: var(--stream-fade) var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); -webkit-mask-image: var(--stream-mask); mask-image: var(--stream-mask); }
+/* While Il Notaio's summary is open over a past stage, the dialogue behind it fades: the content, not a tint over it */
+.stream.behind > * { opacity: var(--behind-opacity); }
+.stream > * { transition: opacity var(--motion-slow) ease-out; }
 .ln { padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); }
 .ln .sp { font-weight: var(--weight-bold); font-size: var(--text-sm); margin-right: var(--space-2); }
 .ln .to { color: var(--text-muted); font-size: var(--text-sm); margin-right: var(--space-2); }
@@ -95,32 +105,59 @@ button.fact:hover .fact-label, button.fact:focus-visible .fact-label, button.lin
 .banner { background: var(--danger-bg); color: var(--danger); border-radius: var(--radius-md); padding: var(--space-3); font-weight: var(--weight-bold); }
 
 /* Decision cards */
-.card { background: var(--surface); border: var(--border-width) solid var(--accent); border-radius: var(--radius-lg); padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); max-width: var(--modal-width); }
+/* Interface v0.16: a card takes the message box's place, in the same floating card; a tall one scrolls there.
+   Its controls, tidied: no stray margins on the title and intro, the act narrow and the guest taking the
+   rest up to a readable width, the confirm button at the right at its own width. */
+.card { display: flex; flex-direction: column; gap: var(--space-3); }
+.card h3, .card .card-note { margin: 0; }
+.card .card-note { font-size: var(--text-sm); }
+.card > select { align-self: flex-start; width: 100%; max-width: var(--card-field-width); }
+.card button.confirm { align-self: flex-end; }
 .tiles { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 .tiles.column { flex-direction: column; }
 .tile { padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); text-align: left; }
 .tile.chosen { border-color: var(--accent); background: var(--to-you-bg); }
 .act { display: flex; gap: var(--space-2); }
+.act .act-kind { flex: none; width: var(--act-kind-width); }
+.act select:not(.act-kind) { flex: 1; min-width: 0; max-width: var(--card-field-width); }
 /* TD v0.47: the extra act the errand earned, its own optional row on the midnight card */
 .act-extra { border-left: var(--mark-ring) solid var(--errand-accent); padding-left: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); }
 .act-extra .label { margin: 0; color: var(--errand-accent); }
 .act-extra p { margin: 0; font-size: var(--text-sm); }
 
-/* The input box */
-.input { min-height: var(--input-box-height); border-top: var(--border-width) solid var(--border); background: var(--surface); padding: var(--space-3) var(--space-4); position: relative; }
-.input.closed { color: var(--text-muted); }
-.prompt { min-height: var(--line-sm); font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-2); }
+/* The input box: a floating card (Interface v0.16), with an upward shadow over the conversation */
+.input { position: relative; z-index: var(--z-float); min-height: var(--input-box-height); margin: 0 var(--float-gap) var(--float-gap); border-radius: var(--radius-float); box-shadow: var(--shadow-up); background: var(--surface); padding: var(--space-3) var(--space-4); }
+.input.decision { max-height: var(--decision-max-height); overflow-y: auto; border: var(--border-width) solid var(--accent); }
+/* Reading an earlier stage while a decision waits: one wide Return button filling the card, with even space around it */
+.input.past.decision { display: flex; overflow: visible; }
+.input.past.decision button.return.wide { flex: 1; max-width: none; font-size: var(--text-md); }
+/* The prompt's line: the prompt at the left, the character count at the right, over the buttons */
+.prompt-line { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-2); }
+.prompt { min-height: var(--line-sm); font-size: var(--text-sm); color: var(--text-muted); }
 .prompt.waiting { color: var(--accent); font-weight: var(--weight-bold); }
 .row { display: flex; gap: var(--space-3); align-items: stretch; }
 .field { flex: 1; position: relative; display: flex; }
 .field textarea { flex: 1; height: var(--input-height); resize: none; padding-bottom: var(--icon-row-height); }
+/* No scrollbar on the empty box; it comes back once there's text to scroll */
+.field textarea.empty { overflow: hidden; }
 .field-icons { position: absolute; left: var(--space-2); bottom: var(--space-1); display: flex; gap: var(--space-1); }
-.actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-content: flex-start; max-width: var(--side-width); }
-.count { font-size: var(--text-xs); color: var(--text-muted); width: 100%; text-align: right; }
+/* Speak and Pass centred beside the box; End conversation under them, the width of the two */
+.actions { display: flex; flex-direction: column; justify-content: center; gap: var(--space-2); max-width: var(--side-width); }
+.actions-row { display: flex; gap: var(--space-2); }
+.actions button.end { width: 100%; font-size: var(--text-sm); }
+/* Return to current stage: as tall as the box beside it and narrower, its words on two lines */
+.actions button.return { align-self: stretch; flex: 1; max-width: var(--return-width); white-space: normal; line-height: 1.2; }
+.count { font-size: var(--text-xs); color: var(--text-muted); white-space: nowrap; }
 .count.over { color: var(--danger); }
 .dropdown { z-index: var(--z-menu); position: absolute; bottom: 100%; left: var(--space-4); list-style: none; margin: 0; padding: var(--space-1); background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-md); max-height: var(--menu-height); overflow-y: auto; min-width: var(--card-width); }
 .dropdown button { display: flex; align-items: center; gap: var(--space-2); width: 100%; border: none; text-align: left; }
 .dropdown.menu button { flex-direction: column; align-items: flex-start; gap: 0; }
+/* Interface v0.16: the commands that aren't open now, folded at the menu's foot, greyed, each with its reason */
+.menu-closed { border-top: var(--border-width) solid var(--border); margin-top: var(--space-1); padding-top: var(--space-1); }
+.menu-closed ul { list-style: none; margin: 0; padding: 0; }
+.dropdown.menu button.menu-more { font-size: var(--text-xs); color: var(--text-muted); }
+.cmd-closed { display: flex; flex-direction: column; padding: var(--space-1) var(--space-3); color: var(--text-muted); opacity: var(--closed-opacity); cursor: default; }
+.cmd-closed .why { font-size: var(--text-sm); }
 .cmd { font-family: var(--font-mono); font-size: var(--text-sm); }
 
 /* Modals */
@@ -146,9 +183,16 @@ button.lore-link.selected { background: var(--select-bg); }
 .known { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--space-2); font-size: var(--text-sm); }
 
 /* Il Notaio's hint: docked under the stream, apart from his announcements */
-.notaio-hint { margin: 0 var(--space-4) var(--space-2); background: var(--hint-bg); border: var(--border-width) solid var(--hint-border); border-radius: var(--radius-md); color: var(--hint-text); font-size: var(--text-sm); }
+.notaio-hint { position: relative; z-index: var(--z-float); margin: 0 var(--float-gap) var(--space-2); box-shadow: var(--shadow-up); background: var(--hint-bg); border: var(--border-width) solid var(--hint-border); border-radius: var(--radius-md); color: var(--hint-text); font-size: var(--text-sm); }
 .hint-head { display: flex; justify-content: space-between; width: 100%; border: none; background: transparent; color: inherit; font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-label); padding: var(--space-1) var(--space-3); }
 .hint-text { min-height: var(--hint-text-height); margin: 0; padding: 0 var(--space-3) var(--space-2); }
+/* Interface v0.16: whenever he says something new, his box flashes (a brief glow in the accent) and the new words fade in */
+.hint-glow { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; animation: hint-flash var(--motion-flash) ease-out; }
+.hint-text.fresh { animation: fade-in var(--motion-flash) ease-out; }
+@keyframes hint-flash { from { box-shadow: 0 0 0 var(--hint-flash-ring) var(--accent), 0 0 var(--hint-flash-glow) var(--accent); } to { box-shadow: 0 0 0 0 transparent, 0 0 0 transparent; } }
+@media (prefers-reduced-motion: reduce) {
+  .hint-glow, .hint-text.fresh { animation: none; }
+}
 
 /* Card decks: tabs along the top, one topic per card, a swipe to the next */
 .deck { max-width: var(--modal-width); }
@@ -248,6 +292,9 @@ button.key-type.on { border-color: var(--accent); background: var(--select-bg); 
 .record-pane.covered .record-scroll { overflow: hidden; cursor: pointer; }
 .reading { position: absolute; left: var(--space-3); right: var(--space-3); bottom: var(--space-3); top: var(--reading-peek); overflow-y: auto; background: var(--hint-bg); border: var(--border-width) solid var(--hint-border); border-radius: var(--radius-md); box-shadow: var(--shadow-raised); color: var(--hint-text); font-size: var(--text-sm); padding: var(--space-2) var(--space-3); cursor: pointer; transition: top var(--motion-slow) ease-out; }
 .reading[data-state="minimized"] { top: auto; max-height: var(--reading-min-height); overflow: hidden; }
+/* Interface v0.16: his summary of a past stage opens a fifth of the way down, with an upward shadow */
+.reading.past-summary { top: var(--summary-top); box-shadow: var(--shadow-up); }
+.reading.past-summary[data-state="minimized"] { top: auto; }
 .record-pane:not(.covered) .record { padding-bottom: calc(var(--reading-min-height) + var(--space-4)); }
 .reading-head { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-label); margin-bottom: var(--space-1); }
 .reading-text { margin: 0; }
@@ -266,26 +313,30 @@ button.key-type.on { border-color: var(--accent); background: var(--select-bg); 
 .summary-where { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-label); }
 .summary-items { margin: var(--space-1) 0 0; padding-left: var(--space-4); display: flex; flex-direction: column; gap: var(--space-1); }
 
-/* The stage bar (Interface v0.5): a circle per stage joined by a stroke, past filled, future outlined, the
-   current one an oval with its name; a hovered or focused stage expands instead. It scrolls sideways on a
-   narrow window. */
+/* The stage bar (Interface v0.5; reworked v0.16): a standard step bar. Circles joined by lines that share out
+   the room, done ones filled, future ones outlined, the current one an oval holding its name. It stretches
+   with the window and never scrolls; nothing in the row moves on hover: a tooltip shows under it. */
 .conv-where { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: var(--space-1); }
-.phase { font-weight: var(--weight-bold); min-height: var(--stage-bar-height); display: flex; align-items: center; }
-.stage-bar { display: flex; align-items: center; list-style: none; margin: 0; padding: 0 var(--space-1); min-height: var(--stage-bar-height); overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
-.stage-bar .mark { position: relative; display: flex; align-items: center; flex: none; }
-.stage-bar .mark + .mark::before { content: ""; width: var(--stage-stroke-length); height: var(--stage-stroke); background: var(--track); }
-.stage { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-width: var(--stage-size); height: var(--stage-size); padding: 0; border: var(--stage-stroke) solid var(--track); border-radius: var(--radius-round); background: var(--surface); color: var(--text-muted); font-size: var(--text-xs); white-space: nowrap; }
+.phase { font-weight: var(--weight-bold); min-height: var(--stage-bar-height); display: flex; align-items: center; justify-content: center; }
+.stage-bar-wrap { position: relative; }
+.stage-bar { display: flex; align-items: center; list-style: none; margin: 0; padding: 0 var(--stage-bar-inset); min-height: var(--stage-bar-height); }
+.stage-bar .mark { position: relative; display: flex; align-items: center; flex: none; min-width: 0; }
+.stage-bar .mark + .mark { flex: 1 1 auto; }
+.stage-bar .mark + .mark::before { content: ""; flex: 1 0 var(--stage-stroke-min); height: var(--stage-stroke); background: var(--track); }
+.stage { position: relative; flex: none; display: inline-flex; align-items: center; justify-content: center; min-width: var(--stage-size); height: var(--stage-size); padding: 0; border: var(--stage-stroke) solid var(--track); border-radius: var(--radius-round); background: var(--surface); color: var(--text-muted); font-size: var(--text-xs); white-space: nowrap; }
 .mark.past .stage { background: var(--track); color: var(--text); }
-.mark.now .stage { border-color: var(--accent); color: var(--accent); }
-.mark.now.expanded .stage { background: var(--accent); color: var(--accent-text); }
+.mark.now .stage { flex: 0 1 auto; min-width: var(--stage-size); overflow: hidden; padding: 0 var(--space-2); border-color: var(--accent); background: var(--accent); color: var(--accent-text); }
 .mark.next .stage { cursor: default; }
-.mark.expanded .stage { justify-content: flex-start; padding: 0 var(--space-3) 0 var(--space-2); }
-.mark.open .stage { box-shadow: 0 0 0 var(--mark-ring) var(--select-bg); }
-.stage-name { font-size: var(--text-sm); font-weight: var(--weight-bold); }
-.stage-desc { max-width: var(--stage-desc-width); overflow: hidden; text-overflow: ellipsis; }
+.mark.open .stage { box-shadow: 0 0 0 var(--mark-ring) var(--select-bg), 0 0 0 calc(var(--mark-ring) * 2) var(--accent); }
+.stage-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: var(--text-sm); font-weight: var(--weight-bold); }
+/* The tooltip under the row: the hovered stage's name, its description, and its explanation; a light card, like a hover about the world */
+.stage-tip { position: absolute; z-index: var(--z-menu); top: 100%; margin-top: var(--space-1); width: max-content; max-width: var(--stage-tip-width); transform: translateX(-50%); background: var(--world-bg); color: var(--world-text); border: var(--border-width) solid var(--world-border); border-radius: var(--radius-md); box-shadow: var(--shadow-world); padding: var(--space-2) var(--space-3); font-size: var(--text-sm); pointer-events: none; }
+.stage-tip.measuring { visibility: hidden; left: 50%; }
+.stage-tip-name { font-weight: var(--weight-bold); }
+.stage-tip-hint { color: var(--text-muted); font-size: var(--text-xs); margin-top: var(--space-1); }
 /* A selected guest's dot on each past stage they appear in, under its circle */
 .stage-dot { position: absolute; left: calc(var(--stage-size) / 2); bottom: 0; width: var(--stage-dot-size); height: var(--stage-dot-size); transform: translate(-50%, 25%); border-radius: var(--radius-round); background: var(--accent); border: var(--border-width) solid var(--surface); }
-.mark + .mark .stage-dot { left: calc(var(--stage-stroke-length) + var(--stage-size) / 2); }
+.mark + .mark .stage-dot { left: auto; right: calc(var(--stage-size) / 2); transform: translate(50%, 25%); }
 /* TD v0.47: the errand's deadline carries a small errand mark, a diamond on its stage's corner */
 .track .errand-mark { position: absolute; z-index: 1; top: 0; right: calc(var(--errand-mark-size) / -2); width: var(--errand-mark-size); height: var(--errand-mark-size); transform: rotate(45deg); background: var(--errand-accent); border: var(--border-width) solid var(--surface); }
 /* From a past stage while the game waits for the player: the current stage and Return beckon */
@@ -295,7 +346,7 @@ button.key-type.on { border-color: var(--accent); background: var(--select-bg); 
   .mark.beckon .stage, button.return.beckon { animation: none; box-shadow: 0 0 0 var(--do-lit-ring) var(--accent); }
 }
 /* The members line under the bar, with End conversation in a Colloquio */
-.members { display: flex; align-items: center; gap: var(--space-3); min-height: var(--members-height); font-size: var(--text-sm); }
+.members { display: flex; align-items: center; justify-content: center; gap: var(--space-3); min-height: var(--members-height); font-size: var(--text-sm); }
 .members button { padding: 0 var(--space-2); font-size: var(--text-sm); }
 
 /* A past stage, read-only: each conversation under its line */
@@ -306,7 +357,13 @@ button.key-type.on { border-color: var(--accent); background: var(--select-bg); 
 
 /* The right panel (TD v0.44–v0.46): the live "talking with" card, a selected guest's card over it, a resize handle */
 /* The conversation's tint fills the panel, under the talking-with card */
-.side.right { position: relative; padding: 0; background: var(--talk-bg); }
+/* Interface v0.16: the panel stops a little short of the top, with rounded top corners */
+.side.right { position: relative; padding: 0; background: var(--talk-bg); margin-top: var(--right-top-gap); border-top: var(--border-width) solid var(--border); border-radius: var(--radius-float) var(--radius-float) 0 0; }
+/* While a drag is past the point where letting go hides it, the panel fades */
+.side.right.hiding { opacity: var(--right-hiding-opacity); }
+/* The player's own card: an accent edge all the way round, and a small "You" tag under the name */
+.person.look.self { box-shadow: inset 0 0 0 var(--self-edge) var(--accent), var(--shadow-raised); }
+.you-tag { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-label); color: var(--accent-text); background: var(--accent); border-radius: var(--radius-round); padding: 0 var(--space-2); }
 .resize { position: absolute; top: 0; bottom: 0; left: 0; width: var(--resize-width); cursor: col-resize; z-index: var(--z-menu); }
 .resize:hover, .resize:focus-visible { background: var(--select-bg); }
 .person { padding: var(--space-4); }
@@ -317,8 +374,6 @@ button.person-head { cursor: pointer; }
 .person-head-name { font-weight: var(--weight-bold); font-size: var(--text-sm); }
 .speaking-dot { width: var(--dot-size); height: var(--dot-size); border-radius: var(--radius-round); background: var(--accent); animation: pulse var(--motion-pulse) ease-in-out infinite alternate; }
 @keyframes pulse { from { opacity: var(--opacity-disabled); } to { opacity: 1; } }
-.tokens { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-4); }
-.tokens .portrait { width: var(--token-size); height: var(--token-size); font-size: var(--text-xs); }
 .no-ear { font-style: italic; }
 /* The cards over the "talking with" card, in a frame that hides them as they slide down out of it (Interface v0.7) */
 .covers { position: absolute; left: 0; right: 0; top: calc(var(--peek-height) + var(--space-4) - var(--cover-shadow-room)); bottom: 0; overflow: hidden; pointer-events: none; }
