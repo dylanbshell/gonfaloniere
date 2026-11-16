@@ -470,7 +470,8 @@
       "previous": "← Previous Rule",
       "next": "Next Rule →",
       "first": "First Rule →",
-      "overview": "← The Rules"
+      "overview": "← The Rules",
+      "numbered": "{numeral}. {title}"
     },
     "cityList": {
       "back": "← The City",
@@ -635,12 +636,6 @@
     "modalRow": {
       "previous": "Back to {title}",
       "next": "On to {title}",
-      "summary": {
-        "briefing": "Who you are, what you know, and what you came here to do.",
-        "rules": "How the evening works, from the first word to midnight.",
-        "city": "What every guest knew of Florence before tonight.",
-        "glossary": "The game's words, each explained in a line or two."
-      },
       "paddle": {
         "left": "‹",
         "right": "›"
