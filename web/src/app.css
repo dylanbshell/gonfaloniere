@@ -146,7 +146,7 @@ button.fact:hover .fact-label, button.fact:focus-visible .fact-label, button.lin
 .actions-row { display: flex; gap: var(--space-2); }
 .actions button.end { width: 100%; font-size: var(--text-sm); }
 /* Return to current stage: as tall as the box beside it and narrower, its words on two lines */
-.actions button.return { align-self: stretch; flex: 1; max-width: var(--return-width); white-space: normal; line-height: 1.2; }
+.actions button.return { align-self: stretch; flex: 1; max-width: var(--return-width); white-space: normal; line-height: 1.2; padding: var(--space-1) var(--space-2); }
 .count { font-size: var(--text-xs); color: var(--text-muted); white-space: nowrap; }
 .count.over { color: var(--danger); }
 .dropdown { z-index: var(--z-menu); position: absolute; bottom: 100%; left: var(--space-4); list-style: none; margin: 0; padding: var(--space-1); background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-md); max-height: var(--menu-height); overflow-y: auto; min-width: var(--card-width); }

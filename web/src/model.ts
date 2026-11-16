@@ -150,7 +150,7 @@ export interface Sheet {
   track?: string[];
   /** TD v0.47: the track's stage that is the errand's deadline (the last council before midnight), or null when the schedule has none. */
   errandDeadline?: string | null;
-  /** TD v0.52: the game's values (`payroll`: one payroll payment's size, and the rest). No engine sends them yet. */
+  /** TD v0.52: the game's values (`payroll`: one payroll payment's size, and the rest), which fill the player's own rules text. An older server sends none. */
   values?: Record<string, unknown>;
 }
 
@@ -409,6 +409,94 @@ export function rulesCards(rules: string): Card[] {
     else cards.push({ title: "", text: p });
   }
   return cards;
+}
+
+// ---- Interface v0.17: title case, and the player's own rules text -----------------------------------------
+
+/** The setting pack's title-case rule (player.json's titleCase): whether it's on, and the words that stay lower case inside a label. */
+export interface TitleRule {
+  on: boolean;
+  small: string[];
+}
+/** The pack's rule as the screen reads it: off unless the pack turns it on. */
+export function titleRule(pack: unknown): TitleRule {
+  const t = (pack ?? {}) as { on?: unknown; small?: unknown };
+  return { on: t.on === true, small: Array.isArray(t.small) ? t.small.filter((x): x is string => typeof x === "string").map((x) => x.toLowerCase()) : [] };
+}
+
+/**
+ * A name, heading, or button in title case (Interface v0.17–v0.18, The Player's Words): every word
+ * capitalized, except the pack's small words (and a name's own particles), which stay lower case unless they
+ * open or close the label or follow a colon; a small word that arrives capitalized inside goes lower case
+ * ("Back to the Rules"). Words already carrying capitals keep them, as does what's in capitals. Only words
+ * with letters count as first or last, so an arrow isn't one ("← The Rules"). Text from other docs is
+ * title-cased here, for display, never in its source.
+ */
+export function titleCase(text: string, rule: TitleRule): string {
+  if (!rule.on) return text;
+  const words = text.split(/(\s+)/);
+  const lettered = words.flatMap((x, i) => (/\p{L}/u.test(x) ? [i] : []));
+  const [first, last] = [lettered[0], lettered.at(-1)];
+  let afterColon = false;
+  return words
+    .map((x, i) => {
+      const m = x.match(/^([^\p{L}{]*)(.*?)([^\p{L}}'’]*)$/su);
+      if (!m || !m[2] || !/\p{L}/u.test(m[2]) || m[2].startsWith("{")) return x;
+      const [, pre, core, post] = m as unknown as [string, string, string, string];
+      const edge = i === first || i === last || afterColon;
+      afterColon = /:$/.test(x);
+      const lower = core.toLowerCase();
+      // A particle joined to its name ("d'Este") keeps the name's own case.
+      if (rule.small.some((sm) => /['’]$/.test(sm) && lower.startsWith(sm) && lower.length > sm.length)) return x;
+      if (rule.small.includes(lower) && !edge) return pre + (core.slice(1) === core.slice(1).toLowerCase() ? lower : core) + post;
+      return pre + core.charAt(0).toUpperCase() + core.slice(1) + post;
+    })
+    .join("");
+}
+
+/** The game's values the player's rules text is filled with (TD v0.52, the sheet's `values`): a number, `null` for a phase the run doesn't have, and the currency's words. */
+export type RulesValues = Record<string, unknown>;
+
+/**
+ * The player's own rules (Interface v0.17–v0.18; player.json's `rules`), one card per section, filled with
+ * the game's values and nothing else. A paragraph is a string or a list of parts: a string; a part shown only
+ * `when` (or `unless`) a condition holds (`plotReward`; `chanceEachRound`: a round of mingling has at least
+ * as many turns as there are living guests); or `clauses`, joined with commas and a last `and`, leaving out
+ * any clause that names a value the run doesn't have (`null`). A placeholder with no value at all is left
+ * standing, for the tests to catch. Malformed entries are left out.
+ */
+export function playerRules(pack: unknown, values: RulesValues, opts: { plotReward: boolean; living: number }): Card[] {
+  const sections = (pack as { sections?: unknown } | null)?.sections;
+  if (!Array.isArray(sections)) return [];
+  const value = (k: string): string | null | undefined => {
+    const x = k === "currency" ? (values.currency as { plural?: unknown } | undefined)?.plural : values[k];
+    return x === null ? null : typeof x === "number" || typeof x === "string" ? String(x) : undefined;
+  };
+  const fill = (t: string) => t.replace(/\{(\w+)\}/g, (m, k: string) => value(k) ?? m);
+  /** A clause is left out when a value it names is `null`: the run has no such phase. */
+  const has = (t: string) => [...t.matchAll(/\{(\w+)\}/g)].every((m) => value(m[1]!) !== null);
+  const turns = values.minglingTurns;
+  const conditions: Record<string, boolean> = { plotReward: opts.plotReward, chanceEachRound: typeof turns === "number" && turns >= opts.living };
+  const joined = (xs: string[], and: string) => (xs.length <= 1 ? xs.join("") : xs.length === 2 ? xs.join(` ${and} `) : `${xs.slice(0, -1).join(", ")}, ${and} ${xs.at(-1)}`);
+  const part = (x: unknown): string[] => {
+    if (typeof x === "string") return [fill(x)];
+    if (!x || typeof x !== "object") return [];
+    const o = x as { when?: unknown; unless?: unknown; text?: unknown; clauses?: unknown; and?: unknown; end?: unknown };
+    if (Array.isArray(o.clauses)) {
+      const kept = o.clauses.filter((c): c is string => typeof c === "string" && has(c)).map(fill);
+      return kept.length ? [joined(kept, typeof o.and === "string" ? o.and : "") + (typeof o.end === "string" ? o.end : "")] : [];
+    }
+    if (typeof o.text !== "string") return [];
+    if (typeof o.when === "string" && !conditions[o.when]) return [];
+    if (typeof o.unless === "string" && conditions[o.unless]) return [];
+    return [fill(o.text)];
+  };
+  const paragraph = (x: unknown) => (Array.isArray(x) ? x.flatMap(part).join(" ") : part(x).join(" "));
+  return sections.flatMap((sec) => {
+    const o = sec as { title?: unknown; text?: unknown } | null;
+    if (!o || typeof o.title !== "string" || !Array.isArray(o.text)) return [];
+    return [{ title: o.title, text: o.text.map(paragraph).filter(Boolean).join("\n\n") }];
+  });
 }
 
 /** The city: one card per public lore entry, grouped by subject (entries without one last), then by title. */
@@ -708,7 +796,7 @@ export function hintMoment(v: View, me: string): { key: string; values: Record<s
 /** Why a command isn't open now: one of player.json's screen.commandWhy keys. */
 export type CommandWhy = "colloquio" | "noFlorins" | "repay" | "midnight" | "conclude" | "notNow";
 
-/** One payroll payment's size, from the sheet's values (TD v0.52) once the engine sends them; null until then. */
+/** One payroll payment's size, from the sheet's values (TD v0.52); null before the sheet, or from a server that sends none. */
 export const payrollSize = (v: View): number | null => (typeof v.sheet?.values?.payroll === "number" ? v.sheet.values.payroll : null);
 
 /**

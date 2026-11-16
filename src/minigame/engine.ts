@@ -77,7 +77,7 @@ import {
 } from "./reading.ts";
 import { guard, sentencesOf, type GuardVerdict } from "./guard.ts";
 import { derive, recordUpTo } from "../../web/src/model.ts";
-import { MESSAGE_MAX, NOTE_MAX, PlayerFeed, errandText, screenContent, type PlayerNote, type PlayerPlace, mentions, menu, parseCommand, playable, playerSays, refusal, type CommandAction } from "./player.ts";
+import { MESSAGE_MAX, NOTE_MAX, PlayerFeed, errandText, gameValues, screenContent, type PlayerNote, type PlayerPlace, mentions, menu, parseCommand, playable, playerSays, refusal, type CommandAction } from "./player.ts";
 
 // ---- Calls -----------------------------------------------------------------------------
 
@@ -1444,6 +1444,9 @@ export class MiniGame {
       // TD v0.47: the track's stage that is the errand's deadline (the last council before midnight). The
       // mini-game's schedule has no council, and its errands are checked at the end of the game, so none.
       errandDeadline: null,
+      // TD v0.52: the game's values, for the player's own rules text. The mini-game is one round of mingling
+      // of this run's turns, with no councils, candidates, or open floor.
+      values: gameValues(this.docs.tunables, { linesPerTurn: this.s.utterancesPerTurn, minglingTurns: this.s.turns, councilTurns: null, finalCouncilTurns: null, selectionTurns: null, openFloorTurns: null }),
       ...screenContent(h, this.s.lore ?? "off"),
     }));
     // TD v0.51: a stage ends when the player's state moves on to the next; its summary is written then, in the background.

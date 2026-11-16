@@ -70,6 +70,145 @@
     "_comment": "Headings in the Characters doc's briefings that the screen looks for (the errand card shows its section). Not shown as words.",
     "errand": "Your errand tonight"
   },
+  "titleCase": {
+    "_comment": "Interface v0.17–v0.18, The Player's Words: names, headings, and buttons are in title case. This file's own labels are simply written that way; text from other docs (the briefing's tabs, the city's topics, the stage names) is title-cased on the screen, by this rule: every word capitalized except the `small` ones (the small words, and a name's own particles), which stay lower case unless they open or close the label or follow a colon; only words with letters count as first or last, so an arrow isn't one. `on`: false turns the rule off, for a pack in a language without it.",
+    "on": true,
+    "small": [
+      "a",
+      "an",
+      "the",
+      "and",
+      "but",
+      "or",
+      "nor",
+      "for",
+      "of",
+      "on",
+      "in",
+      "to",
+      "at",
+      "by",
+      "with",
+      "as",
+      "from",
+      "into",
+      "per",
+      "vs",
+      "de'",
+      "di",
+      "d'",
+      "da",
+      "del",
+      "della"
+    ]
+  },
+  "rules": {
+    "_comment": "Interface v0.17–v0.18, The Player's Words: the rules modal's text, written for the player, in place of the AI guests' primer (Technical Design's block 2, which is unchanged). One entry per section, in the order a player learns the evening: its `title`, then its paragraphs. A paragraph is a string, or a list of parts joined with a space. A part is a string; or {\"when\": <condition>, \"text\": …} or {\"unless\": <condition>, \"text\": …}, shown only then; or {\"clauses\": […], \"and\": …, \"end\": …}, a list of clauses joined with commas and a last `and`, leaving out any clause that names a value the run doesn't have. The conditions: `plotReward` (the run's plot_reward flag) and `chanceEachRound` (a round of mingling has at least as many turns as there are living guests). The {placeholders} are the game's values, sent with the player's sheet (Technical Design v0.52, Player Interface, The screen, \"The game's values\"): {start}, {income}, {payroll}, {vote}, {treasury}, {currency} (the plural), {linesPerTurn}, {minglingTurns}, {councilTurns}, {finalCouncilTurns}, {selectionTurns}, {openFloorTurns}, {colloquioCap}. Never a number typed in. Lines that start \"1.\" are a numbered list.",
+    "sections": [
+      {
+        "title": "The Evening",
+        "text": [
+          "Tonight the city's factions (the Medici, the Pazzi, the Dominicans, and the French Embassy) scheme over who will be elected Gonfaloniere, the head of Florence's government. Only a Medici or a Pazzi may stand."
+        ]
+      },
+      {
+        "title": "How to Win",
+        "text": [
+          "The moment the vote is announced, the winner is decided in this order.\n1. The Dominicans win if the elected candidate has publicly repented.\n2. Otherwise, the French Embassy wins if anyone in the winner's family is on France's payroll, as long as one member of the Embassy still lives.\n3. Otherwise, the elected candidate's family, Medici or Pazzi, wins.\nA faction needs at least one living member to win. You win if your faction does, even if you died along the way. A candidate who repents changes sides: from then on, they win only if the Dominicans do."
+        ]
+      },
+      {
+        "title": "Your Errand",
+        "text": [
+          [
+            "Your briefing gives you one task of your own tonight, and it comes first.",
+            {
+              "when": "plotReward",
+              "text": "Finish it before the last council before midnight and you secretly earn one extra act at midnight: a second kill, guard, or watch, on a different guest. No one else is told."
+            },
+            {
+              "unless": "plotReward",
+              "text": "In this game, finishing it earns no extra act at midnight."
+            }
+          ]
+        ]
+      },
+      {
+        "title": "The Order of the Evening",
+        "text": [
+          "Three rounds of mingling, each followed by a council of your own faction. Then midnight. Then the Medici and Pazzi each choose a candidate, the candidates give speeches, every faction holds one last council, and the secret ballot ends the evening."
+        ]
+      },
+      {
+        "title": "Stages and Turns",
+        "text": [
+          "The evening moves in stages, shown in the bar at the top of the screen. The rounds of mingling, the councils, the choosing of candidates, and the open floor after the speeches are made of turns; midnight and the ballot are single choices.",
+          [
+            "A turn is {linesPerTurn} lines spoken across the whole house, shared among every conversation at once.",
+            {
+              "clauses": [
+                "A round of mingling lasts {minglingTurns} turns",
+                "a council {councilTurns}",
+                "the last council {finalCouncilTurns}",
+                "choosing candidates {selectionTurns}",
+                "the open floor after the speeches {openFloorTurns}"
+              ],
+              "and": "and",
+              "end": "."
+            }
+          ],
+          "In a group or a council, you say one thing each turn. Type whenever you like, and your words are said at the next pause in your conversation. Pass gives up your line for the turn. If someone speaks to you directly, the game waits for your answer, and answering doesn't use up your line.",
+          "In a secret conversation, the two of you take turns, and the game waits for you each time. It lasts {colloquioCap} lines at most, and either of you can end it sooner; the other then gets a last word.",
+          [
+            "Moving. At the end of every turn, one guest gets a chance to move, in an order drawn fresh at the start of each round of mingling.",
+            {
+              "when": "chanceEachRound",
+              "text": "So you get at least one chance each round."
+            },
+            {
+              "unless": "chanceEachRound",
+              "text": "A round has fewer turns than there are guests, so not everyone gets a chance every round."
+            },
+            "When yours comes, you can stay, join another guest's group, or start a secret conversation with any guest. You move toward a person, not to a place. If your chance comes while you're in a secret conversation, you stay where you are and the chance is lost. The line above the message box says when yours is next."
+          ]
+        ]
+      },
+      {
+        "title": "Conversations",
+        "text": [
+          "Guests talk in groups of two to four, or two slip away into a secret conversation (a Colloquio), which no one else can join or hear. Starting one uses your chance to move, and the guest you choose can't refuse.",
+          "Il Notaio, the evening's notary, notes who joins, who leaves, and who slips away, and everyone present hears his notes, so slipping away often invites suspicion. Everyone can see who is in which part of the house, but only those in a conversation hear what's said.",
+          "When a secret conversation ends, the guest who was invited chooses first, from the groups with room or a secret conversation of their own, which costs them no move. The one who started it goes back to the group they left, or to the smallest group if that one is full or has broken up."
+        ]
+      },
+      {
+        "title": "Money and Bribes",
+        "text": [
+          "Everyone begins with {start} {currency} and receives {income} more at the start of each round of mingling. Purses are private. A bribe is {currency} handed to the guest you're in a secret conversation with (/bribe); whatever is promised in return is a matter of honor, not law."
+        ]
+      },
+      {
+        "title": "France's Payroll",
+        "text": [
+          "Any Medici or Pazzi may take a payroll payment of {payroll} {currency} from the French Embassy's treasury (/borrow), which puts them on France's payroll. The treasury starts with {treasury} {currency}; while it's empty, there's no payment to take until one is paid back. Each payment can be paid back before the ballot, {payroll} {currency} at a time (/repay), by the one who took it or by a relative who knows of it; with every payment paid back, they're off the payroll. The payroll is private; only the Embassy keeps the full ledger."
+        ]
+      },
+      {
+        "title": "Midnight",
+        "text": [
+          "Each living guest secretly chooses one act: to kill, guard, or watch someone. All acts take effect at once, so a guest who dies at midnight still carries out their own act. A guest guarded by two or more survives an attack. A guest watched by two or more can't carry out their kill. You can't guard yourself. Killers are never named. The dead lose their {currency} and their place on France's payroll; nothing is inherited."
+        ]
+      },
+      {
+        "title": "Candidates and the Vote",
+        "text": [
+          "After midnight, the Medici and the Pazzi each choose one living member as their candidate. Each candidate gives a speech, and then anyone may speak.",
+          "During the speeches only, a candidate may publicly repent (/repent). It's permanent. The candidate changes sides: from then on they win only if the Dominicans do, and if they're elected, the Dominicans win.",
+          "After one last council, every living guest casts one secret vote for any living guest, and may buy extra votes for that same guest at {vote} {currency} each (/buy). Most votes wins, and Il Notaio names only the winner. If the top guests tie, everyone votes once more among only those guests, with no buying; if that ties too, the winner is drawn by lot."
+        ]
+      }
+    ]
+  },
   "screen": {
     "_comment": "The player screen's labels (TD v0.39–v0.47, The screen).",
     "title": "Gonfaloniere",
@@ -82,9 +221,9 @@
     "errand": "Errand",
     "here": "Here",
     "nobody": "No one else is here.",
-    "withdrawals": "Secret conversations",
-    "briefing": "Your briefing",
-    "rules": "The rules",
+    "withdrawals": "Secret Conversations",
+    "briefing": "Your Briefing",
+    "rules": "The Rules",
     "close": "Close",
     "notaio": "Il Notaio",
     "private": "Secret",
@@ -94,7 +233,7 @@
     "capannello": "A group with {others}",
     "colloquio": "Secret conversation with {other}",
     "alone": "On your own",
-    "talkingTo": "Talking with",
+    "talkingTo": "Talking With",
     "input": {
       "placeholder": "Say something. @ addresses a guest; / opens the commands.",
       "_examplesComment": "Interface v0.5; v0.16: the placeholder carries the example, on two lines (the line break after the ellipsis), with an @ and a /, a comma before \"or\", rotated, using only commands allowed right now. `action` is the command's action (as in commands); {command} is its name and {guest} a guest the player could address. With none allowed, `placeholder` shows.",
@@ -119,7 +258,7 @@
       "count": "{count}/{max}",
       "speak": "Speak",
       "pass": "Pass",
-      "end": "End conversation",
+      "end": "End Conversation",
       "used": "You've already spoken this turn.",
       "held": "Your words will be said at the next pause.",
       "waiting": "Your turn: speak or pass.",
@@ -128,15 +267,15 @@
       "yourTurn": "Your turn to speak.",
       "closed": "Make your choice above.",
       "do": "Do",
-      "return": "Return to current stage",
+      "return": "Return to Current Stage",
       "pastPlaceholder": "You're reading an earlier stage. Write here if you like: nothing is sent until you're back in the current stage.",
       "pastWaiting": "The current stage is waiting for you. Return when you're ready."
     },
     "move": {
-      "title": "Your movement window",
+      "title": "Your Movement Window",
       "stay": "Stay",
-      "join": "Move toward…",
-      "colloquio": "Start a secret conversation…",
+      "join": "Move Toward…",
+      "colloquio": "Start a Secret Conversation…",
       "pick": "Choose a guest",
       "confirm": "Confirm"
     },
@@ -144,8 +283,8 @@
       "inviteeTitle": "The conversation with {initiator} is over. Where do you go?",
       "loneTitle": "You're left alone. Join a group.",
       "joinGroup": "Join {members}",
-      "colloquio": "Start a secret conversation…",
-      "wait": "Wait for a seat",
+      "colloquio": "Start a Secret Conversation…",
+      "wait": "Wait for a Seat",
       "pick": "Choose a guest",
       "confirm": "Confirm",
       "allFull": "Every group is full."
@@ -156,7 +295,7 @@
       "introTwo": "Choose one or two acts for midnight.",
       "submit": "Submit",
       "pick": "Choose a guest",
-      "extra": "Your extra act (for your errand)",
+      "extra": "Your Extra Act (for Your Errand)",
       "extraNote": "Optional: leave it empty if you don't want it.",
       "extraSame": "Your extra act must name a different guest from your other act.",
       "acts": {
@@ -171,8 +310,8 @@
       "you": "You have died. From here you watch, as the city does."
     },
     "end": {
-      "title": "The evening is over",
-      "died": "Died at midnight",
+      "title": "The Evening Is Over",
+      "died": "Died at Midnight",
       "noDeaths": "No one died at midnight.",
       "foiled": "Attempts foiled: {count}",
       "survived": "You survived the night.",
@@ -187,17 +326,17 @@
         "known_at_start": "knew it from the start",
         "unchecked": "not checked"
       },
-      "replay": "Open the full replay",
+      "replay": "Open the Full Replay",
       "replayPending": "Preparing the replay…"
     },
     "and": "and",
     "errandCard": {
       "_comment": "TD v0.47, the errand card: under the errand's text, one line saying what finishing it earns. `reward` with the run's plot_reward on (the rules primer's terms), `noReward` with it off, as in the mini-game. After the errand's check, {plot_status} replaces the line.",
-      "title": "Your errand",
+      "title": "Your Errand",
       "reward": "Finish it before the last council before midnight for one extra act at midnight: a second kill, guard, or watch, on a different guest. No one else is told.",
       "noReward": "Errands earn no extra act at midnight."
     },
-    "errandDeadline": "Your errand's deadline",
+    "errandDeadline": "Your Errand's Deadline",
     "midnightLine": {
       "_comment": "Interface v0.8, the midnight line in the sheet: the act every guest has at midnight, then with plot_reward on the extra act the errand can earn, in the errand card's terms. After the errand's check, `earned` if the extra act is the player's; otherwise the second line goes.",
       "acts": "Midnight: 1 act (kill, guard, or watch)",
@@ -217,17 +356,17 @@
     "pastStage": {
       "heading": "Earlier: {stage}",
       "empty": "Nothing reached you in this stage.",
-      "summaryTitle": "{notaio}'s summary of this stage"
+      "summaryTitle": "{notaio}'s Summary of This Stage"
     },
     "earlier": {
-      "title": "Earlier this stage",
+      "title": "Earlier This Stage",
       "item": "{where}",
       "open": "Hide",
       "closed": "Show"
     },
     "hintsSwitch": {
-      "on": "Explanations: on",
-      "off": "Explanations: off"
+      "on": "Explanations: On",
+      "off": "Explanations: Off"
     },
     "hints": {
       "_comment": "Hover explanations (TD v0.40, The screen; Interface v0.16, Explanations), on hover and keyboard focus: plain, short English, one idea at a time. `nextMove` and `generate` wait with their features (the engine's movement window in the player's state; Generate's model call).",
@@ -321,30 +460,31 @@
       "pastSummary": "Il Notaio's summary of this stage, with the guests' own words. Click to tuck it away or bring it back.",
       "readingNote": "Something everyone knew at the start. Click to read it in The city.",
       "factLink": "Click for the rules on this.",
-      "lookingAtSelf": "Your own card: what everyone knows about you."
+      "lookingAtSelf": "Your own card: what everyone knows about you.",
+      "webSide": "What you heard and saw, and your notes. Click to open or close."
     },
-    "city": "The city",
+    "city": "The City",
     "rulesModal": {
       "mark": "×",
-      "shrink": "Back to all the rules",
-      "previous": "← Previous rule",
-      "next": "Next rule →",
-      "first": "First rule →",
-      "overview": "← The rules"
+      "shrink": "Back to All the Rules",
+      "previous": "← Previous Rule",
+      "next": "Next Rule →",
+      "first": "First Rule →",
+      "overview": "← The Rules"
     },
     "cityList": {
-      "back": "← The city",
-      "first": "First topic →",
-      "previous": "← Previous topic",
-      "next": "Next topic →"
+      "back": "← The City",
+      "first": "First Topic →",
+      "previous": "← Previous Topic",
+      "next": "Next Topic →"
     },
     "decks": {
-      "past": "Your past",
+      "past": "Your Past",
       "back": "Back",
       "counter": "{n} of {total}",
       "empty": "Nothing here yet.",
       "other": "Other",
-      "_comment": "Interface v0.16: the briefing is five cards for the player. `playerSkips`: the briefing's cards left out (they serve the AI guests' prompts), by title. `playerMerges`: cards shown as one, under `title`, in `cards`' order, each later card under its `subheadings` entry. Titles are the Characters doc's briefing headings.",
+      "_comment": "Interface v0.16: the briefing is five cards for the player. `playerSkips`: the briefing's cards left out (they serve the AI guests' prompts), by title. `playerMerges`: cards shown as one, under `title`, in `cards`' order, each later card under its `subheadings` entry. Titles are the Characters doc's briefing headings. Interface v0.17: the pack's own titles and subheadings are written in title case; the briefing's own headings are matched ignoring case and title-cased on the screen.",
       "playerSkips": [
         "How you speak",
         "Resources",
@@ -352,37 +492,37 @@
       ],
       "playerMerges": [
         {
-          "title": "What you want",
+          "title": "What You Want",
           "cards": [
             "Your faction",
             "Other goals (your own reasons)"
           ],
           "subheadings": [
-            "Your own reasons"
+            "Your Own Reasons"
           ]
         },
         {
-          "title": "What you know",
+          "title": "What You Know",
           "cards": [
             "What you know",
             "Your secrets (private)"
           ],
           "subheadings": [
-            "Keep to yourself"
+            "Keep to Yourself"
           ]
         }
       ],
-      "previousBriefing": "← Previous briefing",
-      "nextBriefing": "Next briefing →"
+      "previousBriefing": "← Previous Briefing",
+      "nextBriefing": "Next Briefing →"
     },
     "right": {
       "selected": "Selected",
-      "lore": "The city",
+      "lore": "The City",
       "back": "Back",
-      "known": "Known to all",
+      "known": "Known to All",
       "with": "With {name}:",
       "openWeb": "Open in the Web of Confidences",
-      "lookingAt": "Looking at",
+      "lookingAt": "Looking At",
       "deselect": "×",
       "speakingNow": "speaking",
       "noEar": "No one has your ear",
@@ -390,31 +530,31 @@
       "hideLabel": "Hide this panel",
       "show": "⇤",
       "showLabel": "Show the panel again",
-      "lookingAtSelf": "This is you",
+      "lookingAtSelf": "This Is You",
       "youTag": "You"
     },
     "notaioHint": {
-      "title": "{notaio}, to you",
+      "title": "{notaio}, to You",
       "hide": "Hide",
       "show": "Show"
     },
     "web": {
       "title": "Web of Confidences",
-      "record": "What you heard and saw",
+      "record": "What You Heard and Saw",
       "notes": "Notes",
       "pick": "Select a guest to see what you heard and saw of them, or two to see what passed between them.",
-      "heard": "What you heard",
-      "saw": "What you saw",
+      "heard": "What You Heard",
+      "saw": "What You Saw",
       "nothing": "Nothing yet.",
       "yours": "(yours alone)",
       "between": "{a} and {b}",
       "died": "{name} died.",
-      "writeOn": "A note on {who}",
-      "writeFree": "A free note",
+      "writeOn": "A Note on {who}",
+      "writeFree": "A Free Note",
       "placeholder": "What do you make of it?",
-      "save": "Save note",
-      "conclude": "This is my conclusion",
-      "free": "Free notes",
+      "save": "Save Note",
+      "conclude": "This Is My Conclusion",
+      "free": "Free Notes",
       "none": "No notes yet.",
       "open": "▲",
       "shut": "▼",
@@ -427,12 +567,15 @@
       "keyYours": "Secret",
       "keyYoursCovers": "A tie no other guest knows of. Ties everyone knows are drawn plain.",
       "fold": "Fold these notes",
-      "unfold": "Show these notes"
+      "unfold": "Show these notes",
+      "sideShow": "What You Heard and Saw · Notes",
+      "sideShowLabel": "Show what you heard and saw, and your notes",
+      "sideHideLabel": "Hide what you heard and saw, and your notes"
     },
-    "more": "More below",
+    "more": "More Below",
     "panelError": "This part of the screen ran into a problem and stopped. The rest still works; reloading the page may bring it back.",
     "reading": {
-      "title": "{notaio}'s reading",
+      "title": "{notaio}'s Reading",
       "waiting": "Il Notaio is considering…",
       "tally": "{heard}; {saw}.",
       "heard": {
@@ -455,12 +598,12 @@
       "connection": "{between}: {line}.",
       "noteSep": ": "
     },
-    "room": "The room",
-    "withYou": "With you",
-    "withYouPrivately": "In a secret conversation with you",
+    "room": "The Room",
+    "withYou": "With You",
+    "withYouPrivately": "In a Secret Conversation with You",
     "places": {
       "_comment": "Interface v0.9, Left: The places, from the player's state's `places` (TD v0.49). Every place in setting.json's order; a row's heading is the place's name with its first letter capitalized. `yours` marks the player's own place, `private` names the closed-door mark on a place holding a Colloquio, and `quiet` stands in for the list outside a conversation (midnight, the ballot). `descriptions`: Lore's one-line description of each place (Lore v0.8, The Palazzo), shown on hovering its name, keyed by the place's name exactly as setting.json gives it.",
-      "title": "The places",
+      "title": "The Places",
       "yours": "You are here",
       "private": "Secret conversation: behind a closed door",
       "quiet": "Each guest chooses alone now.",
@@ -486,7 +629,7 @@
     "glossaryModal": {
       "search": "Search the glossary",
       "searchLabel": "Search the glossary",
-      "more": "More in the rules",
+      "more": "More in the Rules",
       "none": "No word matches that."
     },
     "modalRow": {
@@ -497,22 +640,26 @@
         "rules": "How the evening works, from the first word to midnight.",
         "city": "What every guest knew of Florence before tonight.",
         "glossary": "The game's words, each explained in a line or two."
+      },
+      "paddle": {
+        "left": "‹",
+        "right": "›"
       }
     },
     "opening": {
       "_comment": "Interface v0.7, The Opening's controls and the choice at its end. Il Notaio's story itself is notaio.json's opening.",
       "skip": "Skip",
-      "choose": "Choose your family",
+      "choose": "Choose Your Family",
       "play": "Play as {name}",
       "starting": "The guests are arriving…",
-      "fullGameOnly": "In the full game"
+      "fullGameOnly": "In the Full Game"
     },
     "tour": {
       "_comment": "Interface v0.8, The Tour's controls. Its cards are notaio.json's tour.",
       "back": "Back",
-      "skip": "Skip tour",
+      "skip": "Skip Tour",
       "counter": "{n} of {total}",
-      "again": "Show me around"
+      "again": "Show Me Around"
     },
     "youAre": "You are {name}",
     "commandWhy": {
@@ -541,16 +688,23 @@
       "withdrawals": "Colloquio",
       "midnight": "Midnight",
       "errand": "Errand"
+    },
+    "narrow": {
+      "_comment": "Interface v0.17, Screen Sizes: the note that stands in for the screen in a window too narrow for it (a phone). `go` holds for the visit.",
+      "title": "Made for a Larger Screen",
+      "text": "Gonfaloniere is laid out for a laptop, a desktop, or a tablet held sideways. On a screen this narrow it won't fit well yet. Turn your device sideways, or open the game on a bigger screen.",
+      "go": "Continue Anyway"
     }
   },
   "glossary": {
-    "_comment": "Interface v0.7, the glossary (Glossary Draft; v0.11's gloss on Il Notaio; v0.12's words). One entry per term: `text` is its plain definition, with every amount a {placeholder} filled from the game's tuning values (Mechanics, Tunable Values: {starting_florins}, {income}, {vote_price}, {pension_size}; {currency} is the setting's plural), never typed in. `fullGame`: marked † in the draft, left out of the mini-game. `rules`: the rules sections \"More in the rules\" opens, by title, the first the rules have. `match`: the words in a line that get the term's dotted underline (none for the midnight acts and Move, whose words are everyday ones). Not shown as the screen's own words: the server sends them filled (screen-info.ts).",
+    "_comment": "Interface v0.7, the glossary (Glossary Draft; v0.11's gloss on Il Notaio; v0.12's words). One entry per term: `text` is its plain definition, with every amount a {placeholder} filled from the game's tuning values (Mechanics, Tunable Values: {starting_florins}, {income}, {vote_price}, {pension_size}; {currency} is the setting's plural), never typed in. `fullGame`: marked † in the draft, left out of the mini-game. `rules`: the rules sections \"More in the Rules\" opens, by title (ignoring case), the first the rules have: the player's rules' section names first (Interface v0.17), then the primer's, for a screen shown the primer. `match`: the words in a line that get the term's dotted underline (none for the midnight acts and Move, whose words are everyday ones). Not shown as the screen's own words: the server sends them filled (screen-info.ts).",
     "entries": [
       {
         "term": "Ballot",
         "text": "The secret vote that ends the evening. Every living guest casts one vote for any living guest, and may buy extra votes for that guest at {vote_price} {currency} each. Most votes wins; Il Notaio names only the winner.",
         "fullGame": true,
         "rules": [
+          "Candidates and the Vote",
           "How the evening ends"
         ],
         "match": [
@@ -561,6 +715,7 @@
         "term": "/bribe",
         "text": "Hand {currency} to the guest you're in a secret conversation with. Whatever they promise in return is up to them.",
         "rules": [
+          "Money and Bribes",
           "Money"
         ],
         "match": [
@@ -583,6 +738,7 @@
         "text": "The one living guest each of the two great houses, Medici and Pazzi, puts forward for Gonfaloniere.",
         "fullGame": true,
         "rules": [
+          "Candidates and the Vote",
           "The order of the evening"
         ],
         "match": [
@@ -623,6 +779,7 @@
         "term": "Council",
         "text": "A private meeting of your own faction. Nothing is shared unless someone says it aloud.",
         "rules": [
+          "Stages and Turns",
           "The order of the evening"
         ],
         "match": [
@@ -634,6 +791,7 @@
         "term": "Dominicans",
         "text": "The friars' faction. They can't go on France's payroll. They win if the guest elected Gonfaloniere has repented.",
         "rules": [
+          "How to Win",
           "How the evening ends"
         ],
         "match": [
@@ -643,6 +801,9 @@
       {
         "term": "Errand",
         "text": "Your character's own task tonight, in your briefing. Your errand card says what finishing it earns.",
+        "rules": [
+          "Your Errand"
+        ],
         "match": [
           "errand",
           "errands"
@@ -652,6 +813,7 @@
         "term": "Florins",
         "text": "The evening's money. Everyone starts with {starting_florins} and receives {income} at the start of each round of mingling. Purses are private.",
         "rules": [
+          "Money and Bribes",
           "Money"
         ],
         "match": [
@@ -663,6 +825,7 @@
         "term": "French Embassy",
         "text": "France's faction. It keeps the treasury that pays France's payroll, and knows who is on it. It wins if anyone in the elected candidate's family is on France's payroll.",
         "rules": [
+          "How to Win",
           "How the evening ends"
         ],
         "match": [
@@ -686,6 +849,9 @@
         "term": "Gonfaloniere",
         "text": "The office the evening decides: the head of Florence's government. Only a Medici or a Pazzi can stand.",
         "fullGame": true,
+        "rules": [
+          "The Evening"
+        ],
         "match": [
           "Gonfaloniere"
         ]
@@ -717,6 +883,7 @@
         "term": "Medici",
         "text": "One of the two great houses, competing for Gonfaloniere. They win if their candidate is elected, unrepentant, with no one in the family on France's payroll.",
         "rules": [
+          "How to Win",
           "How the evening ends"
         ],
         "match": [
@@ -737,6 +904,7 @@
         "term": "Move",
         "text": "Your turn to change company, when it comes: stay, join another guest's group, or start a secret conversation.",
         "rules": [
+          "Stages and Turns",
           "Conversations"
         ],
         "match": []
@@ -745,6 +913,7 @@
         "term": "Pazzi",
         "text": "The other great house, competing for Gonfaloniere, on the same terms as the Medici.",
         "rules": [
+          "How to Win",
           "How the evening ends"
         ],
         "match": [
@@ -767,6 +936,7 @@
         "text": "A candidate's public confession during the speeches. It can't be taken back, and it makes the Dominicans' win their own.",
         "fullGame": true,
         "rules": [
+          "Candidates and the Vote",
           "Repentance"
         ],
         "match": [
@@ -777,6 +947,7 @@
         "term": "Round of mingling",
         "text": "Open play, when guests form groups, move, and start secret conversations.",
         "rules": [
+          "Stages and Turns",
           "The order of the evening"
         ],
         "match": [
@@ -789,6 +960,7 @@
         "text": "If the ballot ties, one fresh vote among the tied guests, with no buying. A second tie is decided by lot.",
         "fullGame": true,
         "rules": [
+          "Candidates and the Vote",
           "How the evening ends"
         ],
         "match": [
@@ -800,6 +972,7 @@
         "text": "Each candidate addresses the city, and others may speak. The only time a candidate can repent.",
         "fullGame": true,
         "rules": [
+          "Candidates and the Vote",
           "The order of the evening"
         ],
         "match": [

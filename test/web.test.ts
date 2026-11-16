@@ -21,8 +21,8 @@ import { settingPack } from "../src/setting/pack.ts";
 import { GameView, Opening, phrases } from "../web/src/App.tsx";
 import type { Ev } from "../web/src/connection.ts";
 import { canDo, canSpeak, openMenu, trigger, withMention } from "../web/src/input.ts";
-import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityCards, cityList, curve, derive, factionArcs, placeholderExample, preview, selectBack, selectInChat, selectInWeb, selectLore, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, lineStages, loreParts, readingFor, roomOf, summaryFor, rulesCards, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, glossaryList, lineParts, midnightLine, noteGroups, webLines, webNames, NODE_RADIUS, rulesSectionFor, type LoreEntry, type View, factLink, rulesLink, errandTask, errandCardAt, commandMenu, commandWhy, payrollSize, refusalWhy, refusedCommand, playerBriefing } from "../web/src/model.ts";
-import { notaioHint, setInfo, type StartInfo } from "../web/src/words.ts";
+import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityCards, cityList, curve, derive, factionArcs, placeholderExample, preview, selectBack, selectInChat, selectInWeb, selectLore, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, lineStages, loreParts, readingFor, roomOf, summaryFor, rulesCards, playerRules, titleCase, titleRule, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, glossaryList, lineParts, midnightLine, noteGroups, webLines, webNames, NODE_RADIUS, rulesSectionFor, type Card, type LoreEntry, type View, factLink, rulesLink, errandTask, errandCardAt, commandMenu, commandWhy, payrollSize, refusalWhy, refusedCommand, playerBriefing } from "../web/src/model.ts";
+import { notaioHint, packValue, setInfo, tc, w, type StartInfo } from "../web/src/words.ts";
 import { fakeCaller, fakeDocs, fakeSettings } from "./fixtures/fake-game.ts";
 
 const F = "Francesco Pazzi";
@@ -73,12 +73,17 @@ async function playedLog(opts: { Game?: typeof MiniGame; midnight?: (guests: str
   return { log, at, game };
 }
 
+/** A full game's values, as TD v0.52's sheet would carry them (a fixture: no engine plays the full game yet). */
+const FULL_VALUES = { start: 10, income: 1, payroll: 3, vote: 5, treasury: 12, linesPerTurn: 8, minglingTurns: 12, councilTurns: 3, finalCouncilTurns: 4, selectionTurns: 2, openFloorTurns: 6, colloquioCap: 10, currency: { singular: "Florin", plural: "Florins" } };
+
 /** A view whose player has a knowledge errand (TD v0.51's flag, as the game would send it for Piero). */
 const knowing = (v: View): View => ({ ...v, state: { ...v.state!, knowledgeErrand: true } });
 
 const info = { ...screenInfo([F], castBriefings(fakeDocs), { tunables: fakeDocs.tunables, minigame: true }), started: null, ws: null } as StartInfo;
 setInfo(info);
 const html = (el: ReturnType<typeof createElement>) => renderToString(el);
+/** The player's own rules as the screen builds them for a view (Interface v0.17): the pack's text, filled with the sheet's values. */
+const rulesOf = (v: View) => playerRules(packValue("rules"), v.sheet!.values!, { plotReward: !!v.state?.plotReward, living: (v.state?.livingOthers.length ?? 0) + 1 });
 /** Words the screen shows but couldn't find in player.json come out as their keys. */
 const missingWords = (h: string) => h.match(/\bscreen\.[\w.]+|\b(?:refusals|commands|hints)\.[\w.]+|undefined|\[object Object\]/g) ?? [];
 
@@ -182,7 +187,7 @@ test("buttons by job: Speak is the one filled button, disabled with nothing to s
   assert.match(head, /<button class="end"[^>]*data-hint="end"/, "End conversation is in the Colloquio's header");
   const input = h.slice(h.indexOf('class="input"'));
   // Interface v0.16: and under Speak and Pass, the width of the two; both solid red with white words, their own tokens.
-  assert.match(input, /<div class="actions"><div class="actions-row"><button class="primary"[^>]*>Speak<\/button><button class="secondary"[^>]*>Pass<\/button><\/div><button class="end"[^>]*data-hint="end"[^>]*>End conversation<\/button><\/div>/);
+  assert.match(input, /<div class="actions"><div class="actions-row"><button class="primary"[^>]*>Speak<\/button><button class="secondary"[^>]*>Pass<\/button><\/div><button class="end"[^>]*data-hint="end"[^>]*>End Conversation<\/button><\/div>/);
   const group = html(createElement(GameView, { me: F, v: derive(at["speak:capannello"]!), send: () => {}, status: "open" }));
   assert.doesNotMatch(group, /data-hint="end"/, "only when it's on offer");
   const css = readFileSync("web/src/app.css", "utf8");
@@ -290,8 +295,11 @@ test("the decks: one card per briefing section and per rules topic, with Your pa
   assert.equal(cards.map((c) => c.text).join(" ").length > briefing.length * 0.85, true, "the briefing's text is all there");
   const { at } = await playedLog();
   const v = derive(at.move!);
-  const rules = rulesCards(v.sheet!.rules);
-  assert.ok(rules.length >= 6 && rules.every((c) => c.title && c.text), rules.map((c) => c.title).join(", "));
+  // Interface v0.17: the rules modal shows the player's own rules; the primer (block 2) still parses, for a server that sends no values.
+  const primer = rulesCards(v.sheet!.rules);
+  assert.ok(primer.length >= 6 && primer.every((c) => c.title && c.text), primer.map((c) => c.title).join(", "));
+  const rules = rulesOf(v);
+  assert.equal(rules.length, 10);
   assert.deepEqual(cityCards(LORE).map((c) => [c.group, c.title]), [["History", "1478"], ["Places", "San Frediano"], [null, "The Signoria"]]);
   // Your briefing stays a deck: tabs along the top, one per card; the first card open; a back control; Your past when lore is on.
   const past = { ...v, sheet: { ...v.sheet!, past: [{ id: "P1", title: "The garden wall", text: "You climbed it once." }] } };
@@ -302,19 +310,24 @@ test("the decks: one card per briefing section and per rules topic, with Your pa
   // Interface v0.16: five cards for the player, then Your past.
   assert.equal((modal(b).match(/class="tab( on)?"/g) ?? []).length, 5 + 1, "a tab per card");
   assert.match(b, /class="deck-card"[^>]*data-hint="deckCard"/, "the card swipes on");
-  assert.match(game({ v: past, deck: "briefing" }), /<button class="secondary deck-next"[^>]*data-hint="deckCard">Next briefing →<\/button>/);
-  assert.match(b, /data-hint="deckTab">Your past</, "Your past, last");
+  assert.match(game({ v: past, deck: "briefing" }), /<button class="secondary deck-next"[^>]*data-hint="deckCard">Next Briefing →<\/button>/);
+  assert.match(b, /data-hint="deckTab">Your Past</, "Your past, last");
   // Interface v0.5: the rules are one button per section, and an open section fills the modal with its ×.
   const r = modal(game({ v, deck: "rules" }));
   assert.deepEqual(missingWords(r), []);
   assert.deepEqual([...r.matchAll(/<button class="rules-section" data-section="\d+"[^>]*data-hint="rulesSection">([^<]*)</g)].map((m) => m[1]), rules.map((c) => c.title.replace(/'/g, "&#x27;")), "a button per section, in order");
   assert.doesNotMatch(r, /class="tab|deck-card/, "no deck");
-  assert.equal(rules[0]!.title, "The evening", "the primer's capitalized opening heading shows in sentence case (Interface v0.16)");
+  assert.equal(primer[0]!.title, "The evening", "the primer's capitalized opening heading shows in sentence case (Interface v0.16)");
+  const older = modal(game({ v: { ...v, sheet: { ...v.sheet!, values: undefined } }, deck: "rules" }));
+  assert.deepEqual([...older.matchAll(/data-hint="rulesSection">([^<]*)</g)].map((m) => m[1]), primer.map((c) => tc(c.title).replace(/'/g, "&#x27;")), "from a server that sends no values, the primer, its titles in title case");
   // The city is a list: a row per public entry, with its title and a one-line preview, under subject headers.
   const c = modal(game({ v: withLore(v), deck: "city" }));
   assert.deepEqual(missingWords(c), []);
   assert.deepEqual([...c.matchAll(/class="city-subject">([^<]*)</g)].map((m) => m[1]), ["History", "Places", "Other"], "The city's subjects head its list");
   assert.deepEqual([...c.matchAll(/class="city-row" data-lore="(\w+)"[^>]*data-hint="cityRow"><span class="city-title">([^<]*)<\/span><span class="city-preview muted">([^<]*)</g)].map((m) => [m[1], m[2], m[3]]), [["L2", "1478", "The year the Pazzi rose."], ["L1", "San Frediano", "A church across the river."], ["L3", "The Signoria", "The city&#x27;s government."]]);
+  // Interface v0.17: a topic's title from Lore is title-cased on the screen, not in its source.
+  const lower = modal(game({ v: { ...v, sheet: { ...v.sheet!, lore: [{ id: "L7", title: "The feast of the baptist", aliases: [], subject: null, text: "A feast." }] } }, deck: "city" }));
+  assert.match(lower, /<span class="city-title">The Feast of the Baptist<\/span>/);
   assert.deepEqual(cityList(LORE).map((g) => [g.subject, g.entries.map((e) => e.id)]), [["History", ["L2"]], ["Places", ["L1"]], [null, ["L3"]]]);
   assert.equal(preview({ ...LORE[0]!, text: "\nFirst line.\nSecond line." }), "First line.");
   // An empty city, on purpose: the repo's lore file holds public lore (#130), so this view sets its own, as withLore does.
@@ -820,7 +833,7 @@ test("the track's errand mark: on the deadline stage with plot_reward on, with i
   assert.equal(errandDeadline(on), "The last council");
   const h = game({ v: on });
   assert.equal((h.match(/class="errand-mark"/g) ?? []).length, 1);
-  assert.match(h, /class="mark next deadline" aria-label="The last council"[^>]*><span class="errand-mark" role="img" aria-label="Your errand&#x27;s deadline"[^>]*data-hint="trackDeadline"/);
+  assert.match(h, /class="mark next deadline" data-stage="The last council" aria-label="The Last Council"[^>]*><span class="errand-mark" role="img" aria-label="Your Errand&#x27;s Deadline"[^>]*data-hint="trackDeadline"/);
   assert.equal(PLAYER.screen.hints.trackDeadline, "Your errand's deadline. Finish before this stage for an extra act at midnight.");
   assert.doesNotMatch(game({ v: flagged(base, { plotReward: false }) }), /errand-mark/, "a deadline but the flag off");
   assert.doesNotMatch(game({ v: flagged(base, { plotReward: true, deadline: "Not a stage" }) }), /errand-mark/, "a deadline the track doesn't have");
@@ -880,7 +893,7 @@ test("the midnight card: the extra act is its own optional row when the errand e
   assert.deepEqual(missingWords(h), []);
   const row = h.slice(h.indexOf('class="act-extra"'));
   assert.ok(h.includes('class="act-extra"') && row.includes(esc(PLAYER.screen.midnight.extra)), "labelled from player.json");
-  assert.equal(PLAYER.screen.midnight.extra, "Your extra act (for your errand)");
+  assert.equal(PLAYER.screen.midnight.extra, "Your Extra Act (for Your Errand)");
   assert.match(h, /class="act-extra"[^>]*data-hint="midnightExtra"/);
   assert.equal((h.match(/<select/g) ?? []).length, 4, "the act and the extra act, each a kind and a guest");
   // The game checks it as an AI guest's extra: a different guest, and no guarding yourself.
@@ -987,16 +1000,16 @@ test("a past stage opens read-only: its conversations in order, Return in place 
   assert.deepEqual(missingWords(h), []);
   assert.doesNotMatch(h, /class="notaio-hint/, "Il Notaio's hint steps aside while an earlier stage is open (Interface v0.16)");
   const view = h.slice(h.indexOf('class="past-stage"'), h.indexOf('class="input'));
-  assert.ok(view.includes(esc(w2("pastStage.heading", { stage }))), "headed with the stage");
+  assert.ok(view.includes(esc(tc(w2("pastStage.heading", { stage })))), "headed with the stage, in title case (Interface v0.17)");
   assert.equal((view.match(/class="past-conv"/g) ?? []).length, runs.length, "each conversation under its line");
   const ids = [...view.matchAll(/data-line="(\w+)"/g)].map((m) => m[1]);
   assert.deepEqual(ids, runs.flatMap((r) => r.lines.map((l) => l.id)), "every line of the stage, in order, and nothing else");
   assert.doesNotMatch(view, /class="earlier"|class="card"|class="speaking"/, "nothing of the current stage");
   // The bar marks the open stage; the input box keeps its draft field, with Return alone in Speak's place.
-  assert.match(h, new RegExp(`<li class="mark past open" aria-label="${esc(stage)}"`));
+  assert.match(h, new RegExp(`<li class="mark past open" data-stage="${esc(stage)}" aria-label="${esc(tc(stage))}"`));
   const input = h.slice(h.indexOf('class="input past"'));
   assert.ok(input.length > 0 && input.includes("<textarea"));
-  assert.match(input, /<button class="primary return( beckon)?"[^>]*data-hint="return"[^>]*>Return to current stage</);
+  assert.match(input, /<button class="primary return( beckon)?"[^>]*data-hint="return"[^>]*>Return to Current Stage</);
   assert.doesNotMatch(input, /data-hint="(speak|do|pass)"/, "no Speak, Do, or Pass");
   assert.doesNotMatch(h.slice(h.indexOf('class="conv-head"'), h.indexOf("</header>")), /data-hint="end"/, "no End conversation from a past stage");
   // While the game waits for the player, Return and the current stage beckon, and the placeholder says so.
@@ -1012,7 +1025,7 @@ test("a past stage opens read-only: its conversations in order, Return in place 
   const moving = derive(at.move!);
   const past = moving.sheet!.track!.find((t) => trackMarks(moving.sheet!.track!, moving.state!.phaseLabel).find((m) => m.stage === t)!.at === "past")!;
   const waiting = game({ v: moving, pastStage: past });
-  assert.match(waiting, /<div class="input past decision"><button class="primary return wide beckon"[^>]*data-hint="return"[^>]*>Return to current stage<\/button><\/div>/);
+  assert.match(waiting, /<div class="input past decision"><button class="primary return wide beckon"[^>]*data-hint="return"[^>]*>Return to Current Stage<\/button><\/div>/);
   assert.doesNotMatch(waiting, /class="card"|<textarea/, "no card and no box while reading the earlier stage");
   // Back in the current stage, the decision card sits in the message box's place, not in the conversation.
   const back = game({ v: moving });
@@ -1417,8 +1430,16 @@ test("the glossary's list, search, and rules sections; a line's glossary words, 
   const cards = rulesCards(rulesText(fakeDocs.templates, { ...fakeDocs.tunables, plotProtection: false, plotReward: false }));
   const money = g.find((e) => e.term === "Florins")!;
   assert.equal(cards[rulesSectionFor(money, cards)!]!.title, "Money");
-  assert.equal(rulesSectionFor(g.find((e) => e.term === "Errand")!, cards), null, "no section behind it, no link");
-  assert.ok(g.filter((e) => e.rules.length).every((e) => rulesSectionFor(e, cards) !== null), "every named section is one the rules have");
+  assert.equal(rulesSectionFor(g.find((e) => e.term === "Errand")!, cards), null, "the primer has no section behind it: no link");
+  assert.ok(g.filter((e) => e.term !== "Errand" && e.rules.length).every((e) => rulesSectionFor(e, cards) !== null), "every named section is one the primer has");
+  // Interface v0.17: the pointers follow the player's rules' section names first, matched ignoring case.
+  const own = playerRules(packValue("rules"), FULL_VALUES, { plotReward: true, living: 12 });
+  const all = glossary(PACK_GLOSSARY as never, fakeDocs.tunables, "Florins", false);
+  const opens = (term: string) => own[rulesSectionFor(all.find((e) => e.term === term)!, own)!]?.title;
+  for (const t of ["Ballot", "Candidate", "Run-off", "Speeches", "/repent"]) assert.equal(opens(t), "Candidates and the Vote", t);
+  for (const t of ["Move", "Round of mingling", "Council"]) assert.equal(opens(t), "Stages and Turns", t);
+  assert.deepEqual(["Gonfaloniere", "Errand", "Florins", "/bribe", "France's payroll", "Midnight", "Colloquio", "Medici"].map(opens), ["The Evening", "Your Errand", "Money and Bribes", "Money and Bribes", "France's Payroll", "Midnight", "Conversations", "How to Win"]);
+  assert.ok(all.filter((e) => e.rules.length).every((e) => rulesSectionFor(e, own) !== null), "every named section is one the player's rules have");
   // In a line: a glossary word is a term; a word that's a lore title too is the lore link.
   const lore: LoreEntry[] = [{ id: "L9", title: "The council", aliases: [], subject: null, text: "" }];
   const parts = lineParts("The council met; a Colloquio followed, and Florins changed hands at midnight.", lore, g);
@@ -1453,7 +1474,7 @@ test("the four modals in a row: the open one between its neighbours, nothing bef
   // Interface v0.16: the neighbours are solid (no fade), each with a one-line summary of what it is rather than its list of topics.
   assert.doesNotMatch(css, /\.modal-peek[^{]*\{[^}]*(mask-image|opacity)/, "solid, not see-through");
   assert.match(css, /\.modal-peek \{[^}]*background: var\(--surface\)/);
-  assert.match(peek, /<div class="peek-frame" inert="" aria-hidden="true"><header><h2>The city<\/h2><\/header><p class="peek-summary">What every guest knew of Florence before tonight\.<\/p><\/div>/);
+  assert.match(peek, /<div class="peek-frame" inert="" aria-hidden="true"><header><h2>The City<\/h2><\/header><p class="peek-summary">What every guest knew of Florence before tonight\.<\/p><\/div>/);
   assert.doesNotMatch(h, /peek-items/);
   for (const d of ["briefing", "rules", "city", "glossary"]) assert.ok((PLAYER.screen.modalRow.summary[d] as string).length > 20, d);
   // The focused modal's title is centred in its header, with Close at the right.
@@ -1509,9 +1530,9 @@ test("the tour: a card per step in Il Notaio's voice, in the doc's order, ending
     assert.match(tour, /<div class="tour-head"><span class="narrator-name"/, `${key}: in his name`);
     assert.ok(tour.includes(`${i + 1} of 9`));
     assert.match(tour, new RegExp(`<button class="secondary small"${i === 0 ? ' disabled=""' : ""}[^>]*data-hint="tourBack"`), `${key}: Back`);
-    assert.match(tour, /data-hint="tourSkip">Skip tour</, `${key}: Skip tour`);
+    assert.match(tour, /data-hint="tourSkip">Skip Tour</, `${key}: Skip tour`);
   });
-  assert.match(game({ v }), /<button class="switch tour-again"[^>]*data-hint="tourAgain">Show me around<\/button><button class="switch"/, "Show me around, beside the explanations' switch");
+  assert.match(game({ v }), /<button class="switch tour-again"[^>]*data-hint="tourAgain">Show Me Around<\/button><button class="switch"/, "Show me around, beside the explanations' switch");
   const css = readFileSync("web/src/app.css", "utf8");
   assert.match(css, /\.tour-card \{[^}]*background: var\(--hint-bg\)/, "styled like his hint");
 });
@@ -1522,8 +1543,8 @@ test("Il Notaio's name, glossed wherever it shows: his notes, his hint, his read
   const hover = `aria-description="${esc(NOTAIO_PACK.name.hover)}"`;
   const h = game({ v, web: ["Lupo"] });
   assert.match(h, new RegExp(`<div class="ln notaio" data-line="\\w+"><span class="sp"><span class="narrator-name" tabindex="0" data-narrator="" ${hover.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`), "his notes in the stream");
-  assert.match(h, /<button class="hint-head"[^>]*><span><span class="narrator-name"[^>]*>Il Notaio<\/span>, to you<\/span>/, "his hint");
-  assert.match(h, /<div class="reading-head"><span class="narrator-name"[^>]*>Il Notaio<\/span>&#x27;s reading<\/div>/, "his reading");
+  assert.match(h, /<button class="hint-head"[^>]*><span><span class="narrator-name"[^>]*>Il Notaio<\/span>, to You<\/span>/, "his hint");
+  assert.match(h, /<div class="reading-head"><span class="narrator-name"[^>]*>Il Notaio<\/span>&#x27;s Reading<\/div>/, "his reading");
   assert.equal(NOTAIO_PACK.name.hover, "Il Notaio: Italian for “the notary”. He records the evening and belongs to no faction.");
   assert.ok(info.glossary!.find((e) => e.term === "Il Notaio")!.text.startsWith(NOTAIO_PACK.name.gloss), "his glossary entry starts with the same gloss");
   assert.ok(NOTAIO_PACK.name.gloss.startsWith("Italian for"));
@@ -1538,20 +1559,20 @@ const packWords = (file: string): string => JSON.stringify(JSON.parse(readFileSy
 test("Interface v0.16's words: secret conversations, payments from France, the Web of Confidences, plain directions, and Il Notaio's plain hints", () => {
   const s = PLAYER.screen;
   const rows: [unknown, string][] = [
-    [s.withdrawals, "Secret conversations"],
+    [s.withdrawals, "Secret Conversations"],
     [s.pensions, "Payments from France"],
     [s.private, "Secret"],
     [s.colloquio, "Secret conversation with {other}"],
-    [s.withYouPrivately, "In a secret conversation with you"],
+    [s.withYouPrivately, "In a Secret Conversation with You"],
     [s.placeLine.colloquio, "In {place}, in secret with {other}"],
     [s.places.private, "Secret conversation: behind a closed door"],
-    [s.move.colloquio, "Start a secret conversation…"],
-    [s.seat.colloquio, "Start a secret conversation…"],
+    [s.move.colloquio, "Start a Secret Conversation…"],
+    [s.seat.colloquio, "Start a Secret Conversation…"],
     [s.midnight.intro, "Choose your act for midnight."],
     [s.midnight.introTwo, "Choose one or two acts for midnight."],
     [s.errandCard.noReward, "Errands earn no extra act at midnight."],
-    [s.pastStage.summaryTitle, "{notaio}'s summary of this stage"],
-    [s.reading.title, "{notaio}'s reading"],
+    [s.pastStage.summaryTitle, "{notaio}'s Summary of This Stage"],
+    [s.reading.title, "{notaio}'s Reading"],
     [s.input.waiting, "Your turn: speak or pass."],
     [s.input.answering, "{name} spoke to you. Answer or pass."],
     [s.input.closing, "{name} ended the conversation. Say a last word or pass."],
@@ -1560,12 +1581,12 @@ test("Interface v0.16's words: secret conversations, payments from France, the W
     [s.input.closed, "Make your choice above."],
     [s.youAre, "You are {name}"],
     [s.seat.allFull, "Every group is full."],
-    [s.right.lookingAtSelf, "This is you"],
+    [s.right.lookingAtSelf, "This Is You"],
     [s.right.youTag, "You"],
     [s.web.title, "Web of Confidences"],
     [s.right.openWeb, "Open in the Web of Confidences"],
-    [s.opening.choose, "Choose your family"],
-    [s.opening.fullGameOnly, "In the full game"],
+    [s.opening.choose, "Choose Your Family"],
+    [s.opening.fullGameOnly, "In the Full Game"],
     [(JSON.parse(readFileSync("setting/florence-1492/player.json", "utf8")) as { refusals: Record<string, string> }).refusals.end_mistimed, "There's no secret conversation for you to end."],
   ];
   for (const [have, want] of rows) assert.equal(have, want);
@@ -1589,7 +1610,8 @@ test("Interface v0.16's words: secret conversations, payments from France, the W
   assert.doesNotMatch(JSON.stringify(NOTAIO.hints), /private word|withdrawn|draw someone aside/);
   // The explanations: the doc's table; `nextMove` and `generate` wait with their features (#177, items 4 and 4b).
   const hints = Object.keys(s.hints).filter((k) => !k.startsWith("_"));
-  assert.equal(hints.length, 91);
+  assert.equal(hints.length, 92);
+  assert.equal(s.hints.webSide, "What you heard and saw, and your notes. Click to open or close.", "new in Interface v0.17");
   for (const k of ["factLink", "lookingAtSelf"]) assert.ok(hints.includes(k), k);
   for (const k of ["nextMove", "generate"]) assert.ok(!hints.includes(k), k);
   assert.equal(s.hints.end, "End this secret conversation. The other guest gets a last word.");
@@ -1599,7 +1621,7 @@ test("Interface v0.16's words: secret conversations, payments from France, the W
 test("each line of the sheet opens the rules where it's explained (Interface v0.16): by its glossary word, from the pack; the glossary if no section explains it", async () => {
   const { at } = await playedLog();
   const v = derive(at["speak:capannello"]!);
-  const rules = rulesCards(v.sheet!.rules);
+  const rules = rulesOf(v);
   const links = PLAYER.screen.factLinks as Record<string, string>;
   assert.deepEqual(Object.keys(links).filter((k) => !k.startsWith("_")), ["purse", "pensions", "withdrawals", "midnight", "errand"]);
   for (const k of ["purse", "pensions", "withdrawals", "midnight"]) {
@@ -1609,13 +1631,16 @@ test("each line of the sheet opens the rules where it's explained (Interface v0.
     assert.ok(l?.deck === "rules" && entry.rules.map((t) => t.toLowerCase()).includes(rules[l.section]!.title.toLowerCase()), `${k}: the section behind ${links[k]}`);
   }
   // A word with no section behind it opens in the glossary; an unknown word leads nowhere.
-  assert.deepEqual(factLink("Errand", info.glossary!, rules), { deck: "glossary", search: "Errand" });
+  const primer = rulesCards(v.sheet!.rules);
+  assert.deepEqual(factLink("Errand", info.glossary!, primer), { deck: "glossary", search: "Errand" });
   assert.equal(factLink("no such word", info.glossary!, rules), null);
-  assert.equal(rulesLink("Errand", info.glossary!, rules), null, "the primer has no section on errands yet");
-  assert.equal(rules[rulesLink("Midnight", info.glossary!, rules)!]!.title, "Midnight", "so the reward line opens Midnight");
+  assert.equal(rulesLink("Errand", info.glossary!, primer), null, "the primer has no section on errands");
+  assert.equal(primer[rulesLink("Midnight", info.glossary!, primer)!]!.title, "Midnight", "so there the reward line opens Midnight");
+  // Interface v0.17: the player's rules have Your Errand, so the errand's reward line opens it.
+  assert.equal(rules[rulesLink("Errand", info.glossary!, rules)!]!.title, "Your Errand");
   // On the screen: the labels, each a button with the explanation; before the sheet arrives, plain lines.
   const h = game({ v });
-  for (const [k, label] of [["purse", "Purse"], ["pensions", "Payments from France"], ["withdrawals", "Secret conversations"]]) assert.match(h, new RegExp(`<button class="fact link" data-fact="${k}" aria-description="Click for the rules on this\\." data-hint="factLink"><span class="fact-label">${label}</span><span class="fact-value">`), k);
+  for (const [k, label] of [["purse", "Purse"], ["pensions", "Payments from France"], ["withdrawals", "Secret Conversations"]]) assert.match(h, new RegExp(`<button class="fact link" data-fact="${k}" aria-description="Click for the rules on this\\." data-hint="factLink"><span class="fact-label">${label}</span><span class="fact-value">`), k);
   assert.doesNotMatch(game({ v: derive([]) }), /class="fact link"/);
   const css = readFileSync("web/src/app.css", "utf8");
   assert.match(css, /button\.fact:hover \.fact-label[^{]*\{[^}]*text-decoration: underline/, "they underline on hover");
@@ -1676,10 +1701,15 @@ test("the command menu lists every command the character can ever use (Interface
   const broke = { ...aside.state!, florins: 0 };
   const b = commandMenu(COMMANDS, aside.commands.filter((c) => c.action === "conclude"), broke, 3);
   assert.deepEqual(why(b), { bribe: "noFlorins", borrow: "notNow", repay: "repay", kill: "midnight", guard: "midnight", investigate: "midnight", conclude: "conclude" });
-  // Without the game's values (TD v0.52's sheet.values, which no engine sends yet), /repay's reason can't name its amount.
+  // Without the game's values (a server before TD v0.52's sheet.values), /repay's reason can't name its amount.
   assert.equal(commandWhy("repay", broke, null), "notNow");
-  assert.equal(payrollSize(group), null);
+  assert.equal(payrollSize({ ...group, sheet: { ...group.sheet!, values: undefined } }), null);
+  // With them (TD v0.52), it does: one payroll payment's size, the engine's own tunable.
+  assert.equal(payrollSize(group), fakeDocs.tunables.pension_size);
   assert.equal(payrollSize({ ...group, sheet: { ...group.sheet!, values: { payroll: 3 } } }), 3);
+  const brokeView = { ...aside, state: broke, commands: aside.commands.filter((c) => c.action === "conclude") };
+  assert.equal(commandMenu(COMMANDS, brokeView.commands, broke, payrollSize(brokeView)).closed.find((c) => c.command.action === "repay")!.why, "repay");
+  assert.equal(game({ v: brokeView }) && w("screen.commandWhy.repay", { amount: payrollSize(group)! }), `You need ${fakeDocs.tunables.pension_size} Florins to pay one back.`, "the reason reads right with the engine's value");
   // An errand a conclusion can finish keeps /conclude open; an engine that doesn't send the flag does too.
   assert.ok(commandMenu(COMMANDS, group.commands, knowing(group).state, null).open.some((c) => c.action === "conclude"));
   const { knowledgeErrand: _, ...older } = group.state!;
@@ -1774,7 +1804,7 @@ test("the floating cards and the right panel (Interface v0.16): layer shadows, t
   // Your own card: "This is you", a "You" tag under your name, an accent edge, and its own explanation.
   const own = game({ v, selected: { kind: "guest", name: F } });
   const card = own.slice(own.indexOf('<section class="person look self"'));
-  assert.match(card, /^<section class="person look self" data-guest="Francesco Pazzi"><header class="person-head"><span class="label" aria-description="Your own card: what everyone knows about you\." data-hint="lookingAtSelf" tabindex="0">This is you<\/span>/);
+  assert.match(card, /^<section class="person look self" data-guest="Francesco Pazzi"><header class="person-head"><span class="label" aria-description="Your own card: what everyone knows about you\." data-hint="lookingAtSelf" tabindex="0">This Is You<\/span>/);
   assert.match(card, /<div class="name">Francesco Pazzi<\/div><div class="you-tag">You<\/div><div class="muted">/);
   assert.match(css, /\.person\.look\.self \{[^}]*var\(--self-edge\) var\(--accent\)/);
   // No card repeats the faction above the subtitle: the name, then the subtitle.
@@ -1791,16 +1821,16 @@ test("the briefing is five cards for the player (Interface v0.16): the AI guests
   const merges = PLAYER.screen.decks.playerMerges;
   assert.deepEqual(skips, ["How you speak", "Resources", "Social awareness"]);
   assert.deepEqual(merges, [
-    { title: "What you want", cards: ["Your faction", "Other goals (your own reasons)"], subheadings: ["Your own reasons"] },
-    { title: "What you know", cards: ["What you know", "Your secrets (private)"], subheadings: ["Keep to yourself"] },
+    { title: "What You Want", cards: ["Your faction", "Other goals (your own reasons)"], subheadings: ["Your Own Reasons"] },
+    { title: "What You Know", cards: ["What you know", "Your secrets (private)"], subheadings: ["Keep to Yourself"] },
   ]);
   for (const [name, b] of Object.entries(castBriefings(fakeDocs))) {
     const all = briefingCards(b!);
     const cards = playerBriefing(all, skips, merges);
-    assert.deepEqual(cards.map((c) => c.title), ["Who you are", "Your errand tonight", "What you want", "What you know", "Relationships"], name);
+    assert.deepEqual(cards.map((c) => c.title), ["Who you are", "Your errand tonight", "What You Want", "What You Know", "Relationships"], name);
     const text = (t: string) => all.find((c) => c.title === t)!.text;
-    assert.equal(cards[2]!.text, `${text("Your faction")}\n\n**Your own reasons**\n${text("Other goals (your own reasons)")}`, `${name}: the faction's aims, then Your own reasons`);
-    assert.equal(cards[3]!.text, `${text("What you know")}\n\n**Keep to yourself**\n${text("Your secrets (private)")}`, `${name}: what you know, then Keep to yourself`);
+    assert.equal(cards[2]!.text, `${text("Your faction")}\n\n**Your Own Reasons**\n${text("Other goals (your own reasons)")}`, `${name}: the faction's aims, then Your own reasons`);
+    assert.equal(cards[3]!.text, `${text("What you know")}\n\n**Keep to Yourself**\n${text("Your secrets (private)")}`, `${name}: what you know, then Keep to yourself`);
     for (const t of (skips as string[]).filter((x) => all.some((c) => c.title === x))) assert.ok(!cards.some((c) => c.text.includes(text(t))), `${name}: ${t} is left out`);
     assert.equal(cards[errandCardAt(cards, errandText(b!))]!.title, "Your errand tonight", `${name}: the errand card opens the briefing at the errand`);
   }
@@ -1813,10 +1843,11 @@ test("the briefing is five cards for the player (Interface v0.16): the AI guests
   const v = derive(at["speak:capannello"]!);
   const h = game({ v, deck: "briefing" });
   const modal = h.slice(h.indexOf('class="overlay"'));
-  assert.deepEqual([...modal.matchAll(/data-hint="deckTab">([^<]*)</g)].map((m) => m[1]), ["Who you are", "Your errand tonight", "What you want", "What you know", "Relationships"]);
+  // Interface v0.17: the tabs are in title case on the screen; the briefing's own headings are unchanged.
+  assert.deepEqual([...modal.matchAll(/data-hint="deckTab">([^<]*)</g)].map((m) => m[1]), ["Who You Are", "Your Errand Tonight", "What You Want", "What You Know", "Relationships"]);
   assert.match(modal, /1 of 5/);
   assert.equal(v.sheet!.briefing, castBriefings(fakeDocs)[F], "the briefing text itself is unchanged");
-  assert.doesNotMatch(noComments(readFileSync("web/src/App.tsx", "utf8")) + noComments(readFileSync("web/src/model.ts", "utf8")), /How you speak|Social awareness|Your own reasons|Keep to yourself/);
+  assert.doesNotMatch(noComments(readFileSync("web/src/App.tsx", "utf8")) + noComments(readFileSync("web/src/model.ts", "utf8")), /How you speak|Social awareness|Your own reasons|Keep to yourself/i);
 });
 
 test("the modals' chained footers (Interface v0.16): Previous and Next worded for what each holds, On to and Back to at the ends, Close filled at the chain's end, and the motion's tokens", async () => {
@@ -1828,21 +1859,21 @@ test("the modals' chained footers (Interface v0.16): Previous and Next worded fo
     return [...f.matchAll(/<button class="([^"]*)"[^>]*data-hint="(\w+)">([^<]*)</g)].map((x) => `${x[1]}|${x[2]}|${x[3]}`);
   };
   // The briefing's first card: nothing before it (the start of the chain); Next briefing.
-  assert.deepEqual(foot(game({ v, deck: "briefing" })), ["secondary deck-next|deckCard|Next briefing →"]);
+  assert.deepEqual(foot(game({ v, deck: "briefing" })), ["secondary deck-next|deckCard|Next Briefing →"]);
   // The rules open on their buttons: Back to Your briefing, and First rule.
-  assert.deepEqual(foot(game({ v, deck: "rules" })), ["secondary deck-prev|modalPrevious|Back to Your briefing", "secondary deck-next|deckCard|First rule →"]);
+  assert.deepEqual(foot(game({ v, deck: "rules" })), ["secondary deck-prev|modalPrevious|Back to Your Briefing", "secondary deck-next|deckCard|First Rule →"]);
   // The city's list: Back to The rules, and First topic.
-  assert.deepEqual(foot(game({ v, deck: "city" })), ["secondary deck-prev|modalPrevious|Back to The rules", "secondary deck-next|deckCard|First topic →"]);
+  assert.deepEqual(foot(game({ v, deck: "city" })), ["secondary deck-prev|modalPrevious|Back to the Rules", "secondary deck-next|deckCard|First Topic →"]);
   // The glossary, the end of the chain: only the way back to The city, and Close fills in.
   const g = game({ v, deck: "glossary" });
-  assert.deepEqual(foot(g), ["secondary deck-prev|modalPrevious|Back to The city"]);
+  assert.deepEqual(foot(g), ["secondary deck-prev|modalPrevious|Back to the City"]);
   assert.match(g, /<button class="primary deck-close"/);
   assert.match(game({ v, deck: "rules" }), /<button class="secondary deck-close"/);
   // The words, from the pack.
   const s = PLAYER.screen;
-  assert.deepEqual([s.decks.previousBriefing, s.decks.nextBriefing], ["← Previous briefing", "Next briefing →"]);
-  assert.deepEqual([s.rulesModal.previous, s.rulesModal.next, s.rulesModal.first, s.rulesModal.overview], ["← Previous rule", "Next rule →", "First rule →", "← The rules"]);
-  assert.deepEqual([s.cityList.first, s.cityList.previous, s.cityList.next], ["First topic →", "← Previous topic", "Next topic →"]);
+  assert.deepEqual([s.decks.previousBriefing, s.decks.nextBriefing], ["← Previous Briefing", "Next Briefing →"]);
+  assert.deepEqual([s.rulesModal.previous, s.rulesModal.next, s.rulesModal.first, s.rulesModal.overview], ["← Previous Rule", "Next Rule →", "First Rule →", "← The Rules"]);
+  assert.deepEqual([s.cityList.first, s.cityList.previous, s.cityList.next], ["First Topic →", "← Previous Topic", "Next Topic →"]);
   assert.deepEqual([s.modalRow.previous, s.modalRow.next], ["Back to {title}", "On to {title}"]);
   // Motion is subtle: 24 and 48 pixels, 97%, 300 ms; nothing slides with reduced motion; the breathing outline is a token.
   const theme = readFileSync("web/theme.css", "utf8");
@@ -1903,12 +1934,158 @@ test("the Web of Confidences' looks and the opening's choice (Interface v0.16): 
   assert.deepEqual(info.fullGameOnly, [{ name: "Piero de' Medici" }], "from the pack's playable list, not a name in the code");
   assert.deepEqual(screenInfo(settingPack().playable as CharacterName[], castBriefings(fakeDocs), { tunables: fakeDocs.tunables, minigame: true }).fullGameOnly, [], "none when every playable character is in the game");
   const opening = html(createElement(Opening, { onStart: () => {}, written: true }));
-  assert.match(opening, /<h2>Choose your family<\/h2>/);
+  assert.match(opening, /<h2>Choose Your Family<\/h2>/);
   const locked = opening.slice(opening.indexOf('class="start-card locked"'));
   assert.ok(opening.indexOf('class="start-card locked"') > opening.indexOf('data-hint="play"'), "after the playable one");
   assert.match(locked, /^class="start-card locked" data-guest="Piero de&#x27; Medici" aria-disabled="true">/);
-  assert.match(locked, /<div class="locked-label">In the full game<\/div>/);
+  assert.match(locked, /<div class="locked-label">In the Full Game<\/div>/);
   assert.doesNotMatch(locked, /<button/);
   // After a skipped tour, Your briefing breathes: the same breathing outline as the modals' way on.
   assert.match(readFileSync("web/src/App.tsx", "utf8"), /nudge && d === DECKS\[0\] \? " breathe" : ""/);
+});
+
+// ---- CC-20261116-07 (#179, part 1): Interface v0.17–v0.18's title case and the player's own rules; TD v0.52's values ----
+
+test("title case (Interface v0.17–v0.18): every word but the pack's small ones, which open, close, or follow a colon in capitals; arrows aren't words; the rule and its words are the pack's", () => {
+  const rule = titleRule(packValue("titleCase"));
+  assert.equal(rule.on, true);
+  assert.deepEqual(rule.small, ["a", "an", "the", "and", "but", "or", "nor", "for", "of", "on", "in", "to", "at", "by", "with", "as", "from", "into", "per", "vs", "de'", "di", "d'", "da", "del", "della"]);
+  const rows: [string, string][] = [
+    ["Your briefing", "Your Briefing"],
+    ["The first round of mingling", "The First Round of Mingling"],
+    ["The first round of mingling, early", "The First Round of Mingling, Early"],
+    ["Back to The rules", "Back to the Rules"],
+    ["On to The city", "On to the City"],
+    ["Talking with", "Talking With"],
+    ["Payments from France", "Payments from France"],
+    ["Explanations: on", "Explanations: On"],
+    // v0.18: only words with letters count as first or last, so an arrow isn't one.
+    ["← The rules", "← The Rules"],
+    ["← the rules", "← The Rules"],
+    ["Next rule →", "Next Rule →"],
+    ["The last Pazzi council", "The Last Pazzi Council"],
+    // A name's own particles stay lower case inside it; words already carrying capitals keep them, as does what's in capitals.
+    ["Lorenzo de' Medici", "Lorenzo de' Medici"],
+    ["the house of d'Este", "The House of d'Este"],
+    ["LeNoir and the FBI", "LeNoir and the FBI"],
+    ["{notaio}, to you", "{notaio}, to You"],
+    ["Your extra act (for your errand)", "Your Extra Act (for Your Errand)"],
+    ["1478", "1478"],
+    ["", ""],
+  ];
+  for (const [from, to] of rows) assert.equal(titleCase(from, rule), to, from);
+  // A pack in another language turns the rule off, or empties its list.
+  assert.equal(titleCase("Back to The rules", { on: false, small: rule.small }), "Back to The rules");
+  assert.equal(titleCase("back to the rules", { on: true, small: [] }), "Back To The Rules");
+  assert.deepEqual(titleRule(undefined), { on: false, small: [] });
+  // The pack's own labels are simply written in title case: its names, headings, and buttons.
+  const s = PLAYER.screen;
+  const labels: string[] = [
+    s.briefing, s.rules, s.city, s.glossary, s.talkingTo, s.pensions, s.withdrawals, s.purse, s.input.end, s.input.return, s.move.title, s.move.join, s.move.colloquio, s.seat.wait, s.midnight.extra, s.end.title, s.end.died, s.end.replay,
+    s.errandCard.title, s.errandDeadline, s.pastStage.summaryTitle, s.earlier.title, s.hintsSwitch.on, s.hintsSwitch.off, s.rulesModal.shrink, s.rulesModal.previous, s.rulesModal.next, s.rulesModal.first, s.rulesModal.overview,
+    s.cityList.back, s.cityList.first, s.cityList.previous, s.cityList.next, s.decks.past, s.decks.previousBriefing, s.decks.nextBriefing, s.right.lore, s.right.known, s.right.lookingAt, s.right.lookingAtSelf, s.right.openWeb, s.notaioHint.title,
+    s.web.title, s.web.record, s.web.notes, s.web.heard, s.web.saw, s.web.writeOn, s.web.writeFree, s.web.save, s.web.conclude, s.web.free, s.web.sideShow, s.more, s.reading.title, s.room, s.withYou, s.withYouPrivately, s.places.title,
+    s.glossaryModal.more, s.opening.choose, s.opening.fullGameOnly, s.tour.skip, s.tour.again, s.narrow.title, s.narrow.go,
+    ...(s.decks.playerMerges as { title: string; subheadings: string[] }[]).flatMap((m) => [m.title, ...m.subheadings]),
+    ...((PLAYER as unknown as { rules: { sections: { title: string }[] } }).rules.sections.map((x) => x.title)),
+  ];
+  for (const l of labels) assert.equal(l, titleCase(l, rule), l);
+  for (const [have, want] of [[s.briefing, "Your Briefing"], [s.talkingTo, "Talking With"], [s.places.title, "The Places"], [s.withdrawals, "Secret Conversations"], [s.tour.again, "Show Me Around"], [s.input.end, "End Conversation"], [s.decks.nextBriefing, "Next Briefing →"], [s.more, "More Below"], [s.hintsSwitch.on, "Explanations: On"], [s.notaioHint.title, "{notaio}, to You"]]) assert.equal(have, want);
+  // Sentences, prompts, and status lines stay as they are; so do the places, as Lore writes them.
+  assert.equal(s.right.noEar, "No one has your ear");
+  assert.equal(s.input.waiting, "Your turn: speak or pass.");
+  assert.equal(s.places.yours, "You are here");
+  assert.ok("the great hall" in s.places.descriptions);
+  // The new words (Interface v0.17, The Player's Words).
+  assert.deepEqual([s.modalRow.paddle.left, s.modalRow.paddle.right], ["‹", "›"]);
+  assert.deepEqual([s.web.sideShow, s.web.sideShowLabel, s.web.sideHideLabel], ["What You Heard and Saw · Notes", "Show what you heard and saw, and your notes", "Hide what you heard and saw, and your notes"]);
+  assert.equal(s.narrow.text, "Gonfaloniere is laid out for a laptop, a desktop, or a tablet held sideways. On a screen this narrow it won't fit well yet. Turn your device sideways, or open the game on a bigger screen.");
+});
+
+test("title case on the screen (Interface v0.17): the stage names, the modals' ways on and back, and the briefing's tabs are title-cased for display, and their sources are unchanged", async () => {
+  const { at } = await playedLog();
+  const v = derive(at["speak:capannello"]!);
+  const stage = v.state!.phaseLabel;
+  assert.notEqual(stage, tc(stage), "block 5 names the stage in its own case");
+  const h = game({ v });
+  assert.ok(h.includes(`<span class="stage-name">${esc(tc(stage))}</span>`), "the current stage's name");
+  assert.ok(h.includes(`data-stage="${esc(stage)}"`), "the stage itself is still found by its own name");
+  assert.deepEqual(v.sheet!.track, v.sheet!.track!.map((x) => x), "the track is as the engine sent it");
+  assert.match(game({ v, deck: "rules" }), /data-hint="modalPrevious">Back to Your Briefing<\/button>/);
+  assert.match(game({ v, deck: "city" }), /data-hint="modalPrevious">Back to the Rules<\/button>/, "the modal's name keeps its title case; its The goes lower case after to");
+  assert.match(game({ v, deck: "glossary" }), /aria-label="Back to the City"/);
+  assert.equal(PLAYER.screen.modalRow.previous, "Back to {title}");
+  // The stage's description is still found by the stage's own name.
+  assert.ok(Object.keys(PLAYER.screen.stageBar.descriptions).includes(stage));
+});
+
+test("the player's own rules (Interface v0.17–v0.18): ten sections in the order a player learns the evening, filled with the game's values and nothing else; a missing phase's clause left out; the errand and moving by the run", async () => {
+  const pack = packValue("rules");
+  const mini = { ...FULL_VALUES, linesPerTurn: 6, minglingTurns: 12, councilTurns: null, finalCouncilTurns: null, selectionTurns: null, openFloorTurns: null };
+  const full = playerRules(pack, FULL_VALUES, { plotReward: true, living: 12 });
+  assert.deepEqual(full.map((c) => c.title), ["The Evening", "How to Win", "Your Errand", "The Order of the Evening", "Stages and Turns", "Conversations", "Money and Bribes", "France's Payroll", "Midnight", "Candidates and the Vote"]);
+  const text = (cards: Card[], title: string) => cards.find((c) => c.title === title)!.text;
+  const all = (cards: Card[]) => cards.map((c) => `${c.title}\n${c.text}`).join("\n");
+  // Every placeholder is filled: none is left standing, in the full game or the mini-game, with the reward on or off.
+  for (const [values, plotReward] of [[FULL_VALUES, true], [FULL_VALUES, false], [mini, false], [mini, true]] as const) assert.doesNotMatch(all(playerRules(pack, values, { plotReward, living: 6 })), /[{}]|undefined|null/);
+  // The turns, from the run's own schedule: every phase in the full game, joined with commas and a last "and".
+  assert.ok(text(full, "Stages and Turns").includes("A turn is 8 lines spoken across the whole house, shared among every conversation at once. A round of mingling lasts 12 turns, a council 3, the last council 4, choosing candidates 2, and the open floor after the speeches 6."));
+  // The mini-game has no councils, candidates, or open floor: their clauses are left out.
+  const small = playerRules(pack, mini, { plotReward: false, living: 6 });
+  assert.ok(text(small, "Stages and Turns").includes("A turn is 6 lines spoken across the whole house, shared among every conversation at once. A round of mingling lasts 12 turns.\n\n"));
+  assert.ok(text(playerRules(pack, { ...mini, councilTurns: 3 }, { plotReward: false, living: 6 }), "Stages and Turns").includes("A round of mingling lasts 12 turns and a council 3."));
+  // Moving: "one chance each round" is said only when a round has as many turns as there are living guests.
+  const each = "So you get at least one chance each round.";
+  const fewer = "A round has fewer turns than there are guests, so not everyone gets a chance every round.";
+  assert.ok(text(full, "Stages and Turns").includes(each) && !text(full, "Stages and Turns").includes(fewer));
+  const crowded = text(playerRules(pack, FULL_VALUES, { plotReward: true, living: 13 }), "Stages and Turns");
+  assert.ok(crowded.includes(fewer) && !crowded.includes(each));
+  assert.ok(text(full, "Stages and Turns").includes("It lasts 10 lines at most"));
+  // The errand's two endings, by the run's plot_reward flag.
+  assert.ok(text(full, "Your Errand").endsWith("No one else is told."));
+  assert.equal(text(small, "Your Errand"), "Your briefing gives you one task of your own tonight, and it comes first. In this game, finishing it earns no extra act at midnight.");
+  // The money, from the game's values; v0.18's corrections from Mechanics' check.
+  assert.ok(text(full, "Money and Bribes").startsWith("Everyone begins with 10 Florins and receives 1 more at the start of each round of mingling."));
+  assert.ok(text(full, "France's Payroll").includes("a payroll payment of 3 Florins") && text(full, "France's Payroll").includes("The treasury starts with 12 Florins; while it's empty, there's no payment to take until one is paid back."));
+  assert.ok(text(full, "Candidates and the Vote").includes("at 5 Florins each (/buy)"));
+  assert.ok(text(full, "How to Win").endsWith("A candidate who repents changes sides: from then on, they win only if the Dominicans do."));
+  assert.ok(text(full, "Conversations").endsWith("or to the smallest group if that one is full or has broken up."));
+  assert.ok(text(full, "Stages and Turns").startsWith("The evening moves in stages, shown in the bar at the top of the screen. The rounds of mingling, the councils, the choosing of candidates, and the open floor after the speeches are made of turns;"));
+  assert.match(text(full, "How to Win"), /in this order\.\n1\. The Dominicans win[^\n]*\n2\. Otherwise[^\n]*\n3\. Otherwise[^\n]*\nA faction needs/, "the order is a numbered list");
+  // A value the sheet doesn't carry at all is an error the tests catch: its placeholder is left standing, never a blank.
+  const { vote: _, ...short } = FULL_VALUES;
+  assert.match(all(playerRules(pack, short, { plotReward: true, living: 12 })), /at \{vote\} Florins each/);
+  // No number is typed into the pack's text, and it names only the game's values.
+  const raw = JSON.stringify(pack);
+  assert.doesNotMatch(raw.replace(/\\n\d\. /g, ""), /\d/, "every number is a placeholder (the list's own numerals apart)");
+  assert.deepEqual([...new Set([...raw.matchAll(/\{(\w+)\}/g)].map((m) => m[1]!))].sort(), Object.keys(FULL_VALUES).sort());
+  // A malformed pack shows nothing rather than failing.
+  assert.deepEqual(playerRules(undefined, FULL_VALUES, { plotReward: true, living: 12 }), []);
+  assert.deepEqual(playerRules({ sections: [null, { title: 3 }, { title: "A", text: ["x", 4, [{ when: "nothing", text: "y" }]] }] }, FULL_VALUES, { plotReward: true, living: 12 }), [{ title: "A", text: "x" }]);
+});
+
+test("the rules modal shows the player's rules, filled from the sheet's values (TD v0.52), in place of the AI guests' primer; block 2 itself is unchanged", async () => {
+  const { at, game: played } = await playedLog();
+  const v = derive(at["speak:capannello"]!);
+  // The sheet's values: the engine's own tunables and this run's schedule; the mini-game has no councils, candidates, or open floor.
+  const t = fakeDocs.tunables;
+  assert.deepEqual(v.sheet!.values, { start: t.starting_florins, income: t.income, payroll: t.pension_size, vote: t.vote_price, treasury: t.embassy_treasury, linesPerTurn: played.s.utterancesPerTurn, minglingTurns: 12, councilTurns: null, finalCouncilTurns: null, selectionTurns: null, openFloorTurns: null, colloquioCap: t.colloquio_cap, currency: settingPack().currency });
+  const rules = rulesOf(v);
+  const h = game({ v, deck: "rules" });
+  const modal = h.slice(h.indexOf('class="overlay"'));
+  assert.deepEqual([...modal.matchAll(/data-hint="rulesSection">([^<]*)</g)].map((m) => m[1]), rules.map((c) => esc(c.title)));
+  assert.doesNotMatch(modal, /[{}]/, "nothing unfilled on the screen");
+  // An open section: its text, filled with this run's numbers.
+  const open = (title: string) => {
+    const page = html(createElement(GameView, { me: F, send: () => {}, status: "open", v, deck: "rules", places: { rules: rules.findIndex((c) => c.title === title) } } as never));
+    return page.slice(page.indexOf('<section class="rules-section open'));
+  };
+  assert.ok(open("Money and Bribes").includes(esc(`Everyone begins with ${t.starting_florins} Florins and receives ${t.income} more`)));
+  assert.ok(open("Stages and Turns").includes(`A turn is ${played.s.utterancesPerTurn} lines spoken across the whole house, shared among every conversation at once. A round of mingling lasts 12 turns.`));
+  assert.ok(open("Your Errand").includes("In this game, finishing it earns no extra act at midnight."), "the mini-game runs with plot_reward off");
+  // Block 2, the AI guests' primer, is what it was: the sheet still carries it, and the modal doesn't show it.
+  assert.equal(v.sheet!.rules, rulesText(fakeDocs.templates, { ...fakeDocs.tunables, plotProtection: false, plotReward: false }));
+  assert.ok(!modal.includes(esc(rulesCards(v.sheet!.rules)[1]!.text.slice(0, 60))));
+  // None of the player's rules text is in the screen's code.
+  assert.doesNotMatch(noComments(readFileSync("web/src/App.tsx", "utf8")) + noComments(readFileSync("web/src/model.ts", "utf8")), /Stages and Turns|How to Win|chance each round/i);
 });

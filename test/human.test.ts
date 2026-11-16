@@ -295,6 +295,10 @@ test(`isolation: the player's whole event stream is their own History and State,
   const sheet = stream.find((e) => e.type === "state" && e.sheet)! as Extract<Outgoing, { type: "state" }>;
   const conns = sheet.sheet!.connections as { between: string[]; private?: boolean }[];
   assert.ok(conns.length > 0 && conns.filter((c) => c.private).every((c) => c.between[0] === F));
+  // TD v0.52: the game's values on the sheet are public (the tunables and the schedule, as block 2 and the
+  // stage bar already show them): numbers, `null` for a phase the run doesn't have, and the currency's words.
+  for (const [k, x] of Object.entries(sheet.sheet!.values as Record<string, unknown>)) assert.ok(x === null || typeof x === "number" || k === "currency", k);
+  assert.deepEqual((sheet.sheet!.values as { currency: unknown }).currency, settingPack().currency);
   assert.deepEqual(stream.filter((e) => e.type === "note").map((e) => (e as { text: string }).text), game.playerNotes.map((n) => n.text));
   for (const l of game.lines.filter((x) => !x.heardBy.includes(F))) assert.ok(!stream.some((e) => "id" in e && e.id === l.id), `${l.id} leaked`);
   // With the Web of Secrets open and Il Notaio's box answering (CC-20261113-02): his readings are of the
@@ -354,6 +358,54 @@ test(`isolation: the player's whole event stream is their own History and State,
   assert.ok(states.every((e) => !("embassyLedger" in e.state)));
   // The request options name living guests and groups, as 9c and 9h show them; never a location or an inner state.
   for (const r of stream.filter((e) => e.type === "request")) assert.doesNotMatch(JSON.stringify(r), /importance|thought|plan|reading/);
+});
+
+test("TD v0.52, the game's values: on the player's sheet, once, from the run's own tunables and schedule; public numbers only; never in a prompt, the full record, or its replay export", async () => {
+  const { game, ctrl } = await playAsFrancesco(2000);
+  const sheets = ctrl.log.filter((e) => e.type === "state" && e.sheet) as Extract<Outgoing, { type: "state" }>[];
+  assert.equal(sheets.length, 1, "the sheet is sent once, with the first state");
+  const values = sheets[0]!.sheet!.values as Record<string, unknown>;
+  const t = fakeDocs.tunables;
+  // The money: the tunables the engine reads from Mechanics and fills block 2 with. The turns: the schedule this
+  // run plays (the mini-game is one round of mingling, with no councils, candidates, or open floor: `null`).
+  assert.deepEqual(values, {
+    start: t.starting_florins,
+    income: t.income,
+    payroll: t.pension_size,
+    vote: t.vote_price,
+    treasury: t.embassy_treasury,
+    linesPerTurn: game.s.utterancesPerTurn,
+    minglingTurns: game.s.turns,
+    councilTurns: null,
+    finalCouncilTurns: null,
+    selectionTurns: null,
+    openFloorTurns: null,
+    colloquioCap: t.colloquio_cap,
+    currency: settingPack().currency,
+  });
+  // The same numbers the AI guests' primer states, so the player's rules and block 2 can't disagree.
+  const primer = (sheets[0]!.sheet as { rules: string }).rules;
+  // (The treasury's starting size is the same tunable the engine opens the Embassy's ledger with; block 2 doesn't state it.)
+  for (const k of ["start", "payroll", "vote"]) assert.ok(primer.includes(`${values[k]} Florins`), `block 2 states ${k}`);
+  assert.equal(values.treasury, t.embassy_treasury);
+  // Nothing else on the sheet changed, and no other event carries them.
+  assert.deepEqual(Object.keys(sheets[0]!.sheet!).sort(), ["briefing", "connections", "errand", "errandDeadline", "lore", "past", "rules", "track", "values"]);
+  assert.equal(ctrl.log.filter((e) => JSON.stringify(e).includes("linesPerTurn")).length, 1);
+  // Never in a prompt: no call's system or user text names them (they're the screen's data, like the sheet's other fields).
+  for (const c of game.calls) assert.doesNotMatch(`${c.user}`, /linesPerTurn|minglingTurns|colloquioCap|finalCouncilTurns/);
+  // Nor in the game's own state beyond the player's connection, the full record, or its replay export.
+  const { ctrl: _c, player: _p, ...rest } = game as unknown as Record<string, unknown>;
+  for (const [k, x] of Object.entries(rest)) assert.ok(typeof x === "function" || !JSON.stringify(x ?? null).includes("linesPerTurn"), k);
+  const dir = mkdtempSync(join(tmpdir(), "values-"));
+  try {
+    const path = join(dir, "game-values.full.json.gz");
+    const record = buildRecord(game, { gameId: "values", seed: 2000, docs: fakeDocs, briefings: castBriefings(fakeDocs), served: { character: SERVED, system: { ...SERVED, recorder: { model: "fake" } } }, settings: { ...fakeSettings({ turns: 12, human: F }), briefings: undefined }, ms: 0, failure: null, tree: { tracked_changes: [], untracked: [] }, retries: 0, lore: { file: readLoreFile(), loaded: [] }, embeddingModel: null, store: null });
+    assert.doesNotMatch(JSON.stringify(record), /linesPerTurn|minglingTurns|finalCouncilTurns|openFloorTurns/, "the full record");
+    writeFileSync(path, gzipSync(JSON.stringify(record)));
+    assert.doesNotMatch(readFileSync(exportView(path).path, "utf8"), /linesPerTurn|minglingTurns|finalCouncilTurns|openFloorTurns/, "the replay export");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("notes: kept with the game and in the full record, replayed on reconnect, never in a prompt or a public replay", async () => {
