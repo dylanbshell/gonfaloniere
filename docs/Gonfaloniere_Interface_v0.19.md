@@ -22,7 +22,7 @@
 
 **Elsewhere:**
 - **The left panel** (Left): wider margins, and everything in it a little larger, **growing and shrinking with the panel's width**, icons included; **when it scrolls, its top (you, your sheet, the four buttons) stays put** and the errand and the places slide under the buttons (in windows 640px tall and up). Your own card on the right loses its accent line along the bottom
-- **The opening in two sizes** (The Opening): from 1400px wide, a wider column and larger text (800px, 22px); below, as before. When the choice comes, the page leaves room below it, so the choice sits a little below the middle of the screen. **The choice cards are taller, each with a short description** of the character (Characters', tracker)
+- **The opening in two sizes** (The Opening): from 1400px wide, a wider column and larger text (800px, 22px); below, as before. **When the choice comes, the page scrolls on until Il Notaio's title and story are off the top,** and the choice sits in the middle of the screen; scrolling back up brings the story back, with **the choice docked at the bottom of the screen**. **The choice is larger,** its title and cards sized from the window's width, and **the cards are taller, each with a short description** of the character (Characters', tracker)
 - **The Web of Confidences** (The Web of Confidences): its contents stop at 1600px wide, centred; the drawing centres in the room between the key and the side column (across the whole width when the key is folded); the side column folds to its strip under 1100px wide (was 840px)
 
 **For other docs** (tracker): **Characters** gets one short public description per guest, for the right panel and the opening's choice cards. **Lore** gets which public entries concern which guests. **Art & Design** gets the new values (The Look, New in v0.19).
@@ -565,7 +565,7 @@ The screen is laid out for **a laptop, a desktop, or a tablet held sideways.** W
 | The stage bar | At most 1280px, centred; its card's side margins grow beyond the reading column's width; its circles sized from its own width |
 | The conversation's height | At least 200px; Il Notaio's hint folds itself first |
 | The message box | Three lines at least; grows to nine, or about a fifth of the window's height in a short window (three lines at least) |
-| The opening | 620px column, 18px text; from 1400px wide, 800px and 22px |
+| The opening | 620px column, 18px text; from 1400px wide, 800px and 22px. The choice up to 1240px wide (90% of the window), sized from the window's width |
 | The modals | 640px wide, 30px corners; their row never narrower than the modal and two paddles, scrolling sideways below that |
 | The side modals | Whole modals from 1408px wide, up to 80% of the modal in focus; paddles below |
 | The Web of Confidences | Its contents at most 1600px wide, centred |
@@ -628,8 +628,8 @@ Il Notaio introduces himself before the player meets anyone.
 - **His name heads the page, glossed:** "Il Notaio", with *Italian for "the notary"* beneath it (v0.11)
 - **Full screen.** He writes the story leading up to the evening **a phrase at a time, each fading in** *(v0.16)*, split at commas and sentence ends, with a longer pause after a sentence than after a comma. Fixed text from the setting pack, not a model call
 - **Two sizes** *(Dylan; v0.19)*: from 1400px wide, **a wider column with larger text** (800px, 22px); below that, the narrower column and smaller text as before (620px, 18px). Art & Design sets the values
-- **A click anywhere on the screen fast-forwards** *(v0.16)*, and the page follows the text down as it grows. **Skip** writes everything out at once. **When the choice comes, the page leaves room below it** *(Dylan; v0.19)*, so the cards sit a little below the middle of the screen, not against its bottom
-- **At the end, the choice,** under **"Choose your family"** *(v0.16)*: one card per playable character, each with portrait, name, and subtitle (no separate faction line), and since v0.19, **taller, with a short description of the character** *(Dylan)* between the name and the button. *(The descriptions are Characters', tracker; the demo's are placeholders taken from Il Notaio's opening.)* **In the mini-game, the full game's other playable character shows greyed out after the playable one,** labelled "In the full game", so the player knows there's more. The list comes from the playable characters not in this game. Choosing one starts the game, and the tour begins
+- **A click anywhere on the screen fast-forwards** *(v0.16)*, and the page follows the text down as it grows. **Skip** writes everything out at once. **When the choice comes, the page scrolls on until Il Notaio's title and his story are off the top of the screen** *(Dylan; v0.19)*, and the choice sits in the middle of it (the page leaves room above and below the choice for that; the title no longer stays pinned once the story is written). **The story isn't gone:** scrolling back up brings it back to reread, and **the choice docks at the bottom of the screen** (sticky), the story sliding under it with a fade, so the choice is always in reach. (Room below the choice, so it sat a little below the middle, was tried first)
+- **At the end, the choice,** under **"Choose your family"** *(v0.16)*: one card per playable character, each with portrait, name, and subtitle (no separate faction line), and since v0.19, **taller, with a short description of the character** *(Dylan)* between the name and the button. *(The descriptions are Characters', tracker; the demo's are placeholders taken from Il Notaio's opening.)* **The choice is larger than the story's column** *(Dylan; v0.19)*: up to 1240px wide (90% of the window), with its title, cards, portraits, names, descriptions, and buttons sized from the window's width (in the demo the title runs from 26 to 46px, the cards from about 240 to 370px tall) **In the mini-game, the full game's other playable character shows greyed out after the playable one,** labelled "In the full game", so the player knows there's more. The list comes from the playable characters not in this game. Choosing one starts the game, and the tour begins
 - **His last paragraph ends on** "Speak as your character would, plainly." (v0.14). **Public only;** Lore writes it, Characters canon-checks it
 - With reduced motion set, each paragraph appears whole
 
@@ -1002,7 +1002,7 @@ How the screen looks (colour, type, texture, icons, and the values of every them
 - **The right panel:** 48px below the window's top; **28px corners** on the panel and its cards; **its text a step up** (12, 15, 17, and 21px in the demo); **its cards' margins** (24 to 40px at the sides, 28px at the top); **the fade** under a card's heading or portrait block (20px); its More Below on the card's own colour
 - **The guest card's new rows:** the description, the faction line, and "In the city" links; **the city entry's** centred title (21px) and its guests' small portrait-and-name chips
 - **The conversation's lines** at 17px (line height 1.55), Il Notaio's with them
-- **The opening's two sizes** (620px and 18px; from 1400px wide, 800px and 22px) and **the choice cards'** height and description
+- **The opening's two sizes** (620px and 18px; from 1400px wide, 800px and 22px) and **the choice's** sizes from the window's width (its title, cards, portraits, and text), and the fade above it when it's docked
 - **The stage bar card's** growing side margins (about 15% of the room beyond the reading column)
 - **The left panel's sizes,** set from its width: one unit is the panel's width over 300 (about a pixel), and its margins, text sizes, portraits, and tokens are each a number of units. Your own card's accent edge without its bottom line
 
@@ -1198,6 +1198,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | The card that slides up shouldn't stop halfway when there's nothing worth seeing under it | Only when someone has your ear; otherwise just under the heading | Right |
 | The left panel's margins bigger, and everything in it a little bigger, growing and shrinking with the panel, icons included | Sized from the panel's width | Left; Screen Sizes |
 | No blue line along the bottom of your own card | The accent edge on the sides and top only | Right |
+| The opening's "Choose Your Family" title and cards larger, still changing with the window's width; Il Notaio's title and story scrolling right off the top, but back on a scroll up, with the cards "kind of sticky" | Sized from the window; the story scrolls off; the choice docks at the bottom when rereading | The Opening |
 | When the left panel scrolls, the errand should slide under the information buttons; then, "it still works the same way" (the buttons only stuck once the top had scrolled away) | The top, through the four buttons, stays put from the start | Left |
 
 ---
