@@ -18,10 +18,10 @@ import type { LoreEntry as StoredLore } from "../src/minigame/lore.ts";
 import { glossary, screenInfo } from "../src/minigame/screen-info.ts";
 import { rulesText } from "../src/prompt/assemble.ts";
 import { settingPack } from "../src/setting/pack.ts";
-import { GameView, Opening } from "../web/src/App.tsx";
+import { GameView, Opening, phrases } from "../web/src/App.tsx";
 import type { Ev } from "../web/src/connection.ts";
 import { canDo, canSpeak, openMenu, trigger, withMention } from "../web/src/input.ts";
-import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityCards, cityList, curve, derive, factionArcs, placeholderExample, preview, selectBack, selectInChat, selectInWeb, selectLore, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, lineStages, loreParts, readingFor, roomOf, summaryFor, rulesCards, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, glossaryList, lineParts, midnightLine, notesFor, rulesSectionFor, type LoreEntry, type View, factLink, rulesLink, errandTask, errandCardAt, commandMenu, commandWhy, payrollSize, refusalWhy, refusedCommand, playerBriefing } from "../web/src/model.ts";
+import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityCards, cityList, curve, derive, factionArcs, placeholderExample, preview, selectBack, selectInChat, selectInWeb, selectLore, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, lineStages, loreParts, readingFor, roomOf, summaryFor, rulesCards, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, glossaryList, lineParts, midnightLine, noteGroups, webLines, webNames, NODE_RADIUS, rulesSectionFor, type LoreEntry, type View, factLink, rulesLink, errandTask, errandCardAt, commandMenu, commandWhy, payrollSize, refusalWhy, refusedCommand, playerBriefing } from "../web/src/model.ts";
 import { notaioHint, setInfo, type StartInfo } from "../web/src/words.ts";
 import { fakeCaller, fakeDocs, fakeSettings } from "./fixtures/fake-game.ts";
 
@@ -373,8 +373,17 @@ test("the web viewer: twelve guests, fixed lines, up to two selected, and only w
   const h0 = game({ v, web: [] });
   assert.deepEqual(missingWords(h0), []);
   assert.equal((h0.match(/class="node( [^"]*)?"/g) ?? []).length, 12);
-  assert.equal((h0.match(/class="edge rel-[\w-]+ yours/g) ?? []).length, v.sheet!.connections!.filter((c) => c.private).length, "Francesco's own lines, marked as his");
-  assert.equal((h0.match(/class="edge-under"/g) ?? []).length, v.sheet!.connections!.filter((c) => c.private).length, "each with the mark beneath it");
+  // Interface v0.16: one line per pair and type, and the halo only on Francesco's secret ties (his own, with no public tie to match).
+  const drawn = webLines(v.sheet!.connections!);
+  const pairType = (c: { between: string[]; type: string }) => `${[...c.between].sort().join("|")}|${c.type}`;
+  assert.equal(drawn.length, new Set(v.sheet!.connections!.map(pairType)).size, "one line per pair and type");
+  assert.ok(drawn.length < v.sheet!.connections!.length, "his own take on a tie everyone knows isn't drawn twice");
+  const secret = drawn.filter((l) => l.secret);
+  assert.deepEqual(secret.map((l) => `${l.between.find((g) => g !== F)}: ${l.type}`).sort(), ["Clarice Orsini: romance", "Friar Tommaso: alliance", "Raffaello de' Medici: rivalry"], "his secret ties");
+  for (const l of secret) assert.ok(!v.sheet!.connections!.some((c) => !c.private && pairType(c) === pairType(l)));
+  assert.equal((h0.match(/<path class="edge rel-/g) ?? []).length, drawn.length);
+  assert.equal((h0.match(/class="edge rel-[\w-]+ yours/g) ?? []).length, secret.length, "Francesco's secret lines, marked");
+  assert.equal((h0.match(/<path class="edge-under"/g) ?? []).length, secret.length, "each with the halo beneath it");
   // One guest, and every pair: only lines from the player's own stream, and never a thought.
   const thoughts = played.thoughts.map((t) => t.text).filter((t) => t.length > 20);
   for (const sel of [...roster.map((r) => [r]), ...roster.flatMap((a, i) => roster.slice(i + 1).map((b) => [a, b]))]) {
@@ -402,30 +411,42 @@ test("notes in the web viewer: on a guest, on a pair (drawn dashed), or free; al
   const v = knowing(derive([...base, ...notes]));
   assert.deepEqual(v.notes.map((n) => n.id), ["N1", "N2", "N3"]);
   assert.equal((game({ v, web: [] }).match(/class="edge note-line/g) ?? []).length, 1, "the pair's dashed line");
-  // Interface v0.7: one Notes tab. The writing box on top, then one list, newest first, filtered by the selection.
+  // Interface v0.16: the Notes tab always lists every note, grouped: each guest, then each pair, then free notes. Selecting no longer narrows the list.
   const texts = (h: string) => [...h.matchAll(/class="note-text"[^>]*>([^<]+)</g)].map((m) => m[1]);
-  const headings = (h: string) => [...h.matchAll(/class="label note-heading"><(?:button|span) class="note-about"[^>]*>([^<]+)</g)].map((m) => m[1]);
-  const mine = game({ v, web: ["Lupo"], webTab: "notes" });
-  assert.deepEqual(texts(mine), ["Those two talk too often.", "Lupo watches the door."], "one guest: theirs and any pair's with them, newest first");
-  assert.doesNotMatch(mine, /Something is off/, "not the free note");
-  assert.deepEqual(headings(mine), [], "one list, no headings");
-  assert.match(mine, /<button class="note-about"[^>]*data-hint="noteItem">Lupo and Giorgia Pazzi</, "the pair's note names its pair, which selects them");
-  const pairNotes = game({ v, web: ["Giorgia Pazzi", "Lupo"], webTab: "notes" });
-  assert.deepEqual(headings(pairNotes), ["Giorgia Pazzi and Lupo", "Lupo"], "a pair: the pair's notes first, then each of the two's, under small headings");
-  assert.deepEqual(texts(pairNotes), ["Those two talk too often.", "Lupo watches the door."]);
+  const headings = (h: string) => [...h.matchAll(/class="label note-heading"><button class="icon note-fold"[^>]*>[^<]*<\/button><(?:button|span) class="note-about"[^>]*>([^<]+)</g)].map((m) => m[1]);
   const all = game({ v, web: [], webTab: "notes" });
   assert.deepEqual(missingWords(all), []);
-  assert.deepEqual(texts(all), ["Those two talk too often.", "Lupo watches the door.", "Something is off tonight."], "no one selected: every note, newest first");
-  assert.deepEqual(headings(all), ["Lupo and Giorgia Pazzi", "Lupo", PLAYER.screen.web.free], "grouped by guest and pair, free notes too");
+  assert.deepEqual(headings(all), ["Lupo", "Lupo and Giorgia Pazzi", PLAYER.screen.web.free], "each guest, then each pair, then free notes");
+  assert.deepEqual(texts(all), ["Lupo watches the door.", "Those two talk too often.", "Something is off tonight."]);
+  for (const sel of [["Lupo"], ["Giorgia Pazzi", "Lupo"], ["Contessa Isabella"]]) {
+    const h = game({ v, web: sel, webTab: "notes" });
+    assert.deepEqual(texts(h), texts(all), `${sel}: every note still listed`);
+    assert.deepEqual(headings(h), headings(all), `${sel}: the same groups`);
+  }
+  // The selected guest's or pair's group is lit; a heading and a note both select (a free note selects no one).
+  const groupsOf = (h: string) => [...h.matchAll(/<div class="note-group([^"]*)" data-group="([^"]*)"/g)].map((m) => `${m[2]}${m[1]}`);
+  assert.deepEqual(groupsOf(game({ v, web: ["Lupo"], webTab: "notes" })), ["Lupo lit", "Giorgia Pazzi|Lupo", "free"]);
+  assert.deepEqual(groupsOf(game({ v, web: ["Giorgia Pazzi", "Lupo"], webTab: "notes" })), ["Lupo", "Giorgia Pazzi|Lupo lit", "free"]);
+  assert.match(all, /<button class="note-about"[^>]*data-hint="noteItem">Lupo and Giorgia Pazzi</, "a pair's heading selects them");
+  assert.match(all, /<li class="note" data-note="N2" aria-description="Select who this note is about\." data-hint="noteItem">/, "a note selects its guest");
+  assert.match(all, /<li class="note" data-note="N1"><span/, "a free note selects no one");
+  // Each group folds under its heading, with a fold button named from the pack.
+  assert.equal((all.match(/<button class="icon note-fold" aria-expanded="true" aria-label="Fold these notes"/g) ?? []).length, 3);
+  assert.equal(PLAYER.screen.web.unfold, "Show these notes");
   assert.ok(!all.includes("<select"), "no filter");
   assert.equal((all.match(/class="tab( on)?"/g) ?? []).length, 2, "two tabs: What you heard and saw, and Notes");
   assert.ok(!("all" in PLAYER.screen.web) && !("filter" in PLAYER.screen.web) && !("allTab" in PLAYER.screen.hints), "no All your notes, nor its filter");
-  assert.deepEqual(notesFor(v.notes, []).map((x) => x.about), [["Lupo", "Giorgia Pazzi"], ["Lupo"], []]);
-  assert.deepEqual(notesFor(v.notes, ["Giorgia Pazzi"]).map((x) => x.notes.map((n) => n.id)), [["N3"]]);
-  assert.deepEqual(notesFor(v.notes, ["Lupo", "Contessa Isabella"]).map((x) => x.about), [["Lupo"]], "empty sections are left out");
+  // Newest first within a group, and within a kind the group with the newest note first.
+  const more = [...v.notes, { id: "N4", seq: 2e6, turn: 3, guests: ["Giorgia Pazzi"], text: "x" }, { id: "N5", seq: 2e6 + 1, turn: 3, guests: ["Lupo"], text: "y" }];
+  assert.deepEqual(noteGroups(more).map((g) => [g.about, g.notes.map((n) => n.id)]), [[["Lupo"], ["N5", "N2"]], [["Giorgia Pazzi"], ["N4"]], [["Lupo", "Giorgia Pazzi"], ["N3"]], [[], ["N1"]]]);
+  assert.deepEqual(noteGroups([]), []);
+  const css0 = readFileSync("web/src/app.css", "utf8");
+  assert.match(css0, /\.note-group\.lit \.note-heading \{ color: var\(--accent\); \}/);
+  assert.match(css0, /\.note \{[^}]*border-left: var\(--border-width\) solid var\(--edge-note\)/, "the same straight line down every note's left");
+  assert.match(css0, /\.note-text \{[^}]*overflow-wrap: anywhere/, "long notes wrap inside the column");
   // Interface v0.3: only notes on a guest or a pair get "This is my conclusion"; the free note has none.
-  const buttons = [...all.matchAll(/<li class="note">(.*?)<\/li>/g)].map((m) => [m[1]!.match(/class="note-text"[^>]*>([^<]+)</)![1], /data-hint="conclude"/.test(m[1]!)]);
-  assert.deepEqual(buttons, [["Those two talk too often.", true], ["Lupo watches the door.", true], ["Something is off tonight.", false]]);
+  const buttons = [...all.matchAll(/<li class="note"[^>]*>(.*?)<\/li>/g)].map((m) => [m[1]!.match(/class="note-text"[^>]*>([^<]+)</)![1], /data-hint="conclude"/.test(m[1]!)]);
+  assert.deepEqual(buttons, [["Lupo watches the door.", true], ["Those two talk too often.", true], ["Something is off tonight.", false]]);
   assert.ok(v.commands.some((c) => c.action === "conclude"), "the conclusion's command, found by its action");
   // TD v0.51's flag: only a character whose errand a conclusion can finish sees the button. Francesco's is a
   // payment, so the game sends false, and no note has one; a state without the flag (an older game) has none either.
@@ -1127,18 +1148,44 @@ test("the shared selection on the screen: the chat's guest on the web's bar and 
   assert.deepEqual(nodes(topic), []);
 });
 
-test("the web's ring: factions together, an arc in each faction's colour with its name at the corner, and curved lines", async () => {
+test("the web's ring: factions together, a fixed ring read like a clock, an arc in each faction's colour with its name outside its middle, and curved lines", async () => {
   const arcs = factionArcs(info.roster, info.factions);
   const factions = [...new Set(info.roster.map((r) => r.faction))];
   assert.deepEqual(arcs.map((a) => a.faction), info.factions.filter((f) => factions.includes(f)), "an arc per faction, in the setting's order");
   for (const a of arcs) {
     assert.equal(a.colour, info.roster.find((r) => r.faction === a.faction)!.colour, `${a.faction}: in its colour`);
     assert.match(a.d, /^M [\d.-]+ [\d.-]+ A 48 48 0 0 1 [\d.-]+ [\d.-]+/, `${a.faction}: an arc around the ring`);
-    // The name sits at the arc's first corner: the corner's direction from the centre, further out.
-    const [x0, y0] = a.d.split(" ").slice(1, 3).map(Number);
-    const dir = (x: number, y: number) => Math.atan2(y - 50, x - 50);
-    assert.ok(Math.abs(dir(a.x, a.y) - dir(x0!, y0!)) < 1e-3, `${a.faction}: its name at the corner`);
     assert.ok(Math.hypot(a.x - 50, a.y - 50) > 48, `${a.faction}: outside the arc`);
+  }
+  // Interface v0.16: a fixed ring, read like a clock. With twelve guests, the first in the roster sits at half past
+  // nine and the rest follow clockwise, an hour apart.
+  const clock = (p: { x: number; y: number }) => ((Math.atan2(p.y - 50, p.x - 50) * 6) / Math.PI + 3 + 12) % 12;
+  const seats = webLayout(info.roster, info.factions);
+  const order0 = [...seats.keys()];
+  assert.equal(order0.length, 12);
+  order0.forEach((n, i) => assert.ok(Math.abs(clock(seats.get(n)!) - ((9.5 + i) % 12)) < 1e-6, `${n} at ${(9.5 + i) % 12} o'clock`));
+  assert.equal(order0[0], info.roster[0]!.name, "by roster order");
+  // Each faction's name sits outside the middle of its arc, except the first faction's, half an hour later (11:00) to clear the key.
+  assert.deepEqual(arcs.map((a) => Math.round(clock(a) * 100) / 100), [11, 1.5, 4.5, 7.5]);
+  assert.deepEqual(arcs.map((a) => a.anchor), ["end", "start", "start", "end"]);
+  // Names sit under their circles; where two guests sit side by side at the top or bottom of the ring, each name
+  // moves outward, as far as it can without reaching the next guest's circle.
+  const names = webNames(info.roster, info.factions);
+  const moved = order0.filter((n) => names.get(n)!.x !== Math.round(seats.get(n)!.x * 100) / 100);
+  const crowded = [order0[2]!, order0[3]!, order0[8]!, order0[9]!];
+  assert.ok(moved.length >= 2 && moved.every((n) => crowded.includes(n)), `only the two pairs at the top and the bottom move (${moved})`);
+  for (const n of order0) assert.ok(Math.abs(names.get(n)!.y - seats.get(n)!.y - 7.6) < 0.01, `${n}: under their circle`);
+  for (const [l, r] of [[order0[2]!, order0[3]!], [order0[9]!, order0[8]!]]) {
+    assert.ok(names.get(l)!.x <= seats.get(l)!.x && names.get(r)!.x >= seats.get(r)!.x && names.get(r)!.x - names.get(l)!.x > seats.get(r)!.x - seats.get(l)!.x, `${l} and ${r} move apart`);
+    // Their estimated ends no longer meet in the middle.
+    assert.ok(names.get(l)!.x + (l.length * 1.2) / 2 <= names.get(r)!.x - (r.length * 1.2) / 2 + 0.01, `${l} and ${r} clear each other`);
+  }
+  // The next guest's circle stops a long name: its far end stays clear of it.
+  // (At the top the names' line runs through the next circles' height; at the bottom it's below them.)
+  for (const [n, outer, dir] of [[order0[2]!, order0[1]!, -1], [order0[3]!, order0[4]!, 1]] as const) {
+    const end = names.get(n)!.x + (dir * n.length * 1.2) / 2;
+    const edge = seats.get(outer)!.x - dir * NODE_RADIUS;
+    assert.ok(dir < 0 ? end >= edge : end <= edge, `${n} stops short of ${outer}'s circle`);
   }
   // One faction alone takes the whole ring, as two half-arcs.
   assert.equal(factionArcs(info.roster.map((r) => ({ ...r, faction: "One" }))).length, 1);
@@ -1434,7 +1481,15 @@ test("the opening: his name glossed at the top before he writes, Skip, and the s
   assert.equal((written.match(/class="opening-para" data-state="done"/g) ?? []).length, NOTAIO_PACK.opening.paragraphs.length, "Skip: every paragraph, whole");
   assert.doesNotMatch(written, /opening-skip/);
   const theme = readFileSync("web/theme.css", "utf8");
-  for (const t of ["--opening-char", "--opening-pause", "--tour-dim", "--motion-tour", "--z-tour"]) assert.match(theme, new RegExp(`${t}:`), t);
+  for (const t of ["--opening-comma", "--opening-sentence", "--opening-fade", "--opening-pause", "--tour-dim", "--motion-tour", "--z-tour"]) assert.match(theme, new RegExp(`${t}:`), t);
+  // Interface v0.16: he writes a phrase at a time, split at commas and sentence ends, with a longer pause after a sentence.
+  for (const p of NOTAIO_PACK.opening.paragraphs) assert.equal(phrases(p).join(""), p, "the phrases are the paragraph, whole");
+  assert.deepEqual(phrases("I keep its record, as notaries do. He is called \"the Unfortunate\". Choose."), ["I keep its record, ", "as notaries do. ", "He is called \"the Unfortunate\". ", "Choose."]);
+  assert.deepEqual(phrases(""), []);
+  const t = (k: string) => parseFloat(theme.match(new RegExp(`${k}: (\\d+)ms`))![1]!);
+  assert.ok(t("--opening-sentence") > t("--opening-comma"), "a longer pause after a sentence than after a comma");
+  assert.match(readFileSync("web/src/app.css", "utf8"), /\.opening-phrase \{ animation: fade-in var\(--opening-fade\)/, "each phrase fades in");
+  assert.match(readFileSync("web/src/app.css", "utf8"), /prefers-reduced-motion: reduce\)[^@]*\.opening-phrase \{ animation: none; \}/);
   assert.match(readFileSync("web/src/app.css", "utf8"), /prefers-reduced-motion: reduce\)[^@]*\.tour-spot \{ transition: none; \}/, "the spotlight jumps with reduced motion");
 });
 
@@ -1801,4 +1856,59 @@ test("the modals' chained footers (Interface v0.16): Previous and Next worded fo
   assert.match(css, /prefers-reduced-motion: reduce\) \{\s*\.deck-card \{ animation: none; \}\s*\.breathe \{ animation: none;/);
   // The rules: the buttons stay in view, and a section opens as a card over them.
   assert.match(css, /\.rules-over \{[^}]*position: absolute[^}]*inset: 0/);
+});
+
+// ---- CC-20261116-06 (#177): Interface v0.16's Web of Confidences, opening, and tour -------------------------
+
+test("the Web of Confidences' looks and the opening's choice (Interface v0.16): the dock's shadows and slide, the Secret row, the scaling key and side column, and the full game's other character greyed out", async () => {
+  const css = readFileSync("web/src/app.css", "utf8");
+  const theme = readFileSync("web/theme.css", "utf8");
+  // The dock: the top layer, a deep shadow that grows when open, sliding over 600 ms; with reduced motion it doesn't slide.
+  assert.match(css, /\.web-dock \{[^}]*z-index: var\(--z-dock\)[^}]*box-shadow: var\(--shadow-dock\)[^}]*transition: height var\(--motion-dock\)/);
+  assert.match(css, /\.web-dock\.open \{[^}]*box-shadow: var\(--shadow-dock-open\)/);
+  assert.match(css, /prefers-reduced-motion: reduce\) \{\s*\.web-dock \{ transition: none; \}/);
+  assert.match(theme, /--motion-dock: 600ms/);
+  for (const t of ["--shadow-dock", "--shadow-dock-open"]) assert.equal((theme.match(new RegExp(`${t}: `, "g")) ?? []).length, 2, `${t}: light and dark`);
+  const z = (k: string) => Number(theme.match(new RegExp(`${k}: (\\d+)`))![1]);
+  assert.ok(z("--z-dock") > z("--z-float") && z("--z-dock") > z("--z-menu"), "over the floating cards");
+  // The side column is about 28% of the window; the key scales from 0.8 to 1.45 times its size at 1440 pixels.
+  assert.match(theme, /--web-side-width: 28vw/);
+  assert.match(theme, /--key-text: clamp\(10\.4px, 0\.903vw, 18\.85px\)/);
+  assert.match(css, /\.web-key \{[^}]*position: absolute[^}]*font-size: var\(--key-text\)/, "over the drawing's top-left corner, scaling as one");
+  // The selected ring, twice the plain line's width; a thin dashed ring for keyboard focus, no focus box.
+  const num = (k: string) => Number(theme.match(new RegExp(`${k}: ([\\d.]+)`))![1]);
+  assert.ok(num("--node-ring-on") >= num("--edge-width-on") * 2);
+  assert.match(css, /\.node:focus, \.node:focus-visible \{ outline: none; \}/);
+  assert.match(css, /\.node:focus-visible circle \{[^}]*stroke-dasharray: var\(--node-focus-dash\)/);
+  assert.match(css, /\.edge\.sel-off, \.edge-under\.sel-off \{ stroke-opacity: var\(--edge-dim\); \}/);
+  // On the screen: the key's seven rows, the last "Secret" with its description; a selection fades the lines that don't touch it.
+  const { at } = await playedLog();
+  const v = derive(at["speak:capannello"]!);
+  const h = game({ v, web: ["Lupo"] });
+  const keyRows = [...h.matchAll(/<button class="key-type[^"]*" aria-pressed="(true|false)" data-type="([^"]+)"/g)].map((m) => m[2]);
+  assert.deepEqual(keyRows, [...info.relationshipTypes!.map((t) => t.type), "*secret"]);
+  assert.match(h, /<span class="key-secret-words"><span>Secret<\/span><span class="key-covers">A tie no other guest knows of\. Ties everyone knows are drawn plain\.<\/span><\/span>/);
+  const ties = [...h.matchAll(/<g class="tie" data-type="[^"]*" data-between="([^"]*)"[^>]*>(.*?)<\/g>/g)];
+  assert.ok(ties.length > 10);
+  for (const [, between, inner] of ties) assert.equal(/sel-off/.test(inner!), !between!.split("|").includes("Lupo"), between);
+  const lit = game({ v, web: [], keyType: "*secret" });
+  assert.equal((lit.match(/class="edge rel-[\w-]+ yours key-on"/g) ?? []).length, 3, "the Secret row lights the secret ties");
+  // An empty pair says why.
+  assert.ok(game({ v, web: ["Lupo", "Contessa Isabella"] }).includes(esc("You haven't yet heard Lupo or Contessa Isabella speak to the other. Only what one says to the other shows here.")));
+  // His reading opens a seventh of the way down, the column behind it faded.
+  assert.match(theme, /--reading-top: 14\.3%/);
+  assert.match(css, /\.record-pane > \.reading \{[^}]*top: var\(--reading-top\)[^}]*box-shadow: var\(--shadow-up\)/);
+  assert.match(css, /\.record-pane\.covered \.record-scroll > \* \{ opacity: var\(--behind-opacity\); \}/);
+  // The opening's choice: the setting's playable characters not in this game, greyed out after the playable one, with no button.
+  assert.deepEqual(info.fullGameOnly, [{ name: "Piero de' Medici" }], "from the pack's playable list, not a name in the code");
+  assert.deepEqual(screenInfo(settingPack().playable as CharacterName[], castBriefings(fakeDocs), { tunables: fakeDocs.tunables, minigame: true }).fullGameOnly, [], "none when every playable character is in the game");
+  const opening = html(createElement(Opening, { onStart: () => {}, written: true }));
+  assert.match(opening, /<h2>Choose your family<\/h2>/);
+  const locked = opening.slice(opening.indexOf('class="start-card locked"'));
+  assert.ok(opening.indexOf('class="start-card locked"') > opening.indexOf('data-hint="play"'), "after the playable one");
+  assert.match(locked, /^class="start-card locked" data-guest="Piero de&#x27; Medici" aria-disabled="true">/);
+  assert.match(locked, /<div class="locked-label">In the full game<\/div>/);
+  assert.doesNotMatch(locked, /<button/);
+  // After a skipped tour, Your briefing breathes: the same breathing outline as the modals' way on.
+  assert.match(readFileSync("web/src/App.tsx", "utf8"), /nudge && d === DECKS\[0\] \? " breathe" : ""/);
 });

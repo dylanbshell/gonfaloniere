@@ -774,7 +774,12 @@ export function refusalWhy(v: View, all: Command[]): { command: Command; why: Ex
 /** The ring's centre and radius, in the diagram's own units (0–100 each way). */
 const CENTRE = 50;
 const RING = 38;
-/** The faction arcs sit outside the guests and their names; each faction's name at its arc's corner. */
+/** A guest's circle, and where their name sits under it, in the diagram's units. */
+export const NODE_RADIUS = 4.2;
+export const NAME_DROP = 7.6;
+/** A name's rough width for each character, for moving crowded names apart without measuring text. */
+const NAME_CHAR = 1.2;
+/** The faction arcs sit outside the guests and their names; each faction's name outside the middle of its arc. */
 const ARC_RADIUS = 48;
 const LABEL_RADIUS = 53;
 /** The gap between two factions' arcs, as a share of one guest's slice of the ring. */
@@ -787,8 +792,12 @@ function ringOrder<R extends { name: string; faction: string }>(roster: R[], fac
   return [...roster].sort((a, b) => place(a.faction) - place(b.faction));
 }
 
-/** The angle of the ring's i-th place of n: from the top, clockwise on the screen. */
-const angle = (i: number, n: number) => (i / n) * 2 * Math.PI - Math.PI / 2;
+/**
+ * The angle of the ring's i-th place of n (Interface v0.16): a fixed ring, read like a clock. The first guest
+ * sits at half past nine and the rest follow clockwise, so with twelve they sit an hour apart, on the half hours.
+ */
+const FIRST = (9.5 / 12) * 2 * Math.PI - Math.PI / 2;
+const angle = (i: number, n: number) => FIRST + (i / n) * 2 * Math.PI;
 const onCircle = (t: number, r: number) => ({ x: CENTRE + r * Math.cos(t), y: CENTRE + r * Math.sin(t) });
 const round = (x: number) => Math.round(x * 100) / 100;
 
@@ -805,10 +814,11 @@ export function webLayout(roster: { name: string; faction: string }[], factions:
 }
 
 /**
- * Each faction's arc (Interface v0.5): a stroke in the faction's colour around its part of the ring,
- * outside its guests and their names, with the faction's name at the arc's first corner. `d` is the arc's
- * SVG path; `anchor` is the name's text-anchor, so it reads away from the arc. Factions with no guest on
- * the web are left out.
+ * Each faction's arc (Interface v0.5; v0.16): a stroke in the faction's colour around its part of the ring,
+ * outside its guests and their names, with the faction's name outside the middle of its arc, except the first
+ * faction's, which sits half an hour later round the clock to clear the key. The rule is by roster order,
+ * not names. `d` is the arc's SVG path; `anchor` is the name's text-anchor, so it reads away from the ring.
+ * Factions with no guest on the web are left out.
  */
 export function factionArcs(roster: { name: string; faction: string; colour?: string }[], factions: readonly string[] = []): { faction: string; colour: string | undefined; d: string; x: number; y: number; anchor: "start" | "middle" | "end" }[] {
   const order = ringOrder(roster, factions);
@@ -828,12 +838,77 @@ export function factionArcs(roster: { name: string; faction: string; colour?: st
     const mid = onCircle((from + to) / 2, ARC_RADIUS);
     const r = ARC_RADIUS;
     const d = to - from > Math.PI ? `M ${round(a.x)} ${round(a.y)} A ${r} ${r} 0 0 1 ${round(mid.x)} ${round(mid.y)} A ${r} ${r} 0 0 1 ${round(b.x)} ${round(b.y)}` : `M ${round(a.x)} ${round(a.y)} A ${r} ${r} 0 0 1 ${round(b.x)} ${round(b.y)}`;
-    const corner = onCircle(from, LABEL_RADIUS);
-    const side = corner.x - CENTRE;
-    out.push({ faction: order[i]!.faction, colour: order[i]!.colour, d, x: round(corner.x), y: round(corner.y), anchor: Math.abs(side) < 4 ? "middle" : side < 0 ? "end" : "start" });
+    // Outside the middle of the arc; the first faction's half an hour later (a twenty-fourth of the way round).
+    const at = onCircle((from + to) / 2 + (i === 0 ? Math.PI / 12 : 0), LABEL_RADIUS);
+    const side = at.x - CENTRE;
+    out.push({ faction: order[i]!.faction, colour: order[i]!.colour, d, x: round(at.x), y: round(at.y), anchor: Math.abs(side) < 4 ? "middle" : side < 0 ? "end" : "start" });
     i = j + 1;
   }
   return out;
+}
+
+/**
+ * Where each guest's name sits (Interface v0.16): under their circle. Where two guests sit side by side at
+ * the top or bottom of the ring, their names would run into each other, so each moves outward, as far as it
+ * can without reaching the next guest's circle. Widths are estimated from the name's length.
+ */
+export function webNames(roster: { name: string; faction: string }[], factions: readonly string[] = []): Map<string, { x: number; y: number }> {
+  const order = ringOrder(roster, factions);
+  const n = order.length;
+  const at = order.map((_, i) => onCircle(angle(i, n), RING));
+  const out = new Map<string, { x: number; y: number }>();
+  order.forEach((g, i) => out.set(g.name, { x: round(at[i]!.x), y: round(at[i]!.y + NAME_DROP) }));
+  if (n < 4) return out;
+  const width = (i: number) => order[i]!.name.length * NAME_CHAR;
+  /** Moves guest `i`'s name away from its neighbour `beside`, toward its other neighbour `outer`, stopping short of that one's circle. */
+  const apart = (i: number, beside: number, outer: number) => {
+    const p = at[i]!;
+    const w = width(i);
+    const dir = p.x < at[beside]!.x ? -1 : 1;
+    // The name's inner end at its own circle's inner edge.
+    let x = p.x + dir * Math.max(0, w / 2 - NODE_RADIUS);
+    const o = at[outer]!;
+    // The outer neighbour's circle, if the name's line runs through its height.
+    if (Math.abs(p.y + NAME_DROP - o.y) < NODE_RADIUS + 2) {
+      const edge = o.x - dir * (NODE_RADIUS + 1);
+      x = dir < 0 ? Math.max(x, edge + w / 2) : Math.min(x, edge - w / 2);
+    }
+    // Never inward of its own circle.
+    x = dir < 0 ? Math.min(x, p.x) : Math.max(x, p.x);
+    out.set(order[i]!.name, { x: round(x), y: round(p.y + NAME_DROP) });
+  };
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const [a, b] = [at[i]!, at[j]!];
+    // Side by side: at the same height, and closer than their two names are wide.
+    if (Math.abs(a.y - b.y) > 1 || Math.abs(a.x - b.x) > (width(i) + width(j)) / 2 + 1) continue;
+    apart(i, j, (i - 1 + n) % n);
+    apart(j, i, (j + 1) % n);
+  }
+  return out;
+}
+
+/** One line on the web (Interface v0.16): a pair, a type, and whether it's a secret tie (the player's own, with no public tie to match). */
+export interface WebLine {
+  between: string[];
+  type: string;
+  secret: boolean;
+}
+
+/**
+ * The web's lines (Interface v0.16): one line per pair and type. Where the player's briefing gives their own
+ * take on a tie everyone knows, the one line drawn is the public one, plain; only the player's ties that no
+ * public tie matches are secret, and carry the halo.
+ */
+export function webLines(connections: Connection[]): WebLine[] {
+  const out = new Map<string, WebLine>();
+  for (const c of connections) {
+    const key = `${[...c.between].sort().join("|")}|${c.type}`;
+    const have = out.get(key);
+    if (!have) out.set(key, { between: c.between, type: c.type, secret: !!c.private });
+    else if (have.secret && !c.private) have.secret = false;
+  }
+  return [...out.values()];
 }
 
 /**
@@ -937,36 +1012,28 @@ export function cityList(lore: LoreEntry[]): { subject: string | null; entries: 
 /** A lore entry's one-line preview for the city's list: its first line. */
 export const preview = (e: LoreEntry): string => e.text.split("\n").find((l) => l.trim())?.trim() ?? "";
 
-// ---- One Notes tab (Interface v0.7, The Web of Secrets, Notes) ----------------------------------------------
+// ---- The Notes tab (Interface v0.7; reworked v0.16, The Web of Secrets, Notes) -------------------------------
 
-/** A section of the notes list: under a heading naming its guest or pair (`about`; [] for free notes), or none (null). */
-export interface NoteSection {
-  about: string[] | null;
+/** A group of the player's notes: on one guest, on a pair, or free (`about` empty). */
+export interface NoteGroup {
+  about: string[];
   notes: Note[];
 }
 
 export const sameGuests = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
 
 /**
- * The one list of the player's notes, newest first, filtered by the shared selection. No one selected: every
- * note, grouped by guest and pair (free notes too), each group where its newest note falls. One guest: their
- * notes and any pair's that includes them, in one list. A pair: the pair's notes first, then each of the
- * two's, under small headings. Sections with no notes are left out.
+ * Every note, always listed (Interface v0.16): grouped, each guest's, then each pair's, then the free notes,
+ * newest first within a group, and within a kind the group with the newest note first. Selecting no longer
+ * narrows the list.
  */
-export function notesFor(notes: Note[], picked: string[]): NoteSection[] {
-  const newest = [...notes].reverse();
-  if (picked.length === 0) {
-    const out: NoteSection[] = [];
-    for (const n of newest) {
-      const at = out.find((s) => sameGuests(s.about!, n.guests));
-      if (at) at.notes.push(n);
-      else out.push({ about: n.guests, notes: [n] });
-    }
-    return out;
+export function noteGroups(notes: Note[]): NoteGroup[] {
+  const groups: NoteGroup[] = [];
+  for (const n of [...notes].reverse()) {
+    const at = groups.find((g) => sameGuests(g.about, n.guests));
+    if (at) at.notes.push(n);
+    else groups.push({ about: n.guests, notes: [n] });
   }
-  if (picked.length === 1) {
-    const on = newest.filter((n) => n.guests.includes(picked[0]!));
-    return on.length ? [{ about: null, notes: on }] : [];
-  }
-  return [picked, [picked[0]!], [picked[1]!]].map((about) => ({ about, notes: newest.filter((n) => sameGuests(n.guests, about)) })).filter((s) => s.notes.length > 0);
+  const kind = (g: NoteGroup) => (g.about.length === 1 ? 0 : g.about.length === 2 ? 1 : 2);
+  return groups.map((g, i) => ({ g, i })).sort((a, b) => kind(a.g) - kind(b.g) || a.i - b.i).map((x) => x.g);
 }

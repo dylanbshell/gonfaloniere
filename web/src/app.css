@@ -222,8 +222,12 @@ button.tab.on { border-color: var(--accent); color: var(--accent); }
 }
 
 /* The Web of Secrets (TD v0.44): a raised bar along the bottom, always there; clicking it slides the panel up */
-.web-dock { position: fixed; left: 0; right: 0; bottom: 0; z-index: var(--z-dock); height: var(--web-bar-height); background: var(--surface); box-shadow: var(--shadow-dock); border-radius: var(--radius-lg) var(--radius-lg) 0 0; display: flex; flex-direction: column; overflow: hidden; transition: height var(--motion-slow) ease-out; }
-.web-dock.open { height: var(--web-height); }
+/* Interface v0.16: the top layer. It slides up over everything, the floating cards included, with a deep, wide shadow that grows as it opens */
+.web-dock { position: fixed; left: 0; right: 0; bottom: 0; z-index: var(--z-dock); height: var(--web-bar-height); background: var(--surface); box-shadow: var(--shadow-dock); border-radius: var(--radius-lg) var(--radius-lg) 0 0; display: flex; flex-direction: column; overflow: hidden; transition: height var(--motion-dock) ease-out, box-shadow var(--motion-dock) ease-out; }
+.web-dock.open { height: var(--web-height); box-shadow: var(--shadow-dock-open); }
+@media (prefers-reduced-motion: reduce) {
+  .web-dock { transition: none; }
+}
 /* Interface v0.7: the bar's contents are one centered group: the arrow, the title, and a selection's portraits and names */
 .web-bar { flex: none; height: var(--web-bar-height); display: flex; align-items: center; justify-content: center; width: 100%; border: none; border-radius: 0; background: transparent; padding: 0 var(--space-4); }
 .web-bar-group { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; }
@@ -237,10 +241,9 @@ button.tab.on { border-color: var(--accent); color: var(--accent); }
 /* The panel keeps its open size while down, so the bar clips it rather than squashing it */
 .web { flex: none; height: calc(var(--web-height) - var(--web-bar-height)); display: flex; flex-direction: column; border-top: var(--border-width) solid var(--border); }
 .web-body { flex: 1; display: grid; grid-template-columns: 1fr var(--web-side-width); min-height: 0; }
-/* The key in its own column beside the diagram, so it never covers a guest or a faction name */
-.web-map { position: relative; min-width: 0; min-height: 0; display: grid; grid-template-columns: auto 1fr; }
-.web-map .web-diagram { grid-column: 2; grid-row: 1; }
-.web-diagram { width: 100%; height: 100%; }
+/* Interface v0.16: the drawing is fitted to its space and centred, the key over its top-left corner; the screen moves the drawing aside so nothing runs under the key */
+.web-map { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.web-diagram { position: relative; display: block; width: 100%; height: 100%; }
 /* The column beside the web: its tabs, then the tab's body, which scrolls on its own */
 .web-side { border-left: var(--border-width) solid var(--border); display: flex; flex-direction: column; min-height: 0; }
 .web-side > .tabs { flex: none; }
@@ -261,10 +264,15 @@ button.tab.on { border-color: var(--accent); color: var(--accent); }
 .edge.on { stroke-width: var(--edge-width-on); }
 .edge.key-on { stroke-width: var(--edge-width-on); }
 .edge.key-off, .edge-under.key-off { stroke-opacity: var(--edge-dim); }
+/* Interface v0.16: with someone selected, every line that doesn't touch the selection fades, as lines of other types do when one is picked in the key */
+.edge.sel-off, .edge-under.sel-off { stroke-opacity: var(--edge-dim); }
 .faction-label { font-size: var(--faction-label-size); font-weight: var(--weight-bold); dominant-baseline: middle; text-transform: uppercase; letter-spacing: var(--tracking-label); paint-order: stroke; stroke: var(--surface); stroke-width: var(--label-halo); }
 .node { cursor: pointer; }
 .node circle { stroke: var(--surface); stroke-width: var(--edge-width); }
-.node.picked circle { stroke: var(--accent); stroke-width: var(--edge-width-on); }
+/* Interface v0.16: a selected guest's ring is twice as thick; no focus box around a clicked guest, a thin dashed ring for keyboard focus */
+.node.picked circle { stroke: var(--accent); stroke-width: var(--node-ring-on); }
+.node:focus, .node:focus-visible { outline: none; }
+.node:focus-visible circle { stroke: var(--accent); stroke-dasharray: var(--node-focus-dash); }
 .node-name.me { font-weight: var(--weight-bold); }
 .node-initials { fill: var(--portrait-text); font-size: var(--node-initials-size); text-anchor: middle; font-weight: var(--weight-bold); pointer-events: none; }
 /* Names over every line, on a halo of the panel's colour so a line passing behind never cuts them. */
@@ -274,12 +282,18 @@ button.tab.on { border-color: var(--accent); color: var(--accent); }
 .heard .sp { font-weight: var(--weight-bold); }
 .notes textarea { width: 100%; height: var(--input-height); resize: vertical; margin-bottom: var(--space-2); }
 .notes select { margin-bottom: var(--space-3); }
-.note { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); border-left: var(--border-width) solid var(--edge-note); padding-left: var(--space-2); }
-.note-text { white-space: pre-wrap; }
+/* Every note has the same straight line down its left; long notes wrap inside the column */
+.note { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); border-left: var(--border-width) solid var(--edge-note); padding-left: var(--space-2); min-width: 0; }
+.note[data-hint] { cursor: pointer; }
+.note-text { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
 /* A note's guest or pair, as a heading or on the note itself: selects them (Interface v0.7) */
 button.note-about { border: none; background: transparent; padding: 0; font: inherit; color: inherit; text-decoration: underline dotted; text-underline-offset: var(--space-1); }
-.note > .note-about { font-size: var(--text-xs); color: var(--text-muted); }
-.note-heading { margin-top: var(--space-3); }
+/* Interface v0.16: each group folds under its heading; the selected guest's or pair's group is lit, its heading and lines in the accent */
+.note-heading { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-3); }
+button.note-fold { font-size: var(--text-xs); padding: 0 var(--space-1); }
+.note-count { color: var(--text-muted); }
+.note-group.lit .note-heading { color: var(--accent); }
+.note-group.lit .note { border-left-color: var(--accent); }
 @keyframes slide-up { from { transform: translateY(100%); } to { transform: none; } }
 .deck-text::first-letter { text-transform: uppercase; }
 
@@ -291,12 +305,18 @@ button.note-about { border: none; background: transparent; padding: 0; font: inh
 .panel-error { margin: var(--space-2) 0; }
 
 /* The Web of Secrets' key and Il Notaio's reading (TD v0.44) */
-.web-key { grid-column: 1; grid-row: 1; align-self: start; margin: var(--space-3); background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-md); font-size: var(--text-sm); }
-.web-key ul { list-style: none; margin: 0; padding: 0 var(--space-2) var(--space-2); display: flex; flex-direction: column; gap: var(--space-1); }
-.key-head { display: flex; gap: var(--space-3); justify-content: space-between; width: 100%; border: none; background: transparent; font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-label); }
-button.key-type { display: flex; align-items: center; gap: var(--space-2); width: 100%; border-color: transparent; background: transparent; padding: var(--space-1) var(--space-2); font-size: var(--text-sm); }
+/* Interface v0.16: the key sits over the drawing's top-left corner, and grows and shrinks with the window, keeping its proportions (its sizes are in ems of its own text size) */
+.web-key { position: absolute; top: var(--space-3); left: var(--space-3); z-index: 1; max-width: var(--key-width); background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-md); font-size: var(--key-text); }
+.web-key ul { list-style: none; margin: 0; padding: 0 var(--key-pad) var(--key-pad); display: flex; flex-direction: column; gap: var(--key-gap); }
+.key-head { display: flex; gap: var(--key-pad); justify-content: space-between; width: 100%; border: none; background: transparent; padding: var(--key-gap) var(--key-pad); font-size: var(--key-head-text); text-transform: uppercase; letter-spacing: var(--tracking-label); }
+button.key-type { display: flex; align-items: center; gap: var(--key-pad); width: 100%; border-color: transparent; background: transparent; padding: var(--key-gap) var(--key-pad); font-size: inherit; text-align: left; }
 button.key-type.on { border-color: var(--accent); background: var(--select-bg); }
+/* The "Secret" row: its halo swatch, and a short line under it */
+button.key-secret { align-items: flex-start; }
+.key-secret-words { display: flex; flex-direction: column; min-width: 0; }
+.key-covers { font-size: var(--key-head-text); color: var(--text-muted); white-space: normal; }
 .swatch { width: var(--swatch-width); height: var(--swatch-height); flex: none; }
+.swatch .edge-under { stroke-width: var(--swatch-halo); stroke-opacity: var(--swatch-halo-opacity); }
 .swatch .edge { stroke-width: var(--swatch-stroke); }
 .type-chip { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-label); color: var(--text-muted); }
 /* Interface v0.5: Il Notaio's box in the What you heard and saw column, styled like his hint. Expanded, it
@@ -311,6 +331,10 @@ button.key-type.on { border-color: var(--accent); background: var(--select-bg); 
 .reading.past-summary { top: var(--summary-top); box-shadow: var(--shadow-up); }
 .reading.past-summary[data-state="minimized"] { top: auto; }
 .record-pane:not(.covered) .record { padding-bottom: calc(var(--reading-min-height) + var(--space-4)); }
+/* Interface v0.16: his reading opens a little higher than the stage summary, a seventh of the way down the column, with an upward shadow, and the column behind it faded */
+.record-pane > .reading { top: var(--reading-top); box-shadow: var(--shadow-up); }
+.record-pane > .reading[data-state="minimized"] { top: auto; }
+.record-pane.covered .record-scroll > * { opacity: var(--behind-opacity); }
 .reading-head { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-label); margin-bottom: var(--space-1); }
 .reading-text { margin: 0; }
 .reading-text.tally, .reading-tally { font-style: italic; }
@@ -529,7 +553,12 @@ button.glossary-rules { margin-left: var(--space-2); }
 .opening-gloss { font-size: var(--text-sm); font-style: italic; color: var(--text-muted); }
 .opening-story { font-size: var(--text-lg); }
 .opening-para { white-space: pre-wrap; margin: 0 0 var(--space-4); }
-.opening-pen { display: inline-block; width: var(--opening-pen-width); height: var(--text-lg); margin-left: var(--space-1); vertical-align: text-bottom; background: var(--text-muted); animation: pulse var(--motion-pulse) ease-in-out infinite alternate; }
+/* Interface v0.16: he writes a phrase at a time, each fading in */
+.opening-phrase { animation: fade-in var(--opening-fade) ease-out; }
+.opening-foot { height: var(--space-6); }
+/* The full game's other playable character, greyed out after the playable one */
+.start-card.locked { opacity: var(--opacity-disabled); }
+.locked-label { font-size: var(--text-sm); color: var(--text-muted); font-style: italic; }
 button.opening-skip { position: fixed; right: var(--space-4); bottom: var(--space-4); }
 .opening-choice { animation: fade-in var(--motion-slow) ease-out; }
 .opening-choice h2 { margin-top: var(--space-5); }
@@ -547,5 +576,5 @@ button.opening-skip { position: fixed; right: var(--space-4); bottom: var(--spac
 .tour-controls { display: flex; justify-content: space-between; gap: var(--space-2); }
 @media (prefers-reduced-motion: reduce) {
   .tour-spot { transition: none; }
-  .opening-pen { animation: none; }
+  .opening-phrase { animation: none; }
 }

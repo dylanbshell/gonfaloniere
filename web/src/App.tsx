@@ -7,7 +7,7 @@
 import { Component, Fragment, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { connect, type Ev } from "./connection.ts";
 import { COMMAND, MENTION, canDo, canSpeak, isCommand, matchCommands, matchGuests, openMenu, withMention, type Trigger } from "./input.ts";
-import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityList, commandMenu, curve, derive, earlierThisStage, errandCardAt, errandDeadline, errandLine, errandTask, factLink, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, notesFor, ownPlace, payrollSize, placeHeading, playerBriefing, placeList, placeholderExample, preview, readingFor, recordUpTo, refusalWhy, roomOf, rulesLink, runFrom, summaryFor, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, type Card, type FactLink, type Line, type GuardedReading, type LoreEntry, type Note, type NotaioItem, type Place, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
+import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityList, commandMenu, curve, derive, earlierThisStage, errandCardAt, errandDeadline, errandLine, errandTask, factLink, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, noteGroups, ownPlace, payrollSize, placeHeading, playerBriefing, placeList, placeholderExample, preview, readingFor, recordUpTo, refusalWhy, roomOf, rulesLink, runFrom, summaryFor, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, webLines, webNames, NODE_RADIUS, type Card, type FactLink, type Line, type GuardedReading, type LoreEntry, type Note, type NotaioItem, type Place, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
 import { allCommands, getInfo, guest, names, narrator, notaioHint, packValue, placeDescription, placeholderExamples, setInfo, stageDescription, w, type GlossEntry, type StartInfo } from "./words.ts";
 
 type Send = (m: unknown) => void;
@@ -218,13 +218,20 @@ function FailedOverlay({ notice, onClose }: { notice: ReactNode; onClose: () => 
   );
 }
 
-// ---- The opening (Interface v0.7, The Opening) -----------------------------------------------------------
+// ---- The opening (Interface v0.7, The Opening; v0.16) ------------------------------------------------------
 //
 // It replaces the start screen. Il Notaio's name heads the page, glossed, before he writes; then he writes
-// the story a character at a time, as if by pen, each paragraph following the last by itself after a short
-// pause, the earlier ones staying on the page. A click finishes the paragraph being written; Skip writes it
-// all out. At the end, one card per playable character; choosing one starts the game (and the tour). With
-// reduced motion set, each paragraph appears whole. The writing speed and the pause are theme tokens.
+// the story a phrase at a time, each fading in, split at commas and sentence ends, with a longer pause after
+// a sentence than after a comma; each paragraph follows the last by itself, the earlier ones staying on the
+// page, and the page follows the text down as it grows. A click anywhere fast-forwards: it finishes the
+// paragraph being written. Skip writes it all out. At the end, one card per playable character; choosing one
+// starts the game (and the tour). With reduced motion set, each paragraph appears whole. The pauses and the
+// fade are theme tokens.
+
+/** A paragraph as the phrases Il Notaio writes one at a time: split after each comma, semicolon, colon, and sentence end, the closing quote and the space kept with it. */
+export function phrases(paragraph: string): string[] {
+  return paragraph.match(/[^,;:.!?]+(?:[,;:.!?]+["”’)]*\s*|$)|[,;:.!?]+["”’)]*\s*/g) ?? (paragraph ? [paragraph] : []);
+}
 
 /** A timing from theme.css, in milliseconds. */
 function themeMs(token: string, fallback: number): number {
@@ -252,32 +259,41 @@ export function Opening({ onStart, written = false }: { onStart: (me: string, ws
   const paragraphs = narrator.paragraphs();
   const hint = useHint();
   const reduced = useReducedMotion();
-  /** How many paragraphs are written whole, and how much of the next one. Before the first: his name alone. */
-  const [pen, setPen] = useState<{ done: number; chars: number; begun: boolean }>({ done: written ? paragraphs.length : 0, chars: 0, begun: written });
+  /** How many paragraphs are written whole, and how many phrases of the next one. Before the first: his name alone. */
+  const [pen, setPen] = useState<{ done: number; shown: number; begun: boolean }>({ done: written ? paragraphs.length : 0, shown: 0, begun: written });
   const [starting, setStarting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const finished = pen.done >= paragraphs.length;
   const current = paragraphs[pen.done] ?? "";
+  const parts = useMemo(() => phrases(current), [current]);
   useEffect(() => {
     if (finished) return;
     const pause = themeMs("--opening-pause", 700);
-    // His name first, alone, for a moment; then each paragraph, then a pause before the next.
+    // His name first, alone, for a moment; then each paragraph a phrase at a time, then a pause before the next.
     // With reduced motion, each paragraph appears whole.
-    const start = (i: number) => (reduced ? (paragraphs[i]?.length ?? 0) : 0);
+    const start = (i: number) => (reduced ? phrases(paragraphs[i] ?? "").length : 0);
     if (!pen.begun) {
-      const t = setTimeout(() => setPen((p) => ({ ...p, begun: true, chars: start(p.done) })), pause);
+      const t = setTimeout(() => setPen((p) => ({ ...p, begun: true, shown: start(p.done) })), pause);
       return () => clearTimeout(t);
     }
-    if (pen.chars < current.length) {
-      const t = setTimeout(() => setPen((p) => ({ ...p, chars: reduced ? current.length : p.chars + 1 })), reduced ? 0 : themeMs("--opening-char", 28));
+    if (pen.shown < parts.length) {
+      // A longer pause after a sentence than after a comma.
+      const last = parts[pen.shown - 1] ?? "";
+      const wait = pen.shown === 0 || reduced ? 0 : /[.!?]["”’)]*\s*$/.test(last) ? themeMs("--opening-sentence", 620) : themeMs("--opening-comma", 260);
+      const t = setTimeout(() => setPen((p) => ({ ...p, shown: reduced ? parts.length : p.shown + 1 })), wait);
       return () => clearTimeout(t);
     }
-    const t = setTimeout(() => setPen((p) => ({ done: p.done + 1, chars: start(p.done + 1), begun: true })), pause);
+    const t = setTimeout(() => setPen((p) => ({ done: p.done + 1, shown: start(p.done + 1), begun: true })), pause);
     return () => clearTimeout(t);
   }, [pen, finished, reduced, current]);
-  /** A click finishes the paragraph being written. */
-  const finish = () => !finished && setPen((p) => ({ ...p, begun: true, chars: current.length }));
-  const skip = () => setPen({ done: paragraphs.length, chars: 0, begun: true });
+  // The page follows the text down as it grows, and brings the choice into view at the end.
+  const foot = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (pen.begun && !written) foot.current?.scrollIntoView({ block: "end", behavior: reduced ? "auto" : "smooth" });
+  }, [pen.done, pen.shown, pen.begun]);
+  /** A click anywhere fast-forwards: it finishes the paragraph being written. */
+  const finish = () => !finished && setPen((p) => ({ ...p, begun: true, shown: parts.length }));
+  const skip = () => setPen({ done: paragraphs.length, shown: 0, begun: true });
   const start = async (name: string) => {
     setStarting(name);
     const r = await fetch("/api/start", { method: "POST", body: JSON.stringify({ character: name }) });
@@ -305,8 +321,11 @@ export function Opening({ onStart, written = false }: { onStart: (me: string, ws
         ))}
         {!finished && pen.begun && (
           <p className="opening-para" data-state="writing" data-full={current}>
-            {current.slice(0, pen.chars)}
-            <span className="opening-pen" aria-hidden="true" />
+            {parts.slice(0, pen.shown).map((x, i) => (
+              <span key={i} className="opening-phrase">
+                {x}
+              </span>
+            ))}
           </p>
         )}
       </div>
@@ -337,10 +356,27 @@ export function Opening({ onStart, written = false }: { onStart: (me: string, ws
                 </div>
               );
             })}
+            {/* Interface v0.16: the playable characters not in this game show greyed out after the playable ones, so the player knows there's more. */}
+            {(info.fullGameOnly ?? []).map((p) => {
+              const g = guest(p.name);
+              return (
+                <div className="start-card locked" key={p.name} data-guest={p.name} aria-disabled="true">
+                  <div className="who">
+                    <Portrait name={p.name} large />
+                    <div>
+                      <div className="name">{p.name}</div>
+                      <div className="muted subtitle">{g?.subtitle}</div>
+                    </div>
+                  </div>
+                  <div className="locked-label">{w("screen.opening.fullGameOnly")}</div>
+                </div>
+              );
+            })}
           </div>
           {error && <div className="notice danger">{error}</div>}
         </section>
       )}
+      <div ref={foot} className="opening-foot" />
     </div>
   );
 }
@@ -968,6 +1004,18 @@ export function GameView({
   const right = useRightHidden(initialRightHidden);
   // Interface v0.8: the tour, once per browser, right after the choice; ending on Your briefing opens it.
   const tour = useTour(onTourEnd, tourStep, () => setDeck("briefing"));
+  // Interface v0.16: after a skipped tour, Your briefing breathes until the player clicks it or anywhere else.
+  const [nudge, setNudge] = useState(false);
+  useEffect(() => {
+    if (!nudge) return;
+    const stop = () => setNudge(false);
+    // After the click that skipped the tour has finished its way up the page.
+    const t = setTimeout(() => document.addEventListener("click", stop, { once: true }), 0);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener("click", stop);
+    };
+  }, [nudge]);
   // Escape clears the selection, in both places, after any open menu, deck, or the Web of Secrets has taken it.
   const clear = useRef(selection.clear);
   clear.current = selection.clear;
@@ -1010,7 +1058,7 @@ export function GameView({
     <SelContext.Provider value={selection}>
       <div className={`layout${right.hidden ? " right-hidden" : ""}`} ref={layout}>
         <Boundary panel="left" fallback={(n) => <aside className="side left">{n}</aside>}>
-          <Left me={me} v={v} onDeck={openDeck} onTour={tour.again} />
+          <Left me={me} v={v} onDeck={openDeck} onTour={tour.again} nudge={nudge && tour.step === null} />
         </Boundary>
         <Centre me={me} v={v} send={send} dead={dead} status={status} boxFill={boxFill} initialPast={pastStage} onEntry={openEntry} />
         <Boundary panel="right" fallback={(n) => <aside className="side right">{n}</aside>}>
@@ -1035,7 +1083,7 @@ export function GameView({
       )}
       {tour.step !== null && (
         <Boundary panel="tour" fallback={() => null}>
-          <Tour step={tour.step} onStep={tour.go} onSkip={tour.skip} onFinish={tour.finish} />
+          <Tour step={tour.step} onStep={tour.go} onSkip={() => (tour.skip(), setNudge(true))} onFinish={tour.finish} />
         </Boundary>
       )}
     </SelContext.Provider>
@@ -1254,7 +1302,7 @@ function Fact({ fact, label, value, link, onDeck }: { fact: string; label: strin
   );
 }
 
-function Left({ me, v, onDeck, onTour }: { me: string; v: View; onDeck: OpenDeck; onTour: () => void }) {
+function Left({ me, v, onDeck, onTour, nudge = false }: { me: string; v: View; onDeck: OpenDeck; onTour: () => void; /** The tour was skipped: Your briefing breathes until a click (Interface v0.16). */ nudge?: boolean }) {
   const s = v.state;
   const line = errandLine(s);
   const midnight = midnightLine(s);
@@ -1309,7 +1357,7 @@ function Left({ me, v, onDeck, onTour }: { me: string; v: View; onDeck: OpenDeck
           Confidences has no button here: it's always at the bottom (TD v0.44). */}
       <div className="buttons decks">
         {DECKS.map((d) => (
-          <button key={d} className="secondary" disabled={!v.sheet} onClick={() => onDeck(d)} {...hint(d)}>
+          <button key={d} className={`secondary${nudge && d === DECKS[0] ? " breathe" : ""}`} disabled={!v.sheet} onClick={() => onDeck(d)} {...hint(d)}>
             {w(`screen.${d}`)}
           </button>
         ))}
@@ -2260,7 +2308,10 @@ function WebDock({
   const [tab, setTab] = useState<WebTab>(initialTab);
   const [draft, setDraft] = useState("");
   const [keyOpen, setKeyOpen] = useState(true);
+  /** The key's row that's lit: a relationship type, or the "Secret" row (SECRET); it lights its lines and fades the rest. */
   const [keyType, setKeyType] = useState<string | null>(initialKey);
+  /** The note groups folded under their headings, by their guests. */
+  const [folded, setFolded] = useState<Set<string>>(() => new Set());
   useEscape(() => setOpen(false), open);
   // Focusing the notes box can scroll the dock's clipped contents; down, the dock shows its bar again.
   const dock = useRef<HTMLElement>(null);
@@ -2272,35 +2323,73 @@ function WebDock({
   const selection = useContext(SelContext);
   const { picked, pick } = selection;
   const at = webLayout(info.roster, info.factions ?? []);
+  const nameAt = webNames(info.roster, info.factions ?? []);
   const arcs = factionArcs(info.roster, info.factions ?? []);
   useReadingRequest(me, v, picked, open, send);
   const types = info.relationshipTypes ?? [];
-  const connections = v.sheet?.connections ?? [];
-  const lit = (c: { between?: string[]; guests?: string[] }) => picked.length > 0 && picked.every((p) => (c.between ?? c.guests ?? []).includes(p));
-  const keyed = (t: string) => (keyType === null ? "" : t === keyType ? " key-on" : " key-off");
+  // Interface v0.16: one line per pair and type; the halo marks only the player's secret ties.
+  const lines = useMemo(() => webLines(v.sheet?.connections ?? []), [v.sheet]);
+  /** A line touches the selection when it joins a selected guest. With someone selected, every other line fades. */
+  const touches = (guests: string[]) => picked.some((p) => guests.includes(p));
+  const lit = (guests: string[]) => picked.length > 0 && picked.every((p) => guests.includes(p));
+  const selOff = (guests: string[]) => (picked.length > 0 && !touches(guests) ? " sel-off" : "");
+  const keyed = (l: { type: string; secret: boolean }) => (keyType === null ? "" : (keyType === SECRET ? l.secret : l.type === keyType) ? " key-on" : " key-off");
   const conclude = v.commands.find((c) => c.action === "conclude");
   const who = picked.length === 2 ? w("screen.web.between", { a: picked[0]!, b: picked[1]! }) : (picked[0] ?? "");
   const record = heardAndSaw(v, picked, me);
-  const sections = notesFor(v.notes, picked);
-  /** A note's guest or pair, by name: selects them, so the list narrows and the web highlights them (Interface v0.7). */
+  const groups = noteGroups(v.notes);
+  const groupKey = (g: string[]) => [...g].sort().join("|") || "free";
   const aboutLabel = (g: string[]) => (g.length === 2 ? w("screen.web.between", { a: g[0]!, b: g[1]! }) : (g[0] ?? w("screen.web.free")));
-  const About = ({ guests }: { guests: string[] }) =>
-    guests.length ? (
-      <button className="note-about" onClick={() => selection.set(guests)} {...hint("noteItem")}>
-        {aboutLabel(guests)}
-      </button>
-    ) : (
-      <span className="note-about">{aboutLabel(guests)}</span>
-    );
-  const NoteItem = ({ n, heading }: { n: Note; heading: string[] | null }) => (
-    <li className="note" key={n.id}>
-      {/* Under no heading of its own (one guest's list, holding their pairs' notes too), a note names its guest or pair. */}
-      {!sameGuests(n.guests, heading ?? picked) && <About guests={n.guests} />}
+  // The selected guest's or pair's group, lit, comes into view.
+  const notesBox = useRef<HTMLDivElement>(null);
+  const pickedKey = groupKey(picked);
+  useEffect(() => {
+    if (tab === "notes" && picked.length) notesBox.current?.querySelector(".note-group.lit")?.scrollIntoView({ block: "nearest" });
+  }, [pickedKey, tab]);
+  // The drawing's frame is fitted to what's drawn, so the web draws as large as its space allows, centred;
+  // then it moves aside just enough that nothing runs under the key at its top-left corner.
+  const map = useRef<HTMLDivElement>(null);
+  const svg = useRef<SVGSVGElement>(null);
+  const drawn = useRef<SVGGElement>(null);
+  const keyBox = useRef<HTMLDivElement>(null);
+  const [frame, setFrame] = useState<string | null>(null);
+  const [aside, setAside] = useState(0);
+  useLayoutEffect(() => {
+    const fit = () => {
+      const g = drawn.current;
+      const el = svg.current;
+      const m = map.current;
+      if (!g || !el || !m || typeof g.getBBox !== "function") return;
+      const b = g.getBBox();
+      if (!b.width || !b.height) return;
+      const pad = 2;
+      const next = [b.x - pad, b.y - pad, b.width + pad * 2, b.height + pad * 2].map((n) => Math.round(n * 10) / 10).join(" ");
+      if (next !== frame) return setFrame(next);
+      // Clear of the key: how far the drawing's guests, names, and faction names reach under it, up to the room on the right.
+      const k = keyBox.current?.getBoundingClientRect();
+      const boxes = [...el.querySelectorAll(".node circle, .node-name, .faction-label")].map((x) => x.getBoundingClientRect());
+      if (!k || !boxes.length) return setAside(0);
+      const gap = themeMs("--web-key-clear", 8);
+      const under = Math.max(0, ...boxes.filter((r) => r.top < k.bottom + gap).map((r) => k.right + gap - (r.left - aside)));
+      const room = Math.max(0, m.getBoundingClientRect().right - Math.max(...boxes.map((r) => r.right - aside)));
+      const move = Math.round(Math.min(under, room));
+      if (move !== aside) setAside(move);
+    };
+    fit();
+    if (typeof ResizeObserver === "undefined" || !map.current) return;
+    const watch = new ResizeObserver(fit);
+    watch.observe(map.current);
+    if (keyBox.current) watch.observe(keyBox.current);
+    return () => watch.disconnect();
+  }, [frame, aside, open, keyOpen, info.roster.length]);
+  /** One note: clicking it selects its guest or pair (Interface v0.16); a free note selects no one. */
+  const NoteItem = ({ n }: { n: Note }) => (
+    <li className="note" key={n.id} data-note={n.id} onClick={n.guests.length ? () => selection.set(n.guests) : undefined} {...(n.guests.length ? hint("noteItem") : {})}>
       <span className="note-text">{n.text}</span>
       {/* Only a note on a guest or a pair can be a conclusion; a free note has no button (Interface v0.3). And only
           when the player's errand can be finished by one (TD v0.51's flag in their state; Interface v0.13). */}
       {n.guests.length > 0 && v.state?.knowledgeErrand === true && (
-        <button className="secondary small conclude" disabled={!conclude || dead || boxClosed} onClick={() => onConclude(`${conclude!.name} ${n.text}`)} {...hint(boxClosed && !dead ? "concludeWaiting" : "conclude")}>
+        <button className="secondary small conclude" disabled={!conclude || dead || boxClosed} onClick={(e) => (e.stopPropagation(), onConclude(`${conclude!.name} ${n.text}`))} {...hint(boxClosed && !dead ? "concludeWaiting" : "conclude")}>
           {w("screen.web.conclude")}
         </button>
       )}
@@ -2334,64 +2423,67 @@ function WebDock({
         </button>
         <div className="web" inert={!open}>
           <div className="web-body">
-            <div className="web-map">
-              <svg className="web-diagram" viewBox="-34 -8 168 116" role="group" aria-label={w("screen.web.title")}>
-                {/* Interface v0.5: an arc in each faction's colour around its part of the ring. */}
-                <g className="faction-arcs">
-                  {arcs.map((f) => (
-                    <path key={f.faction} className="faction-arc" d={f.d} style={{ stroke: f.colour }} />
-                  ))}
-                </g>
-                {connections.map((c, i) => {
-                  const [a, b] = c.between.map((n) => at.get(n));
-                  if (!a || !b) return null;
-                  return (
-                    <g key={`c${i}`} data-type={c.type}>
-                      {/* The player's own connections, from their briefing: marked as theirs under the type's line. */}
-                      {c.private && <path className={`edge-under${keyed(c.type)}`} d={curve(a, b)} />}
-                      <path className={`edge rel-${c.type}${c.private ? " yours" : ""}${lit(c) ? " on" : ""}${keyed(c.type)}`} d={curve(a, b)} />
-                    </g>
-                  );
-                })}
-                {v.notes
-                  .filter((n) => n.guests.length === 2)
-                  .map((n) => {
-                    const [a, b] = n.guests.map((g) => at.get(g));
-                    return a && b ? <path key={n.id} className={`edge note-line${lit(n) ? " on" : ""}${keyType ? " key-off" : ""}`} d={curve(a, b)} /> : null;
+            <div className="web-map" ref={map}>
+              <svg ref={svg} className="web-diagram" viewBox={frame ?? "-34 -8 168 116"} role="group" aria-label={w("screen.web.title")} style={aside ? { left: aside } : undefined}>
+                <g ref={drawn}>
+                  {/* Interface v0.5: an arc in each faction's colour around its part of the ring. */}
+                  <g className="faction-arcs">
+                    {arcs.map((f) => (
+                      <path key={f.faction} className="faction-arc" d={f.d} style={{ stroke: f.colour }} />
+                    ))}
+                  </g>
+                  {lines.map((c, i) => {
+                    const [a, b] = c.between.map((n) => at.get(n));
+                    if (!a || !b) return null;
+                    return (
+                      <g key={`c${i}`} className="tie" data-type={c.type} data-between={[...c.between].sort().join("|")} data-secret={c.secret || undefined}>
+                        {/* The halo marks a secret: one of the player's own ties that no public tie matches, under the type's line. */}
+                        {c.secret && <path className={`edge-under${keyed(c)}${selOff(c.between)}`} d={curve(a, b)} />}
+                        <path className={`edge rel-${c.type}${c.secret ? " yours" : ""}${lit(c.between) ? " on" : ""}${keyed(c)}${selOff(c.between)}`} d={curve(a, b)} />
+                      </g>
+                    );
                   })}
-                {info.roster.map((r) => {
-                  const p = at.get(r.name)!;
-                  return (
-                    <g key={r.name} data-guest={r.name} className={`node${picked.includes(r.name) ? " picked" : ""}${r.name === me ? " me" : ""}`} transform={`translate(${p.x} ${p.y})`} onClick={() => pick(r.name)} role="button" aria-pressed={picked.includes(r.name)} {...hint("webNode", { focusable: true })}>
-                      <circle r={4.2} style={{ fill: r.colour }} />
-                      <text className="node-initials" dy={1.2}>
-                        {r.initials}
-                      </text>
-                    </g>
-                  );
-                })}
-                {/* The names last, so no line or circle crosses them, each on a halo of the panel's colour. */}
-                <g className="labels">
+                  {v.notes
+                    .filter((n) => n.guests.length === 2)
+                    .map((n) => {
+                      const [a, b] = n.guests.map((g) => at.get(g));
+                      return a && b ? <path key={n.id} className={`edge note-line${lit(n.guests) ? " on" : ""}${keyType ? " key-off" : ""}${selOff(n.guests)}`} d={curve(a, b)} /> : null;
+                    })}
                   {info.roster.map((r) => {
                     const p = at.get(r.name)!;
                     return (
-                      <text key={r.name} className={`node-name${r.name === me ? " me" : ""}`} x={p.x} y={p.y} dy={7.6}>
-                        {r.name}
-                      </text>
+                      <g key={r.name} data-guest={r.name} className={`node${picked.includes(r.name) ? " picked" : ""}${r.name === me ? " me" : ""}`} transform={`translate(${p.x} ${p.y})`} onClick={() => pick(r.name)} role="button" aria-pressed={picked.includes(r.name)} {...hint("webNode", { focusable: true })}>
+                        <circle r={NODE_RADIUS} style={{ fill: r.colour }} />
+                        <text className="node-initials" dy={1.2}>
+                          {r.initials}
+                        </text>
+                      </g>
                     );
                   })}
-                </g>
-                {/* Each faction's name in its colour, at its arc's corner: apart from the key, which is about lines. */}
-                <g className="factions">
-                  {arcs.map((f) => (
-                    <text key={f.faction} className="faction-label" x={f.x} y={f.y} textAnchor={f.anchor} style={{ fill: f.colour }} {...hint("faction", { focusable: true })}>
-                      {f.faction}
-                    </text>
-                  ))}
+                  {/* The names last, so no line or circle crosses them, each on a halo of the panel's colour: under
+                      their circles, moved outward where two neighbours crowd (Interface v0.16). */}
+                  <g className="labels">
+                    {info.roster.map((r) => {
+                      const p = nameAt.get(r.name)!;
+                      return (
+                        <text key={r.name} className={`node-name${r.name === me ? " me" : ""}`} x={p.x} y={p.y}>
+                          {r.name}
+                        </text>
+                      );
+                    })}
+                  </g>
+                  {/* Each faction's name in its colour, outside the middle of its arc: apart from the key, which is about lines. */}
+                  <g className="factions">
+                    {arcs.map((f) => (
+                      <text key={f.faction} className="faction-label" x={f.x} y={f.y} textAnchor={f.anchor} style={{ fill: f.colour }} {...hint("faction", { focusable: true })}>
+                        {f.faction}
+                      </text>
+                    ))}
+                  </g>
                 </g>
               </svg>
               {types.length > 0 && (
-                <div className={`web-key${keyOpen ? " open" : ""}`}>
+                <div ref={keyBox} className={`web-key${keyOpen ? " open" : ""}`}>
                   <button className="key-head" aria-expanded={keyOpen} onClick={() => setKeyOpen(!keyOpen)} {...hint("key")}>
                     {w("screen.web.key")}
                     <span className="muted">{w(keyOpen ? "screen.web.keyHide" : "screen.web.keyShow")}</span>
@@ -2408,6 +2500,19 @@ function WebDock({
                           </button>
                         </li>
                       ))}
+                      {/* Interface v0.16: the "Secret" row, with its halo swatch and a short line under it; selectable like the rest. */}
+                      <li>
+                        <button className={`key-type key-secret${keyType === SECRET ? " on" : ""}`} aria-pressed={keyType === SECRET} data-type={SECRET} onClick={() => setKeyType(keyType === SECRET ? null : SECRET)} {...hint("keyType")}>
+                          <svg className="swatch" viewBox="0 0 12 4" aria-hidden="true">
+                            <line className="edge-under" x1={0.8} y1={2} x2={11.2} y2={2} />
+                            <line className="edge" x1={0.5} y1={2} x2={11.5} y2={2} />
+                          </svg>
+                          <span className="key-secret-words">
+                            <span>{w("screen.web.keyYours")}</span>
+                            <span className="key-covers">{w("screen.web.keyYoursCovers")}</span>
+                          </span>
+                        </button>
+                      </li>
                     </ul>
                   )}
                 </div>
@@ -2441,13 +2546,14 @@ function WebDock({
                           ))}
                         </ul>
                       ) : (
-                        <p className="muted">{w("screen.web.nothing")}</p>
+                        // Interface v0.16: an empty pair says why.
+                        <p className="muted record-none">{picked.length === 2 ? w("screen.web.nothingBetween", { a: picked[0]!, b: picked[1]! }) : w("screen.web.nothing")}</p>
                       )}
                     </div>
                   </RecordPane>
                 ))}
               {tab === "notes" && (
-                <div className="notes">
+                <div className="notes" ref={notesBox}>
                   <div className="label">{picked.length ? w("screen.web.writeOn", { who }) : w("screen.web.writeFree")}</div>
                   <textarea value={draft} placeholder={w("screen.web.placeholder")} onChange={(e) => setDraft(e.target.value)} {...hint("noteText")} />
                   <button
@@ -2461,22 +2567,45 @@ function WebDock({
                   >
                     {w("screen.web.save")}
                   </button>
-                  {/* Interface v0.7: one list, newest first, filtered by the selection; no separate list of all notes. */}
-                  {sections.length === 0 && <p className="muted">{w("screen.web.none")}</p>}
-                  {sections.map((sec) => (
-                    <div key={sec.about ? sec.about.join("|") || "free" : "on"} className="note-group">
-                      {sec.about && (
+                  {/* Interface v0.16: every note, always, grouped: each guest, then each pair, then free notes. A group
+                      folds under its heading; its heading, or one of its notes, selects that guest or pair; the
+                      selected one's group is lit and brought into view. */}
+                  {groups.length === 0 && <p className="muted">{w("screen.web.none")}</p>}
+                  {groups.map((g) => {
+                    const key = groupKey(g.about);
+                    const shut = folded.has(key);
+                    const on = g.about.length > 0 && sameGuests(g.about, picked);
+                    const toggle = () => {
+                      const next = new Set(folded);
+                      if (shut) next.delete(key);
+                      else next.add(key);
+                      setFolded(next);
+                    };
+                    return (
+                      <div key={key} className={`note-group${on ? " lit" : ""}${shut ? " folded" : ""}`} data-group={key}>
                         <div className="label note-heading">
-                          <About guests={sec.about} />
+                          <button className="icon note-fold" aria-expanded={!shut} aria-label={w(shut ? "screen.web.unfold" : "screen.web.fold")} title={w(shut ? "screen.web.unfold" : "screen.web.fold")} onClick={toggle}>
+                            {w(shut ? "screen.web.open" : "screen.web.shut")}
+                          </button>
+                          {g.about.length ? (
+                            <button className="note-about" onClick={() => selection.set(g.about)} {...hint("noteItem")}>
+                              {aboutLabel(g.about)}
+                            </button>
+                          ) : (
+                            <span className="note-about">{aboutLabel(g.about)}</span>
+                          )}
+                          {shut && <span className="note-count">{g.notes.length}</span>}
                         </div>
-                      )}
-                      <ul className="note-list">
-                        {sec.notes.map((n) => (
-                          <NoteItem n={n} heading={sec.about} key={n.id} />
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
+                        {!shut && (
+                          <ul className="note-list">
+                            {g.notes.map((n) => (
+                              <NoteItem n={n} key={n.id} />
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -2486,6 +2615,9 @@ function WebDock({
     </>
   );
 }
+
+/** The key's "Secret" row (Interface v0.16), beside the relationship types: not a type's name, so it can't be mistaken for one. */
+const SECRET = "*secret";
 
 /**
  * Il Notaio's reading (TD v0.44): asked for once the Web of Secrets is open with a guest or two selected

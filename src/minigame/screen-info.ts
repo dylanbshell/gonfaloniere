@@ -71,6 +71,8 @@ export function screenInfo(cards: CharacterName[], briefings: Partial<Record<Cha
     // Portraits and name tooltips: the public subtitle and faction, never anything the replay viewer shows.
     roster: pack.roster.map((r) => ({ name: r.name, faction: r.faction, subtitle: r.subtitle, initials: initials(r.name), colour: pack.factions[factionIndex(r.faction)]?.colour ?? `var(--faction-${factionIndex(r.faction)})` })),
     playable: cards.map((name) => ({ name, intro: firstParagraph(briefings[name] ?? "") })),
+    // Interface v0.16, The Opening: the setting's playable characters not in this game, shown greyed out ("In the full game").
+    fullGameOnly: pack.playable.filter((name) => !(cards as string[]).includes(name)).map((name) => ({ name })),
     // Interface v0.7: the glossary's entries, amounts filled from the game's tuning values.
     glossary: glossary(terms?.entries ?? [], opts.tunables ?? {}, pack.currency.plural, opts.minigame ?? true),
   };
