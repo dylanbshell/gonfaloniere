@@ -8,7 +8,7 @@
 
 *Takes Technical Design's part of "The player's own rules text" ([🖥️ Interface & Experience](https://claude.ai/chat/ccceb086-875f-4c5a-bf5a-3b9f7ea1e3e7) v0.17, The Player's Words).*
 
-- **The screen gets the game's values with the player's sheet** (Player Interface, The screen): `sheet.values` holds `start`, `income`, `payroll`, `vote`, and the currency's words, taken from the same tunables that fill block 2. The rules modal fills `player.json` › `rules` with them, so the player's text and the AI guests' primer can't disagree. They're public, so the isolation test allows them. Prompts unchanged
+- **The screen gets the game's values with the player's sheet** (Player Interface, The screen): `sheet.values` holds the money (`start`, `income`, `payroll`, `vote`, `treasury`), the turn numbers ⚙️ Mechanics asked for in its check of the text (lines per turn, turns per round of mingling, per council and the final council, candidate selection, the open floor, and the secret conversation's cap), and the currency's words, all from the run's own settings, the same ones that fill block 2 and drive the schedule. The rules modal fills `player.json` › `rules` with them, so the player's text and the AI guests' primer can't disagree. They're public, so the isolation test allows them. Prompts unchanged
 
 ## Changes in v0.51
 
@@ -2406,7 +2406,8 @@ Commands are actions, not speech, so they don't use the turn's message (Mechanic
 - **Lore links** match on a line's words only, for anyone's line, and only public entries (`kind: lore`). Never on which entries were in a speaker's prompt: that would link entries a line didn't use, and hint at what the model was given
 - **The decks:** the briefing (block 3), the player's own rules text (below; before Interface v0.17, the rules primer, block 2), and the public lore entries (`kind: lore` only; relationship entries are for the AI guests)
 - **The game's values for the player's rules text** *(v0.52; Interface v0.17, The Player's Words)*: the sheet (sent once, with the first `state`) carries `values`:
-  - `start`, `income`, `payroll`, `vote`: Starting Florins, Income, Payroll payment, and Vote price, **from the same tunables the engine already reads from Mechanics** and fills block 2 with, as the game record's header stores them. So a run with changed values shows the player the same numbers the AI guests read
+  - **Money:** `start`, `income`, `payroll`, `vote`, `treasury` (Starting Florins, Per-round income, Payroll payment, Vote price, Embassy treasury), **from the same tunables the engine already reads from Mechanics** and fills block 2 with, as the game record's header stores them. So a run with changed values shows the player the same numbers the AI guests read
+  - **Turns** (Mechanics v0.37, Phase Lengths; asked for in ⚙️ 1's check of the text): `linesPerTurn`, `minglingTurns`, `councilTurns`, `finalCouncilTurns`, `selectionTurns`, `openFloorTurns`, and `colloquioCap`, **from the schedule this run actually plays**. The mini-game sends its own, shorter schedule's numbers, so a line like "one chance each round" is only written when the numbers make it true (Interface's to word). A phase the run doesn't have (the mini-game has no councils or ballot) is `null`
   - `currency`: the setting pack's currency words, singular and plural
   - Whether the errand section ends with the Plot Reward is the `plot_reward` flag already in `state` (v0.47)
   - The screen fills `player.json` › `rules` with these and nothing else. A placeholder with no value is an error the screen's tests catch, not a blank. The mini-game sends its own run's values, like the full game
