@@ -76,7 +76,32 @@
   --border-width: 1px;
 
   /* Layout */
-  --side-width: 260px;
+  /* Interface v0.17, Screen Sizes: the left panel grows and shrinks with the window, about a quarter of it, from 284 to 332px */
+  --side-width: clamp(284px, 25vw, 332px);
+  /* The conversation's column is never narrower than this (so the stage bar fits), short of pushing the page sideways;
+     its reading column (the lines, Il Notaio's boxes, the message box) is at most this wide, centred */
+  --centre-least: 540px;
+  --centre-min: min(var(--centre-least), calc(100vw - var(--side-width) - var(--right-min)));
+  --centre-min-folded: min(var(--centre-least), calc(100vw - var(--side-width) - var(--right-strip-width)));
+  --reading-width: 820px;
+  /* The conversation keeps at least this height: Il Notaio's hint folds itself first */
+  --stream-min-height: 200px;
+  /* The message box grows with what's typed, up to nine lines; in a short window, to about a fifth of the window's height, three lines at least */
+  --input-lines-max: 9;
+  --input-lines-min: 3;
+  --input-short-share: 0.2;
+  /* Where things fold themselves (the screen reads these; a player's own fold or open takes over). The right panel starts
+     folded in a window narrower than the left panel, the conversation's least width, and its own least (284 + 540 + 220);
+     the web's key folds when the drawing's space is narrower than it is in a 1200-pixel window; the web's side column
+     folds to a strip when the web is narrower than 840px; under 760px wide, a note stands in for the screen */
+  --break-right-fold: 1044px;
+  --break-web-key: 864px;
+  --break-web-side: 840px;
+  --break-phone: 760px;
+  /* The phone note's page */
+  --narrow-width: 420px;
+  /* On a touchscreen, a press this long shows an explanation without pressing the thing */
+  --long-press: 500ms;
   --portrait-size: 44px;
   --portrait-size-lg: 64px;
   /* Interface v0.17: the player's own portrait at the top of the left panel, a size up */
@@ -91,10 +116,20 @@
   --tip-width: 280px;
   --web-height: 90vh;
   --web-bar-height: 44px;
-  /* Interface v0.16: the web's side column grows and shrinks with the window, about 28% of its width */
-  --web-side-width: 28vw;
-  /* The key, scaling with the window: about 0.8 to 1.45 times its size at a 1440-pixel window, its own sizes in ems */
-  --key-text: clamp(10.4px, 0.903vw, 18.85px);
+  /* Interface v0.16; v0.17: the web's side column grows and shrinks with the web, about 28% of its width, from 280 to 480px;
+     folded, it's a strip with a handle, and opens over the web at its least width */
+  --web-side-width: clamp(280px, 28cqw, 480px);
+  --web-side-min: 280px;
+  --web-strip-width: 32px;
+  --shadow-side: -8px 0 24px rgba(20, 20, 18, 0.22);
+  /* The drawing stands clear of the screen's left edge (56 to 120px) and of the side column (32 to 80px), and never draws
+     larger than 820px across */
+  --web-margin-left: clamp(56px, 5cqw, 120px);
+  --web-margin-side: clamp(32px, 3.5cqw, 80px);
+  --web-draw-max: 820px;
+  /* The key, scaling with the window: it shrinks a little in a small one (to 0.8 times), and grows no larger than its
+     size at a 1440-pixel window; its own sizes in ems */
+  --key-text: clamp(0.65rem, 0.903vw, 0.8125rem);
   --key-head-text: 0.85em;
   --key-width: 15em;
   --key-pad: 0.6em;
@@ -207,6 +242,8 @@
   --stage-stroke: 2px;
   --stage-stroke-min: 6px;
   --stage-bar-inset: clamp(0px, calc((100vw - 1100px) * 0.08), 40px);
+  /* Interface v0.17: the bar stretches with the window up to this, centred in its card */
+  --stage-bar-max: 900px;
   --stage-tip-width: 260px;
   --stage-tip-delay: 350ms;
   --stage-bar-height: 30px;
@@ -218,9 +255,11 @@
   --do-lit-ring: 3px;
   --do-lit-glow: 12px;
   /* The right panel: its width (dragged, within these), the peeking header, tokens, and the speaking dot */
-  --right-width: 280px;
+  /* Interface v0.17: it grows and shrinks with the window, from 280 to 480px, giving way to the conversation's least width
+     down to its own least; a drag sets it within these */
+  --right-width: clamp(280px, 24vw, 480px);
   --right-min: 220px;
-  --right-max: 520px;
+  --right-max: 480px;
   --resize-width: 6px;
   /* Hidden (Interface v0.5): a thin strip with a handle */
   --right-strip-width: 36px;
@@ -370,6 +409,7 @@
     --end-hover: #d9483e;
     --shadow-dock: 0 -10px 34px rgba(0, 0, 0, 0.7);
     --shadow-dock-open: 0 -20px 64px rgba(0, 0, 0, 0.85);
+    --shadow-side: -10px 0 30px rgba(0, 0, 0, 0.6);
     --shadow-float-down: 0 8px 22px rgba(0, 0, 0, 0.55);
     --shadow-up: 0 -8px 22px rgba(0, 0, 0, 0.5);
     --notaio: #9fc4ae;

@@ -21,7 +21,7 @@ import { settingPack } from "../src/setting/pack.ts";
 import { GameView, Opening, phrases } from "../web/src/App.tsx";
 import type { Ev } from "../web/src/connection.ts";
 import { canDo, canSpeak, openMenu, trigger, withMention } from "../web/src/input.ts";
-import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityCards, cityList, curve, derive, factionArcs, placeholderExample, preview, selectBack, selectInChat, selectInWeb, selectLore, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, lineStages, loreParts, readingFor, roomOf, summaryFor, rulesCards, playerRules, titleCase, titleRule, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, glossaryList, lineParts, midnightLine, noteGroups, webLines, webNames, NODE_RADIUS, rulesSectionFor, type Card, type LoreEntry, type View, factLink, rulesLink, errandTask, errandCardAt, commandMenu, commandWhy, payrollSize, refusalWhy, refusedCommand, playerBriefing } from "../web/src/model.ts";
+import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityCards, cityList, curve, derive, factionArcs, placeholderExample, preview, selectBack, selectInChat, selectInWeb, selectLore, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, lineStages, loreParts, readingFor, roomOf, summaryFor, rulesCards, playerRules, titleCase, titleRule, wrapName, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, glossaryList, lineParts, midnightLine, noteGroups, webLines, webNames, NODE_RADIUS, rulesSectionFor, type Card, type LoreEntry, type View, factLink, rulesLink, errandTask, errandCardAt, commandMenu, commandWhy, payrollSize, refusalWhy, refusedCommand, playerBriefing } from "../web/src/model.ts";
 import { notaioHint, packValue, setInfo, tc, w, type StartInfo } from "../web/src/words.ts";
 import { fakeCaller, fakeDocs, fakeSettings } from "./fixtures/fake-game.ts";
 
@@ -236,7 +236,8 @@ test("hover explanations: every control and panel has one, in player.json's word
     for (const m of h.matchAll(/data-hint="(\w+)"/g)) hints.add(m[1]!);
     // Every button and textarea explains itself (the menus' items and the earlier lines say what they are already).
     const controls = [...h.matchAll(/<(button|textarea|select)\b[^>]*>/g)].map((m) => m[0]);
-    const bare = controls.filter((c) => !c.includes("data-hint") && !/earlier-line/.test(c) && !c.startsWith("<select"));
+    // (The message box's hidden twin, which only measures the placeholder, isn't a control.)
+    const bare = controls.filter((c) => !c.includes("data-hint") && !/earlier-line/.test(c) && !c.startsWith("<select") && !c.includes('aria-hidden="true"'));
     assert.deepEqual(bare, [], "controls without an explanation");
   }
   hints.add("play");
@@ -248,8 +249,14 @@ test("hover explanations: every control and panel has one, in player.json's word
 test("one theme file: the components' CSS uses only theme.css's tokens, and every token it uses is defined", () => {
   const theme = readFileSync("web/theme.css", "utf8");
   const defined = new Set([...theme.matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]!));
+  // Interface v0.17, Notes for the Build: a layout answers to its own space by a container query, whose condition can't
+  // read a token. So each width a condition names must be a `--break-*` token's value in theme.css, and only those may be written there.
+  const breaks = new Set([...theme.matchAll(/--break-[\w-]+:\s*(\d+px);/g)].map((m) => m[1]!));
+  assert.ok(breaks.size >= 4, "the theme's breakpoints");
   for (const f of files("web/src", /\.css$/)) {
-    const css = noComments(readFileSync(f, "utf8"));
+    const whole = noComments(readFileSync(f, "utf8"));
+    for (const m of whole.matchAll(/@(container|media)([^{]*)\{/g)) for (const px of m[2]!.match(/\b\d*\.?\d+(px|em|rem|vh|vw)\b/g) ?? []) assert.ok(m[1] === "container" && breaks.has(px), `${f}: @${m[1]}${m[2]}: ${px} isn't one of theme.css's --break-* widths`);
+    const css = whole.replace(/@container[^{]*\{/g, "@container {");
     const literal = css.replace(/var\(--[\w-]+\)/g, "").match(/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(|\b\d*\.?\d+(px|em|rem|vh|vw|pt)\b|font-family:\s*(?!var\()[^;\s]/g);
     assert.deepEqual(literal, null, `${f}: literal values belong in theme.css`);
     const used = [...css.matchAll(/var\((--[\w-]+)\)/g)].map((m) => m[1]!);
@@ -1178,9 +1185,17 @@ test("the web's ring: factions together, a fixed ring read like a clock, an arc 
   assert.equal(order0.length, 12);
   order0.forEach((n, i) => assert.ok(Math.abs(clock(seats.get(n)!) - ((9.5 + i) % 12)) < 1e-6, `${n} at ${(9.5 + i) % 12} o'clock`));
   assert.equal(order0[0], info.roster[0]!.name, "by roster order");
-  // Each faction's name sits outside the middle of its arc, except the first faction's, half an hour later (11:00) to clear the key.
-  assert.deepEqual(arcs.map((a) => Math.round(clock(a) * 100) / 100), [11, 1.5, 4.5, 7.5]);
+  // Interface v0.17: each faction's name sits outside its arc at a set hour, by roster order: 11:00, 1:00, 5:00, 7:00.
+  assert.deepEqual(arcs.map((a) => Math.round(clock(a) * 100) / 100), [11, 1, 5, 7]);
   assert.deepEqual(arcs.map((a) => a.anchor), ["end", "start", "start", "end"]);
+  // A long name (two words or more, over a dozen letters) wraps onto two lines; the rest stay on one.
+  assert.deepEqual(arcs.map((a) => a.lines), [["Medici"], ["Pazzi"], ["Dominicans"], ["French", "Embassy"]]);
+  assert.deepEqual([wrapName("The House of the Friars"), wrapName("Extraordinarily"), wrapName("Two Words")], [["The House of", "the Friars"], ["Extraordinarily"], ["Two Words"]]);
+  // With any other number of factions the rule doesn't apply: each name sits outside the middle of its arc.
+  const three = factionArcs(info.roster.filter((r) => r.faction !== info.factions[3]), info.factions);
+  assert.equal(three.length, 3);
+  assert.ok(three.every((a) => Math.hypot(a.x - 50, a.y - 50) > 48));
+  assert.notDeepEqual(three.map((a) => Math.round(clock(a) * 100) / 100), [11, 1, 5]);
   // Names sit under their circles; where two guests sit side by side at the top or bottom of the ring, each name
   // moves outward, as far as it can without reaching the next guest's circle.
   const names = webNames(info.roster, info.factions);
@@ -1221,6 +1236,8 @@ test("the web's ring: factions together, a fixed ring read like a clock, an arc 
   // Each faction's name, once, anchored to read away from its arc.
   assert.equal((h.match(/class="faction-label"/g) ?? []).length, factions.length);
   assert.match(h, /text-anchor="(start|end|middle)"/);
+  assert.match(h, /<text class="faction-label" data-faction="French Embassy"[^>]*><tspan x="[\d.-]+" dy="0">French<\/tspan><tspan x="[\d.-]+" dy="3\.2">Embassy<\/tspan><\/text>/, "the long name on two lines");
+  assert.match(readFileSync("web/src/app.css", "utf8"), /\.faction-label:focus, \.faction-label:focus-visible \{ outline: none; \}\n\.faction-label:focus-visible \{ text-decoration: underline; \}/, "no focus box on a click; underlined by keyboard");
 });
 
 test("Il Notaio's box in the What you heard and saw column: over the dialogue, expanded; nothing selected, one line and no reading", async () => {
@@ -1263,7 +1280,7 @@ test("the right panel hides to a strip with a handle; the handle shows the selec
   assert.doesNotMatch(game({ v, rightHidden: true }), /right-handle-guest/, "no one selected: no portrait");
   assert.deepEqual(missingWords(hidden), []);
   const css = readFileSync("web/src/app.css", "utf8");
-  assert.match(css, /\.layout\.right-hidden \{ grid-template-columns: var\(--side-width\) 1fr var\(--right-strip-width\); \}/);
+  assert.match(css, /\.layout\.right-hidden \{ grid-template-columns: var\(--side-width\) minmax\(var\(--centre-min-folded\), 1fr\) var\(--right-strip-width\); \}/);
 });
 
 test("the placeholder carries the example: an @ and a /, rotated, using only the commands allowed now", async () => {
@@ -1903,8 +1920,9 @@ test("the Web of Confidences' looks and the opening's choice (Interface v0.16): 
   const z = (k: string) => Number(theme.match(new RegExp(`${k}: (\\d+)`))![1]);
   assert.ok(z("--z-dock") > z("--z-float") && z("--z-dock") > z("--z-menu"), "over the floating cards");
   // The side column is about 28% of the window; the key scales from 0.8 to 1.45 times its size at 1440 pixels.
-  assert.match(theme, /--web-side-width: 28vw/);
-  assert.match(theme, /--key-text: clamp\(10\.4px, 0\.903vw, 18\.85px\)/);
+  // Interface v0.17: the side column from 280 to 480px, about 28% of the web's own width; the key no larger than at a 1440-pixel window.
+  assert.match(theme, /--web-side-width: clamp\(280px, 28cqw, 480px\)/);
+  assert.match(theme, /--key-text: clamp\(0\.65rem, 0\.903vw, 0\.8125rem\)/);
   assert.match(css, /\.web-key \{[^}]*position: absolute[^}]*font-size: var\(--key-text\)/, "over the drawing's top-left corner, scaling as one");
   // The selected ring, twice the plain line's width; a thin dashed ring for keyboard focus, no focus box.
   const num = (k: string) => Number(theme.match(new RegExp(`${k}: ([\\d.]+)`))![1]);
@@ -2145,4 +2163,62 @@ test("Il Notaio's boxes say Show or Hide (Interface v0.17): his hint, his readin
   assert.match(readFileSync("web/src/App.tsx", "utf8"), /<span className="notaio-toggle">\{w\(expanded \? "screen\.notaioHint\.hide" : "screen\.notaioHint\.show"\)\}<\/span>/g);
   // A copied line keeps the spaces between the speaker's name, "(to …)", and the words.
   assert.match(h, /<span class="sp">.*?<\/span> (?:<!-- -->)?<span class="(?:to|tx)">/);
+});
+
+// ---- CC-20261116-09 (#179, part 3): Interface v0.17's Screen Sizes ------------------------------------------
+
+test("Screen Sizes (Interface v0.17): every limit is a theme token; the reading column, the stage bar, and the web's margins use them; the web answers to its own width; the handle, the note, and the long press have their words and tokens", async () => {
+  const theme = readFileSync("web/theme.css", "utf8");
+  const css = readFileSync("web/src/app.css", "utf8");
+  // The doc's table, as tokens.
+  for (const [token, value] of [
+    ["--side-width", "clamp(284px, 25vw, 332px)"],
+    ["--right-width", "clamp(280px, 24vw, 480px)"],
+    ["--right-min", "220px"],
+    ["--right-max", "480px"],
+    ["--centre-least", "540px"],
+    ["--reading-width", "820px"],
+    ["--stage-bar-max", "900px"],
+    ["--stream-min-height", "200px"],
+    ["--input-lines-max", "9"],
+    ["--input-lines-min", "3"],
+    ["--input-short-share", "0.2"],
+    ["--web-draw-max", "820px"],
+    ["--web-margin-left", "clamp(56px, 5cqw, 120px)"],
+    ["--web-margin-side", "clamp(32px, 3.5cqw, 80px)"],
+    ["--web-side-width", "clamp(280px, 28cqw, 480px)"],
+    ["--break-right-fold", "1044px"],
+    ["--break-web-key", "864px"],
+    ["--break-web-side", "840px"],
+    ["--break-phone", "760px"],
+    ["--long-press", "500ms"],
+  ] as const)
+    assert.ok(theme.includes(`${token}: ${value};`), `${token}: ${value}`);
+  // The right panel starts folded under the left panel's least, the conversation's least, and its own least together.
+  assert.equal(284 + 540 + 220, 1044);
+  // One reading column: the lines, Il Notaio's hint, the message box, and his summary of a past stage share its edges.
+  const column = "max\\(var\\(--float-gap\\), calc\\(\\(100% - var\\(--reading-width\\)\\) \\/ 2\\)\\)";
+  assert.match(css, new RegExp(`\\.stream \\{[^}]*padding: var\\(--stream-fade\\) ${column};`));
+  assert.match(css, new RegExp(`\\n\\.input \\{[^}]*margin: 0 ${column} var\\(--float-gap\\);`));
+  assert.match(css, new RegExp(`\\.notaio-hint \\{[^}]*margin: 0 ${column} var\\(--space-2\\);`));
+  assert.match(css, new RegExp(`\\.reading\\.past-summary \\{[^}]*left: ${column}; right: ${column};`), "his summary, as wide as the message box below it");
+  assert.match(css, /\.stage-bar-wrap \{[^}]*max-width: var\(--stage-bar-max\); margin: 0 auto; \}/);
+  assert.match(css, /\.layout \{[^}]*grid-template-columns: var\(--side-width\) minmax\(var\(--centre-min\), 1fr\) minmax\(var\(--right-min\), var\(--right-width\)\);/);
+  // The web's own width decides what's inside it (a container query), not the window's.
+  assert.match(css, /\.web \{[^}]*container-type: inline-size; container-name: web; \}/);
+  assert.match(css, /@container web \(max-width: 840px\) \{\s*\.web-body \{ grid-template-columns: 1fr var\(--web-strip-width\); \}/);
+  assert.doesNotMatch(noComments(css), /@media[^{]*(min|max)-(width|height)/, "no window media query in the components' styles");
+  assert.match(css, /\.web-map \{[^}]*padding: 0 var\(--web-margin-side\) 0 var\(--web-margin-left\); \}/);
+  assert.match(css, /\.web-diagram \{[^}]*max-width: var\(--web-draw-max\)/);
+  // On the screen: the side column's handle with its words and explanation; the message box's hidden twin; his hint folding by itself.
+  const { at } = await playedLog();
+  const v = derive(at["speak:capannello"]!);
+  const h = game({ v, web: [] });
+  assert.match(h, /<button class="web-side-handle" aria-expanded="false" aria-label="Show what you heard and saw, and your notes" aria-description="What you heard and saw, and your notes\. Click to open or close\." data-hint="webSide">What You Heard and Saw · Notes<\/button><div class="web-side">/);
+  assert.match(h, /<textarea class="measure" readOnly="" tabindex="-1" aria-hidden="true">[^<]+<\/textarea>/);
+  assert.match(h, /<aside class="notaio-hint" data-fold="auto">/);
+  assert.deepEqual(missingWords(h), []);
+  // The screen's code reads the limits from the theme, and names no width of its own.
+  const code = noComments(readFileSync("web/src/App.tsx", "utf8"));
+  for (const t of ["--break-phone", "--break-right-fold", "--break-web-key", "--stream-min-height", "--input-lines-max", "--input-short-share", "--long-press"]) assert.ok(code.includes(`themeMs("${t}"`), t);
 });

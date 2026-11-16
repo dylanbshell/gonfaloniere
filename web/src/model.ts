@@ -901,19 +901,36 @@ export function webLayout(roster: { name: string; faction: string }[], factions:
   return at;
 }
 
+/** The hours a faction's name sits at when the ring holds four factions (Interface v0.17): the first at 11:00, then 1:00, 5:00, and 7:00. */
+const FACTION_HOURS = [11, 1, 5, 7];
+const atHour = (h: number) => (h / 12) * 2 * Math.PI - Math.PI / 2;
+/** A faction's name on two lines is this far apart, in the diagram's units; a name wraps when it has two words or more and over a dozen letters. */
+export const FACTION_LINE = 3.2;
+const WRAP_LETTERS = 12;
+/** A long name on two lines, split at the space nearest its middle; a short or one-word name on one. */
+export function wrapName(name: string): string[] {
+  const words = name.trim().split(/\s+/);
+  if (words.length < 2 || name.replace(/\s/g, "").length <= WRAP_LETTERS) return [name];
+  let best = 1;
+  for (let i = 1; i < words.length; i++) if (Math.abs(words.slice(0, i).join(" ").length - name.length / 2) < Math.abs(words.slice(0, best).join(" ").length - name.length / 2)) best = i;
+  return [words.slice(0, best).join(" "), words.slice(best).join(" ")];
+}
+
 /**
- * Each faction's arc (Interface v0.5; v0.16): a stroke in the faction's colour around its part of the ring,
- * outside its guests and their names, with the faction's name outside the middle of its arc, except the first
- * faction's, which sits half an hour later round the clock to clear the key. The rule is by roster order,
- * not names. `d` is the arc's SVG path; `anchor` is the name's text-anchor, so it reads away from the ring.
- * Factions with no guest on the web are left out.
+ * Each faction's arc (Interface v0.5; v0.16; v0.17): a stroke in the faction's colour around its part of the
+ * ring, outside its guests and their names, with the faction's name outside its arc at a set hour: with four
+ * factions, the first at 11:00, the second at 1:00, the third at 5:00, the fourth at 7:00. The rule is by roster
+ * order, not names; with any other number of factions, each name sits outside the middle of its arc. A long
+ * name wraps onto two lines (`lines`). `d` is the arc's SVG path; `anchor` is the name's text-anchor, so it
+ * reads away from the ring. Factions with no guest on the web are left out.
  */
-export function factionArcs(roster: { name: string; faction: string; colour?: string }[], factions: readonly string[] = []): { faction: string; colour: string | undefined; d: string; x: number; y: number; anchor: "start" | "middle" | "end" }[] {
+export function factionArcs(roster: { name: string; faction: string; colour?: string }[], factions: readonly string[] = []): { faction: string; lines: string[]; colour: string | undefined; d: string; x: number; y: number; anchor: "start" | "middle" | "end" }[] {
   const order = ringOrder(roster, factions);
   const n = order.length;
   if (!n) return [];
   const half = Math.PI / n;
-  const out: { faction: string; colour: string | undefined; d: string; x: number; y: number; anchor: "start" | "middle" | "end" }[] = [];
+  const four = new Set(order.map((g) => g.faction)).size === FACTION_HOURS.length;
+  const out: { faction: string; lines: string[]; colour: string | undefined; d: string; x: number; y: number; anchor: "start" | "middle" | "end" }[] = [];
   for (let i = 0; i < n; ) {
     let j = i;
     while (j + 1 < n && order[j + 1]!.faction === order[i]!.faction) j++;
@@ -926,10 +943,10 @@ export function factionArcs(roster: { name: string; faction: string; colour?: st
     const mid = onCircle((from + to) / 2, ARC_RADIUS);
     const r = ARC_RADIUS;
     const d = to - from > Math.PI ? `M ${round(a.x)} ${round(a.y)} A ${r} ${r} 0 0 1 ${round(mid.x)} ${round(mid.y)} A ${r} ${r} 0 0 1 ${round(b.x)} ${round(b.y)}` : `M ${round(a.x)} ${round(a.y)} A ${r} ${r} 0 0 1 ${round(b.x)} ${round(b.y)}`;
-    // Outside the middle of the arc; the first faction's half an hour later (a twenty-fourth of the way round).
-    const at = onCircle((from + to) / 2 + (i === 0 ? Math.PI / 12 : 0), LABEL_RADIUS);
+    // At its set hour with four factions; otherwise outside the middle of its arc.
+    const at = onCircle(four ? atHour(FACTION_HOURS[out.length]!) : (from + to) / 2, LABEL_RADIUS);
     const side = at.x - CENTRE;
-    out.push({ faction: order[i]!.faction, colour: order[i]!.colour, d, x: round(at.x), y: round(at.y), anchor: Math.abs(side) < 4 ? "middle" : side < 0 ? "end" : "start" });
+    out.push({ faction: order[i]!.faction, lines: wrapName(order[i]!.faction), colour: order[i]!.colour, d, x: round(at.x), y: round(at.y), anchor: Math.abs(side) < 4 ? "middle" : side < 0 ? "end" : "start" });
     i = j + 1;
   }
   return out;
