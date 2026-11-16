@@ -24,7 +24,7 @@
 - The stage bar and the message box float as rounded cards with shadows, and the conversation fades where it slides under them
 - **The stage bar shows the full evening** (Mechanics v0.37): eleven stages, mingling before each council, no private-plan steps. It's a standard step bar again, with a tooltip under the hovered stage and no motion (Centre, The stage bar)
 - **Decision cards take the message box's place,** instead of appearing at the end of the conversation (Decision Cards)
-- **Over the box:** the prompt at the left, **"Your next move: in 3 turns"** at the right, and the character count above the buttons. **End conversation** also sits under Speak and Pass, and both End buttons are red (The input box)
+- **Over the box:** the prompt at the left, **"Your next move: in 3 turns"** at the right, and the character count above the buttons. **End conversation** also sits under Speak and Pass, and both End buttons are solid red (The input box)
 - **Generate** (Dylan): a button inside the message box, after @ and /, that has the model write a line in your character's voice into the box, for you to change or send. Nothing is said until you press Speak (The input box)
 - **Il Notaio's hint** flashes when he says something new, explains a refused command in plain words, says when a chance to move was missed, and steps aside while an earlier stage is open (Onboarding)
 
@@ -296,7 +296,7 @@ In this order *(Dylan, Nov 13; v0.16)*:
 ### Centre: the conversation
 
 - **Two floating cards** *(Dylan; v0.16)*: the stage bar at the top and the message box at the bottom sit as rounded cards over the conversation, each casting a shadow onto it. **The conversation fades out where it slides under them** (the top bar and Il Notaio's box), so a line dissolves rather than being cut off. How the cards and shadows look is Art & Design's (The Look)
-- **The conversation's members** sit under the stage bar, centred ("In the loggia with Giorgia and Lupo"; in a Colloquio, "In the study, in secret with Clarice"). **End conversation** sits on that line in a Colloquio, in red *(v0.16)*
+- **The conversation's members** sit under the stage bar, centred ("In the loggia with Giorgia and Lupo"; in a Colloquio, "In the study, in secret with Clarice"). **End conversation** sits on that line in a Colloquio, solid red *(v0.16)*
 - **Only the current conversation is open.** Earlier conversations in this stage collapse into **Earlier this stage**, one line each, opening in place. Earlier stages live in the bar
 - **Selecting a guest** opens the collapsed sections they appear in, highlights their lines, and puts a dot on each past stage they appear in
 - **The stream:** lines, Il Notaio's notes in their own style, action lines, and lines addressed to the player marked "to you". A "…is speaking" indicator while a line is generated. **Lore links** for public lore entries, as before (Technical Design: the match is on the line's words only)
@@ -333,7 +333,7 @@ The message box is a floating card *(v0.16)*. Its top line holds **the prompt** 
 | **Speak** | Send the line | The one filled, primary button. Active only when there's something to say |
 | **Do** | Run a command | Replaces Speak when the box starts with `/`, in its own style |
 | **Pass** | Give up the turn's message | Secondary, outlined. Speak and Pass are centred beside the box |
-| **End conversation** | End a Colloquio | **In two places** *(v0.16)*: on the conversation's header line, and **under Speak and Pass,** the width of the two, whenever it's on offer. **Both red** (outlined, in the theme's danger colour), so ending reads as final |
+| **End conversation** | End a Colloquio | **In two places** *(v0.16)*: on the conversation's header line, and **under Speak and Pass,** the width of the two, whenever it's on offer. **Both solid red** with white words (Dylan), so ending reads as final |
 | **@** and **/** | Open the guest and command menus | Small icon buttons inside the box, at its bottom left |
 | **Generate** *(Dylan; v0.16)* | Have the model write a line for your character | Inside the box, **after @ and /**: the same small button as theirs, a little longer, with **only its words different**: their own colour, in the body type, italic, not bold. Not shown in a past stage |
 | **Return to current stage** | Leave a past stage | Replaces Speak/Do and Pass while a past stage is open (Past stages) |
@@ -757,7 +757,7 @@ How the screen looks (colour, type, texture, icons, and the values of every them
 - **The layer shadows:** downward under the stage bar; upward over the conversation from Il Notaio's hint, the message box, and his two boxes; and the Web of Confidences' deeper, wider shadow, deeper again when open. Dark mode needs darker, wider ones. **The conversation's fade** where it slides under the cards
 - **The breathing highlight** (a soft pulsing outline) on the way forward or back, and the filled Close at either end of the modals' chain
 - **The light "world" card** for hovers about the world, apart from the dark explanations
-- **The red** of End conversation (the theme's danger colour); **the "Secret" halo** on the web; **your own card's accent edge**
+- **The solid red** of End conversation, with its words and hover, in light and dark (its own tokens, since dark mode's danger colour is a light text pink); **the "Secret" halo** on the web; **your own card's accent edge**
 - **Generate's words:** their own colour (a new token; the demo's teal is a placeholder), on the same button as @ and /
 
 ---
@@ -883,7 +883,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | A way to tell when you'll next move; no way to call a Colloquio yourself | "Your next move" over the message box; Il Notaio says when one was missed. The rule stays (watch item) | The input box; Speaking and Waiting |
 | Decision cards should sit where the chat box is | They take the box's place; from a past stage, one wide Return button | Decision Cards; Past stages |
 | Only two choices after a Colloquio, when the rule says the invitee chooses | The rule held (every group was full); the card now says so | Decision Cards |
-| End conversation under Speak and Pass, and red | Both End buttons, in red | The input box |
+| End conversation under Speak and Pass, and red; then solid red | Both End buttons, solid red | The input box |
 | Clicking the sheet's lines, the errand, and its reward should open the right information | Rules sections, the briefing's errand card | Left |
 | "You" should be clearly marked; then no box, no ring, no label | "You are Francesco Pazzi" over a role line; "This is you" on your own card | Left; Right |
 | Factions repeated twice on cards | The faction line goes; the subtitle carries it | Right |
@@ -921,7 +921,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 - **Pairs with two different ties** *(v0.16; parked)*: side-by-side lines were tried and didn't separate cleanly. Pick up again if a pair's lines read as one
 - **Public and private ties for the same pair** *(v0.16)*: Francesco's briefing repeats three public ties in his own words (Piero, Giorgia, Lupo; `relationships.json`). The screen now draws one line each. Whether the repetition is intended is Characters' to say (tracker)
 - **The short errand line** *(v0.16)*: until Characters writes one per guest, the screen cuts the errand after its bold part, which would drop a condition from Lupo's ("Money from the French Embassy treasury doesn't count")
-- **Small things Dylan may want** *(v0.16)*: solid red rather than outlined for End conversation; stronger shadows; the conversation's scrollbar outside its fade; the web's slide at 800 ms rather than 600
+- **Small things Dylan may want** *(v0.16)*: stronger shadows; the conversation's scrollbar outside its fade; the web's slide at 800 ms rather than 600
 - **Generate** *(v0.16)*: should it keep your draft rather than replace it, and should the record mark a line as generated (for the replay, and for Models & Research's study of how players play)? Defaults: it replaces, and the record question is Technical Design's
 - **A card click on a modal's last item** turns nowhere; whether it should carry on into the next modal, as "On to …" does, is open
 - **The large portrait at the top of the left panel** opens your briefing, while your portrait in the places selects you. Keep, or make both select? Keep for now
