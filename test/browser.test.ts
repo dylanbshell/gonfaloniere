@@ -26,11 +26,11 @@ let base = "";
 let startTip: string | null = null;
 let tipAfterStart: string | null = null;
 /** The opening as it was written, before the game started (Interface v0.7), and the tour's first step after the choice. */
-type Story = { paras: { state: string; text: string; full: string }[]; choice: boolean; gloss: string | null; name: string | null };
+type Story = { paras: { state: string; text: string; full: string }[]; choice: boolean; gloss: string | null; name: string | null; phrases: string[]; heading: string | null; locked: string[]; footInView: boolean };
 const opening: Partial<Record<"beforeWriting" | "writing" | "afterClick" | "end" | "skipped" | "reduced", Story>> & { headTop?: number } = {};
 let tourAtStart: string | null = null;
 /** TD v0.51, the tour's hold: what the screen had while the tour ran, and what came once it was skipped. */
-const held: { lines?: number; places?: number; errand?: boolean; sent?: string[]; linesAfter?: number } = {};
+const held: { lines?: number; places?: number; errand?: boolean; sent?: string[]; linesAfter?: number; breathes?: boolean; breathesAfterClick?: boolean } = {};
 
 const VIEW = { width: 1200, height: 700 };
 
@@ -48,11 +48,11 @@ before(async () => {
   await page.send("Runtime.enable");
   // The opening (Interface v0.7): what it shows as Il Notaio writes, a click, Skip, and reduced motion; then the
   // choice, and the tour that follows it. Seen here, before the game starts, and checked in the tests below.
-  const story = `({ paras: [...document.querySelectorAll(".opening-para")].map((p) => ({ state: p.dataset.state, text: p.firstChild?.textContent ?? "", full: p.dataset.full ?? p.textContent })), choice: !!document.querySelector(".opening-choice .start-card"), gloss: document.querySelector(".opening-gloss")?.textContent ?? null, name: document.querySelector(".opening-name")?.textContent ?? null })`;
+  const story = `({ paras: [...document.querySelectorAll(".opening-para")].map((p) => ({ state: p.dataset.state, text: p.textContent, full: p.dataset.full ?? p.textContent })), choice: !!document.querySelector(".opening-choice .start-card"), gloss: document.querySelector(".opening-gloss")?.textContent ?? null, name: document.querySelector(".opening-name")?.textContent ?? null, phrases: [...document.querySelectorAll(".opening-phrase")].map((x) => x.textContent), heading: document.querySelector(".opening-choice h2")?.textContent ?? null, locked: [...document.querySelectorAll(".start-card.locked")].map((c) => c.dataset.guest + ": " + c.querySelector(".locked-label").textContent + (c.querySelector("button") ? " (a button)" : "")), footInView: (() => { const f = document.querySelector(".opening-foot")?.getBoundingClientRect(); return !!f && f.top <= innerHeight + 2; })() })`;
   await page.send("Page.navigate", { url });
   await page.until(`document.querySelector(".opening .opening-name")`);
   opening.beforeWriting = await page.eval(story);
-  await page.until(`(() => { const p = document.querySelector('.opening-para[data-state="writing"]'); return p && p.firstChild && p.firstChild.textContent.length > 0 && p.firstChild.textContent.length < p.dataset.full.length; })()`, 10_000);
+  await page.until(`(() => { const p = document.querySelector('.opening-para[data-state="writing"]'); return p && p.textContent.length > 0 && p.textContent.length < p.dataset.full.length; })()`, 10_000);
   opening.writing = await page.eval(story);
   await page.shot("opening-writing");
   const head = await page.eval<{ top: number }>(`({ top: document.querySelector(".opening-head").getBoundingClientRect().top })`);
@@ -62,6 +62,8 @@ before(async () => {
   // The rest, a click finishing each paragraph as he writes it (#148's six take over a minute by pen). Only
   // mid-paragraph: a click in the pause between paragraphs would start the pause again.
   await page.until(`(() => { const p = document.querySelector('.opening-para[data-state="writing"]'); if (p && p.textContent.length < p.dataset.full.length) document.querySelector(".opening-story").click(); return document.querySelector(".opening-choice .start-card"); })()`, 20_000);
+  // The page follows the text down (a smooth scroll), bringing the choice into view.
+  await page.until(`document.querySelector(".opening-foot").getBoundingClientRect().top <= innerHeight + 2`, 5_000);
   opening.end = await page.eval(story);
   await page.eval(`document.querySelector(".opening-choice").scrollIntoView({ block: "end" })`);
   await page.shot("opening-choice");
@@ -102,6 +104,11 @@ before(async () => {
   await page.until(`!document.querySelector(".tour")`);
   await page.until(`document.querySelector(".stream .ln")`);
   held.sent = await page.eval<string[]>(`window.__sent.map((m) => m.type)`);
+  // Interface v0.16: after a skipped tour, Your briefing breathes until the player clicks it or anywhere else.
+  held.breathes = await page.eval<boolean>(`document.querySelector('.side.left [data-hint="briefing"]').classList.contains("breathe")`);
+  await page.eval(`new Promise((ok) => setTimeout(ok, 50))`);
+  await page.eval(`document.querySelector(".side.left .label").click()`);
+  held.breathesAfterClick = await page.eval<boolean>(`document.querySelector('.side.left [data-hint="briefing"]').classList.contains("breathe")`);
   held.linesAfter = await page.eval<number>(`document.querySelectorAll(".stream .ln").length`);
 });
 
@@ -739,6 +746,99 @@ test("the right panel (Interface v0.16): short of the top with rounded top corne
   assert.equal(await page.eval<boolean>(`!document.querySelector(".side.right").classList.contains("hiding")`), true);
 });
 
+// ---- CC-20261116-06 (#177): Interface v0.16, the Web of Confidences ---------------------------------------
+
+test("the Web of Confidences (Interface v0.16): the top layer, sliding over 600 ms with a shadow that grows; one line per pair and type, the halo only on secret ties; the key's Secret row; lines fading around a selection; the drawing clear of the key; the key and side column scaling with the window", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".web-dock") && document.querySelector(".input textarea")`);
+  assert.equal(await page.eval<string>(`document.querySelector(".web-bar-title").textContent`), "Web of Confidences");
+  assert.equal(await page.eval<boolean>(`!document.body.innerText.includes("Web of Secrets")`), true, "no Web of Secrets a player can see");
+  // The dock: over everything, the floating cards included; a deep shadow that grows as it opens; 600 ms.
+  const dock = () => page.eval<{ z: number; float: number; shadow: string; ms: number }>(`(() => { const d = getComputedStyle(document.querySelector(".web-dock")); return { z: Number(d.zIndex), float: Math.max(...[".conv-head", ".input", ".notaio-hint"].map((x) => Number(getComputedStyle(document.querySelector(x)).zIndex) || 0)), shadow: d.boxShadow, ms: Math.max(...d.transitionDuration.split(",").map(parseFloat)) * 1000 }; })()`);
+  const blur = (shadow: string) => Math.max(...[...shadow.matchAll(/(-?\d+(?:\.\d+)?)px (-?\d+(?:\.\d+)?)px (\d+(?:\.\d+)?)px/g)].map((m) => Number(m[3])));
+  const down = await dock();
+  assert.ok(down.z > down.float, "the top layer");
+  assert.equal(down.ms, 600, "it slides over 600 ms");
+  await webUp();
+  const up = await dock();
+  assert.ok(blur(up.shadow) > blur(down.shadow), `the shadow grows as it opens (${down.shadow} to ${up.shadow})`);
+  const over = await page.eval<boolean>(`(() => { const d = document.querySelector(".web-dock").getBoundingClientRect(), b = document.querySelector(".input").getBoundingClientRect(); const e = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2); return d.top < b.top && !!e.closest(".web-dock"); })()`);
+  assert.ok(over, "it slides up over the message box's floating card");
+  // One line per pair and type; the halo marks only the secret ties.
+  const ties = await page.eval<{ key: string; secret: boolean; halo: boolean; lines: number }[]>(`[...document.querySelectorAll(".web-diagram .tie")].map((g) => ({ key: g.dataset.between + "|" + g.dataset.type, secret: g.dataset.secret === "true", halo: !!g.querySelector(".edge-under"), lines: g.querySelectorAll("path.edge").length }))`);
+  assert.ok(ties.length > 10);
+  assert.equal(new Set(ties.map((t) => t.key)).size, ties.length, "one line per pair and type");
+  assert.ok(ties.every((t) => t.lines === 1 && t.halo === t.secret), "the halo only on secret ties");
+  assert.deepEqual(ties.filter((t) => t.secret).map((t) => t.key).sort(), ["Clarice Orsini|Francesco Pazzi|romance", "Francesco Pazzi|Friar Tommaso|alliance", "Francesco Pazzi|Raffaello de' Medici|rivalry"]);
+  // The key: the six types, then "Secret" with its halo swatch and a short line; selectable like the rest.
+  const key = await page.eval<{ rows: string[]; covers: string; swatch: boolean }>(`(() => { const k = document.querySelector(".web-key"); return { rows: [...k.querySelectorAll(".key-type")].map((b) => b.dataset.type), covers: k.querySelector(".key-covers").textContent, swatch: !!k.querySelector(".key-secret .swatch .edge-under") }; })()`);
+  assert.equal(key.rows.length, 7);
+  assert.equal(key.rows.at(-1), "*secret");
+  assert.equal(await page.eval<string>(`document.querySelector(".key-secret .key-secret-words span").textContent`), "Secret");
+  assert.equal(key.covers, "A tie no other guest knows of. Ties everyone knows are drawn plain.");
+  assert.ok(key.swatch, "its halo swatch");
+  await page.eval(`document.querySelector(".key-secret").click()`);
+  await page.until(`document.querySelector(".key-secret").getAttribute("aria-pressed") === "true"`);
+  const keyed = await page.eval<{ on: number; off: number; secretOn: boolean }>(`(() => { const lines = [...document.querySelectorAll(".web-diagram .tie path.edge")]; return { on: lines.filter((l) => l.classList.contains("key-on")).length, off: lines.filter((l) => l.classList.contains("key-off")).length, secretOn: [...document.querySelectorAll('.web-diagram .tie[data-secret="true"] path.edge')].every((l) => l.classList.contains("key-on")) }; })()`);
+  assert.deepEqual(keyed, { on: 3, off: ties.length - 3, secretOn: true }, "it lights its lines and fades the rest");
+  await page.shot("web-key-secret");
+  await page.eval(`document.querySelector(".key-secret").click()`);
+  await page.until(`!document.querySelector(".web-diagram .key-on, .web-diagram .key-off")`);
+  // Selecting: a ring twice as thick, no focus box, and every line that doesn't touch the selection fades.
+  for (const g of await webPicked()) await pickNode(g);
+  const plain = await page.eval<number>(`parseFloat(getComputedStyle(document.querySelector('.web .node:not(.picked) circle')).strokeWidth)`);
+  await pickNode("Lupo");
+  await page.until(`document.querySelector('.web .node[data-guest="Lupo"].picked')`);
+  const sel = await page.eval<{ ring: number; outline: string; touching: number; faded: number; rest: number }>(`(() => { const n = document.querySelector('.web .node[data-guest="Lupo"]'); const ties = [...document.querySelectorAll(".web-diagram .tie")]; const touch = (t) => t.dataset.between.split("|").includes("Lupo"); return { ring: parseFloat(getComputedStyle(n.querySelector("circle")).strokeWidth), outline: getComputedStyle(n).outlineStyle, touching: ties.filter((t) => touch(t) && !t.querySelector("path.edge").classList.contains("sel-off")).length, faded: ties.filter((t) => !touch(t) && t.querySelector("path.edge").classList.contains("sel-off")).length, rest: ties.filter((t) => !touch(t)).length }; })()`);
+  assert.ok(sel.ring >= plain * 2, `a selected guest's ring is at least twice as thick (${plain} to ${sel.ring})`);
+  assert.equal(sel.outline, "none", "no focus box around a clicked guest");
+  assert.ok(sel.touching > 0 && sel.faded === sel.rest && sel.rest > 0, "every line that doesn't touch the selection fades");
+  // An empty pair says why.
+  await pickNode("Contessa Isabella");
+  await page.until(`document.querySelectorAll(".web .node.picked").length === 2`);
+  await page.eval(`document.querySelector('[data-hint="recordTab"]').click()`);
+  await page.until(`document.querySelector(".record-none")`);
+  assert.equal(await page.eval<string>(`document.querySelector(".record-none").textContent`), "You haven't yet heard Lupo or Contessa Isabella speak to the other. Only what one says to the other shows here.");
+  // Il Notaio's reading opens about a seventh of the way down the column, with the column behind it faded.
+  await page.until(`document.querySelector('.record-pane .reading[data-state="expanded"]')`);
+  await page.until(`document.querySelector(".web-dock").getAnimations({ subtree: true }).every((a) => a.effect?.getComputedTiming().iterations === Infinity)`);
+  const reading = await page.eval<{ down: number; faded: number; shadow: boolean }>(`(() => { const p = document.querySelector(".record-pane").getBoundingClientRect(), r = document.querySelector(".record-pane .reading"); return { down: (r.getBoundingClientRect().top - p.top) / p.height, faded: Number(getComputedStyle(document.querySelector(".record-pane .record")).opacity), shadow: getComputedStyle(r).boxShadow !== "none" }; })()`);
+  assert.ok(reading.down > 0.12 && reading.down < 0.17, `a seventh of the way down (${reading.down})`);
+  assert.ok(reading.faded < 0.6 && reading.shadow, "the column behind it faded, under an upward shadow");
+  for (const g of await webPicked()) await pickNode(g);
+  // The drawing: fitted to its space, centred left of the side column, and clear of the key at its top-left corner.
+  const fit = () =>
+    page.eval<{ under: number; inside: boolean; centred: number; fills: number; key: number; side: number }>(`(() => {
+      const map = document.querySelector(".web-map").getBoundingClientRect(), k = document.querySelector(".web-key").getBoundingClientRect();
+      const boxes = [...document.querySelectorAll(".web-diagram .node circle, .web-diagram .node-name, .web-diagram .faction-label")].map((x) => x.getBoundingClientRect());
+      const l = Math.min(...boxes.map((b) => b.left)), r = Math.max(...boxes.map((b) => b.right)), t = Math.min(...boxes.map((b) => b.top)), bt = Math.max(...boxes.map((b) => b.bottom));
+      return { under: boxes.filter((b) => b.left < k.right && b.top < k.bottom).length, inside: l >= map.left - 1 && r <= map.right + 1 && t >= map.top - 1 && bt <= map.bottom + 1, centred: Math.abs((t + bt) / 2 - (map.top + map.height / 2)), fills: Math.max((r - l) / map.width, (bt - t) / map.height), key: parseFloat(getComputedStyle(document.querySelector(".web-key")).fontSize), side: document.querySelector(".web-side").getBoundingClientRect().width / innerWidth };
+    })()`);
+  const sizes: Record<number, Awaited<ReturnType<typeof fit>>> = {};
+  try {
+    for (const width of [1100, 1440, 2100]) {
+      await page.send("Emulation.setDeviceMetricsOverride", { width, height: width > 1500 ? 1100 : VIEW.height, deviceScaleFactor: 1, mobile: false });
+      await page.until(`innerWidth === ${width}`);
+      await new Promise((r) => setTimeout(r, 250));
+      const f = (sizes[width] = await fit());
+      assert.equal(f.under, 0, `${width}: nothing runs under the key`);
+      assert.ok(f.inside, `${width}: the drawing is inside its space`);
+      assert.ok(f.centred < 14, `${width}: centred top to bottom (${f.centred})`);
+      assert.ok(f.fills > 0.9, `${width}: fitted to its space (${f.fills})`);
+      assert.ok(Math.abs(f.side - 0.28) < 0.01, `${width}: the side column is about 28% of the window (${f.side})`);
+      await page.shot(`web-${width}`);
+    }
+  } finally {
+    await page.send("Emulation.setDeviceMetricsOverride", { ...VIEW, deviceScaleFactor: 1, mobile: false });
+  }
+  // The key grows and shrinks with the window: about 0.8 to 1.45 times its size at 1440 pixels.
+  assert.ok(Math.abs(sizes[1440]!.key - 13) < 0.1, `its size at 1440 (${sizes[1440]!.key})`);
+  assert.ok(Math.abs(sizes[1100]!.key / sizes[1440]!.key - 0.8) < 0.03, `smaller in a small window (${sizes[1100]!.key})`);
+  assert.ok(Math.abs(sizes[2100]!.key / sizes[1440]!.key - 1.45) < 0.03, `larger in a large one (${sizes[2100]!.key})`);
+  await page.until(`innerWidth === ${VIEW.width}`);
+  await webDown();
+});
+
 // ---- CC-20261114-04 (#102) -------------------------------------------------------------------------------
 
 test("the errand card with plot_reward off (the mini-game): the no-extra-act line in the card's accent, and no deadline mark", { skip }, async () => {
@@ -841,6 +941,9 @@ test("TD v0.51, the tour's hold: while the tour runs the screen has the sheet, e
   assert.ok(held.errand && held.places! > 0, "the errand and the places were there to point at");
   assert.deepEqual(held.sent!.filter((t) => t === "begin"), ["begin"], "skipping it began the game");
   assert.ok(held.linesAfter! > 0, "then the first lines");
+  // Interface v0.16: after a skipped tour, Your briefing breathes (a soft pulsing outline) until a click.
+  assert.equal(held.breathes, true, "Your briefing breathes after a skipped tour");
+  assert.equal(held.breathesAfterClick, false, "until the player clicks anywhere");
 });
 
 test("TD v0.51: the conclusion button is hidden for an errand a conclusion can't finish (Francesco's), on every note", { skip }, async () => {
@@ -1420,7 +1523,7 @@ test("the web's bar is one centered group; with someone selected, a dot and thei
   await page.until(`!document.querySelector(".web-bar-sel")`);
 });
 
-test("one Notes tab: the writing box on top, and one list filtered by the selection, for none, one, and a pair; a note's pair selects them", { skip }, async () => {
+test("the Notes tab (Interface v0.16): the writing box on top; every note always listed, grouped by guest, then pair, then free; a group folds; a note or its heading selects, and the selected group is lit", { skip }, async () => {
   await reopen();
   await webUp();
   await page.eval(`document.querySelector('[data-hint="notesTab"]').click()`);
@@ -1448,35 +1551,58 @@ test("one Notes tab: the writing box on top, and one list filtered by the select
   await write("On B alone.");
   await pickNode(c);
   await write("On B and C.");
-  const list = () => page.eval<{ texts: string[]; headings: string[]; boxOnTop: boolean }>(`(() => {
-    const ours = new Set(["On A alone.", "On A and B.", "On B alone.", "On B and C."]);
-    const box = document.querySelector(".web textarea").getBoundingClientRect(), first = document.querySelector(".note-list")?.getBoundingClientRect();
-    return { texts: [...document.querySelectorAll(".note-text")].map((n) => n.textContent).filter((t) => ours.has(t)), headings: [...document.querySelectorAll(".note-heading")].map((h) => h.textContent), boxOnTop: !first || first.top >= box.bottom };
-  })()`);
-  // None selected: every note, newest first, grouped by guest and pair.
   await clearPicks();
+  await write("A free note, long enough to wrap inside the column: " + "word ".repeat(30) + "averyveryveryveryveryveryveryveryveryveryveryveryveryverylongwordwithoutanybreakatall.");
+  const ours = ["On A alone.", "On A and B.", "On B alone.", "On B and C."];
+  const list = () => page.eval<{ texts: string[]; kinds: number[]; lit: string[]; boxOnTop: boolean }>(`(() => {
+    const ours = new Set(${JSON.stringify(ours)});
+    const box = document.querySelector(".web textarea").getBoundingClientRect(), first = document.querySelector(".note-list")?.getBoundingClientRect();
+    const groups = [...document.querySelectorAll(".note-group")];
+    return { texts: [...document.querySelectorAll(".note-text")].map((n) => n.textContent).filter((t) => ours.has(t)), kinds: groups.map((g) => g.dataset.group === "free" ? 0 : g.dataset.group.split("|").length), lit: groups.filter((g) => g.classList.contains("lit")).map((g) => g.dataset.group), boxOnTop: !first || first.top >= box.bottom };
+  })()`);
+  // None selected: every note, grouped: each guest (the newest group first), then each pair, then free notes.
   let l = await list();
-  assert.deepEqual(l.texts, ["On B and C.", "On B alone.", "On A and B.", "On A alone."], "none: every note, by group, newest group first");
-  assert.ok(l.headings.length >= 4, `grouped: ${l.headings.join(" | ")}`);
+  const all = l.texts;
+  assert.deepEqual(all, ["On B alone.", "On A alone.", "On B and C.", "On A and B."], "each guest, then each pair");
+  assert.deepEqual(l.kinds, [...l.kinds].sort((x, y) => (x || 9) - (y || 9)), `guests, then pairs, then free notes (${l.kinds})`);
+  assert.equal(l.kinds.at(-1), 0, "free notes last");
+  assert.deepEqual(l.lit, []);
   assert.ok(l.boxOnTop, "the writing box on top");
   await page.shot("notes-none");
-  // One guest: theirs and any pair with them.
+  // Selecting no longer narrows the list: one guest, then a pair, and every note is still there; the selected one's group is lit.
   await pickNode(b);
   l = await list();
-  assert.deepEqual(l.texts, ["On B and C.", "On B alone.", "On A and B."], "one: their notes and every pair with them, newest first");
-  assert.deepEqual(l.headings, [], "one list");
+  assert.deepEqual(l.texts, all, "one selected: every note still listed");
+  assert.deepEqual(l.lit, [b]);
+  const litLook = await page.eval<{ heading: string; other: string; line: string; otherLine: string }>(`(() => { const lit = document.querySelector(".note-group.lit"), not = document.querySelector(".note-group:not(.lit)"); return { heading: getComputedStyle(lit.querySelector(".note-heading")).color, other: getComputedStyle(not.querySelector(".note-heading")).color, line: getComputedStyle(lit.querySelector(".note")).borderLeftColor, otherLine: getComputedStyle(not.querySelector(".note")).borderLeftColor }; })()`);
+  assert.ok(litLook.heading !== litLook.other && litLook.line !== litLook.otherLine, "its heading and lines in the accent");
   await page.shot("notes-one");
-  // A pair: the pair's notes first, then each of the two's, under small headings.
   await pickNode(a);
   l = await list();
-  assert.deepEqual(l.texts, ["On A and B.", "On B alone.", "On A alone."]);
-  assert.equal(l.headings.length, 3, `under small headings: ${l.headings.join(" | ")}`);
+  assert.deepEqual(l.texts, all, "a pair selected: every note still listed");
+  assert.deepEqual(l.lit, [[a, b].sort().join("|")]);
   await page.shot("notes-pair");
-  // Clicking a note's pair selects them.
+  // Clicking a note selects its guest; clicking a pair's heading selects the pair.
   await clearPicks();
+  await page.eval(`[...document.querySelectorAll(".note")].find((n) => n.querySelector(".note-text").textContent === "On A alone.").querySelector(".note-text").click()`);
+  await page.until(`document.querySelectorAll(".web .node.picked").length === 1`);
+  assert.deepEqual(await webPicked(), [a], "a note selects its guest");
   await page.eval(`[...document.querySelectorAll(".note")].find((n) => n.querySelector(".note-text").textContent === "On B and C.").closest(".note-group").querySelector(".note-heading .note-about").click()`);
   await page.until(`document.querySelectorAll(".web .node.picked").length === 2`);
   assert.deepEqual((await webPicked()).sort(), [b, c].sort(), "the pair is selected, in the web and on its bar");
+  assert.equal(await page.eval<boolean>(`(() => { const g = document.querySelector(".note-group.lit").getBoundingClientRect(), box = document.querySelector(".web-side .notes").getBoundingClientRect(); return g.top >= box.top - 1 && g.top < box.bottom; })()`), true, "and its group is in view");
+  // A group folds under its heading: its notes go, and its count shows.
+  const fold = `document.querySelector(".note-group.lit .note-fold")`;
+  assert.equal(await page.eval<string>(`${fold}.getAttribute("aria-label")`), "Fold these notes");
+  await page.eval(`${fold}.click()`);
+  await page.until(`document.querySelector(".note-group.lit.folded")`);
+  assert.deepEqual(await page.eval<[number, string, string]>(`(() => { const g = document.querySelector(".note-group.lit"); return [g.querySelectorAll(".note").length, g.querySelector(".note-count").textContent, g.querySelector(".note-fold").getAttribute("aria-label")]; })()`), [0, "1", "Show these notes"]);
+  await page.eval(`${fold}.click()`);
+  await page.until(`!document.querySelector(".note-group.folded")`);
+  // Every note has the same straight line down its left; a long note wraps inside the column.
+  const wrap = await page.eval<{ lines: number; inside: boolean; borders: number }>(`(() => { const col = document.querySelector(".web-side .notes"), notes = [...col.querySelectorAll(".note")], long = notes.find((n) => n.textContent.includes("averyvery")); return { lines: new Set(notes.map((n) => getComputedStyle(n).borderLeftWidth + getComputedStyle(n).borderLeftStyle)).size, inside: long.getBoundingClientRect().right <= col.getBoundingClientRect().right && col.scrollWidth <= col.clientWidth, borders: notes.length }; })()`);
+  assert.equal(wrap.lines, 1);
+  assert.ok(wrap.inside && wrap.borders >= 5, "long notes wrap inside the column");
   await clearPicks();
   await webDown();
 });
@@ -1810,7 +1936,7 @@ test("a glossary word in the chat: a faint dotted underline, its definition on h
 
 const NOTAIO_WORDS = JSON.parse(readFileSync("setting/florence-1492/notaio.json", "utf8")) as { name: { gloss: string; hover: string }; opening: { paragraphs: string[] }; tour: { steps: Record<string, string> } };
 
-test("the opening: his name and its gloss before he writes, a character at a time, a click finishing the paragraph, Skip writing it all, reduced motion writing it whole, then the choice", { skip }, () => {
+test("the opening (Interface v0.16): his name and its gloss before he writes, a phrase at a time, the page following the text, a click finishing the paragraph, Skip writing it all, reduced motion writing it whole, then the choice", { skip }, () => {
   const paras = NOTAIO_WORDS.opening.paragraphs;
   const o = opening as Required<typeof opening>;
   assert.equal(o.beforeWriting.name, "Il Notaio", "his name heads the page");
@@ -1820,7 +1946,10 @@ test("the opening: his name and its gloss before he writes, a character at a tim
   // Writing: part of the first paragraph, as by pen; the name kept at the top.
   const w = o.writing.paras.at(-1)!;
   assert.equal(w.state, "writing");
-  assert.ok(w.text.length > 0 && w.text.length < w.full.length && w.full.startsWith(w.text), `a character at a time: "${w.text}"`);
+  assert.ok(w.text.length > 0 && w.text.length < w.full.length && w.full.startsWith(w.text), `part of the paragraph: "${w.text}"`);
+  // A phrase at a time, split at commas and sentence ends: what's written so far is whole phrases.
+  assert.ok(o.writing.phrases.length > 0 && o.writing.phrases.join("") === w.text, "whole phrases");
+  for (const x of o.writing.phrases) assert.match(x, /[,;:.!?]["”’)]*\s*$/, `a phrase ends at a comma or a sentence end: "${x}"`);
   assert.equal(o.writing.gloss, NOTAIO_WORDS.name.gloss, "the gloss stays while he writes");
   assert.ok(o.headTop >= 0 && o.headTop < 5, "his name at the top");
   // A click finishes the paragraph being written.
@@ -1829,6 +1958,10 @@ test("the opening: his name and its gloss before he writes, a character at a tim
   // At the end: every paragraph, kept on the page, and the choice.
   assert.deepEqual(o.end.paras.map((p) => p.text), paras, "earlier paragraphs stay on the page");
   assert.equal(o.end.choice, true);
+  assert.ok(o.end.footInView, "the page follows the text down as it grows");
+  // The choice: "Choose your family"; the full game's other playable character greyed out after the playable one, with no button.
+  assert.equal(o.end.heading, "Choose your family");
+  assert.deepEqual(o.end.locked, ["Piero de' Medici: In the full game"]);
   // Skip: everything at once, and the choice.
   assert.deepEqual(o.skipped.paras.map((p) => [p.state, p.text]), paras.map((p) => ["done", p]), "Skip writes everything out");
   assert.equal(o.skipped.choice, true);

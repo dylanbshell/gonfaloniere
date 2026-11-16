@@ -50,7 +50,23 @@
   --tip-width: 280px;
   --web-height: 90vh;
   --web-bar-height: 44px;
-  --web-side-width: 380px;
+  /* Interface v0.16: the web's side column grows and shrinks with the window, about 28% of its width */
+  --web-side-width: 28vw;
+  /* The key, scaling with the window: about 0.8 to 1.45 times its size at a 1440-pixel window, its own sizes in ems */
+  --key-text: clamp(10.4px, 0.903vw, 18.85px);
+  --key-head-text: 0.85em;
+  --key-width: 15em;
+  --key-pad: 0.6em;
+  --key-gap: 0.25em;
+  /* How far the drawing stands clear of the key */
+  --web-key-clear: 8px;
+  /* The dock slides up and down over 600 ms */
+  --motion-dock: 600ms;
+  /* A selected guest's ring, twice as thick, and keyboard focus's thin dashed ring, in the diagram's units */
+  --node-ring-on: 1.6;
+  --node-focus-dash: 0.8 0.6;
+  /* Il Notaio's reading opens a seventh of the way down the column */
+  --reading-top: 14.3%;
   --deck-card-min-height: 220px;
   /* The rules' section buttons (Interface v0.5), and how small a section starts as it grows */
   --rules-button-width: 180px;
@@ -113,14 +129,17 @@
   --right-hiding-opacity: 0.35;
   --self-edge: 2px;
   /* The Web of Secrets' bar: a shadow above it, so it reads as one layer over everything (TD v0.44) */
-  --shadow-dock: 0 -4px 16px rgba(20, 20, 18, 0.22);
+  --shadow-dock: 0 -8px 28px rgba(20, 20, 18, 0.3);
+  --shadow-dock-open: 0 -16px 56px rgba(20, 20, 18, 0.42);
   /* Il Notaio's box in the What you heard and saw column (Interface v0.5): the dialogue's strip peeking out
      above it, expanded; its first lines, minimized */
   --reading-peek: 44px;
   --reading-min-height: 88px;
-  --swatch-width: 36px;
-  --swatch-height: 12px;
+  --swatch-width: 2.77em;
+  --swatch-height: 0.92em;
   --swatch-stroke: 1.2;
+  --swatch-halo: 3.4;
+  --swatch-halo-opacity: 0.35;
   --faction-label-size: 2.6px;
   /* The faction arcs around the ring (Interface v0.5), in the diagram's units */
   --faction-arc-width: 1.1;
@@ -187,10 +206,11 @@
   --modal-slide: 48px;
   /* Interface v0.7, the opening: how fast Il Notaio writes (a character at a time), the pause before the next
      paragraph, the page's width, and his pen */
-  --opening-char: 28ms;
+  --opening-comma: 260ms;
+  --opening-sentence: 620ms;
+  --opening-fade: 420ms;
   --opening-pause: 700ms;
   --opening-width: 620px;
-  --opening-pen-width: 2px;
   /* Interface v0.8, the tour: the dimmed screen around the spotlit part, the spotlight's margin, the card */
   --tour-dim: rgba(20, 20, 18, 0.55);
   --tour-spread: 200vmax;
@@ -296,6 +316,8 @@
     --end-bg: #c2362d;
     --end-text: #ffffff;
     --end-hover: #d9483e;
+    --shadow-dock: 0 -10px 34px rgba(0, 0, 0, 0.7);
+    --shadow-dock-open: 0 -20px 64px rgba(0, 0, 0, 0.85);
     --shadow-float-down: 0 8px 22px rgba(0, 0, 0, 0.55);
     --shadow-up: 0 -8px 22px rgba(0, 0, 0, 0.5);
     --notaio: #9fc4ae;

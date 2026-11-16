@@ -29,6 +29,8 @@ export interface StartInfo {
   max: number;
   roster: { name: string; faction: string; subtitle: string; initials: string; colour: string }[];
   playable: { name: string; intro: string }[];
+  /** Interface v0.16: the setting's playable characters who aren't in this game (the full game's), shown greyed out after the playable ones. */
+  fullGameOnly?: { name: string }[];
   /** Interface v0.7: the glossary's entries, amounts filled from the game's tuning values; the mini-game's leave out the full game's terms. */
   glossary?: GlossEntry[];
   started: string | null;
