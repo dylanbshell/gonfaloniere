@@ -1,8 +1,18 @@
 # Gonfaloniere
 ## Interface & Experience — Working Document
-### Version 0.17
+### Version 0.18
 
 ---
+
+## Changes in v0.18
+
+*Nov 16. Two small changes from Dylan's comments on the demo, after v0.17 merged, and two handoffs on the player's rules text: ⚙️ Mechanics' check of it against v0.37, and 🏗️ Technical Design's v0.52, which sends the game's values.*
+
+- **The backdrop behind an open rules section fades in at its top and bottom** (Dylan; Briefing, rules, the city, and the glossary). Before, the dimmed, blurred backdrop started at a hard edge under the header and above the footer. Now it fades in over about 22px at each end, and the open section's card isn't faded. A new token for Art & Design (The Look)
+- **Title case skips arrows** (The Player's Words): only words with letters count as a label's first or last word, so "← The Rules" keeps its capital, where the demo had shown "← the Rules"
+- **The player's rules text, corrected** (Mechanics' check; The Player's Words): a candidate who repents changes sides and wins only if the Dominicans do; the turn numbers and the secret conversation's length are the game's own values, and "one chance each round" is said only when a round has as many turns as there are guests; `/borrow` works only while the Embassy's treasury has a payment left; the one who started a secret conversation also goes to the smallest group if theirs has broken up; and the choosing of candidates and the open floor are made of turns too
+- **The values' names are Technical Design's** (v0.52, Player Interface, The screen, "The game's values"): `sheet.values`, with `null` for a phase the run doesn't have, and a clause about a missing phase left out
+- **Build:** all of it goes in **#179** with v0.17, which now needs this version and Technical Design v0.52 on `main`
 
 ## Changes in v0.17
 
@@ -266,7 +276,7 @@ This doc covers **the player screen as the player meets it**: what's on it, wher
 ## Build State *(Nov 15)*
 
 1. **The mini-game is playable** as Francesco, with everything this doc designed through v0.15 built (the first screens, then #102, #109, #113, #114, #117, #128, #132, #141, #146, #148, and #151; v0.15's list). Francesco's errand can't be done there (Friar Tommaso isn't in the cast), and the mini-game runs with `plot_reward` off
-2. **v0.16 and v0.17 are designed and shown in the demo, not built.** Dylan reviewed the demo page (Nov 15), and every v0.16 change was tried there first. **One build task** builds v0.16: **#177**. Most of it needs nothing new from the engine. The command menu's reasons can be worked out from the player's own state until the engine sends them; **the next-move line and the missed-move hint need the engine** to put the player's next movement window in their state (Technical Design handoff), so the build leaves them out if that isn't there yet. **Generate needs a model call Technical Design hasn't specified** (handoff), so #177 leaves it out. The demo is private to Dylan; **#172** adds `npm run demo` to rebuild it from the repo. Its guests' lines are the fake caller's placeholders. **v0.17** (Dylan's further review, Nov 15–16) is built by **#179**, after #177, since both change the same screen; Notes for the Build says what it should do differently from the demo. *In the demo, the mini-game's last third of its round shows as the second round of mingling, so the bar has an example of a later stage*
+2. **v0.16 and v0.17 are designed and shown in the demo, not built.** Dylan reviewed the demo page (Nov 15), and every v0.16 change was tried there first. **One build task** builds v0.16: **#177**. Most of it needs nothing new from the engine. The command menu's reasons can be worked out from the player's own state until the engine sends them; **the next-move line and the missed-move hint need the engine** to put the player's next movement window in their state (Technical Design handoff), so the build leaves them out if that isn't there yet. **Generate needs a model call Technical Design hasn't specified** (handoff), so #177 leaves it out. The demo is private to Dylan; **#172** adds `npm run demo` to rebuild it from the repo. Its guests' lines are the fake caller's placeholders. **v0.17** (Dylan's further review, Nov 15–16) and **v0.18**'s two small changes are built by **#179**, after #177, since both change the same screen; Notes for the Build says what it should do differently from the demo. *In the demo, the mini-game's last third of its round shows as the second round of mingling, so the bar has an example of a later stage*
 3. **Then the full game,** once the full game loop is built: councils, Piero, candidate selection, speeches and `/repent`, the ballot and `/buy`, the run-off, and the full death and result screens. Dylan playing a whole game is the milestone's test (tracker, item 2)
 4. **Then v1, the first public release:** Il Notaio's full player-facing role (Onboarding, below)
 
@@ -453,7 +463,7 @@ Each opens as a modal over the screen. **Four modals in a row:** Your briefing, 
 **The rules** are buttons, one per section, that **stay in view** *(v0.16)*: a section opens as a card over them. A click on the card turns to the next section; ×, Escape, or a click outside the card goes back to the buttons; a click on the empty space around the buttons opens the first section.
 - **The player's own rules** *(Dylan; v0.17)*: the rules modal no longer shows the AI guests' primer (Technical Design's block 2) but **a text written for the player**, in the order a player learns the evening: The Evening, How to Win, Your Errand, The Order of the Evening, **Stages and Turns** (new: stages, turns, what you can say when, and moving), Conversations, Money and Bribes, France's Payroll, Midnight, Candidates and the Vote. Its words are in The Player's Words; its numbers are the game's own (Technical Design handoff)
 - **Roman numerals** *(Dylan; v0.17)*: each section button carries its numeral in a small round badge at its left, its name centred; an open section's title reads "V. Stages and Turns", the numeral in plain text
-- **Behind an open section,** the buttons are dimmed lightly and slightly blurred *(Dylan; v0.17)*, so the card stands out while the buttons stay just readable. The dimmed backdrop stops at the modal's header and footer, square at its corners
+- **Behind an open section,** the buttons are dimmed lightly and slightly blurred *(Dylan; v0.17)*, so the card stands out while the buttons stay just readable. The dimmed backdrop spans the space between the modal's header and footer, **fading in over about 22px at its top and bottom** rather than starting at a hard edge *(Dylan; v0.18)*. The open card above it isn't faded
 - The glossary's "More in the Rules" follows the new section names (Ballot, Candidate, Run-off, Speeches, and /repent open Candidates and the Vote; Move, Round of mingling, and Council open Stages and Turns; Gonfaloniere opens The Evening; Errand opens Your Errand)
 
 **The city** is an inbox-style list under subject headers. An open entry has **Previous and Next Topic** at its foot, and a click anywhere on it turns to the next topic; the way back to the list stays put while only the topic slides. *(v0.17)* The list's subject headings stick at its top as you scroll, with a fade under them, and nothing shows above the stuck heading; on the first topic, the way back to the list has nothing to its left, so it isn't shown twice.
@@ -735,10 +745,10 @@ The setting pack's strings v0.16 changes or adds. Keys that exist keep their nam
 ### v0.17: title case, the player's rules, and new words
 
 **Title case** *(Dylan; v0.17)*. Names, headings, and buttons are in title case: modal and panel names ("Your Briefing", "The Web of Confidences", "Talking With", "The Places"), the briefing's tabs, the rules' section names, the city's topic titles, stage names, Il Notaio's box titles, the left panel's labels ("Payments from France", "Secret Conversations"), and buttons ("Show Me Around", "End Conversation", "Next Briefing", "More Below", "Explanations: On"). **Sentences, prompts, placeholders, descriptions, and status lines stay as they are** ("No one has your ear", "Your turn: speak or pass."), and so does what's already in capitals. **The places stay as Lore writes them** ("The great hall"), since they also appear mid-sentence ("In the great hall with…").
-- **The rule:** every word capitalized, except small words (a, an, the, and, but, or, nor, for, of, on, in, to, at, by, with, as, from, into, per, vs) and a name's own particles (de', di, d', da, del, della), which stay lower case unless they open or close the name; a small word that arrives capitalized inside a name goes lower case ("Back to the Rules"). Words already carrying capitals keep them ("LeNoir")
+- **The rule:** every word capitalized, except small words (a, an, the, and, but, or, nor, for, of, on, in, to, at, by, with, as, from, into, per, vs) and a name's own particles (de', di, d', da, del, della), which stay lower case unless they open or close the name; a small word that arrives capitalized inside a name goes lower case ("Back to the Rules"). Words already carrying capitals keep them ("LeNoir"). **Only words with letters count as first or last** *(v0.18)*, so an arrow isn't a word: "← The Rules", "Next Rule →"
 - **Applied on the screen, not in the source:** the briefing's tabs, the rules' sections, the city's topics, and the stage names come from other docs' text, so the screen title-cases them for display and matches them without regard to case. The setting pack's own labels are simply written in title case. **The small words live in the setting pack** (`player.json` › `titleCase.small`, **new**), so a pack in another language can empty the list or turn the rule off (`titleCase.on`, **new**)
 
-**The player's rules** (`player.json` › `rules`, **new**). The rules modal's text, in place of the AI guests' primer. `{start}`, `{income}`, `{payroll}`, `{vote}`, and `{currency}` are the game's values; the errand section has two endings, by whether `plot_reward` is on. Paragraphs that open "Name:" start a section; the paragraphs under it continue it.
+**The player's rules** (`player.json` › `rules`, **new**; corrected in v0.18 after ⚙️ Mechanics' check). The rules modal's text, in place of the AI guests' primer. The `{…}` are the game's values, from the sheet's `values` (Technical Design v0.52, Player Interface, The screen, "The game's values"): `start`, `income`, `payroll`, `vote`, `treasury`, `currency`, `linesPerTurn`, `minglingTurns`, `councilTurns`, `finalCouncilTurns`, `selectionTurns`, `openFloorTurns`, `colloquioCap`. *Italic notes* say when a part is shown: the errand section has two endings, by whether `plot_reward` is on; a clause about a phase whose value is `null` is left out (the mini-game has no councils, candidates, or open floor); and the moving paragraph says one of two things, by whether a round of mingling has at least as many turns as there are guests. Paragraphs that open "Name:" start a section; the paragraphs under it continue it.
 
 > THE EVENING
 > Tonight the city's factions (the Medici, the Pazzi, the Dominicans, and the French Embassy) scheme over who will be elected Gonfaloniere, the head of Florence's government. Only a Medici or a Pazzi may stand.
@@ -747,41 +757,41 @@ The setting pack's strings v0.16 changes or adds. Keys that exist keep their nam
 > 1. The Dominicans win if the elected candidate has publicly repented.
 > 2. Otherwise, the French Embassy wins if anyone in the winner's family is on France's payroll, as long as one member of the Embassy still lives.
 > 3. Otherwise, the elected candidate's family, Medici or Pazzi, wins.
-> A faction needs at least one living member to win. You win if your faction does, even if you died along the way.
+> A faction needs at least one living member to win. You win if your faction does, even if you died along the way. A candidate who repents changes sides: from then on, they win only if the Dominicans do.
 >
 > Your errand: your briefing gives you one task of your own tonight, and it comes first. *(reward on)* Finish it before the last council before midnight and you secretly earn one extra act at midnight: a second kill, guard, or watch, on a different guest. No one else is told. *(reward off)* In this game, finishing it earns no extra act at midnight.
 >
 > The order of the evening: three rounds of mingling, each followed by a council of your own faction. Then midnight. Then the Medici and Pazzi each choose a candidate, the candidates give speeches, every faction holds one last council, and the secret ballot ends the evening.
 >
-> Stages and turns: the evening moves in stages, shown in the bar at the top of the screen. The rounds of mingling and the councils are made of turns; midnight and the ballot are single choices.
+> Stages and turns: the evening moves in stages, shown in the bar at the top of the screen. The rounds of mingling, the councils, the choosing of candidates, and the open floor after the speeches are made of turns; midnight and the ballot are single choices.
 >
-> A turn is twelve lines spoken across the whole house, in every conversation at once. With four groups of three, that's about one line from each guest. A round of mingling lasts 12 turns, a council 3, and the last council 2.
+> A turn is {linesPerTurn} lines spoken across the whole house, shared among every conversation at once. A round of mingling lasts {minglingTurns} turns, a council {councilTurns}, the last council {finalCouncilTurns}, choosing candidates {selectionTurns}, and the open floor after the speeches {openFloorTurns}. *(Each clause after the first only when its value isn't `null`, the list joined with commas and a last "and")*
 >
 > In a group or a council, you say one thing each turn. Type whenever you like, and your words are said at the next pause in your conversation. Pass gives up your line for the turn. If someone speaks to you directly, the game waits for your answer, and answering doesn't use up your line.
 >
-> In a secret conversation, the two of you take turns, and the game waits for you each time. It lasts six lines at most, and either of you can end it sooner; the other then gets a last word.
+> In a secret conversation, the two of you take turns, and the game waits for you each time. It lasts {colloquioCap} lines at most, and either of you can end it sooner; the other then gets a last word.
 >
-> Moving. At the end of every turn, one guest gets a chance to move, in an order drawn fresh at the start of each round of mingling, so you get one chance each round. When yours comes, you can stay, join another guest's group, or start a secret conversation with any guest. You move toward a person, not to a place. If your chance comes while you're in a secret conversation, you stay where you are and the chance is lost. The line above the message box says when yours is next.
+> Moving. At the end of every turn, one guest gets a chance to move, in an order drawn fresh at the start of each round of mingling. *(When `minglingTurns` is at least the number of living guests)* So you get at least one chance each round. *(Otherwise)* A round has fewer turns than there are guests, so not everyone gets a chance every round. When yours comes, you can stay, join another guest's group, or start a secret conversation with any guest. You move toward a person, not to a place. If your chance comes while you're in a secret conversation, you stay where you are and the chance is lost. The line above the message box says when yours is next.
 >
 > Conversations: guests talk in groups of two to four, or two slip away into a secret conversation (a Colloquio), which no one else can join or hear. Starting one uses your chance to move, and the guest you choose can't refuse.
 >
 > Il Notaio, the evening's notary, notes who joins, who leaves, and who slips away, and everyone present hears his notes, so slipping away often invites suspicion. Everyone can see who is in which part of the house, but only those in a conversation hear what's said.
 >
-> When a secret conversation ends, the guest who was invited chooses first, from the groups with room or a secret conversation of their own, which costs them no move. The one who started it goes back to the group they left, or to the smallest group if that one is full.
+> When a secret conversation ends, the guest who was invited chooses first, from the groups with room or a secret conversation of their own, which costs them no move. The one who started it goes back to the group they left, or to the smallest group if that one is full or has broken up.
 >
 > Money and bribes: everyone begins with {start} {currency} and receives {income} more at the start of each round of mingling. Purses are private. A bribe is {currency} handed to the guest you're in a secret conversation with (/bribe); whatever is promised in return is a matter of honor, not law.
 >
-> France's payroll: any Medici or Pazzi may take a payroll payment of {payroll} {currency} from the French Embassy at any time (/borrow), which puts them on France's payroll. Each payment can be paid back before the ballot, {payroll} {currency} at a time (/repay), by the one who took it or by a relative who knows of it; with every payment paid back, they're off the payroll. The payroll is private; only the Embassy keeps the full ledger.
+> France's payroll: any Medici or Pazzi may take a payroll payment of {payroll} {currency} from the French Embassy's treasury (/borrow), which puts them on France's payroll. The treasury starts with {treasury} {currency}; while it's empty, there's no payment to take until one is paid back. Each payment can be paid back before the ballot, {payroll} {currency} at a time (/repay), by the one who took it or by a relative who knows of it; with every payment paid back, they're off the payroll. The payroll is private; only the Embassy keeps the full ledger.
 >
 > Midnight: each living guest secretly chooses one act: to kill, guard, or watch someone. All acts take effect at once, so a guest who dies at midnight still carries out their own act. A guest guarded by two or more survives an attack. A guest watched by two or more can't carry out their kill. You can't guard yourself. Killers are never named. The dead lose their {currency} and their place on France's payroll; nothing is inherited.
 >
 > Candidates and the vote: after midnight, the Medici and the Pazzi each choose one living member as their candidate. Each candidate gives a speech, and then anyone may speak.
 >
-> During the speeches only, a candidate may publicly repent (/repent). It's permanent, and if a repentant candidate is elected, the Dominicans win.
+> During the speeches only, a candidate may publicly repent (/repent). It's permanent. The candidate changes sides: from then on they win only if the Dominicans do, and if they're elected, the Dominicans win.
 >
 > After one last council, every living guest casts one secret vote for any living guest, and may buy extra votes for that same guest at {vote} {currency} each (/buy). Most votes wins, and Il Notaio names only the winner. If the top guests tie, everyone votes once more among only those guests, with no buying; if that ties too, the winner is drawn by lot.
 
-*How the screen gets the values is Technical Design's (tracker handoff); the demo reads them from the primer. Every rule here restates Mechanics v0.37, which Mechanics checks (tracker). The glossary's `rules` pointers follow the new names (Briefing, rules, the city, and the glossary).*
+*The values come with the sheet (Technical Design v0.52); the demo reads them from the primer and its own tunables. Every rule here restates Mechanics v0.37, and Mechanics checked it (Nov 16; its five fixes are in, v0.18). The glossary's `rules` pointers follow the new names (Briefing, rules, the city, and the glossary).*
 
 **New words** (`player.json`, all **new**):
 
@@ -934,7 +944,7 @@ How the screen looks (colour, type, texture, icons, and the values of every them
 - **Three typefaces** *(Dylan)*: the screen's words in its sans; **the guests' words**, and what the player types, in a book serif (the demo uses Source Serif 4); **Il Notaio's** in a Renaissance face (the demo uses EB Garamond), upright in the chat. Each needs a token, and each a size adjustment to match the sans's x-height. Dylan's brief: nothing tacky, ostentatious, or hard to read
 - **Il Notaio's sizes:** his words 16px open and 13px minimized, his notes in step, his title about 87% of his open size, his Show / Hide 11px (Onboarding, His boxes)
 - **Corners:** the modals 30px, the right panel's top and its cards' 22px, the paddles 12px
-- **Blurs:** the screen behind an open modal (5px), the whole side modals (3.5px), the rules' buttons behind an open section (2.5px, dimmed 26%, 40% in dark mode)
+- **Blurs:** the screen behind an open modal (5px), the whole side modals (3.5px), the rules' buttons behind an open section (2.5px, dimmed 26%, 40% in dark mode), **that backdrop's fade at its top and bottom** (22px; v0.18)
 - **The side modals and paddles:** the same colour as the modal in focus; their hover ring and accent title; a clicked paddle's flash (accent fill and ring, light words)
 - **The modals' margins** (one scale for all), their body text (15px, line height 1.6), and **the scroll fades** (36px) where there's more to read
 - **The rules' numeral badges** (a small round badge, the numeral in a serif) and **the list marks** (an accent dot; quiet, bold numerals)
@@ -1110,6 +1120,8 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | The web's faction names at 1, 5, and 7 o'clock, "French Embassy" wrapped, no blue box on click; then more room around the drawing (widening the ring's gaps was the wrong fix) | Set hours by roster order; margins round the whole drawing | The Web of Confidences |
 | Bullets and numbered lists in the modals' text should look better | Real lists | Briefing, rules, the city, and the glossary |
 | Your portrait and name bigger; the skipped tour's Your Briefing filled in; the Glossary's way back highlighted when opened from the chat | Done | Left; The Tour; Briefing, rules, the city, and the glossary |
+| *(v0.18; ⚙️ Mechanics' check)* The player's rules text against v0.37: repentance, the turn numbers, the treasury, a broken-up group, phases made of turns | All five fixed; the numbers are the game's own | The Player's Words |
+| *(v0.18)* A fade at the top and bottom of the rules' backdrop; then more subtle. (A shadow under a card sliding over the "Talking With" card was tried and dropped) | A 22px fade at each end | Briefing, rules, the city, and the glossary |
 
 ---
 
