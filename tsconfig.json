@@ -17,6 +17,7 @@
     "src",
     "scenarios",
     "probe.config.ts",
-    "web/src"
+    "web/src",
+    "tools/demo"
   ]
 }

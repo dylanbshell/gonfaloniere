@@ -31,7 +31,8 @@
     "minigame:score": "tsx src/minigame/blindread.ts",
     "minigame:golden": "tsx src/minigame/golden.ts",
     "test": "tsx --test test/*.test.ts",
-    "play": "tsx src/minigame/play.ts"
+    "play": "tsx src/minigame/play.ts",
+    "demo": "tsx tools/demo/build.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.6.0",
