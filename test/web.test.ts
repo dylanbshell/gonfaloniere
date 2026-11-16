@@ -1100,7 +1100,7 @@ test("Il Notaio's guarded reading in his box (TD v0.51): the background, then a 
   const empty = derive([...at["speak:capannello"]!, { seq: 1e7, type: "reading", guests: ["Lupo"], upTo, text: null, tally: "T.", guarded: { background: { connections: [], lore: [] }, stages: [], empty: "Nothing yet." } }]);
   assert.match(game({ v: empty, web: ["Lupo"] }), /class="reading-empty">Nothing yet\.</);
   const css = readFileSync("web/src/app.css", "utf8");
-  assert.match(css, /\.reading-note \{[^}]*font-size: var\(--text-xs\)/, "a note in a smaller style, a token");
+  assert.match(css, /\.reading-note \{[^}]*font-size: var\(--text-notaio-note-open\)/, "a note in a smaller style, a token");
 });
 
 /** A word from player.json's screen section, filled. */
@@ -1543,8 +1543,8 @@ test("Il Notaio's name, glossed wherever it shows: his notes, his hint, his read
   const hover = `aria-description="${esc(NOTAIO_PACK.name.hover)}"`;
   const h = game({ v, web: ["Lupo"] });
   assert.match(h, new RegExp(`<div class="ln notaio" data-line="\\w+"><span class="sp"><span class="narrator-name" tabindex="0" data-narrator="" ${hover.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`), "his notes in the stream");
-  assert.match(h, /<button class="hint-head"[^>]*><span><span class="narrator-name"[^>]*>Il Notaio<\/span>, to You<\/span>/, "his hint");
-  assert.match(h, /<div class="reading-head"><span class="narrator-name"[^>]*>Il Notaio<\/span>&#x27;s Reading<\/div>/, "his reading");
+  assert.match(h, /<button class="hint-head"[^>]*><span class="notaio-title"><span class="narrator-name"[^>]*>Il Notaio<\/span>, to You<\/span>/, "his hint");
+  assert.match(h, /<div class="reading-head"><span class="notaio-title"><span class="narrator-name"[^>]*>Il Notaio<\/span>&#x27;s Reading<\/span><span class="notaio-toggle">Hide<\/span><\/div>/, "his reading");
   assert.equal(NOTAIO_PACK.name.hover, "Il Notaio: Italian for “the notary”. He records the evening and belongs to no faction.");
   assert.ok(info.glossary!.find((e) => e.term === "Il Notaio")!.text.startsWith(NOTAIO_PACK.name.gloss), "his glossary entry starts with the same gloss");
   assert.ok(NOTAIO_PACK.name.gloss.startsWith("Italian for"));
@@ -1799,7 +1799,7 @@ test("the floating cards and the right panel (Interface v0.16): layer shadows, t
   for (const t of ["--shadow-float-down", "--shadow-up"]) assert.equal((theme.match(new RegExp(`${t}: `, "g")) ?? []).length, 2, `${t}: light and dark`);
   for (const t of ["--float-gap", "--radius-float", "--stream-fade", "--stream-mask", "--return-width", "--right-top-gap", "--right-hide-past", "--right-hiding-opacity", "--self-edge"]) assert.match(theme, new RegExp(`${t}: `), t);
   // The right panel stops short of the top, with rounded top corners; a drag past its narrowest fades it.
-  assert.match(css, /\.side\.right \{[^}]*margin-top: var\(--right-top-gap\)[^}]*border-radius: var\(--radius-float\) var\(--radius-float\) 0 0/);
+  assert.match(css, /\.side\.right \{[^}]*margin-top: var\(--right-top-gap\)[^}]*border-radius: var\(--radius-panel\) var\(--radius-panel\) 0 0/);
   assert.match(css, /\.side\.right\.hiding \{ opacity: var\(--right-hiding-opacity\); \}/);
   // Your own card: "This is you", a "You" tag under your name, an accent edge, and its own explanation.
   const own = game({ v, selected: { kind: "guest", name: F } });
@@ -1940,8 +1940,8 @@ test("the Web of Confidences' looks and the opening's choice (Interface v0.16): 
   assert.match(locked, /^class="start-card locked" data-guest="Piero de&#x27; Medici" aria-disabled="true">/);
   assert.match(locked, /<div class="locked-label">In the Full Game<\/div>/);
   assert.doesNotMatch(locked, /<button/);
-  // After a skipped tour, Your briefing breathes: the same breathing outline as the modals' way on.
-  assert.match(readFileSync("web/src/App.tsx", "utf8"), /nudge && d === DECKS\[0\] \? " breathe" : ""/);
+  // After a skipped tour, Your Briefing breathes, filled in with the accent (Interface v0.17; an outline in v0.16).
+  assert.match(readFileSync("web/src/App.tsx", "utf8"), /nudge && d === DECKS\[0\] \? "primary breathe" : "secondary"/);
 });
 
 // ---- CC-20261116-07 (#179, part 1): Interface v0.17–v0.18's title case and the player's own rules; TD v0.52's values ----
@@ -2088,4 +2088,61 @@ test("the rules modal shows the player's rules, filled from the sheet's values (
   assert.ok(!modal.includes(esc(rulesCards(v.sheet!.rules)[1]!.text.slice(0, 60))));
   // None of the player's rules text is in the screen's code.
   assert.doesNotMatch(noComments(readFileSync("web/src/App.tsx", "utf8")) + noComments(readFileSync("web/src/model.ts", "utf8")), /Stages and Turns|How to Win|chance each round/i);
+});
+
+// ---- CC-20261116-08 (#179, part 2): Interface v0.17's typefaces, relative sizes, Il Notaio's boxes, and selection ----
+
+test("three typefaces as theme tokens (Interface v0.17, The Look): each face served from web/fonts/ with its licence and a size-adjust; text sizes in rem; Il Notaio's sizes, the corners, and the identity's sizes are tokens", async () => {
+  const theme = readFileSync("web/theme.css", "utf8");
+  const css = readFileSync("web/src/app.css", "utf8");
+  // Two faces, each one file in web/fonts/, under the SIL Open Font License, its text beside it.
+  const faces = [...theme.matchAll(/@font-face \{([^}]*)\}/g)].map((m) => ({ family: m[1]!.match(/font-family: "([^"]+)"/)![1]!, file: m[1]!.match(/src: url\("\/fonts\/([\w.-]+\.woff2)"\) format\("woff2"\)/)![1]!, adjust: m[1]!.match(/size-adjust: (\d+)%/)![1]! }));
+  assert.deepEqual(faces, [{ family: "Source Serif 4", file: "SourceSerif4-Regular.woff2", adjust: "108" }, { family: "EB Garamond", file: "EBGaramond-Regular.woff2", adjust: "127" }]);
+  for (const f of faces) assert.equal(readFileSync(join("web/fonts", f.file)).subarray(0, 4).toString("latin1"), "wOF2", `${f.file} is a WOFF2 file`);
+  assert.deepEqual(readdirSync("web/fonts").sort(), ["EBGaramond-Regular.woff2", "OFL-EBGaramond.txt", "OFL-SourceSerif4.txt", "SourceSerif4-Regular.woff2"]);
+  for (const l of ["OFL-EBGaramond.txt", "OFL-SourceSerif4.txt"]) assert.match(readFileSync(join("web/fonts", l), "utf8"), /SIL OPEN FONT LICENSE Version 1\.1/, l);
+  // Nothing is fetched from elsewhere: no @import, and every url() is the page's own.
+  assert.doesNotMatch(theme + css, /@import|url\((?!"\/fonts\/)/);
+  assert.match(theme, /--font-guest: "Source Serif 4", /);
+  assert.match(theme, /--font-notaio: "EB Garamond", /);
+  assert.match(css, /\.ln\.speech \.tx, \.heard, \.field textarea \{ font-family: var\(--font-guest\); \}/);
+  assert.match(css, /\.ln\.notaio \.tx, \.hint-text, \.reading-text, \.summary-items, \.tour-text, \.opening-story \{ font-family: var\(--font-notaio\); \}/);
+  assert.doesNotMatch(css, /\.ln\.notaio \{[^}]*italic/, "his lines in the chat are upright");
+  // Text sizes are relative (Notes for the Build): no text token is in pixels.
+  const text = [...theme.matchAll(/(--text-[\w-]+): ([^;]+);/g)].map((m) => [m[1]!, m[2]!]).filter(([k]) => k !== "--text-muted");
+  assert.ok(text.length >= 10);
+  for (const [k, v] of text) assert.match(v, /^\d*\.?\d+rem$/, k);
+  const rem = (k: string) => Number(theme.match(new RegExp(`${k}: (\\d*\\.?\\d+)rem`))![1]) * 16;
+  assert.deepEqual(["--text-xs", "--text-sm", "--text-md", "--text-lg", "--text-xl"].map(rem), [11, 13, 15, 18, 24], "the sizes they were, at the usual 16px");
+  // Il Notaio's sizes: 16px open, 13px minimized, his notes in step, his title about 87% of his open words, More Below at 10px.
+  assert.deepEqual(["--text-notaio-open", "--text-notaio-min", "--text-notaio-note-open", "--text-notaio-note-min", "--text-notaio-title", "--text-more"].map(rem), [16, 13, 13, 11, 14, 10]);
+  assert.match(css, /\.reading\[data-state="minimized"\] \{[^}]*font-size: var\(--text-notaio-min\)/);
+  assert.match(css, /\.notaio-title \{ font-size: var\(--text-notaio-title\)/);
+  assert.match(css, /\.notaio-toggle \{[^}]*font-size: var\(--text-xs\)/);
+  assert.match(css, /\.more-below \{[^}]*font-size: var\(--text-more\)/);
+  // The smallest labels, a pixel larger from 1800px wide.
+  assert.match(theme, /@media \(min-width: 1800px\) \{\s*:root \{\s*--text-xs: 0\.75rem;\s*--text-more: 0\.6875rem;/);
+  // Corners and the identity: the right panel's top and its cards' 22px; your portrait 84px.
+  assert.match(theme, /--radius-panel: 22px;/);
+  assert.match(theme, /--portrait-size-me: 84px;/);
+  assert.match(css, /\.person\.look \{[^}]*border-radius: var\(--radius-panel\) var\(--radius-panel\) 0 0/);
+  // Selection: nothing but what's worth copying.
+  assert.match(css, /body \{[^}]*user-select: none; \}/);
+  assert.match(css, /\.ln, \.heard, \.saw, \.note-text, textarea, input, \.opening-story, \.end \{ -webkit-user-select: text; user-select: text; \}/);
+});
+
+test("Il Notaio's boxes say Show or Hide (Interface v0.17): his hint, his reading, and his summary, in the hint's own words; a line's parts are a space apart", async () => {
+  const { at } = await playedLog();
+  const v = derive(at["speak:capannello"]!);
+  const h = game({ v, web: ["Lupo"] });
+  assert.match(h, /<button class="hint-head" aria-expanded="true"[^>]*><span class="notaio-title">.*?<\/span><span class="notaio-toggle">Hide<\/span><\/button>/);
+  assert.match(h, /<div class="reading-head"><span class="notaio-title">.*?<\/span><span class="notaio-toggle">Hide<\/span><\/div>/);
+  const past = await earlierView();
+  const stage = past.sheet!.track![1]!;
+  const summarized: View = { ...past, summaries: [...past.summaries, { seq: 1, stage, groups: [], empty: "Nothing reached you." }] };
+  const p = game({ v: summarized, pastStage: stage });
+  assert.match(p, /class="reading past-summary" data-state="expanded"[^>]*><div class="reading-head"><span class="notaio-title">.*?Summary of This Stage<\/span><span class="notaio-toggle">Hide<\/span>/);
+  assert.match(readFileSync("web/src/App.tsx", "utf8"), /<span className="notaio-toggle">\{w\(expanded \? "screen\.notaioHint\.hide" : "screen\.notaioHint\.show"\)\}<\/span>/g);
+  // A copied line keeps the spaces between the speaker's name, "(to …)", and the words.
+  assert.match(h, /<span class="sp">.*?<\/span> (?:<!-- -->)?<span class="(?:to|tx)">/);
 });

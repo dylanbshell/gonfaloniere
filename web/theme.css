@@ -5,17 +5,56 @@
  * a chosen look means editing this file, fonts included, not the components.
  */
 
+/*
+ * Interface v0.17, The Look: three typefaces. The screen's own words stay in its sans; what the guests say (and
+ * what the player types) is in a book serif; Il Notaio writes in a Renaissance one. Both faces are placeholders
+ * for Art & Design (the demo's choices): Source Serif 4 and EB Garamond, each under the SIL Open Font License
+ * (web/fonts/OFL-*.txt), served with the page from web/fonts/ as their projects publish them, unmodified. Each
+ * has a size-adjust so its x-height matches the sans's (about 0.515 em; Source Serif 4's is 0.475, EB
+ * Garamond's 0.405), so every size token means what it says in any of the three.
+ */
+@font-face {
+  font-family: "Source Serif 4";
+  src: url("/fonts/SourceSerif4-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  size-adjust: 108%;
+}
+@font-face {
+  font-family: "EB Garamond";
+  src: url("/fonts/EBGaramond-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  size-adjust: 127%;
+}
+
 :root {
-  /* Fonts. A chosen look loads its fonts here (an @import or @font-face). */
+  /* Fonts. A chosen look loads its fonts above (an @font-face per face), and names them here. */
   --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* What the guests say, and what the player types; and Il Notaio's own words */
+  --font-guest: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-notaio: "EB Garamond", Garamond, Georgia, serif;
 
-  /* Sizes */
-  --text-xs: 11px;
-  --text-sm: 13px;
-  --text-md: 15px;
-  --text-lg: 18px;
-  --text-xl: 24px;
+  /* Sizes: in rem (Interface v0.17, Notes for the Build), so a reader's own font-size setting is respected.
+     At the usual 16px: 11, 13, 15, 18, and 24px. */
+  --text-xs: 0.6875rem;
+  --text-sm: 0.8125rem;
+  --text-md: 0.9375rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.5rem;
+  /* Il Notaio's boxes (his hint, his reading, his summary of a past stage; Interface v0.17, His boxes): his
+     words 16px open and 13px minimized, his lore notes in step (13px and 11px), his title about 87% of his
+     open words (14px) open or minimized, and Show / Hide in the small label size */
+  --text-notaio-open: 1rem;
+  --text-notaio-min: 0.8125rem;
+  --text-notaio-note-open: 0.8125rem;
+  --text-notaio-note-min: 0.6875rem;
+  --text-notaio-title: 0.875rem;
+  /* More Below, smaller than the smallest labels */
+  --text-more: 0.625rem;
   --line-height: 1.45;
   --tracking-label: 0.06em;
   --weight-normal: 400;
@@ -40,6 +79,8 @@
   --side-width: 260px;
   --portrait-size: 44px;
   --portrait-size-lg: 64px;
+  /* Interface v0.17: the player's own portrait at the top of the left panel, a size up */
+  --portrait-size-me: 84px;
   --card-width: 340px;
   --modal-width: 640px;
   --input-height: 72px;
@@ -91,7 +132,7 @@
   --line-sm: calc(var(--text-sm) * var(--line-height));
   --head-height: 76px;
   --input-box-height: 124px;
-  --hint-text-height: calc(var(--line-sm) * 2 + var(--space-2));
+  --hint-text-height: calc(var(--text-notaio-open) * var(--line-height) * 2 + var(--space-2));
   /* The web's names: a halo of the panel's colour, in the diagram's units */
   --label-halo: 0.9;
   --shadow-raised: 0 2px 8px rgba(20, 20, 18, 0.18);
@@ -100,6 +141,8 @@
      Notaio's hint, the message box, and his summary. The conversation fades where it slides under them. */
   --float-gap: 12px;
   --radius-float: 14px;
+  /* Interface v0.17: the right panel's top corners, and those of the cards that slide up over it */
+  --radius-panel: 22px;
   --shadow-float-down: 0 6px 16px rgba(20, 20, 18, 0.16);
   --shadow-up: 0 -6px 16px rgba(20, 20, 18, 0.14);
   --stream-fade: 24px;
@@ -297,6 +340,15 @@
   --faction-3: #3a5a8c;
   --faction-4: #8c3a5a;
   --faction-5: #5a5a5a;
+}
+
+/* Interface v0.17, Screen Sizes: the smallest labels are a pixel larger from an 1800-pixel window up (11 to 12px; More Below 10 to 11px) */
+@media (min-width: 1800px) {
+  :root {
+    --text-xs: 0.75rem;
+    --text-more: 0.6875rem;
+    --text-notaio-note-min: 0.75rem;
+  }
 }
 
 @media (prefers-color-scheme: dark) {

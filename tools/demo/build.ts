@@ -19,6 +19,22 @@ import { PROCESS_BANNER, demoShims, virtualFiles } from "./shims.ts";
 export const DEMO_OUT = "results/demo/index.html";
 const TITLE = "The player screen: demo (a fake game, no model calls)";
 
+/**
+ * The theme with its typefaces inline (Interface v0.17): every `url("/fonts/…")` becomes the file itself, as a
+ * data URI, so the one page still asks its server for nothing. A font the theme names that isn't in web/fonts/
+ * stops the build.
+ */
+export function withFonts(theme: string): string {
+  return theme.replace(/url\("\/fonts\/([\w.-]+\.woff2)"\)/g, (_, file: string) => `url("data:font/woff2;base64,${readFileSync(`web/fonts/${file}`).toString("base64")}")`);
+}
+
+/**
+ * The page without its inline typefaces, for the key scan: a font's base64 is long random-looking text that
+ * can hold a key-shaped run by chance. The fonts are the repo's own files (web/fonts/), so nothing of a game
+ * or a run can be in them; everything else on the page is scanned as before.
+ */
+export const withoutFonts = (html: string): string => html.replace(/url\("data:font\/woff2;base64,[A-Za-z0-9+/=]+"\)/g, 'url("")');
+
 /** The page: web/index.html with the theme, the bundle's CSS, and its JS inline. */
 export function demoHtml(js: string, css: string): string {
   const style = (text: string) => `<style>\n${text.replace(/<\/style/gi, "<\\/style")}\n</style>`;
@@ -30,7 +46,7 @@ export function demoHtml(js: string, css: string): string {
   return [
     // An empty icon, so a static server is never asked for one.
     swap("<title></title>", `<title>${TITLE}</title>\n    <link rel="icon" href="data:," />`),
-    swap('<link rel="stylesheet" href="/theme.css" />', style(readFileSync("web/theme.css", "utf8"))),
+    swap('<link rel="stylesheet" href="/theme.css" />', style(withFonts(readFileSync("web/theme.css", "utf8")))),
     swap('<link rel="stylesheet" href="/app.css" />', style(css)),
     swap('<script type="module" src="/app.js"></script>', `<script type="module">\n${js.replace(/<\/script/gi, "<\\/script")}\n</script>`),
   ].reduce((html, f) => f(html), page);
@@ -57,7 +73,7 @@ export async function buildDemo(out = DEMO_OUT): Promise<{ path: string; bytes: 
   });
   const file = (ext: string) => result.outputFiles.find((f) => f.path.endsWith(ext))?.text ?? "";
   const html = demoHtml(file(".js"), file(".css"));
-  const leaks = keyFindings(html);
+  const leaks = keyFindings(withoutFonts(html));
   if (leaks.length) throw new Error(`Refusing to write ${out}: the page holds something key-shaped (${leaks.join(", ")})`);
   const path = resolve(out);
   mkdirSync(dirname(path), { recursive: true });

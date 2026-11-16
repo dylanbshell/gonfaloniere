@@ -34,7 +34,7 @@ type Story = { paras: { state: string; text: string; full: string }[]; choice: b
 const opening: Partial<Record<"beforeWriting" | "writing" | "afterClick" | "end" | "skipped" | "reduced", Story>> & { headTop?: number } = {};
 let tourAtStart: string | null = null;
 /** TD v0.51, the tour's hold: what the screen had while the tour ran, and what came once it was skipped. */
-const held: { lines?: number; places?: number; errand?: boolean; sent?: string[]; linesAfter?: number; breathes?: boolean; breathesAfterClick?: boolean } = {};
+const held: { lines?: number; places?: number; errand?: boolean; sent?: string[]; linesAfter?: number; breathes?: boolean; filled?: boolean; breathesAfterClick?: boolean } = {};
 
 const VIEW = { width: 1200, height: 700 };
 
@@ -110,6 +110,9 @@ before(async () => {
   held.sent = await page.eval<string[]>(`window.__sent.map((m) => m.type)`);
   // Interface v0.16: after a skipped tour, Your briefing breathes until the player clicks it or anywhere else.
   held.breathes = await page.eval<boolean>(`document.querySelector('.side.left [data-hint="briefing"]').classList.contains("breathe")`);
+  // Interface v0.17: filled in with the accent, not an outline on a plain button.
+  held.filled = await page.eval<boolean>(`(() => { const b = document.querySelector('.side.left [data-hint="briefing"]'), c = getComputedStyle(b), o = getComputedStyle(document.querySelector('.side.left [data-hint="rules"]')); return b.classList.contains("primary") && c.backgroundColor !== o.backgroundColor && c.backgroundColor === getComputedStyle(document.documentElement).getPropertyValue("--accent").trim().replace(/^#(..)(..)(..)$/, (_, r, g, bl) => "rgb(" + [r, g, bl].map((x) => parseInt(x, 16)).join(", ") + ")"); })()`);
+  await page.shot("briefing-filled-after-skip");
   await page.eval(`new Promise((ok) => setTimeout(ok, 50))`);
   await page.eval(`document.querySelector(".side.left .label").click()`);
   held.breathesAfterClick = await page.eval<boolean>(`document.querySelector('.side.left [data-hint="briefing"]').classList.contains("breathe")`);
@@ -947,6 +950,7 @@ test("TD v0.51, the tour's hold: while the tour runs the screen has the sheet, e
   assert.ok(held.linesAfter! > 0, "then the first lines");
   // Interface v0.16: after a skipped tour, Your briefing breathes (a soft pulsing outline) until a click.
   assert.equal(held.breathes, true, "Your briefing breathes after a skipped tour");
+  assert.equal(held.filled, true, "filled in with the accent (Interface v0.17)");
   assert.equal(held.breathesAfterClick, false, "until the player clicks anywhere");
 });
 
@@ -2068,4 +2072,129 @@ test("Il Notaio's name: its hover glosses it, even with the hover explanations o
   await page.until(`!document.querySelector(".tour")`);
   await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 });
   await HINTS_OFF(false);
+});
+
+// ---- CC-20261116-08 (#179, part 2): Interface v0.17's typefaces, relative sizes, Il Notaio's boxes, and selection ----
+
+test("three typefaces, served with the page (Interface v0.17): the guests' words and what you type in the book serif, Il Notaio's upright in his own, the screen's in its sans; sizes in rem; the smallest labels a pixel up from 1800px", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".ln.speech .tx") && document.querySelector(".ln.notaio .tx") && document.querySelector(".notaio-hint .hint-text")`);
+  await page.eval(`document.fonts.ready`);
+  const family = (sel: string) => page.eval<string>(`getComputedStyle(document.querySelector(${JSON.stringify(sel)})).fontFamily.split(",")[0].replace(/"/g, "").trim()`);
+  assert.equal(await family(".ln.speech .tx"), "Source Serif 4");
+  assert.equal(await family(".input textarea"), "Source Serif 4", "what you type is what your character will say");
+  assert.equal(await family(".ln.notaio .tx"), "EB Garamond");
+  assert.equal(await family(".notaio-hint .hint-text"), "EB Garamond");
+  for (const sel of [".ln.speech .sp", ".side.left .fact", ".notaio-hint .notaio-title", ".input .actions button", ".stage-name"]) assert.notEqual((await family(sel)).includes("Garamond") || (await family(sel)).includes("Serif"), true, `${sel}: the screen's sans`);
+  assert.equal(await page.eval<string>(`getComputedStyle(document.querySelector(".ln.notaio")).fontStyle`), "normal", "his lines in the chat are upright");
+  // Both faces are loaded, and from the page's own server: nothing is fetched from elsewhere.
+  await page.until(`document.fonts.check('16px "Source Serif 4"') && document.fonts.check('16px "EB Garamond"')`);
+  const loaded = await page.eval<{ faces: string[]; resources: string[]; foreign: string[] }>(`({ faces: [...document.fonts].filter((f) => f.status === "loaded").map((f) => f.family.replace(/"/g, "")).sort(), resources: performance.getEntriesByType("resource").map((r) => new URL(r.name).pathname).filter((p) => p.startsWith("/fonts/")).sort(), foreign: performance.getEntriesByType("resource").map((r) => new URL(r.name)).filter((u) => u.origin !== location.origin).map(String) })`);
+  assert.deepEqual(loaded.faces, ["EB Garamond", "Source Serif 4"]);
+  assert.deepEqual(loaded.resources, ["/fonts/EBGaramond-Regular.woff2", "/fonts/SourceSerif4-Regular.woff2"]);
+  assert.deepEqual(loaded.foreign, [], "no network fetch at runtime");
+  // Each face's x-height matches the sans's, within a twelfth, by its size-adjust: a size token means what it says in all three.
+  const xh = await page.eval<number[]>(`(() => { const ctx = document.createElement("canvas").getContext("2d"); return ["Helvetica", '"Source Serif 4"', '"EB Garamond"'].map((f) => { ctx.font = "100px " + f; return ctx.measureText("x").actualBoundingBoxAscent; }); })()`);
+  const adjust = await page.eval<Record<string, number>>(`Object.fromEntries([...document.styleSheets].flatMap((sh) => [...sh.cssRules]).filter((r) => r instanceof CSSFontFaceRule).map((r) => [r.style.getPropertyValue("font-family").replace(/"/g, ""), parseFloat(r.style.getPropertyValue("size-adjust"))]))`);
+  assert.deepEqual(adjust, { "Source Serif 4": 108, "EB Garamond": 127 });
+  for (const [i, f] of ["Source Serif 4", "EB Garamond"].entries()) assert.ok(Math.abs(xh[i + 1]! / xh[0]! - 1) < 1 / 12, `${f}: x-height ${xh[i + 1]} against the sans's ${xh[0]}`);
+  // Sizes are in rem: a reader's own font-size setting scales the text, not only the browser's zoom.
+  const sizes = () => page.eval<number[]>(`[".side.left .fact", ".ln.speech .tx", ".notaio-hint .hint-text", ".side.left .label"].map((s) => parseFloat(getComputedStyle(document.querySelector(s)).fontSize))`);
+  assert.deepEqual(await sizes(), [13, 15, 16, 11]);
+  await page.eval(`document.documentElement.style.fontSize = "20px"`);
+  assert.deepEqual(await sizes(), [16.25, 18.75, 20, 13.75], "a quarter larger with the reader's size a quarter larger");
+  await page.eval(`document.documentElement.style.fontSize = ""`);
+  await page.shot("typefaces");
+  // The smallest labels are a pixel larger from an 1800-pixel window up.
+  await page.send("Emulation.setDeviceMetricsOverride", { width: 1920, height: 1080, deviceScaleFactor: 1, mobile: false });
+  assert.deepEqual(await page.eval<number[]>(`[".side.left .label", ".notaio-hint .notaio-toggle", ".side.left .fact"].map((s) => parseFloat(getComputedStyle(document.querySelector(s)).fontSize))`), [12, 12, 13]);
+  await page.send("Emulation.setDeviceMetricsOverride", { ...VIEW, deviceScaleFactor: 1, mobile: false });
+  assert.equal(await page.eval<number>(`parseFloat(getComputedStyle(document.querySelector(".side.left .label")).fontSize)`), 11);
+});
+
+test("Il Notaio's boxes behave alike (Interface v0.17): his words 16px open and 13px minimized, the title 14px either way, Show / Hide at its right in the small label size; your portrait, name, and role a size up; the right panel's rounder corners", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".notaio-hint .hint-text")`);
+  const px = (sel: string) => page.eval<number>(`parseFloat(getComputedStyle(document.querySelector(${JSON.stringify(sel)})).fontSize)`);
+  const text = (sel: string) => page.eval<string>(`document.querySelector(${JSON.stringify(sel)}).textContent`);
+  // His hint.
+  assert.deepEqual([await px(".notaio-hint .hint-text"), await px(".notaio-hint .notaio-title"), await px(".notaio-hint .notaio-toggle"), await text(".notaio-hint .notaio-toggle")], [16, 14, 11, "Hide"]);
+  await page.eval(`document.querySelector(".notaio-hint .hint-head").click()`);
+  await page.until(`!document.querySelector(".notaio-hint .hint-text")`);
+  assert.deepEqual([await px(".notaio-hint .notaio-title"), await text(".notaio-hint .notaio-toggle")], [14, "Show"], "the title keeps its size folded");
+  await page.eval(`document.querySelector(".notaio-hint .hint-head").click()`);
+  // His reading in the Web of Confidences: larger while open, in one step; his lore notes in step.
+  await page.eval(`document.querySelector(".web-bar").click()`);
+  await page.until(`document.querySelector(".web-dock.open .node:not(.me)")`);
+  await page.eval(`document.querySelector('.web .node:not(.me)').dispatchEvent(new MouseEvent("click", { bubbles: true }))`);
+  await page.until(`document.querySelector(".record-pane > .reading .reading-text")?.dataset.reading === "guarded"`);
+  const reading = () => page.eval<{ state: string; words: number; title: number; toggle: string; toggleSize: number; note: number | null; family: string; moving: string }>(`(() => { const r = document.querySelector(".record-pane > .reading"), f = (e) => parseFloat(getComputedStyle(e).fontSize), n = r.querySelector(".reading-note"); return { state: r.dataset.state, words: f(r.querySelector(".reading-text")), title: f(r.querySelector(".notaio-title")), toggle: r.querySelector(".notaio-toggle").textContent, toggleSize: f(r.querySelector(".notaio-toggle")), note: n ? f(n) : null, family: getComputedStyle(r.querySelector(".reading-text")).fontFamily.split(",")[0].replace(/"/g, ""), moving: getComputedStyle(r).transitionProperty }; })()`);
+  let r = await reading();
+  assert.deepEqual([r.state, r.words, r.title, r.toggle, r.toggleSize, r.family], ["expanded", 16, 14, "Hide", 11, "EB Garamond"]);
+  assert.ok(r.note === null || r.note === 13, "his lore notes at 13px while open");
+  assert.ok(!/font-size|all/.test(r.moving), "the size changes in one step, never animated");
+  await page.shot("reading-open-16");
+  await page.eval(`document.querySelector(".record-pane > .reading").click()`);
+  await page.until(`document.querySelector(".record-pane > .reading").dataset.state === "minimized"`);
+  r = await reading();
+  assert.deepEqual([r.words, r.title, r.toggle], [13, 14, "Show"]);
+  assert.ok(r.note === null || r.note === 11);
+  await page.shot("reading-minimized-13");
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector(".web-dock.open")`);
+  // His summary of a past stage, the same.
+  await page.until(`document.querySelector(".stage-bar .mark.past .stage")`);
+  await page.eval(`document.querySelector(".stage-bar .mark.past .stage").click()`);
+  await page.until(`document.querySelector(".reading.past-summary")`);
+  const summary = () => page.eval<[string, number, number, string, number]>(`(() => { const r = document.querySelector(".reading.past-summary"), f = (e) => parseFloat(getComputedStyle(e).fontSize); return [r.dataset.state, f(r.querySelector(".summary-items, .reading-text")), f(r.querySelector(".notaio-title")), r.querySelector(".notaio-toggle").textContent, f(r.querySelector(".notaio-toggle"))]; })()`);
+  assert.deepEqual(await summary(), ["expanded", 16, 14, "Hide", 11]);
+  await page.eval(`document.querySelector(".stream").click()`);
+  await page.until(`document.querySelector(".reading.past-summary").dataset.state === "minimized"`);
+  assert.deepEqual(await summary(), ["minimized", 13, 14, "Show", 11]);
+  await page.eval(`document.querySelector('[data-hint="return"]').click()`);
+  await page.until(`!document.querySelector(".past-stage")`);
+  // The left panel's top: your portrait 84px, your name 18px, your role 15px.
+  const me = await page.eval<number[]>(`(() => { const b = document.querySelector(".me-briefing"); return [b.querySelector(".portrait").getBoundingClientRect().width, parseFloat(getComputedStyle(b.querySelector(".name")).fontSize), parseFloat(getComputedStyle(b.querySelector(".role")).fontSize)]; })()`);
+  assert.deepEqual(me, [84, 18, 15]);
+  // The right panel's top corners, and those of the card that slides up over it: 22px.
+  assert.equal(await page.eval<string>(`getComputedStyle(document.querySelector(".side.right")).borderTopLeftRadius`), "22px");
+  await page.eval(`document.querySelector(".places .token").click()`);
+  await page.until(`document.querySelector(".person.look")`);
+  assert.equal(await page.eval<string>(`getComputedStyle(document.querySelector(".person.look")).borderTopRightRadius`), "22px");
+  await page.key("Escape", 27);
+});
+
+test("only what's worth copying can be selected (Interface v0.17): the lines and their names, what you type, What You Heard and Saw, and notes; a copied line keeps its spaces", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".ln.speech .to, .ln.speech .sp")`);
+  const sel = (q: string) => page.eval<string>(`getComputedStyle(document.querySelector(${JSON.stringify(q)})).userSelect`);
+  for (const q of [".ln.speech .tx", ".ln.speech .sp", ".ln.notaio .tx", ".input textarea"]) assert.equal(await sel(q), "text", q);
+  for (const q of [".side.left .label", ".side.left .fact", ".stage-name", ".input .actions button", ".notaio-hint .hint-text", ".members", ".side.right .label", ".web-bar-title"]) assert.equal(await sel(q), "none", q);
+  // A double-click on a label highlights nothing; on a line's word, that word.
+  const dbl = async (q: string) => {
+    await page.eval(`getSelection().removeAllRanges()`);
+    const at = await page.eval<{ x: number; y: number }>(`(() => { const e = document.querySelector(${JSON.stringify(q)}); e.scrollIntoView({ block: "center" }); const r = e.getBoundingClientRect(); return { x: r.left + 12, y: r.top + r.height / 2 }; })()`);
+    for (const clickCount of [1, 2]) for (const type of ["mousePressed", "mouseReleased"]) await page.send("Input.dispatchMouseEvent", { type, ...at, button: "left", clickCount });
+    return page.eval<string>(`String(getSelection())`);
+  };
+  assert.equal(await dbl(".side.left .places .label, .side.left .label"), "", "a label");
+  assert.notEqual(await dbl(".ln.speech .tx"), "", "a word of a guest's line");
+  await page.eval(`getSelection().removeAllRanges()`);
+  // A copied line: the speaker's name, "(to …)", and the words, with a space between each.
+  const lines = await page.eval<string[]>(`[...document.querySelectorAll(".stream .ln.speech, .stream .ln.notaio")].map((l) => { const r = document.createRange(); r.selectNodeContents(l); getSelection().removeAllRanges(); getSelection().addRange(r); return String(getSelection()); })`);
+  await page.eval(`getSelection().removeAllRanges()`);
+  assert.ok(lines.length > 2);
+  const parts = await page.eval<string[][]>(`[...document.querySelectorAll(".stream .ln.speech, .stream .ln.notaio")].map((l) => [...l.querySelectorAll(":scope > .sp, :scope > .to, :scope > .tx")].map((x) => x.textContent.trim()))`);
+  for (const [i, l] of lines.entries()) assert.equal(l.replace(/\s+/g, " ").trim(), parts[i]!.join(" ").replace(/\s+/g, " "), "the parts, a space apart");
+  // In the Web of Confidences: What You Heard and Saw and a note's text can be selected; the tabs and the key can't.
+  await page.eval(`document.querySelector(".web-bar").click()`);
+  await page.until(`document.querySelector(".web-dock.open .node:not(.me)")`);
+  const spoke = await page.eval<string>(`document.querySelector(".stream .ln.speech:not(.mine) .sp").textContent.trim()`);
+  await page.eval(`document.querySelector(${JSON.stringify(`.web .node[data-guest="${spoke}"]`)}).dispatchEvent(new MouseEvent("click", { bubbles: true }))`);
+  await page.until(`document.querySelector(".web-side .heard li")`);
+  assert.equal(await sel(".web-side .heard li"), "text");
+  assert.equal(await page.eval<string>(`getComputedStyle(document.querySelector(".web-side .heard li")).fontFamily.split(",")[0].replace(/"/g, "")`), "Source Serif 4", "a guest's words there too");
+  for (const q of [".web-side .tabs .tab", ".web-key .key-head", ".reading .reading-text"]) assert.equal(await sel(q), "none", q);
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector(".web-dock.open")`);
 });

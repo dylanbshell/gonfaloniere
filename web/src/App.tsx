@@ -1371,7 +1371,7 @@ function Left({ me, v, onDeck, onTour, nudge = false }: { me: string; v: View; o
           Confidences has no button here: it's always at the bottom (TD v0.44). */}
       <div className="buttons decks">
         {DECKS.map((d) => (
-          <button key={d} className={`secondary${nudge && d === DECKS[0] ? " breathe" : ""}`} disabled={!v.sheet} onClick={() => onDeck(d)} {...hint(d)}>
+          <button key={d} className={nudge && d === DECKS[0] ? "primary breathe" : "secondary"} disabled={!v.sheet} onClick={() => onDeck(d)} {...hint(d)}>
             {w(`screen.${d}`)}
           </button>
         ))}
@@ -1734,7 +1734,10 @@ function PastSummary({ stage, v, me, expanded, onToggle, onEntry }: { stage: str
   return (
     <aside className="reading past-summary" data-state={expanded ? "expanded" : "minimized"} role="button" aria-expanded={expanded} onClick={onToggle} onKeyDown={toggleKeys(onToggle)} {...hint("pastSummary", { focusable: true })}>
       <div className="reading-head">
-        <Narrated template={w("screen.pastStage.summaryTitle")} />
+        <span className="notaio-title">
+          <Narrated template={w("screen.pastStage.summaryTitle")} />
+        </span>
+        <span className="notaio-toggle">{w(expanded ? "screen.notaioHint.hide" : "screen.notaioHint.show")}</span>
       </div>
       {summary.empty && <p className="reading-text tally">{summary.empty}</p>}
       {summary.groups.map((g) => {
@@ -1927,7 +1930,7 @@ function StreamLine({ l, me, lore }: { l: Line; me: string; lore: LoreEntry[] })
       <div className="ln notaio" data-line={l.id}>
         <span className="sp">
           <NarratorName />
-        </span>
+        </span>{" "}
         <span className="tx">
           <Linked text={l.text} lore={lore} />
         </span>
@@ -1936,7 +1939,7 @@ function StreamLine({ l, me, lore }: { l: Line; me: string; lore: LoreEntry[] })
   if (l.item === "action")
     return (
       <div className={`ln action${l.private ? " private" : ""}`} data-line={l.id}>
-        {l.private && <span className="sp">{w("screen.private")}</span>}
+        {l.private && <span className="sp">{w("screen.private")} </span>}
         <span className="tx">
           <Linked text={l.text} lore={lore} />
         </span>
@@ -1947,8 +1950,8 @@ function StreamLine({ l, me, lore }: { l: Line; me: string; lore: LoreEntry[] })
   const hl = sel?.kind === "guest" && sel.name === speaker;
   return (
     <div className={`ln speech${l.you ? " mine" : ""}${toYou ? " to-you" : ""}${hl ? " hl" : ""}`} data-line={l.id}>
-      <span className="sp">{l.you ? w("screen.you") : <Name name={l.speaker!} />}</span>
-      {l.addressee && <span className="to">{toYou ? w("screen.toYou") : w("screen.to", { name: l.addressee })}</span>}
+      <span className="sp">{l.you ? w("screen.you") : <Name name={l.speaker!} />}</span>{" "}
+      {l.addressee && <span className="to">{toYou ? w("screen.toYou") : w("screen.to", { name: l.addressee })} </span>}
       <span className="tx">
         <Linked text={l.text} lore={lore} />
       </span>
@@ -1985,10 +1988,10 @@ function NotaioHint({ me, v, refused = null }: { me: string; v: View; refused?: 
     <aside className={`notaio-hint${open ? "" : " collapsed"}`}>
       {fresh > 0 && <span key={fresh} className="hint-glow" aria-hidden="true" />}
       <button className="hint-head" aria-expanded={open} onClick={() => setOpen(!open)} {...hint("notaioHint")}>
-        <span>
+        <span className="notaio-title">
           <Narrated template={w("screen.notaioHint.title")} />
         </span>
-        <span className="muted">{w(open ? "screen.notaioHint.hide" : "screen.notaioHint.show")}</span>
+        <span className="notaio-toggle">{w(open ? "screen.notaioHint.hide" : "screen.notaioHint.show")}</span>
       </button>
       {open && (
         <p key={fresh} className={`hint-text${fresh > 0 ? " fresh" : ""}`} data-moment={refused ? "refusal" : m.key}>
@@ -2739,7 +2742,10 @@ function RecordPane({ box, children }: { box: ReactNode; children: ReactNode }) 
         {...hint("reading", { focusable: true })}
       >
         <div className="reading-head">
-          <Narrated template={w("screen.reading.title")} />
+          <span className="notaio-title">
+            <Narrated template={w("screen.reading.title")} />
+          </span>
+          <span className="notaio-toggle">{w(expanded ? "screen.notaioHint.hide" : "screen.notaioHint.show")}</span>
         </div>
         {box}
       </aside>
