@@ -10,9 +10,9 @@
 
 **The right panel** (Right):
 - **Lower, rounder, roomier:** it stops 48px below the top of the window (was 12px; the stage bar stays where it was); its top corners and its cards' are 28px (was 22px); its text is a size up throughout; its cards have wider side margins that grow with the panel (24 to 40px) and a deeper top margin (28px)
-- **Fuller guest cards,** all public: a short description, **"Their faction wins if"** from the rules, the public connections as before, and **"In the city"**: links to the city entries that concern them. A city entry's card ends with **"Guests it concerns"**, each selecting that guest. The demo's descriptions are placeholders written only from public lore and connections; the real lines are 🎭 Characters', and which entries concern which guests is 📜 Lore's (tracker)
+- **Fuller guest cards,** all public: a short description, **"Their faction wins if"** from the rules (Mechanics checks the wording), the public connections as before, and **"In the city"**: links to the city entries that concern them. A city entry's card ends with **"Guests it concerns"**, each selecting that guest. The demo's descriptions are placeholders written only from public lore and connections; the real lines are 🎭 Characters', and which entries concern which guests is 📜 Lore's (tracker)
 - **Headings that stay put:** scrolling a card, its heading stays, and so do a guest's portrait, name, and You tag; the subtitle and everything below slide under them and fade. On a city entry, its title stays. Each card scrolls on its own, and **More Below** shows when a card runs past the bottom
-- **Where the card that slides up stops:** in a wide panel (380px and up), 40% of the way down, so both cards show; in a narrower one, just under the "talking with" card's portrait. It glides between the two as the panel is resized. Where it covers the name under that portrait, the name shows beside "Talking with" instead
+- **Where the card that slides up stops:** when someone has your ear, in a wide panel (380px and up), 40% of the way down, so both cards show; in a narrower one, just under the "talking with" card's portrait. It glides between the two as the panel is resized. Where it covers the name under that portrait, the name shows beside "Talking with" instead. **When no one has your ear,** there's nothing to see under it, so it comes up to just under the heading at any width
 - **City entries' titles centred**
 
 **The centre** (Centre):
@@ -449,7 +449,7 @@ In the chat view, **one thing is selected at a time:** a guest or a lore topic. 
 - **Your own card** *(Dylan; v0.16)*: selecting yourself shows **"This is you"** as the label, a small **"You"** tag under your name, and an accent edge all the way round. What it shows is what everyone knows of you, the same as anyone's card ("Your own card: what everyone knows about you.")
 - **No faction line above the subtitle** *(Dylan; v0.16)*: the subtitle already opens with the faction ("Dominicans · a penitent widow"), so cards show the name, then the subtitle. The same goes for the opening's cards
 - **Selecting slides a card up over** the "talking with" card; **deselecting slides it back down** (the ×, Escape, clicking again, clearing in the web, or clicking empty space)
-  - **Where it stops** *(Dylan; v0.19)*: **in a wide panel** (380px and up), **40% of the way down,** so the player can read both cards; **in a narrower one, just under the "talking with" card's portrait.** If the panel is resized across the line with a card up, the card glides to its new place. Where the card covers the name under that portrait, the name shows beside "Talking with" instead. (Just under the heading, then just under the name, were tried first)
+  - **Where it stops** *(Dylan; v0.19)*: **when someone has your ear,** **in a wide panel** (380px and up), **40% of the way down,** so the player can read both cards; **in a narrower one, just under the "talking with" card's portrait.** If the panel is resized across the line with a card up, the card glides to its new place. Where the card covers the name under that portrait, the name shows beside "Talking with" instead. (Just under the heading, then just under the name, were tried first.) **When no one has your ear** ("No one has your ear"), there's nothing worth seeing under it, so **it comes up to just under the heading,** at any width; when someone takes your ear, it glides down
   - **The same width as the card under it** (a narrower card was tried and dropped)
 - **Headings that stay put** *(Dylan; v0.19)*: when a card scrolls, **its heading stays** ("Talking with", "Looking at", "This is you", "The city"), and **so does a guest's portrait, name, and You tag;** the subtitle and everything after slide under them, fading as they go, with a space above the subtitle so it starts clear of the fade. **On a city entry, its title stays** and the words slide under it. Each card scrolls by itself (the panel's hide control stays in its corner), and **More Below** shows when a card runs past the bottom, as on the left
 - **Resizable, and hideable by dragging** *(v0.16)*: a drag handle on the left edge sets the width, remembered in the browser. **Dragging well past the narrowest hides the panel,** as its hide control does; while the drag is past that point, the panel fades to show what letting go will do. Letting go anywhere, even off the window, finishes the drag
@@ -457,7 +457,7 @@ In the chat view, **one thing is selected at a time:** a guest or a lore topic. 
 - **What it shows is public and fixed** *(fuller since v0.19, Dylan)*, in order:
   - **Portrait, name, and subtitle**
   - **A short description:** two or three sentences, public only. *(Characters' to write, tracker; the demo's are placeholders drawn only from the public lore entries and connections, and stay short where those say little)*
-  - **"Their faction wins if":** the faction's win condition, in the rules' words, and for the Medici and the Pazzi that only they may stand. From the setting pack, filled from the rules
+  - **"Their faction wins if":** the faction's win condition, in the rules' words, and who may stand for the office. From the setting pack. The demo's four lines (France takes the win only while a member of the Embassy lives, and not from a candidate who repented) are for ⚙️ Mechanics to check, as it checked the player's rules text
   - **"Known to all":** the public connection lines, as before
   - **"In the city":** links to the public lore entries that concern the guest, each opening here with a way back to the guest. *(Which entries concern which guest is Lore's, tracker; none may point at a secret: the demo links no one to San Frediano)*
 - **A city entry** opens here, with a way back: **its title centred** and a size up *(Dylan; v0.19)*, its text, and **"Guests it concerns":** a small portrait and name for each, selecting them
@@ -559,7 +559,7 @@ The screen is laid out for **a laptop, a desktop, or a tablet held sideways.** W
 | Part | Size |
 |---|---|
 | Left panel | Grows with the window, 284 to 332px (about a quarter of the window) |
-| Right panel ("Talking With") | Grows with the window, 280 to 480px; starts folded under 1044px wide; 48px below the window's top. Its cards' side margins 24 to 40px; the card that slides up stops at 40% from 380px wide, under the portrait below that |
+| Right panel ("Talking With") | Grows with the window, 280 to 480px; starts folded under 1044px wide; 48px below the window's top. Its cards' side margins 24 to 40px; with someone at your ear, the card that slides up stops at 40% from 380px wide, under their portrait below that; with no one, under the heading |
 | The conversation's column | At least 540px wide, so the stage bar fits; its reading column (the lines, Il Notaio's boxes, the message box) at most 820px, centred |
 | The stage bar | At most 1280px, centred; its card's side margins grow beyond the reading column's width; its circles sized from its own width |
 | The conversation's height | At least 200px; Il Notaio's hint folds itself first |
@@ -1193,6 +1193,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | Rounder top corners on the two cards; the top card a little narrower (then back to full width); a space above the subtitle | 28px; full width; a space clear of the fade | Right; The Look |
 | The last stages cut off at some widths | The circles are sized from the bar's own width | The stage bar |
 | More Below on the right panel's cards | Done | Right |
+| The card that slides up shouldn't stop halfway when there's nothing worth seeing under it | Only when someone has your ear; otherwise just under the heading | Right |
 
 ---
 
