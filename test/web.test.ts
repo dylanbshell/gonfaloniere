@@ -21,7 +21,7 @@ import { settingPack } from "../src/setting/pack.ts";
 import { GameView, Opening } from "../web/src/App.tsx";
 import type { Ev } from "../web/src/connection.ts";
 import { canDo, canSpeak, openMenu, trigger, withMention } from "../web/src/input.ts";
-import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityCards, cityList, curve, derive, factionArcs, placeholderExample, preview, selectBack, selectInChat, selectInWeb, selectLore, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, lineStages, loreParts, readingFor, roomOf, summaryFor, rulesCards, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, glossaryList, lineParts, midnightLine, notesFor, rulesSectionFor, type LoreEntry, type View, factLink, rulesLink, errandTask, errandCardAt, commandMenu, commandWhy, payrollSize, refusalWhy, refusedCommand } from "../web/src/model.ts";
+import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityCards, cityList, curve, derive, factionArcs, placeholderExample, preview, selectBack, selectInChat, selectInWeb, selectLore, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, lineStages, loreParts, readingFor, roomOf, summaryFor, rulesCards, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, glossaryList, lineParts, midnightLine, notesFor, rulesSectionFor, type LoreEntry, type View, factLink, rulesLink, errandTask, errandCardAt, commandMenu, commandWhy, payrollSize, refusalWhy, refusedCommand, playerBriefing } from "../web/src/model.ts";
 import { notaioHint, setInfo, type StartInfo } from "../web/src/words.ts";
 import { fakeCaller, fakeDocs, fakeSettings } from "./fixtures/fake-game.ts";
 
@@ -299,15 +299,17 @@ test("the decks: one card per briefing section and per rules topic, with Your pa
   const b = game({ v: past, deck: "briefing" });
   assert.deepEqual(missingWords(b), []);
   // The deck's own tabs (the Web of Secrets, always on the page, has tabs of its own).
-  assert.equal((modal(b).match(/class="tab( on)?"/g) ?? []).length, cards.length + 1, "a tab per card");
+  // Interface v0.16: five cards for the player, then Your past.
+  assert.equal((modal(b).match(/class="tab( on)?"/g) ?? []).length, 5 + 1, "a tab per card");
   assert.match(b, /class="deck-card"[^>]*data-hint="deckCard"/, "the card swipes on");
-  assert.match(b, /data-hint="deckBack"/);
+  assert.match(game({ v: past, deck: "briefing" }), /<button class="secondary deck-next"[^>]*data-hint="deckCard">Next briefing →<\/button>/);
   assert.match(b, /data-hint="deckTab">Your past</, "Your past, last");
   // Interface v0.5: the rules are one button per section, and an open section fills the modal with its ×.
   const r = modal(game({ v, deck: "rules" }));
   assert.deepEqual(missingWords(r), []);
   assert.deepEqual([...r.matchAll(/<button class="rules-section" data-section="\d+"[^>]*data-hint="rulesSection">([^<]*)</g)].map((m) => m[1]), rules.map((c) => c.title.replace(/'/g, "&#x27;")), "a button per section, in order");
   assert.doesNotMatch(r, /class="tab|deck-card/, "no deck");
+  assert.equal(rules[0]!.title, "The evening", "the primer's capitalized opening heading shows in sentence case (Interface v0.16)");
   // The city is a list: a row per public entry, with its title and a one-line preview, under subject headers.
   const c = modal(game({ v: withLore(v), deck: "city" }));
   assert.deepEqual(missingWords(c), []);
@@ -1401,8 +1403,15 @@ test("the four modals in a row: the open one between its neighbours, nothing bef
   const left = h.slice(h.indexOf('class="buttons decks"'), h.indexOf('class="errand"'));
   assert.deepEqual([...left.matchAll(/data-hint="(\w+)"/g)].map((m) => m[1]), ["briefing", "rules", "city", "glossary"]);
   const css = readFileSync("web/src/app.css", "utf8");
-  assert.match(css, /\.modal-peek\.left \{[^}]*mask-image: var\(--peek-fade-left\)/, "the left one's left side faded");
-  assert.match(css, /\.modal-peek\.right \{[^}]*mask-image: var\(--peek-fade-right\)/);
+  // Interface v0.16: the neighbours are solid (no fade), each with a one-line summary of what it is rather than its list of topics.
+  assert.doesNotMatch(css, /\.modal-peek[^{]*\{[^}]*(mask-image|opacity)/, "solid, not see-through");
+  assert.match(css, /\.modal-peek \{[^}]*background: var\(--surface\)/);
+  assert.match(peek, /<div class="peek-frame" inert="" aria-hidden="true"><header><h2>The city<\/h2><\/header><p class="peek-summary">What every guest knew of Florence before tonight\.<\/p><\/div>/);
+  assert.doesNotMatch(h, /peek-items/);
+  for (const d of ["briefing", "rules", "city", "glossary"]) assert.ok((PLAYER.screen.modalRow.summary[d] as string).length > 20, d);
+  // The focused modal's title is centred in its header, with Close at the right.
+  assert.match(h, /<header><span><\/span><h2>Glossary<\/h2><button class="primary deck-close"[^>]*data-hint="close">Close<\/button><\/header>/);
+  assert.match(css, /\.modal\.deck > header \{[^}]*grid-template-columns: 1fr auto 1fr/);
   assert.match(css, /\.gloss \{ text-decoration: underline dotted var\(--gloss-underline\)/);
 });
 
@@ -1718,4 +1727,78 @@ test("the floating cards and the right panel (Interface v0.16): layer shadows, t
   const lupo = info.roster.find((r) => r.name === "Lupo")!;
   assert.ok(other.includes(`<div class="name">Lupo</div><div class="muted">${esc(lupo.subtitle)}</div>`));
   assert.doesNotMatch(other, /class="person look self"|you-tag/);
+});
+
+// ---- CC-20261116-05 (#177): Interface v0.16's modals ------------------------------------------------------
+
+test("the briefing is five cards for the player (Interface v0.16): the AI guests' cards left out, the short ones merged, from the setting pack; the briefing text unchanged", async () => {
+  const skips = PLAYER.screen.decks.playerSkips;
+  const merges = PLAYER.screen.decks.playerMerges;
+  assert.deepEqual(skips, ["How you speak", "Resources", "Social awareness"]);
+  assert.deepEqual(merges, [
+    { title: "What you want", cards: ["Your faction", "Other goals (your own reasons)"], subheadings: ["Your own reasons"] },
+    { title: "What you know", cards: ["What you know", "Your secrets (private)"], subheadings: ["Keep to yourself"] },
+  ]);
+  for (const [name, b] of Object.entries(castBriefings(fakeDocs))) {
+    const all = briefingCards(b!);
+    const cards = playerBriefing(all, skips, merges);
+    assert.deepEqual(cards.map((c) => c.title), ["Who you are", "Your errand tonight", "What you want", "What you know", "Relationships"], name);
+    const text = (t: string) => all.find((c) => c.title === t)!.text;
+    assert.equal(cards[2]!.text, `${text("Your faction")}\n\n**Your own reasons**\n${text("Other goals (your own reasons)")}`, `${name}: the faction's aims, then Your own reasons`);
+    assert.equal(cards[3]!.text, `${text("What you know")}\n\n**Keep to yourself**\n${text("Your secrets (private)")}`, `${name}: what you know, then Keep to yourself`);
+    for (const t of (skips as string[]).filter((x) => all.some((c) => c.title === x))) assert.ok(!cards.some((c) => c.text.includes(text(t))), `${name}: ${t} is left out`);
+    assert.equal(cards[errandCardAt(cards, errandText(b!))]!.title, "Your errand tonight", `${name}: the errand card opens the briefing at the errand`);
+  }
+  // No pack lists (another setting, or a malformed one): the briefing's own cards.
+  const all = briefingCards(castBriefings(fakeDocs)[F]!);
+  assert.deepEqual(playerBriefing(all, undefined, undefined), all);
+  assert.deepEqual(playerBriefing(all, "x", [{ title: 3 }, null]), all);
+  // On the screen: five tabs, the merged card with its subheading in bold; no setting term in the screen's code decides it.
+  const { at } = await playedLog();
+  const v = derive(at["speak:capannello"]!);
+  const h = game({ v, deck: "briefing" });
+  const modal = h.slice(h.indexOf('class="overlay"'));
+  assert.deepEqual([...modal.matchAll(/data-hint="deckTab">([^<]*)</g)].map((m) => m[1]), ["Who you are", "Your errand tonight", "What you want", "What you know", "Relationships"]);
+  assert.match(modal, /1 of 5/);
+  assert.equal(v.sheet!.briefing, castBriefings(fakeDocs)[F], "the briefing text itself is unchanged");
+  assert.doesNotMatch(noComments(readFileSync("web/src/App.tsx", "utf8")) + noComments(readFileSync("web/src/model.ts", "utf8")), /How you speak|Social awareness|Your own reasons|Keep to yourself/);
+});
+
+test("the modals' chained footers (Interface v0.16): Previous and Next worded for what each holds, On to and Back to at the ends, Close filled at the chain's end, and the motion's tokens", async () => {
+  const { at } = await playedLog();
+  const v = withLore(derive(at["speak:capannello"]!));
+  const foot = (h: string) => {
+    const m = h.slice(h.indexOf('class="overlay"'));
+    const f = m.slice(m.indexOf('<footer class="deck-foot"'), m.indexOf("</footer>"));
+    return [...f.matchAll(/<button class="([^"]*)"[^>]*data-hint="(\w+)">([^<]*)</g)].map((x) => `${x[1]}|${x[2]}|${x[3]}`);
+  };
+  // The briefing's first card: nothing before it (the start of the chain); Next briefing.
+  assert.deepEqual(foot(game({ v, deck: "briefing" })), ["secondary deck-next|deckCard|Next briefing →"]);
+  // The rules open on their buttons: Back to Your briefing, and First rule.
+  assert.deepEqual(foot(game({ v, deck: "rules" })), ["secondary deck-prev|modalPrevious|Back to Your briefing", "secondary deck-next|deckCard|First rule →"]);
+  // The city's list: Back to The rules, and First topic.
+  assert.deepEqual(foot(game({ v, deck: "city" })), ["secondary deck-prev|modalPrevious|Back to The rules", "secondary deck-next|deckCard|First topic →"]);
+  // The glossary, the end of the chain: only the way back to The city, and Close fills in.
+  const g = game({ v, deck: "glossary" });
+  assert.deepEqual(foot(g), ["secondary deck-prev|modalPrevious|Back to The city"]);
+  assert.match(g, /<button class="primary deck-close"/);
+  assert.match(game({ v, deck: "rules" }), /<button class="secondary deck-close"/);
+  // The words, from the pack.
+  const s = PLAYER.screen;
+  assert.deepEqual([s.decks.previousBriefing, s.decks.nextBriefing], ["← Previous briefing", "Next briefing →"]);
+  assert.deepEqual([s.rulesModal.previous, s.rulesModal.next, s.rulesModal.first, s.rulesModal.overview], ["← Previous rule", "Next rule →", "First rule →", "← The rules"]);
+  assert.deepEqual([s.cityList.first, s.cityList.previous, s.cityList.next], ["First topic →", "← Previous topic", "Next topic →"]);
+  assert.deepEqual([s.modalRow.previous, s.modalRow.next], ["Back to {title}", "On to {title}"]);
+  // Motion is subtle: 24 and 48 pixels, 97%, 300 ms; nothing slides with reduced motion; the breathing outline is a token.
+  const theme = readFileSync("web/theme.css", "utf8");
+  for (const t of ["--swipe-distance: 24px", "--modal-slide: 48px", "--grow-from: 0.97", "--motion-modal: 300ms"]) assert.ok(theme.includes(t), t);
+  for (const t of ["--breathe-colour", "--rules-backdrop"]) assert.equal((theme.match(new RegExp(`${t}: `, "g")) ?? []).length, 2, `${t}: light and dark`);
+  const css = readFileSync("web/src/app.css", "utf8");
+  assert.match(css, /\.deck-card \{[^}]*animation: swipe-in var\(--motion-modal\)/);
+  assert.match(css, /\.deck-card\.from-left, \.city-entry\.from-left, section\.rules-section\.from-left \{ animation-name: swipe-in-left; \}/, "going back, cards slide in from the left");
+  assert.match(css, /\.modal\.from-left \{ animation: row-from-left var\(--motion-modal\)/);
+  assert.match(css, /\.breathe \{ animation: breathe var\(--motion-breathe\)/);
+  assert.match(css, /prefers-reduced-motion: reduce\) \{\s*\.deck-card \{ animation: none; \}\s*\.breathe \{ animation: none;/);
+  // The rules: the buttons stay in view, and a section opens as a card over them.
+  assert.match(css, /\.rules-over \{[^}]*position: absolute[^}]*inset: 0/);
 });

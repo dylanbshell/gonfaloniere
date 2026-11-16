@@ -348,6 +348,46 @@ export function briefingCards(briefing: string): Card[] {
   return cards.filter((c) => c.title || c.text);
 }
 
+/** Cards the player's briefing shows as one (player.json's screen.decks.playerMerges): the new title, the cards in order, and a subheading for each later card. */
+export interface BriefingMerge {
+  title: string;
+  cards: string[];
+  subheadings: string[];
+}
+
+/**
+ * The briefing as the player reads it (Interface v0.16): the cards meant for the AI guests' prompts are left
+ * out (`skips`, by title), and short ones that belong together are merged (`merges`): one card under the new
+ * title, where the first of its cards stood, the later ones each under its subheading. The briefing text
+ * itself is unchanged; titles match ignoring case. Malformed pack entries are ignored.
+ */
+export function playerBriefing(cards: Card[], skips: unknown, merges: unknown): Card[] {
+  const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+  const skip = Array.isArray(skips) ? skips.filter((x): x is string => typeof x === "string") : [];
+  const merge = (Array.isArray(merges) ? merges : []).filter((m): m is BriefingMerge => !!m && typeof m.title === "string" && Array.isArray(m.cards) && m.cards.every((c: unknown) => typeof c === "string"));
+  const out: Card[] = [];
+  const made = new Map<BriefingMerge, Card>();
+  for (const c of cards) {
+    if (skip.some((t) => same(t, c.title))) continue;
+    const m = merge.find((x) => x.cards.some((t) => same(t, c.title)));
+    if (!m) {
+      out.push(c);
+      continue;
+    }
+    const at = m.cards.findIndex((t) => same(t, c.title));
+    const heading = at > 0 ? m.subheadings?.[at - 1] : undefined;
+    const part = heading ? `**${heading}**\n${c.text}` : c.text;
+    const have = made.get(m);
+    if (have) have.text += `\n\n${part}`;
+    else {
+      const card = { title: m.title, text: part };
+      made.set(m, card);
+      out.push(card);
+    }
+  }
+  return out;
+}
+
 /**
  * The rules primer as one card per topic: a paragraph that opens with a short label ("Money: …") is a
  * topic, titled with that label (a parenthetical left in the text); the opening heading line and its
@@ -360,7 +400,8 @@ export function rulesCards(rules: string): Card[] {
     if (!p) continue;
     const lines = p.split("\n");
     const lead = p.match(/^([^:\n.]{1,90}):\s*/);
-    if (!cards.length && lines.length > 1 && lines[0] === lines[0]!.toUpperCase() && !lead) cards.push({ title: lines[0]!, text: lines.slice(1).join("\n") });
+    // Interface v0.16: the primer's capitalized opening heading shows in sentence case, like the other sections' titles.
+    if (!cards.length && lines.length > 1 && lines[0] === lines[0]!.toUpperCase() && !lead) cards.push({ title: lines[0]!.charAt(0) + lines[0]!.slice(1).toLowerCase(), text: lines.slice(1).join("\n") });
     else if (lead) {
       const bare = lead[1]!.replace(/\s*\([^)]*\)$/, "");
       cards.push({ title: bare, text: bare === lead[1] ? p.slice(lead[0].length) : p });

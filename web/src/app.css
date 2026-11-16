@@ -165,6 +165,9 @@ button.fact:hover .fact-label, button.fact:focus-visible .fact-label, button.lin
 .modal { background: var(--surface); border-radius: var(--radius-lg); width: 100%; max-width: var(--modal-width); max-height: var(--modal-max-height); display: flex; flex-direction: column; }
 .modal header { display: flex; justify-content: space-between; align-items: center; padding: var(--space-3) var(--space-4); border-bottom: var(--border-width) solid var(--border); }
 .modal h2 { margin: 0; }
+/* Interface v0.16: the focused modal's title is centred in its header; Close stays at the right */
+.modal.deck > header { display: grid; grid-template-columns: 1fr auto 1fr; }
+.modal.deck > header .deck-close { justify-self: end; }
 .sheet { padding: var(--space-4); overflow-y: auto; white-space: pre-wrap; font-size: var(--text-sm); }
 
 /* Hover explanations: one tooltip, placed by the element it explains */
@@ -199,12 +202,24 @@ button.lore-link.selected { background: var(--select-bg); }
 .tabs { display: flex; flex-wrap: wrap; gap: var(--space-1); padding: var(--space-2) var(--space-4); border-bottom: var(--border-width) solid var(--border); }
 button.tab { font-size: var(--text-xs); padding: var(--space-1) var(--space-2); background: transparent; border-color: transparent; color: var(--text-muted); }
 button.tab.on { border-color: var(--accent); color: var(--accent); }
-.deck-card { padding: var(--space-4) var(--space-5); overflow-y: auto; min-height: var(--deck-card-min-height); cursor: pointer; animation: swipe-in var(--motion-slow) ease-out; }
+.deck-card { flex: 1; padding: var(--space-4) var(--space-5); overflow-y: auto; min-height: var(--deck-card-min-height); cursor: pointer; animation: swipe-in var(--motion-modal) ease-out; }
 .deck-card.empty { cursor: default; color: var(--text-muted); }
 .deck-card h3 { font-size: var(--text-lg); }
 .deck-text { white-space: pre-wrap; font-size: var(--text-sm); }
-.deck-foot { display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) var(--space-4); border-top: var(--border-width) solid var(--border); font-size: var(--text-sm); }
+/* Interface v0.16: every modal's footer, Previous at the left and Next at the right; its blank space turns on */
+.deck-foot { flex: none; display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-4); border-top: var(--border-width) solid var(--border); font-size: var(--text-sm); }
+.deck-foot button { font-size: var(--text-sm); }
+/* Subtle motion (Interface v0.16): a card or a city entry slides a little way, from the right going forward and from the left going back */
 @keyframes swipe-in { from { transform: translateX(var(--swipe-distance)); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes swipe-in-left { from { transform: translateX(calc(var(--swipe-distance) * -1)); opacity: 0; } to { transform: none; opacity: 1; } }
+.deck-card.from-left, .city-entry.from-left, section.rules-section.from-left { animation-name: swipe-in-left; }
+/* The breathing highlight: a soft pulsing outline on the way forward or back */
+.breathe { animation: breathe var(--motion-breathe) ease-in-out infinite alternate; }
+@keyframes breathe { from { box-shadow: 0 0 0 0 var(--breathe-colour); } to { box-shadow: 0 0 0 var(--breathe-ring) var(--breathe-colour); } }
+@media (prefers-reduced-motion: reduce) {
+  .deck-card { animation: none; }
+  .breathe { animation: none; box-shadow: 0 0 0 var(--breathe-ring) var(--breathe-colour); }
+}
 
 /* The Web of Secrets (TD v0.44): a raised bar along the bottom, always there; clicking it slides the panel up */
 .web-dock { position: fixed; left: 0; right: 0; bottom: 0; z-index: var(--z-dock); height: var(--web-bar-height); background: var(--surface); box-shadow: var(--shadow-dock); border-radius: var(--radius-lg) var(--radius-lg) 0 0; display: flex; flex-direction: column; overflow: hidden; transition: height var(--motion-slow) ease-out; }
@@ -428,17 +443,19 @@ button.me-briefing:hover:not(:disabled) .name { text-decoration: underline; }
 .midnight-line { margin-top: var(--space-1); font-size: var(--text-sm); }
 .midnight-extra { color: var(--errand-accent); }
 
-/* The rules (Interface v0.5): one button per section, filling the modal; a section grows to fill it */
-.rules-body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-4); }
-.rules-buttons { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--rules-button-width), 1fr)); gap: var(--space-3); }
+/* The rules (Interface v0.5; v0.16): one button per section, filling the modal and staying in view; a section opens as a card over them */
+.rules-body { position: relative; flex: 1; min-height: 0; display: flex; }
+.rules-buttons { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-4); display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--rules-button-width), 1fr)); align-content: start; gap: var(--space-3); }
 button.rules-section { min-height: var(--rules-button-height); text-align: left; font-weight: var(--weight-bold); padding: var(--space-3) var(--space-4); }
 button.rules-section:hover { border-color: var(--accent); }
-section.rules-section { min-height: var(--deck-card-min-height); animation: grow var(--motion-slow) ease-out; transform-origin: top left; }
+.rules-over { position: absolute; inset: 0; display: flex; padding: var(--space-4); background: var(--rules-backdrop); cursor: pointer; }
+section.rules-section { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-4) var(--space-5); background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-raised); animation: swipe-in var(--motion-modal) ease-out; }
+section.rules-section.grows { animation: grow var(--motion-modal) ease-out; transform-origin: center; }
 .rules-section-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); }
 .rules-section-head h3 { font-size: var(--text-lg); }
 @keyframes grow { from { transform: scale(var(--grow-from)); opacity: 0; } to { transform: none; opacity: 1; } }
 
-/* The city (Interface v0.5): an inbox-style list under subject headers; a row opens its entry here */
+/* The city (Interface v0.5; v0.16): an inbox-style list under subject headers; a row opens its entry here, under a way back that stays put */
 .city-list { flex: 1; min-height: 0; overflow-y: auto; padding: 0 0 var(--space-3); }
 .city-group ul { list-style: none; margin: 0; padding: 0; }
 .city-subject { position: sticky; top: 0; background: var(--surface); padding: var(--space-3) var(--space-4) var(--space-1); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-label); color: var(--text-muted); border-bottom: var(--border-width) solid var(--border); }
@@ -446,9 +463,10 @@ button.city-row { display: flex; flex-direction: column; gap: 0; width: 100%; te
 button.city-row:hover { background: var(--surface-2); }
 .city-title { font-weight: var(--weight-bold); font-size: var(--text-sm); }
 .city-preview { font-size: var(--text-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.city-entry { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-3) var(--space-5) var(--space-4); animation: swipe-in var(--motion-slow) ease-out; }
+.city-open { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: var(--space-3) var(--space-5) 0; overflow: hidden; }
+.city-entry { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: var(--space-4); cursor: pointer; animation: swipe-in var(--motion-modal) ease-out; }
 .city-entry h3 { font-size: var(--text-lg); margin-top: var(--space-3); }
-button.city-back { font-size: var(--text-sm); padding: 0 var(--space-2); }
+button.city-back { align-self: flex-start; font-size: var(--text-sm); padding: 0 var(--space-2); }
 
 /* The right panel hidden (Interface v0.5): a thin strip with a handle, and the chat widens */
 .layout.right-hidden { grid-template-columns: var(--side-width) 1fr var(--right-strip-width); }
@@ -463,30 +481,27 @@ button.right-handle:hover { background: var(--select-bg); }
 .faction-arc { fill: none; stroke-width: var(--faction-arc-width); stroke-linecap: round; stroke-opacity: var(--faction-arc-opacity); }
 
 @media (prefers-reduced-motion: reduce) {
-  section.rules-section, .city-entry { animation: none; }
+  section.rules-section, section.rules-section.grows, .city-entry { animation: none; }
   .person.look { animation: fade-in var(--motion-card) ease-out; }
   .person.look.follows { animation-delay: initial; }
   .person.look.leaving { animation: fade-out var(--motion-card) ease-in forwards; }
   .reading { transition: none; }
 }
 
-/* Interface v0.7: the four modals in a row, the open one between slices of its neighbours, each neighbour's
-   outer side faded out; clicking one slides the row along */
+/* Interface v0.7; v0.16: the four modals in a row, the open one between its neighbours: solid, their contents
+   dimmed, each with a one-line summary; clicking one moves to it. The one the player is heading for lights up. */
 .modal-row { display: flex; align-items: center; justify-content: center; gap: var(--modal-row-gap); width: 100%; max-height: 100%; }
 .modal-row > .modal { flex: 0 1 var(--modal-width); height: var(--deck-height); min-width: 0; }
-.modal-peek { flex: 0 1 var(--modal-peek-width); min-width: 0; align-self: center; height: var(--deck-height); position: relative; overflow: hidden; border-radius: var(--radius-lg); cursor: pointer; }
-.modal-peek.empty { cursor: default; }
-.modal-peek.left { -webkit-mask-image: var(--peek-fade-left); mask-image: var(--peek-fade-left); }
-.modal-peek.right { -webkit-mask-image: var(--peek-fade-right); mask-image: var(--peek-fade-right); }
-.peek-frame { position: absolute; top: 0; bottom: 0; width: var(--modal-width); background: var(--surface); border-radius: var(--radius-lg); opacity: var(--peek-opacity); transition: opacity var(--motion-fast) ease-out; }
-.modal-peek.left .peek-frame { right: 0; text-align: right; }
-.modal-peek.right .peek-frame { left: 0; }
-.modal-peek:hover .peek-frame, .modal-peek:focus-visible .peek-frame { opacity: 1; }
-.peek-frame header { padding: var(--space-3) var(--space-4); border-bottom: var(--border-width) solid var(--border); }
-.peek-frame h2 { margin: 0; }
-.peek-items { list-style: none; margin: 0; padding: var(--space-3) var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); font-size: var(--text-sm); color: var(--text-muted); }
-.modal.from-right { animation: row-from-right var(--motion-slow) ease-out; }
-.modal.from-left { animation: row-from-left var(--motion-slow) ease-out; }
+.modal-peek { flex: 0 1 var(--modal-peek-width); min-width: 0; align-self: center; height: var(--deck-height); overflow: hidden; border-radius: var(--radius-lg); background: var(--surface); cursor: pointer; }
+.modal-peek.empty { background: transparent; cursor: default; }
+.modal-peek.lit { box-shadow: 0 0 0 var(--breathe-ring) var(--accent); }
+.peek-frame { height: 100%; color: var(--text-muted); }
+.modal-peek:hover .peek-frame, .modal-peek:focus-visible .peek-frame, .modal-peek.lit .peek-frame { color: var(--text); }
+.peek-frame header { display: block; padding: var(--space-3); border-bottom: var(--border-width) solid var(--border); }
+.peek-frame h2 { margin: 0; font-size: var(--text-md); }
+.peek-summary { margin: 0; padding: var(--space-3); font-size: var(--text-sm); }
+.modal.from-right { animation: row-from-right var(--motion-modal) ease-out; }
+.modal.from-left { animation: row-from-left var(--motion-modal) ease-out; }
 @keyframes row-from-right { from { transform: translateX(var(--modal-slide)); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes row-from-left { from { transform: translateX(calc(var(--modal-slide) * -1)); opacity: 0; } to { transform: none; opacity: 1; } }
 
