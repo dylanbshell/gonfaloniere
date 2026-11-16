@@ -7,8 +7,8 @@
 import { Component, Fragment, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { connect, type Ev } from "./connection.ts";
 import { COMMAND, MENTION, canDo, canSpeak, isCommand, matchCommands, matchGuests, openMenu, withMention, type Trigger } from "./input.ts";
-import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityList, curve, derive, earlierThisStage, errandDeadline, errandLine, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, notesFor, ownPlace, placeHeading, placeList, placeholderExample, preview, readingFor, recordUpTo, roomOf, runFrom, summaryFor, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, type Card, type Line, type GuardedReading, type LoreEntry, type Note, type NotaioItem, type Place, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
-import { getInfo, guest, names, narrator, notaioHint, placeDescription, placeholderExamples, setInfo, stageDescription, w, type GlossEntry, type StartInfo } from "./words.ts";
+import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityList, curve, derive, earlierThisStage, errandCardAt, errandDeadline, errandLine, errandTask, factLink, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, notesFor, ownPlace, placeHeading, placeList, placeholderExample, preview, readingFor, recordUpTo, roomOf, rulesLink, runFrom, summaryFor, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, type Card, type FactLink, type Line, type GuardedReading, type LoreEntry, type Note, type NotaioItem, type Place, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
+import { getInfo, guest, names, narrator, notaioHint, packValue, placeDescription, placeholderExamples, setInfo, stageDescription, w, type GlossEntry, type StartInfo } from "./words.ts";
 
 type Send = (m: unknown) => void;
 
@@ -56,7 +56,11 @@ const readHints = () => {
 interface Hints {
   on: boolean;
   toggle: () => void;
-  /** `always`: a definition rather than a control's explanation, shown even with the explanations off (a glossary word). */
+  /**
+   * `always`: a hover about the world rather than a control's explanation (a place's description, a glossary
+   * word, Il Notaio's name): shown even with the explanations off, as a light card apart from the dark
+   * explanations (Interface v0.16, Hover explanations).
+   */
   show: (text: string, el: Element, always?: boolean) => void;
   hide: () => void;
 }
@@ -64,7 +68,7 @@ const HintsContext = createContext<Hints>({ on: true, toggle: () => {}, show: ()
 
 function HintLayer({ children }: { children: ReactNode }) {
   const [on, setOn] = useState(readHints);
-  const [tip, setTip] = useState<{ text: string; el: Element; rect: DOMRect } | null>(null);
+  const [tip, setTip] = useState<{ text: string; el: Element; rect: DOMRect; world: boolean } | null>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -113,7 +117,7 @@ function HintLayer({ children }: { children: ReactNode }) {
       }
     },
     show: (text, el, always) => {
-      if (on || always) setTip({ text, el, rect: el.getBoundingClientRect() });
+      if (on || always) setTip({ text, el, rect: el.getBoundingClientRect(), world: !!always });
     },
     hide: () => setTip(null),
   };
@@ -121,7 +125,7 @@ function HintLayer({ children }: { children: ReactNode }) {
     <HintsContext.Provider value={hints}>
       {children}
       {tip && (
-        <div ref={ref} className={`tip${pos ? "" : " measuring"}`} role="tooltip" style={pos ? { top: pos.top, left: pos.left } : undefined}>
+        <div ref={ref} className={`tip${tip.world ? " world" : ""}${pos ? "" : " measuring"}`} role="tooltip" style={pos ? { top: pos.top, left: pos.left } : undefined}>
           {tip.text}
         </div>
       )}
@@ -514,6 +518,8 @@ const DECKS: DeckName[] = ["briefing", "rules", "city", "glossary"];
 /** Where each modal was left: the briefing's card, the open rules section (by its place), the open city entry (by id), the glossary's search. */
 type DeckPlaces = { briefing: number; rules: number | null; city: string | null; glossary: string };
 const NO_PLACES: DeckPlaces = { briefing: 0, rules: null, city: null, glossary: "" };
+/** Opens a modal, where it was left or at the place given. */
+type OpenDeck = (d: DeckName, at?: Partial<DeckPlaces>) => void;
 
 function briefingDeck(sheet: Sheet): Card[] {
   const past = sheet.past ?? [];
@@ -903,11 +909,16 @@ export function GameView({
     setPlaces((p) => ({ ...p, city: id }));
     setDeck("city");
   };
+  /** Opens a modal, at a place in it if one is given (Interface v0.16: a sheet line's rules, the errand's card). */
+  const openDeck: OpenDeck = (d, at) => {
+    if (at) setPlaces((p) => ({ ...p, ...at }));
+    setDeck(d);
+  };
   return (
     <SelContext.Provider value={selection}>
       <div className={`layout${right.hidden ? " right-hidden" : ""}`} ref={layout}>
         <Boundary panel="left" fallback={(n) => <aside className="side left">{n}</aside>}>
-          <Left me={me} v={v} onDeck={setDeck} onTour={tour.again} />
+          <Left me={me} v={v} onDeck={openDeck} onTour={tour.again} />
         </Boundary>
         <Centre me={me} v={v} send={send} dead={dead} status={status} boxFill={boxFill} initialPast={pastStage} onEntry={openEntry} />
         <Boundary panel="right" fallback={(n) => <aside className="side right">{n}</aside>}>
@@ -1122,46 +1133,79 @@ function MoreBelow({ m }: { m: ReturnType<typeof useMoreBelow> }) {
   );
 }
 
-function Left({ me, v, onDeck, onTour }: { me: string; v: View; onDeck: (d: DeckName) => void; onTour: () => void }) {
+/** Where a sheet line leads, as the modal to open and the place in it. */
+const factPlace = (l: FactLink): [DeckName, Partial<DeckPlaces>] => (l.deck === "rules" ? ["rules", { rules: l.section }] : ["glossary", { glossary: l.search }]);
+
+/**
+ * One line of the sheet (Interface v0.16, Left): it opens where it's explained, the rules section behind its
+ * glossary word (the setting pack's screen.factLinks names the word), or the word in the glossary. It
+ * underlines on hover. Without anywhere to lead (before the sheet arrives), it's a plain line.
+ */
+function Fact({ fact, label, value, link, onDeck }: { fact: string; label: string; value?: ReactNode; link: FactLink | null; onDeck: OpenDeck }) {
+  const hint = useHint();
+  const inner = (
+    <>
+      <span className="fact-label">{label}</span>
+      {value !== undefined && <span className="fact-value">{value}</span>}
+    </>
+  );
+  if (!link)
+    return (
+      <div className="fact" data-fact={fact}>
+        {inner}
+      </div>
+    );
+  return (
+    <button className="fact link" data-fact={fact} onClick={() => onDeck(...factPlace(link))} {...hint("factLink")}>
+      {inner}
+    </button>
+  );
+}
+
+function Left({ me, v, onDeck, onTour }: { me: string; v: View; onDeck: OpenDeck; onTour: () => void }) {
   const s = v.state;
   const line = errandLine(s);
   const midnight = midnightLine(s);
   const g = guest(me);
   const hint = useHint();
   const m = useMoreBelow();
+  // Interface v0.16: each line of the sheet opens the rules where it's explained, by its glossary word.
+  const rules = useMemo(() => (v.sheet ? rulesCards(v.sheet.rules) : []), [v.sheet]);
+  const glossary = getInfo()?.glossary ?? [];
+  const word = (k: string) => packValue(`screen.factLinks.${k}`) as string | undefined;
+  const link = (k: string) => (v.sheet ? factLink(word(k), glossary, rules) : null);
+  // The errand's reward line opens the rules on errands where the primer has a section, otherwise midnight's, where the acts are.
+  const rewardAt = v.sheet ? (rulesLink(word("errand"), glossary, rules) ?? rulesLink(word("midnight"), glossary, rules)) : null;
+  const openReward = rewardAt === null ? undefined : (e: { stopPropagation: () => void }) => (e.stopPropagation(), onDeck("rules", { rules: rewardAt }));
+  /** The errand card opens the briefing at the errand's card, found by the errand's own words. */
+  const openErrand = () => v.sheet && onDeck("briefing", { briefing: errandCardAt(briefingDeck(v.sheet), v.sheet.errand ?? "") });
   return (
     <aside className="side left" ref={m.ref}>
+      {/* Interface v0.16: Show me around and the explanations' switch, centred at the top on their own line. */}
       <div className="side-head">
-        <div className="label">{w("screen.you")}</div>
-        {/* Interface v0.8: Show me around, beside the explanations' switch, runs the tour again. */}
-        <span className="side-head-controls">
-          <button className="switch tour-again" onClick={onTour} {...hint("tourAgain")}>
-            {w("screen.tour.again")}
-          </button>
-          <HintSwitch />
-        </span>
+        <button className="switch tour-again" onClick={onTour} {...hint("tourAgain")}>
+          {w("screen.tour.again")}
+        </button>
+        <HintSwitch />
       </div>
       <div className="panel sheet-panel" {...hint("sheet", { focusable: true })}>
-        {/* Interface v0.7: the player's own name or portrait opens their briefing, at the place they left it. */}
-        <button className="who me-briefing" disabled={!v.sheet} onClick={() => onDeck("briefing")} {...hint("myBriefing")}>
+        {/* Interface v0.16: the portrait, "You are …", and the role in plain words, centred, with no label or ring. The
+            public subtitle stands in for the role until Characters writes one per guest. Interface v0.7: the name or
+            portrait opens the briefing, at the place it was left. */}
+        <button className="who column me-briefing" disabled={!v.sheet} onClick={() => onDeck("briefing")} {...hint("myBriefing")}>
           <Portrait name={me} large />
-          <span>
-            <span className="name">{me}</span>
-            <span className="muted faction">{g?.faction}</span>
-          </span>
+          <span className="name">{w("screen.youAre", { name: me })}</span>
+          <span className="muted role">{g?.subtitle}</span>
         </button>
         {/* Laid out before the first state arrives, so nothing below moves when it does. */}
-        <dl className="facts">
-          <dt>{w("screen.purse")}</dt>
-          <dd>{s ? w("screen.purseValue", { amount: s.florins }) : ""}</dd>
-          <dt>{w("screen.pensions")}</dt>
-          <dd>{s?.pensionsHeld ?? ""}</dd>
-          <dt>{w("screen.withdrawals")}</dt>
-          <dd>{s?.withdrawalCount ?? ""}</dd>
-        </dl>
+        <div className="facts">
+          <Fact fact="purse" label={w("screen.purse")} value={s ? w("screen.purseValue", { amount: s.florins }) : ""} link={link("purse")} onDeck={onDeck} />
+          <Fact fact="pensions" label={w("screen.pensions")} value={s?.pensionsHeld ?? ""} link={link("pensions")} onDeck={onDeck} />
+          <Fact fact="withdrawals" label={w("screen.withdrawals")} value={s?.withdrawalCount ?? ""} link={link("withdrawals")} onDeck={onDeck} />
+        </div>
         {/* Interface v0.8: the midnight line, and with plot_reward on the extra act the errand can earn. */}
         <div className="midnight-line">
-          <div>{w("screen.midnightLine.acts")}</div>
+          <Fact fact="midnight" label={w("screen.midnightLine.acts")} link={link("midnight")} onDeck={onDeck} />
           {midnight.extra && (
             <div className="midnight-extra" data-extra={midnight.extra}>
               {w(`screen.midnightLine.${midnight.extra}`)}
@@ -1170,7 +1214,7 @@ function Left({ me, v, onDeck, onTour }: { me: string; v: View; onDeck: (d: Deck
         </div>
       </div>
       {/* The four modals' buttons right under the sheet (TD v0.45; Interface v0.7), so they're in sight on a short window. The Web of
-          Secrets has no button here: it's always at the bottom (TD v0.44). */}
+          Confidences has no button here: it's always at the bottom (TD v0.44). */}
       <div className="buttons decks">
         {DECKS.map((d) => (
           <button key={d} className="secondary" disabled={!v.sheet} onClick={() => onDeck(d)} {...hint(d)}>
@@ -1179,21 +1223,27 @@ function Left({ me, v, onDeck, onTour }: { me: string; v: View; onDeck: (d: Deck
         ))}
       </div>
       {v.sheet?.errand && (
-        <div className="errand" {...hint(line?.kind === "reward" ? "errandReward" : line?.kind === "noReward" ? "errandNoReward" : "errand", { focusable: true })}>
+        // Interface v0.16: just the task; clicking the card opens the briefing at the errand's card.
+        <div className="errand" role="button" onClick={openErrand} onKeyDown={(e) => e.target === e.currentTarget && toggleKeys(openErrand)(e)} {...hint(line?.kind === "reward" ? "errandReward" : line?.kind === "noReward" ? "errandNoReward" : "errand", { focusable: true })}>
           <div className="label">{w("screen.errandCard.title")}</div>
           <div className="errand-text">
-            <Rich text={v.sheet.errand} />
+            <Rich text={errandTask(v.sheet.errand)} />
           </div>
-          {/* TD v0.47: what the errand earns, in the card's accent; after the check, {plot_status} replaces it. */}
-          {line?.kind === "status" && <div className="errand-result">{line.text}</div>}
-          {line && line.kind !== "status" && (
-            <div className="errand-reward" data-reward={line.kind}>
-              {w(`screen.errandCard.${line.kind}`)}
-            </div>
-          )}
+          {/* TD v0.47: what the errand earns, in the card's accent; after the check, {plot_status} replaces it.
+              Interface v0.16: the line opens the rules on errands, or on midnight's acts. */}
+          {line &&
+            (openReward ? (
+              <button className={line.kind === "status" ? "errand-result link" : "errand-reward link"} data-reward={line.kind} onClick={openReward} {...hint("factLink")}>
+                {line.kind === "status" ? line.text : w(`screen.errandCard.${line.kind}`)}
+              </button>
+            ) : (
+              <div className={line.kind === "status" ? "errand-result" : "errand-reward"} data-reward={line.kind}>
+                {line.kind === "status" ? line.text : w(`screen.errandCard.${line.kind}`)}
+              </div>
+            ))}
         </div>
       )}
-      <RoomView me={me} v={v} onDeck={onDeck} />
+      <RoomView me={me} v={v} />
       <MoreBelow m={m} />
     </aside>
   );
@@ -1223,12 +1273,12 @@ function RoomStack({ names, pair }: { names: string[]; pair?: boolean }) {
  * `room` before v0.49, the same data as the AI guests' room line; during midnight and between seats there's
  * no room, so only who's with the player.
  */
-function RoomView({ me, v, onDeck }: { me: string; v: View; onDeck: (d: DeckName) => void }) {
+function RoomView({ me, v }: { me: string; v: View }) {
   const s = v.state;
   const room = roomOf(s);
   const hint = useHint();
   const list = placeList(v);
-  if (list) return <PlaceList me={me} v={v} list={list} onDeck={onDeck} />;
+  if (list) return <PlaceList me={me} v={v} list={list} />;
   return (
     <>
       <div className="label" {...hint("here", { focusable: true })}>
@@ -1269,9 +1319,10 @@ function RoomView({ me, v, onDeck }: { me: string; v: View; onDeck: (d: DeckName
  * One place in the list (Interface v0.9): its name, which shows Lore's one-line description on hover (public,
  * so even with the explanations off), the marks for the player's own place and a private one, and the
  * portraits of whoever is there, overlapping until hovered. The place itself isn't a control: guests move
- * toward a person, never to a place. A portrait selects its guest; the player's own opens their briefing.
+ * toward a person, never to a place. Every portrait selects its guest, the player's own included (Interface
+ * v0.16): theirs selects them, and the right panel shows their own card. "You are here" sits on its own line.
  */
-function PlaceRow({ me, place, heading, council, onDeck }: { me: string; place: Place; heading: string; council: boolean; onDeck: (d: DeckName) => void }) {
+function PlaceRow({ place, heading, council }: { place: Place; heading: string; council: boolean }) {
   const h = useContext(HintsContext);
   const hint = useHint();
   const desc = placeDescription(place.name);
@@ -1289,13 +1340,7 @@ function PlaceRow({ me, place, heading, council, onDeck }: { me: string; place: 
         <span className="stack">
           {place.guests.map((n) => (
             <span key={n} className="stack-item">
-              {n === me ? (
-                <button className="token me" aria-label={n} onClick={() => onDeck("briefing")} {...hint("myBriefing")}>
-                  <Portrait name={n} />
-                </button>
-              ) : (
-                <PortraitButton name={n} hintKey={place.private ? "roomPair" : "roomToken"} />
-              )}
+              <PortraitButton name={n} hintKey={place.private ? "roomPair" : "roomToken"} />
             </span>
           ))}
         </span>
@@ -1310,7 +1355,7 @@ function PlaceRow({ me, place, heading, council, onDeck }: { me: string; place: 
  * own place shows, headed with their faction. Outside a conversation the list gives way to a quiet line. The
  * dead aren't in the state's places.
  */
-function PlaceList({ me, v, list, onDeck }: { me: string; v: View; list: Place[]; onDeck: (d: DeckName) => void }) {
+function PlaceList({ me, v, list }: { me: string; v: View; list: Place[] }) {
   const hint = useHint();
   const c = v.state?.conversation;
   const heading = (p: Place) => (c?.kind === "council" ? w("screen.placeLine.council", { faction: c.faction ?? guest(me)?.faction ?? "", place: p.name }) : placeHeading(p.name));
@@ -1323,7 +1368,7 @@ function PlaceList({ me, v, list, onDeck }: { me: string; v: View; list: Place[]
         {list.length ? (
           <ul className="places">
             {list.map((p) => (
-              <PlaceRow key={p.name} me={me} place={p} heading={heading(p)} council={c?.kind === "council"} onDeck={onDeck} />
+              <PlaceRow key={p.name} place={p} heading={heading(p)} council={c?.kind === "council"} />
             ))}
           </ul>
         ) : (

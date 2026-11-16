@@ -48,24 +48,28 @@ button.small { font-size: var(--text-xs); padding: 0 var(--space-2); }
 .layout { display: grid; grid-template-columns: var(--side-width) 1fr var(--right-width); height: calc(var(--screen-height) - var(--web-bar-height)); }
 .side { background: var(--surface); border-right: var(--border-width) solid var(--border); padding: var(--space-4); overflow-y: auto; }
 .side.right { border-right: none; border-left: var(--border-width) solid var(--border); }
-.facts { display: grid; grid-template-columns: auto auto; gap: var(--space-1) var(--space-3); margin: var(--space-4) 0 0; font-size: var(--text-sm); }
-.facts dt { color: var(--text-muted); }
-.facts dd { margin: 0; text-align: right; }
+/* The sheet (Interface v0.16): each line opens the rules where it's explained, and underlines on hover */
+.facts { display: flex; flex-direction: column; gap: var(--space-1); margin: var(--space-4) 0 0; }
+.fact { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); width: 100%; min-height: var(--line-sm); border: none; border-radius: 0; background: transparent; padding: 0; font-size: var(--text-sm); text-align: left; }
+.fact-label { color: var(--text-muted); }
+.fact-value { text-align: right; }
+button.fact:hover .fact-label, button.fact:focus-visible .fact-label, button.link:hover, button.link:focus-visible { text-decoration: underline; text-underline-offset: var(--space-1); }
 .here { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--space-2); }
 .here li { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); }
 .here .portrait { width: var(--portrait-size); height: var(--portrait-size); }
 .buttons { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-5); }
-.side-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-2); }
-.side-head .label { margin: 0; }
-.side-head-controls { display: inline-flex; gap: var(--space-1); }
-.side-head-controls button { white-space: nowrap; }
+/* Interface v0.16: Show me around and the explanations' switch, centred at the top, with room around them */
+.side-head { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: var(--space-2); margin: var(--space-1) 0 var(--space-4); }
+.side-head button { white-space: nowrap; }
 
 /* The errand card, pinned under the sheet */
 .errand { margin-top: var(--space-4); background: var(--errand-bg); border: var(--border-width) solid var(--errand-border); border-radius: var(--radius-md); padding: var(--space-3); font-size: var(--text-sm); }
+.errand[role="button"] { cursor: pointer; }
 .errand .label { margin: 0 0 var(--space-1); }
 .errand-result { margin-top: var(--space-2); font-weight: var(--weight-bold); }
-/* TD v0.47: what the errand earns, one line in the card's accent */
+/* TD v0.47: what the errand earns, one line in the card's accent; Interface v0.16: it opens the rules */
 .errand-reward { margin-top: var(--space-2); color: var(--errand-accent); }
+.errand button.link { display: block; width: 100%; border: none; border-radius: 0; background: transparent; padding: 0; font-size: inherit; text-align: left; }
 
 .centre { display: flex; flex-direction: column; min-width: 0; height: calc(var(--screen-height) - var(--web-bar-height)); }
 .conv-head { min-height: var(--head-height); padding: var(--space-3) var(--space-4); border-bottom: var(--border-width) solid var(--border); background: var(--surface); display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
@@ -129,6 +133,8 @@ button.small { font-size: var(--text-xs); padding: 0 var(--space-2); }
 /* Hover explanations: one tooltip, placed by the element it explains */
 .tip { position: fixed; z-index: var(--z-tip); max-width: var(--tip-width); background: var(--tip-bg); color: var(--tip-text); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--text-sm); pointer-events: none; }
 .tip.measuring { visibility: hidden; top: 0; left: 0; }
+/* Interface v0.16: a hover about the world (a place, a glossary word, Il Notaio's name) is a light card, apart from the dark explanations */
+.tip.world { background: var(--world-bg); color: var(--world-text); border: var(--border-width) solid var(--world-border); box-shadow: var(--shadow-world); }
 [data-hint]:focus-visible { outline: var(--border-width) solid var(--accent); }
 
 /* Selection, highlights, and lore links (TD v0.40–v0.41) */
@@ -224,7 +230,6 @@ button.note-about { border: none; background: transparent; padding: 0; font: inh
 .more-below { position: sticky; bottom: 0; display: block; margin: var(--space-3) auto 0; font-size: var(--text-xs); background: var(--surface); box-shadow: var(--shadow-raised); border-radius: var(--radius-round); }
 .notice.status { margin: 0; }
 .panel-error { margin: var(--space-2) 0; }
-.facts dd { min-height: var(--line-sm); }
 
 /* The Web of Secrets' key and Il Notaio's reading (TD v0.44) */
 .web-key { grid-column: 1; grid-row: 1; align-self: start; margin: var(--space-3); background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-md); font-size: var(--text-sm); }
@@ -345,7 +350,8 @@ button.icon.close { font-size: var(--text-lg); line-height: 1; padding: 0 var(--
 .place-name { cursor: default; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .place.own .place-name { font-weight: var(--weight-bold); }
 .place.council .place-name { white-space: normal; }
-.place-own { font-size: var(--text-xs); color: var(--accent); white-space: nowrap; }
+/* Interface v0.16: "You are here" on its own line under the place's name */
+.place-own { flex-basis: 100%; font-size: var(--text-xs); color: var(--accent); white-space: nowrap; }
 .place .stack { flex-shrink: 0; }
 .door { position: relative; display: inline-block; width: var(--door-width); height: var(--door-height); border: var(--border-width) solid var(--text-muted); border-radius: var(--radius-sm) var(--radius-sm) 0 0; background: var(--door-fill); }
 .door::after { content: ""; position: absolute; right: var(--door-knob-inset); top: 50%; width: var(--door-knob); height: var(--door-knob); border-radius: var(--radius-round); background: var(--text-muted); }
@@ -359,11 +365,12 @@ button.token .portrait { width: var(--token-size); height: var(--token-size); fo
 .here button.token .portrait { width: var(--portrait-size); height: var(--portrait-size); font-size: var(--text-sm); }
 button.token.large .portrait { width: var(--portrait-size-lg); height: var(--portrait-size-lg); font-size: var(--text-lg); }
 /* The player's own name and portrait open their briefing (Interface v0.7) */
-button.me-briefing { width: 100%; border: none; background: transparent; padding: 0; text-align: left; }
+button.me-briefing { display: flex; width: 100%; border: none; background: transparent; padding: 0; gap: var(--space-1); }
 button.me-briefing:hover:not(:disabled) .name { text-decoration: underline; }
-.me-briefing .name, .me-briefing .faction { display: block; }
+.me-briefing .name { margin-top: var(--space-2); }
+.me-briefing .role { font-size: var(--text-sm); }
 /* Interface v0.8: the midnight line, and the extra act an errand can earn in the errand card's accent */
-.midnight-line { margin-top: var(--space-3); font-size: var(--text-sm); }
+.midnight-line { margin-top: var(--space-1); font-size: var(--text-sm); }
 .midnight-extra { color: var(--errand-accent); }
 
 /* The rules (Interface v0.5): one button per section, filling the modal; a section grows to fill it */

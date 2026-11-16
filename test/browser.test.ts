@@ -397,7 +397,10 @@ test("the places (Interface v0.9): all eight in the pack's order, empty ones fad
     assert.ok(r.empty ? r.opacity < 1 : r.opacity === 1, `${r.name}: an empty place is faded, an occupied one isn't`);
   }
   assert.equal(rows.filter((r) => r.own).length, 1, "your own place is marked");
-  assert.equal(await page.eval<boolean>(`!!document.querySelector(".place.own .token.me")`), true, "with you in it");
+  assert.equal(await page.eval<boolean>(`!!document.querySelector('.place.own .token[data-guest="Francesco Pazzi"]')`), true, "with you in it");
+  // Interface v0.16: "You are here" on its own line, under the place's name.
+  const here = await page.eval<{ text: string; below: boolean }>(`(() => { const r = document.querySelector(".place.own"); const n = r.querySelector(".place-name").getBoundingClientRect(); const o = r.querySelector(".place-own"); return { text: o.textContent, below: o.getBoundingClientRect().top >= n.bottom - 1 }; })()`);
+  assert.deepEqual(here, { text: "You are here", below: true });
   assert.equal(await page.eval<boolean>(`getComputedStyle(document.querySelector(".place.own")).borderLeftColor !== getComputedStyle(document.querySelector(".place:not(.own)")).borderLeftColor`), true, "marked by the accent");
   // The place isn't a control; only its portraits are.
   assert.equal(await page.eval<boolean>(`[...document.querySelectorAll(".places .place")].every((r) => !r.closest("button") && !r.querySelector(".place-head button"))`), true);
@@ -412,6 +415,16 @@ test("the places (Interface v0.9): all eight in the pack's order, empty ones fad
   };
   const loggia = pack[3]!;
   assert.equal(await hover(`.place[data-place="${loggia}"] .place-name`), words.screen.places.descriptions[loggia]);
+  // Interface v0.16: a hover about the world is a light card, apart from the dark explanations.
+  const tipLook = () => page.eval<{ world: boolean; bg: string }>(`(() => { const t = document.querySelector(".tip"); return { world: t.classList.contains("world"), bg: getComputedStyle(t).backgroundColor }; })()`);
+  const worldTip = await tipLook();
+  assert.equal(worldTip.world, true);
+  await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 600, y: 300 });
+  await page.until(`!document.querySelector(".tip")`);
+  await hover('.side.left [data-hint="briefing"]');
+  const plainTip = await tipLook();
+  assert.equal(plainTip.world, false);
+  assert.notEqual(worldTip.bg, plainTip.bg, "the world card and an explanation look apart");
   await page.eval(`document.querySelector(".switch:not(.tour-again)").click()`);
   await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 600, y: 300 });
   await page.until(`!document.querySelector(".tip")`);
@@ -434,6 +447,11 @@ test("the places (Interface v0.9): all eight in the pack's order, empty ones fad
   const name = await page.eval<string>(`document.querySelector(".places button.token[data-guest]").dataset.guest`);
   await page.eval(`document.querySelector(".places button.token[data-guest]").click()`);
   await page.until(`document.querySelector('.side.right .look')?.dataset.guest === ${JSON.stringify(name)}`);
+  await page.key("Escape", 27);
+  // Interface v0.16: your own portrait selects you, and the right panel shows your own card.
+  await page.eval(`document.querySelector('.places button.token[data-guest="Francesco Pazzi"]').click()`);
+  await page.until(`document.querySelector('.side.right .look:not(.leaving)')?.dataset.guest === "Francesco Pazzi"`);
+  assert.equal(await page.eval<boolean>(`!document.querySelector(".overlay")`), true, "it doesn't open the briefing");
   await page.key("Escape", 27);
   // The conversation line names your place.
   const own = rows.find((r) => r.own)!.name;
@@ -464,18 +482,19 @@ test("the places in a council (a fixture state: the mini-game has none): only yo
 
 // ---- CC-20261114-15 (#141) -------------------------------------------------------------------------------
 
-test("the player's words (Interface v0.12): the sheet shows Payroll payments, its hover France's payroll; a group's line without places reads A group with …", { skip }, async () => {
+test("the player's words (Interface v0.12; v0.16): the sheet shows Payments from France and Secret conversations, its hover in plain words; a group's line without places reads A group with …", { skip }, async () => {
   await reopen();
-  await page.until(`document.querySelector(".sheet-panel .facts dt")`);
-  const facts = await page.eval<string[]>(`[...document.querySelectorAll(".sheet-panel .facts dt")].map((d) => d.textContent)`);
-  assert.ok(facts.includes("Payroll payments"), facts.join(", "));
+  await page.until(`document.querySelector(".sheet-panel .facts .fact-label")`);
+  const facts = await page.eval<string[]>(`[...document.querySelectorAll(".sheet-panel .facts .fact-label")].map((d) => d.textContent)`);
+  assert.deepEqual(facts, ["Purse", "Payments from France", "Secret conversations"]);
   assert.ok(!facts.some((f) => /pension/i.test(f)));
   await HINTS_OFF(false);
   await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 });
-  const at = await page.eval<{ x: number; y: number }>(`(() => { const b = document.querySelector(".sheet-panel .facts").getBoundingClientRect(); return { x: b.left + 4, y: b.top + b.height / 2 }; })()`);
+  // Between the name and the lines of the sheet, the panel's own explanation.
+  const at = await page.eval<{ x: number; y: number }>(`(() => { const a = document.querySelector(".sheet-panel .me-briefing").getBoundingClientRect(); const b = document.querySelector(".sheet-panel .facts").getBoundingClientRect(); return { x: b.left + b.width / 2, y: (a.bottom + b.top) / 2 }; })()`);
   await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
   await page.until(`document.querySelector(".tip:not(.measuring)")`);
-  assert.equal(await page.eval<string>(`document.querySelector(".tip").textContent`), "Your character: your purse, the payments you've taken from France's payroll, and how many times tonight you've drawn someone aside for a private word.");
+  assert.equal(await page.eval<string>(`document.querySelector(".tip").textContent`), "This is you: your money, your payments from France, and your secret conversations.");
   await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 });
   // A state without places (a game before TD v0.49), in a group with two others.
   const group = `(s) => { const { places, ...rest } = s; const others = s.livingOthers.slice(0, 2); return { ...rest, conversation: { kind: "capannello", others }, present: others }; }`;
@@ -486,6 +505,58 @@ test("the player's words (Interface v0.12): the sheet shows Payroll payments, it
     assert.ok(!/Capannello/.test(line), line);
     await page.shot("group-line");
   });
+});
+
+// ---- CC-20261116-03 (#177): Interface v0.16, the left panel ------------------------------------------------
+
+test("the left panel (Interface v0.16): the switches centred at the top; You are … over the role; each sheet line opens its rules section; the errand card shows just the task and opens the briefing at the errand; its reward line opens the rules", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".side.left .errand") && !document.querySelector('[data-hint="briefing"]').disabled`);
+  const top = await page.eval<{ first: string; centred: boolean; you: string; role: string; label: boolean; nameCentred: boolean }>(`(() => {
+    const left = document.querySelector(".side.left");
+    const head = left.querySelector(".side-head");
+    const hb = head.getBoundingClientRect();
+    const bs = [...head.querySelectorAll("button")].map((b) => b.getBoundingClientRect());
+    const mid = (Math.min(...bs.map((b) => b.left)) + Math.max(...bs.map((b) => b.right))) / 2;
+    const who = left.querySelector(".me-briefing");
+    const n = who.querySelector(".name").getBoundingClientRect();
+    const wb = who.getBoundingClientRect();
+    return { first: left.firstElementChild.className, centred: Math.abs(mid - (hb.left + hb.width / 2)) < 2, you: who.querySelector(".name").textContent, role: who.querySelector(".role").textContent, label: [...left.querySelectorAll(".label")].some((l) => l.textContent === "You"), nameCentred: Math.abs(n.left + n.width / 2 - (wb.left + wb.width / 2)) < 2 };
+  })()`);
+  assert.equal(top.first, "side-head");
+  assert.equal(top.centred, true, "Show me around and the switch, centred");
+  assert.equal(top.you, "You are Francesco Pazzi");
+  assert.ok(top.role.length > 5, "a role line (the public subtitle, for now)");
+  assert.equal(top.label, false, "no You label");
+  assert.equal(top.nameCentred, true);
+  // Each line of the sheet opens the rules section behind its glossary word.
+  const pack = JSON.parse(readFileSync("setting/florence-1492/player.json", "utf8")) as { screen: { factLinks: Record<string, string> }; glossary: { entries: { term: string; rules?: string[] }[] } };
+  for (const fact of ["purse", "pensions", "withdrawals", "midnight"]) {
+    await page.eval(`document.querySelector('.side.left [data-fact="${fact}"]').click()`);
+    await page.until(`document.querySelector(".modal.deck-rules section.rules-section.open")`);
+    const title = await page.eval<string>(`document.querySelector(".modal.deck-rules section.rules-section.open h3").textContent`);
+    const behind = pack.glossary.entries.find((e) => e.term === pack.screen.factLinks[fact])!.rules!.map((r) => r.toLowerCase());
+    assert.ok(behind.includes(title.toLowerCase()), `${fact} opens ${title}`);
+    await page.key("Escape", 27);
+    await page.until(`!document.querySelector(".overlay")`);
+  }
+  // The errand card: just the task, ending where the bold part's sentence does.
+  const errand = await page.eval<string>(`document.querySelector(".side.left .errand-text").textContent`);
+  assert.equal(errand, "This comes first: it is what you came for. Before the last council before midnight, give Friar Tommaso at least 3 Florins in total, in one gift or several.");
+  await page.shot("left-v016");
+  // Clicking it opens the briefing at the errand's card.
+  await page.eval(`document.querySelector(".side.left .errand-text").click()`);
+  await page.until(`document.querySelector(".modal.deck-briefing .deck-card h3")`);
+  assert.equal(await page.eval<string>(`document.querySelector(".modal.deck-briefing .deck-card h3").textContent`), "Your errand tonight");
+  assert.ok((await page.eval<string>(`document.querySelector(".modal.deck-briefing .deck-card").textContent`)).includes("a gift to the friars that the city will hear of"), "the reasons stay in the briefing");
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector(".overlay")`);
+  // Its reward line opens the rules: the primer has no section on errands, so Midnight, where the acts are.
+  await page.eval(`document.querySelector(".side.left .errand-reward").click()`);
+  await page.until(`document.querySelector(".modal.deck-rules section.rules-section.open")`);
+  assert.equal(await page.eval<string>(`document.querySelector(".modal.deck-rules section.rules-section.open h3").textContent`), "Midnight");
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector(".overlay")`);
 });
 
 // ---- CC-20261114-04 (#102) -------------------------------------------------------------------------------

@@ -44,9 +44,12 @@ export function setInfo(i: StartInfo): void {
 
 export const getInfo = (): StartInfo => info!;
 
+/** A value from player.json by its dotted key, as the pack gives it (a word, a list, or a table); undefined if it has none. */
+export const packValue = (key: string): unknown => key.split(".").reduce<unknown>((o, k) => (o && typeof o === "object" ? (o as Record<string, unknown>)[k] : undefined), info?.words);
+
 /** A word or template from player.json by its dotted key, filled. `{currency}` is the setting's plural. */
 export function w(key: string, values: Record<string, string | number> = {}): string {
-  const t = key.split(".").reduce<unknown>((o, k) => (o && typeof o === "object" ? (o as Record<string, unknown>)[k] : undefined), info?.words);
+  const t = packValue(key);
   if (typeof t !== "string") return key;
   const all: Record<string, string | number> = { currency: info?.currency.plural ?? "", ...values };
   return t.replace(/\{(\w+)\}/g, (m, k: string) => (k in all ? String(all[k]) : m));

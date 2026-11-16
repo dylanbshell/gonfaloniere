@@ -443,6 +443,25 @@ export function rulesSectionFor(entry: GlossEntry, cards: Card[]): number | null
   return null;
 }
 
+/**
+ * Where a line of the sheet leads (Interface v0.16, Left): the rules section behind its glossary word, or, if
+ * no section explains it, the word in the glossary. `word` is the glossary term the setting pack names for the
+ * line (screen.factLinks). Null when the glossary has no such word.
+ */
+export type FactLink = { deck: "rules"; section: number } | { deck: "glossary"; search: string };
+export function factLink(word: string | undefined, glossary: GlossEntry[], cards: Card[]): FactLink | null {
+  const entry = word ? glossary.find((g) => g.term.toLowerCase() === word.toLowerCase()) : undefined;
+  if (!entry) return null;
+  const section = rulesSectionFor(entry, cards);
+  return section !== null ? { deck: "rules", section } : { deck: "glossary", search: entry.term };
+}
+
+/** The rules section behind a glossary word, if the rules have one: the errand card's reward line opens it (Interface v0.16). */
+export function rulesLink(word: string | undefined, glossary: GlossEntry[], cards: Card[]): number | null {
+  const l = factLink(word, glossary, cards);
+  return l?.deck === "rules" ? l.section : null;
+}
+
 // ---- The record: what you heard and saw (TD v0.40, The web viewer) ---------------------------------------
 
 export type Seen = { kind: "line"; line: Line } | { kind: "death"; name: string; seq: number };
@@ -558,6 +577,28 @@ export function errandLine(s: State | null): { kind: "status"; text: string } | 
   if (!s) return null;
   if (s.plotStatus) return { kind: "status", text: s.plotStatus };
   return { kind: s.plotReward ? "reward" : "noReward" };
+}
+
+/**
+ * The errand card's text (Interface v0.16, Left): just the task. Until Characters writes a short errand line
+ * per guest, the errand is cut at the first colon or full stop after its first bold part (the task itself),
+ * and ends on a full stop; the reasons stay in the briefing. An errand with no bold part shows whole.
+ */
+export function errandTask(errand: string): string {
+  const bold = errand.match(/\*\*[^*]+\*\*/);
+  if (!bold) return errand;
+  const end = bold.index! + bold[0].length;
+  // A bold part that closes its own sentence ("…**find out who she is.**") is the end of the task.
+  if (/[.:!?]\*\*$/.test(bold[0])) return errand.slice(0, end);
+  const stop = errand.slice(end).search(/[:.]/);
+  return stop < 0 ? errand : `${errand.slice(0, end + stop)}.`;
+}
+
+/** The briefing card that holds the errand (Interface v0.16): found by the errand's own words, so it works in any setting pack; 0 if none does. */
+export function errandCardAt(cards: Card[], errand: string): number {
+  const words = errand.trim().split("\n")[0]!;
+  const i = words ? cards.findIndex((c) => c.text.includes(words)) : -1;
+  return Math.max(0, i);
 }
 
 /**

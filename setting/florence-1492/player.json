@@ -54,7 +54,7 @@
     "pension_refused": "You have no payroll payment you could pay back for {holder}, or can't afford it.",
     "choice": "That choice isn't open now.",
     "conclude_empty": "Say what you've concluded after /conclude.",
-    "end_mistimed": "There's no private conversation for you to end.",
+    "end_mistimed": "There's no secret conversation for you to end.",
     "acts": {
       "_comment": "Midnight: why the acts were refused (Mechanics, Murder Round).",
       "count": "Choose exactly the number of acts you may take tonight.",
@@ -78,55 +78,55 @@
     "you": "You",
     "purse": "Purse",
     "purseValue": "{amount} {currency}",
-    "pensions": "Payroll payments",
+    "pensions": "Payments from France",
     "errand": "Errand",
     "here": "Here",
     "nobody": "No one else is here.",
-    "withdrawals": "Times you've withdrawn",
+    "withdrawals": "Secret conversations",
     "briefing": "Your briefing",
     "rules": "The rules",
     "close": "Close",
     "notaio": "Il Notaio",
-    "private": "Private",
+    "private": "Secret",
     "toYou": "(to you)",
     "to": "(to {name})",
     "speaking": "{name} is speaking…",
     "capannello": "A group with {others}",
-    "colloquio": "Colloquio with {other}",
+    "colloquio": "Secret conversation with {other}",
     "alone": "On your own",
     "talkingTo": "Talking with",
     "input": {
       "placeholder": "Say something. @ addresses a guest; / opens the commands.",
-      "_examplesComment": "Interface v0.5: the placeholder carries the example, one line with an @ and a /, rotated, using only commands allowed right now. `action` is the command's action (as in commands); {command} is its name and {guest} a guest the player could address. With none allowed, `placeholder` shows.",
+      "_examplesComment": "Interface v0.5; v0.16: the placeholder carries the example, on two lines (the line break after the ellipsis), with an @ and a /, a comma before \"or\", rotated, using only commands allowed right now. `action` is the command's action (as in commands); {command} is its name and {guest} a guest the player could address. With none allowed, `placeholder` shows.",
       "examples": [
         {
           "action": "bribe",
-          "text": "Speak as your character would… “@{guest} A word, by the window?” or “{command} @{guest} 2”"
+          "text": "Speak as your character would…\n“@{guest} A word, by the window?”, or “{command} @{guest} 2”"
         },
         {
           "action": "borrow",
-          "text": "Speak as your character would… “@{guest} My family has long memories, and longer purses.” or “{command}”"
+          "text": "Speak as your character would…\n“@{guest} My family never forgets, and rarely forgives”, or “{command}”"
         },
         {
           "action": "repay",
-          "text": "Speak as your character would… “@{guest} I'd rather speak of this somewhere quieter.” or “{command} @{guest}”"
+          "text": "Speak as your character would…\n“@{guest} I'd rather speak of this somewhere quieter.”, or “{command} @{guest}”"
         },
         {
           "action": "conclude",
-          "text": "Speak as your character would… “@{guest} You seem very sure of that. Who told you?” or “{command} what you've worked out”"
+          "text": "Speak as your character would…\n“@{guest} You seem very sure of that. Who told you?”, or “{command} what you've worked out”"
         }
       ],
       "count": "{count}/{max}",
       "speak": "Speak",
       "pass": "Pass",
       "end": "End conversation",
-      "used": "You've spoken your piece this turn.",
-      "held": "Your words will be spoken at the next pause.",
-      "waiting": "The company waits for you: speak, or pass.",
-      "answering": "{name} has addressed you: answer, or pass.",
-      "closing": "{name} has ended the conversation: a last word, or pass.",
+      "used": "You've already spoken this turn.",
+      "held": "Your words will be said at the next pause.",
+      "waiting": "Your turn: speak or pass.",
+      "answering": "{name} spoke to you. Answer or pass.",
+      "closing": "{name} ended the conversation. Say a last word or pass.",
       "yourTurn": "Your turn to speak.",
-      "closed": "A choice is waiting above.",
+      "closed": "Make your choice above.",
       "do": "Do",
       "return": "Return to current stage",
       "pastPlaceholder": "You're reading an earlier stage. Write here if you like: nothing is sent until you're back in the current stage.",
@@ -136,7 +136,7 @@
       "title": "Your movement window",
       "stay": "Stay",
       "join": "Move toward…",
-      "colloquio": "Call aside…",
+      "colloquio": "Start a secret conversation…",
       "pick": "Choose a guest",
       "confirm": "Confirm"
     },
@@ -144,15 +144,16 @@
       "inviteeTitle": "The conversation with {initiator} is over. Where do you go?",
       "loneTitle": "You're left alone. Join a group.",
       "joinGroup": "Join {members}",
-      "colloquio": "Call aside…",
+      "colloquio": "Start a secret conversation…",
       "wait": "Wait for a seat",
       "pick": "Choose a guest",
-      "confirm": "Confirm"
+      "confirm": "Confirm",
+      "allFull": "Every group is full."
     },
     "midnight": {
       "title": "Midnight",
-      "intro": "Choose your act for tonight.",
-      "introTwo": "Choose one or two acts for tonight.",
+      "intro": "Choose your act for midnight.",
+      "introTwo": "Choose one or two acts for midnight.",
       "submit": "Submit",
       "pick": "Choose a guest",
       "extra": "Your extra act (for your errand)",
@@ -194,7 +195,7 @@
       "_comment": "TD v0.47, the errand card: under the errand's text, one line saying what finishing it earns. `reward` with the run's plot_reward on (the rules primer's terms), `noReward` with it off, as in the mini-game. After the errand's check, {plot_status} replaces the line.",
       "title": "Your errand",
       "reward": "Finish it before the last council before midnight for one extra act at midnight: a second kill, guard, or watch, on a different guest. No one else is told.",
-      "noReward": "Errands earn no extra act tonight."
+      "noReward": "Errands earn no extra act at midnight."
     },
     "errandDeadline": "Your errand's deadline",
     "midnightLine": {
@@ -207,7 +208,7 @@
       "_comment": "Interface v0.5, the stage bar: one line for each stage, keyed by the stage's name as block 5 gives it (in-world-names.json's phase labels). A stage without a line here shows its name alone.",
       "descriptions": {
         "The guests' arrival": "The guests come in and form their first groups.",
-        "The first round of mingling, early": "Talk in small groups; move, or call someone aside.",
+        "The first round of mingling, early": "Talk in small groups; move, or start a secret conversation.",
         "The first round of mingling, midway": "The round goes on, and the groups shift.",
         "The first round of mingling, late": "The round's last stretch before midnight.",
         "Midnight": "Each guest acts alone, in secret."
@@ -216,7 +217,7 @@
     "pastStage": {
       "heading": "Earlier: {stage}",
       "empty": "Nothing reached you in this stage.",
-      "summaryTitle": "{notaio}'s summary of this stage. He may be wrong."
+      "summaryTitle": "{notaio}'s summary of this stage"
     },
     "earlier": {
       "title": "Earlier this stage",
@@ -229,111 +230,150 @@
       "off": "Explanations: off"
     },
     "hints": {
-      "_comment": "Hover explanations (TD v0.40, The screen), on hover and keyboard focus. Plain words for someone new to the game.",
+      "_comment": "Hover explanations (TD v0.40, The screen; Interface v0.16, Explanations), on hover and keyboard focus: plain, short English, one idea at a time. `nextMove` and `generate` wait with their features (the engine's movement window in the player's state; Generate's model call).",
       "switch": "Turn these explanations on or off. This browser remembers your choice.",
-      "sheet": "Your character: your purse, the payments you've taken from France's payroll, and how many times tonight you've drawn someone aside for a private word.",
-      "errand": "What you came to do tonight. It stays here so you don't lose sight of it. Once it has been checked, the result appears here too.",
-      "errandReward": "What you came to do tonight. It stays here so you don't lose sight of it. Finish it before the last council before midnight, and you get one extra act at midnight, a second kill, guard, or watch on a different guest, that no one else is told about. Once it has been checked, the result appears here.",
-      "errandNoReward": "What you came to do tonight. It stays here so you don't lose sight of it. Tonight, errands earn no extra act at midnight, so finishing it is for its own sake.",
-      "trackDeadline": "Your errand's deadline: finish it before this for an extra act at midnight.",
-      "midnightExtra": "The extra act your errand earned you. No one else is told of it. It's yours to use or leave: it must name a different guest from your other act, and you can't guard yourself.",
-      "here": "The room: the guests with you, then everyone else as they stand right now. You can see who is with whom, never what they say.",
+      "sheet": "This is you: your money, your payments from France, and your secret conversations.",
+      "errand": "The one thing you came to do tonight. The result shows here once it's checked.",
+      "errandReward": "The one thing you came to do tonight. Finish it before the last council before midnight for a secret extra act at midnight.",
+      "errandNoReward": "The one thing you came to do tonight. In this game it earns no extra act.",
+      "trackDeadline": "Your errand's deadline. Finish before this stage for an extra act at midnight.",
+      "midnightExtra": "Your errand's secret extra act. Optional. It must be on a different guest, and you can't guard yourself.",
+      "here": "Who's with you, then everyone else. You can see who's together, but not hear them.",
       "briefing": "Your briefing: who you are, what you know, and what you want. Only you can see it.",
-      "rules": "The rules of the evening, as every guest has them: one button per section.",
-      "header": "Who you're with now, in the current stage.",
-      "earlier": "Conversations you were part of earlier in this stage. Click one to read it again; click again to fold it away. Earlier stages are in the bar above.",
-      "input": "Type what your character says, up to {max} characters. Start with @ to speak to one guest, or / for a command.",
-      "mention": "Speak to one guest: choose who your next line is for. Everyone present still hears it.",
-      "commands": "Commands: actions such as paying, borrowing, or repaying, instead of words.",
-      "speak": "Say your line to the conversation. You can press Enter instead.",
-      "do": "Carry out the command in the box. It's an action, not something you say.",
+      "rules": "The rules of the evening, one button per section.",
+      "header": "Who you're with right now.",
+      "earlier": "Earlier conversations in this stage. Click one to open or close it.",
+      "input": "Type what your character says (up to {max} characters). Start with @ to talk to one guest, or / to act.",
+      "mention": "Talk to one guest. Everyone here still hears you.",
+      "commands": "Do something instead of talking, like paying or borrowing.",
+      "speak": "Say your line. Pressing Enter does the same.",
+      "do": "Do what's in the box. It's an action, not speech.",
       "pass": "Say nothing this time. The conversation moves on.",
-      "end": "End this private conversation. The other guest has a last word, then it closes.",
-      "talkingTo": "The guest you're talking with. Everything shown here is what anyone at the party knows about them.",
-      "move": "Your chance to move. Stay where you are, walk over to another guest's group, or call a guest aside for a private word.",
+      "end": "End this secret conversation. The other guest gets a last word.",
+      "talkingTo": "The guest you're talking with. Only what everyone knows about them.",
+      "move": "Your chance to move: stay, join another group, or start a secret conversation.",
       "stay": "Stay in this conversation.",
-      "join": "Walk over to another guest and join their group.",
-      "colloquio": "Draw a guest aside for a private conversation. Il Notaio notes it, and others may wonder why.",
+      "join": "Go over and join another guest's group.",
+      "colloquio": "Start a secret conversation with a guest. Others will notice.",
       "seat": "Your conversation is over. Choose where to go next.",
-      "midnight": "Choose what you do at midnight. No one sees your choice.",
-      "confirm": "Lock in your choice. It can't be changed afterwards.",
+      "midnight": "Choose your act for midnight. No one sees it.",
+      "confirm": "Lock in your choice. You can't change it.",
       "close": "Close this and go back to the conversation.",
-      "play": "Start the evening as this guest.",
-      "wait": "Wait here until a seat opens in a group. You'll be offered one at the next chance.",
-      "city": "The city: what everyone in Florence knows, one entry per row, under its subject.",
-      "web": "The Web of Secrets: who is tied to whom, what you heard and saw of each guest, and your notes. Click the bar to slide it up or down.",
-      "select": "Select this guest, here and in the Web of Secrets: their public card shows on the right, their lines are highlighted, and earlier conversations they were in open up. Select again, or press Escape, to clear.",
-      "loreLink": "Something everyone in the city knows about. Opens it on the right.",
-      "earlierLine": "Open or fold this earlier conversation.",
-      "deckTab": "Jump to this topic.",
-      "deckCard": "Click anywhere on the card, or press the right arrow, for the next topic.",
-      "deckBack": "Back to the previous topic. The left arrow works too.",
-      "selected": "The guest you selected. Everything shown is what anyone at the party knows about them.",
+      "play": "Play the evening as this guest.",
+      "wait": "Wait for room in a group, or pair up with the next guest who has nowhere to go.",
+      "city": "What everyone in Florence knows, grouped by subject.",
+      "web": "Who's connected, what you've heard and seen, and your notes. Click to open or close.",
+      "select": "Select this guest: their card shows on the right and their lines light up. Click again or press Escape to clear.",
+      "loreLink": "Something everyone in the city knows. Click to read it.",
+      "earlierLine": "Open or close this earlier conversation.",
+      "deckTab": "Go to this topic.",
+      "deckCard": "Click the card, or press →, for the next topic.",
+      "deckBack": "Previous topic. ← works too.",
+      "selected": "The guest you selected. Only what everyone knows about them.",
       "back": "Back to what you were looking at before.",
-      "openWeb": "Open the Web of Secrets with this guest selected.",
-      "notaioHint": "Il Notaio's advice for the moment. Click to fold it away or bring it back.",
-      "webNode": "Select a guest. Select a second to see what passed between the two; a third replaces the older. The conversation shows the one you picked last.",
-      "recordTab": "What you heard the selected guests say, and what you saw of them, newest first. Only what you were there for.",
-      "notesTab": "Write a note on the selected guest or pair, or with no one selected, a free note. Below it, your notes, newest first: all of them with no one selected, or those on whoever is selected. Only you see your notes.",
-      "noteText": "Your note. No one else sees it, and no guest's mind is touched by it.",
-      "noteSave": "Keep this note. It stays with the game, even if you reload the page.",
-      "conclude": "Put this note in the message box as your conclusion: what you've worked out. Nothing counts until you press Do, and only your latest conclusion counts, so a new one replaces the last.",
-      "concludeWaiting": "Finish the choice in front of you first. Then you can make this note your conclusion.",
-      "noteItem": "Select the guest or pair this note is about: the list narrows to them, and the web highlights them.",
-      "portrait": "{name}. Click to select them, here and in the Web of Secrets.",
+      "openWeb": "Open the Web of Confidences with this guest selected.",
+      "notaioHint": "Il Notaio's advice for right now. Click to hide or show it.",
+      "webNode": "Select a guest. Select a second to see what passed between them.",
+      "recordTab": "What you heard and saw of the selected guests, newest first.",
+      "notesTab": "Your private notes, by guest and pair. Select someone to write on them, or no one for a free note.",
+      "noteText": "Your note. Only you see it.",
+      "noteSave": "Save this note. It survives a reload.",
+      "conclude": "Use this note as your conclusion. It counts once you press Do; only the latest counts.",
+      "concludeWaiting": "Finish the choice in front of you first.",
+      "noteItem": "Select who this note is about.",
+      "portrait": "{name}. Click to select them.",
       "myBriefing": "Your briefing",
-      "more": "This column goes on below. Click to scroll down, or scroll as usual.",
-      "key": "The key to the lines: each kind of tie has its own colour and line style.",
-      "keyType": "Highlight every line of this kind across the web. Click again to clear.",
-      "reading": "Il Notaio's reading of what you've heard and seen of the selected guests: what you knew of them already, then tonight, stage by stage, each line put in his register with their own words quoted. Every word of his is checked against the line. He may still be wrong. Click it, or the lines behind it, to fold it to the foot of the column; click again to bring it back.",
-      "faction": "A faction: its guests sit together under its name.",
-      "track": "The evening's stages: filled ones are done, the long one is now, outlined ones are still to come.",
-      "trackPast": "{stage}: done. Click to read its conversations again. Nothing can be sent from there.",
-      "trackNow": "{stage}: now. Click to come back here from an earlier stage.",
-      "trackNext": "{stage}: still to come. It opens once it has happened.",
-      "return": "Back to the current stage. Your words stay in the box; nothing is sent until you press Speak or Do there. Enter does the same.",
-      "pastStage": "An earlier stage, read-only: every conversation you were in during it, in order.",
-      "lookingAt": "The guest you selected, over the one you're talking with. Everything shown is what anyone at the party knows about them.",
-      "deselect": "Stop looking at this guest, and go back to whoever you're talking with.",
+      "more": "There's more below. Click or scroll.",
+      "key": "Each kind of tie has its own colour and line.",
+      "keyType": "Highlight every line of this kind. Click again to clear.",
+      "reading": "Il Notaio's summary of what you've heard and seen of them, stage by stage. Click to tuck it away or bring it back.",
+      "faction": "A faction. Its guests sit together under its name.",
+      "track": "The evening, stage by stage. Filled: done. Wide: now. Outlined: still to come.",
+      "trackPast": "{stage}: over. Click to read it again.",
+      "trackNow": "{stage}: now.",
+      "trackNext": "{stage}: still to come.",
+      "return": "Back to the current stage. What you've typed stays in the box.",
+      "pastStage": "An earlier stage, to read only.",
+      "lookingAt": "The guest you selected. Only what everyone knows about them.",
+      "deselect": "Stop looking at this guest.",
       "backToTalk": "Back to whoever you're talking with.",
-      "resize": "Drag to make this panel wider or narrower. This browser remembers the width.",
-      "loreEntry": "A lore entry you opened from a line. Back returns to what you were looking at.",
-      "roomToken": "{name}, in company. Click to select them.",
-      "roomPair": "{name}, in private. Click to select them.",
-      "places": "The places: every place in the house, always in the same order, and who is in each right now. Yours is marked, and a closed door marks a private conversation. You can see who is with whom, never what they say. Hover a place's name to read about it.",
-      "placePrivate": "Two guests have drawn aside here in private, behind a closed door. You can see who, never what they say.",
-      "rulesSection": "Open this section of the rules. Its × takes you back to all of them.",
+      "resize": "Drag to resize. Drag all the way in to hide.",
+      "loreEntry": "Something everyone in the city knows. Back returns you.",
+      "roomToken": "{name}, with others. Click to select them.",
+      "roomPair": "{name}, in a secret conversation. Click to select them.",
+      "places": "Every place in the house and who's there now. Yours is marked; a closed door means a secret conversation. Hover a name to read about it.",
+      "placePrivate": "Two guests in a secret conversation. You can see who, not what.",
+      "rulesSection": "Open this section. × goes back.",
       "rulesShrink": "Back to all the sections of the rules.",
-      "cityRow": "Read this entry in full. The arrow at its top takes you back to the list.",
+      "cityRow": "Read this entry. The arrow goes back.",
       "cityBack": "Back to the list of everything the city knows.",
-      "hideRight": "Hide this panel, so the conversation has more room. A handle at the edge brings it back; this browser remembers your choice.",
-      "showRight": "Show the right panel again. While it's hidden, the guest you've selected shows here.",
-      "glossary": "The glossary: the evening's words from A to Z, each with a short definition, and a search box.",
-      "glossarySearch": "Type to narrow the glossary to the words that match.",
-      "glossaryRules": "Open the rules at the section behind this word.",
-      "modalPrevious": "The one before this. Click to slide back to it.",
-      "modalNext": "The next one along. Click to slide on to it.",
-      "tourAgain": "Take the tour of the screen again: one part at a time, with a word from Il Notaio on each.",
+      "hideRight": "Hide this panel for more room. The handle at the edge brings it back.",
+      "showRight": "Show the right panel again.",
+      "glossary": "The game's words, A to Z, with a search box.",
+      "glossarySearch": "Type to find a word.",
+      "glossaryRules": "Open the rules about this word.",
+      "modalPrevious": "Go back to the one before.",
+      "modalNext": "Go on to the next one.",
+      "tourAgain": "Take the tour again.",
       "tourBack": "Back to the part before.",
-      "tourSkip": "End the tour here. Show me around, at the top of this column, runs it again.",
-      "openingSkip": "Write out the whole story at once.",
-      "pastSummary": "Il Notaio's summary of this stage: what you heard and saw, conversation by conversation, each line in his register with the guest's own words quoted. Click anywhere in the window to fold it to the foot; click it again to bring it back.",
-      "readingNote": "What every guest knew of this at the start of the evening: a public note the game sets beside the line, not Il Notaio's. Click to open it in The city."
+      "tourSkip": "End the tour. Show me around starts it again.",
+      "openingSkip": "Show the whole story at once.",
+      "pastSummary": "Il Notaio's summary of this stage, with the guests' own words. Click to tuck it away or bring it back.",
+      "readingNote": "Something everyone knew at the start. Click to read it in The city.",
+      "factLink": "Click for the rules on this.",
+      "lookingAtSelf": "Your own card: what everyone knows about you."
     },
     "city": "The city",
     "rulesModal": {
       "mark": "×",
-      "shrink": "Back to all the rules"
+      "shrink": "Back to all the rules",
+      "previous": "← Previous rule",
+      "next": "Next rule →",
+      "first": "First rule →",
+      "overview": "← The rules"
     },
     "cityList": {
-      "back": "← The city"
+      "back": "← The city",
+      "first": "First topic →",
+      "previous": "← Previous topic",
+      "next": "Next topic →"
     },
     "decks": {
       "past": "Your past",
       "back": "Back",
       "counter": "{n} of {total}",
       "empty": "Nothing here yet.",
-      "other": "Other"
+      "other": "Other",
+      "_comment": "Interface v0.16: the briefing is five cards for the player. `playerSkips`: the briefing's cards left out (they serve the AI guests' prompts), by title. `playerMerges`: cards shown as one, under `title`, in `cards`' order, each later card under its `subheadings` entry. Titles are the Characters doc's briefing headings.",
+      "playerSkips": [
+        "How you speak",
+        "Resources",
+        "Social awareness"
+      ],
+      "playerMerges": [
+        {
+          "title": "What you want",
+          "cards": [
+            "Your faction",
+            "Other goals (your own reasons)"
+          ],
+          "subheadings": [
+            "Your own reasons"
+          ]
+        },
+        {
+          "title": "What you know",
+          "cards": [
+            "What you know",
+            "Your secrets (private)"
+          ],
+          "subheadings": [
+            "Keep to yourself"
+          ]
+        }
+      ],
+      "previousBriefing": "← Previous briefing",
+      "nextBriefing": "Next briefing →"
     },
     "right": {
       "selected": "Selected",
@@ -341,7 +381,7 @@
       "back": "Back",
       "known": "Known to all",
       "with": "With {name}:",
-      "openWeb": "Open in the Web of Secrets",
+      "openWeb": "Open in the Web of Confidences",
       "lookingAt": "Looking at",
       "deselect": "×",
       "speakingNow": "speaking",
@@ -349,7 +389,9 @@
       "hide": "⇥",
       "hideLabel": "Hide this panel",
       "show": "⇤",
-      "showLabel": "Show the panel again"
+      "showLabel": "Show the panel again",
+      "lookingAtSelf": "This is you",
+      "youTag": "You"
     },
     "notaioHint": {
       "title": "{notaio}, to you",
@@ -357,7 +399,7 @@
       "show": "Show"
     },
     "web": {
-      "title": "The Web of Secrets",
+      "title": "Web of Confidences",
       "record": "What you heard and saw",
       "notes": "Notes",
       "pick": "Select a guest to see what you heard and saw of them, or two to see what passed between them.",
@@ -380,12 +422,17 @@
       "key": "Key",
       "keyShow": "Show the key",
       "keyHide": "Hide the key",
-      "otherType": "Other"
+      "otherType": "Other",
+      "nothingBetween": "You haven't yet heard {a} or {b} speak to the other. Only what one says to the other shows here.",
+      "keyYours": "Secret",
+      "keyYoursCovers": "A tie no other guest knows of. Ties everyone knows are drawn plain.",
+      "fold": "Fold these notes",
+      "unfold": "Show these notes"
     },
     "more": "More below",
     "panelError": "This part of the screen ran into a problem and stopped. The rest still works; reloading the page may bring it back.",
     "reading": {
-      "title": "{notaio}'s reading. He may be wrong.",
+      "title": "{notaio}'s reading",
       "waiting": "Il Notaio is considering…",
       "tally": "{heard}; {saw}.",
       "heard": {
@@ -410,12 +457,12 @@
     },
     "room": "The room",
     "withYou": "With you",
-    "withYouPrivately": "With you, in private",
+    "withYouPrivately": "In a secret conversation with you",
     "places": {
       "_comment": "Interface v0.9, Left: The places, from the player's state's `places` (TD v0.49). Every place in setting.json's order; a row's heading is the place's name with its first letter capitalized. `yours` marks the player's own place, `private` names the closed-door mark on a place holding a Colloquio, and `quiet` stands in for the list outside a conversation (midnight, the ballot). `descriptions`: Lore's one-line description of each place (Lore v0.8, The Palazzo), shown on hovering its name, keyed by the place's name exactly as setting.json gives it.",
       "title": "The places",
       "yours": "You are here",
-      "private": "Private: behind a closed door",
+      "private": "Secret conversation: behind a closed door",
       "quiet": "Each guest chooses alone now.",
       "descriptions": {
         "the great hall": "The main room, under painted beams, where the crowd gathers",
@@ -432,7 +479,7 @@
       "_comment": "Interface v0.9, the conversation line (the members line under the stage bar, and each earlier conversation's line), once the state has places (TD v0.49). {place} is the place's name as setting.json gives it, in a sentence as is; {others} the guests with the player, joined; {other} the Colloquio's other guest; {faction} the player's faction. Without places, `capannello`, `colloquio`, and `alone` above.",
       "group": "In {place} with {others}",
       "alone": "In {place}, on your own",
-      "colloquio": "In {place}, aside with {other}",
+      "colloquio": "In {place}, in secret with {other}",
       "council": "The {faction} council, in {place}"
     },
     "glossary": "Glossary",
@@ -444,14 +491,21 @@
     },
     "modalRow": {
       "previous": "Back to {title}",
-      "next": "On to {title}"
+      "next": "On to {title}",
+      "summary": {
+        "briefing": "Who you are, what you know, and what you came here to do.",
+        "rules": "How the evening works, from the first word to midnight.",
+        "city": "What every guest knew of Florence before tonight.",
+        "glossary": "The game's words, each explained in a line or two."
+      }
     },
     "opening": {
       "_comment": "Interface v0.7, The Opening's controls and the choice at its end. Il Notaio's story itself is notaio.json's opening.",
       "skip": "Skip",
-      "choose": "Choose your guest",
+      "choose": "Choose your family",
       "play": "Play as {name}",
-      "starting": "The guests are arriving…"
+      "starting": "The guests are arriving…",
+      "fullGameOnly": "In the full game"
     },
     "tour": {
       "_comment": "Interface v0.8, The Tour's controls. Its cards are notaio.json's tour.",
@@ -459,6 +513,34 @@
       "skip": "Skip tour",
       "counter": "{n} of {total}",
       "again": "Show me around"
+    },
+    "youAre": "You are {name}",
+    "commandWhy": {
+      "_comment": "Interface v0.16, Commands: why a command isn't open now, in the command menu's folded section, in place of its hint. `more` heads the section ({n}: how many). {amount} is one payroll payment.",
+      "colloquio": "Only in a secret conversation.",
+      "noFlorins": "You have no {currency} to give.",
+      "repay": "You need {amount} {currency} to pay one back.",
+      "midnight": "Only at midnight.",
+      "conclude": "Only for an errand that asks you to find something out.",
+      "notNow": "Not open to you right now.",
+      "more": "Not available now ({n})"
+    },
+    "notaioRefusal": {
+      "_comment": "Interface v0.16, Commands: Il Notaio's plain reason for a refused command, in his hint box, by the same reasons as `commandWhy`. `other`: the game's own reason ({reason}), then where to look.",
+      "colloquio": "Money can only change hands in a secret conversation. Start one with the guest first, then try {command} again.",
+      "noFlorins": "You have no {currency} to give.",
+      "repay": "Paying one back costs {amount} {currency}, and you have less than that.",
+      "midnight": "That has to wait for midnight.",
+      "conclude": "That's only for an errand that asks you to find something out.",
+      "other": "{reason} Type / to see what you can do now."
+    },
+    "factLinks": {
+      "_comment": "Interface v0.16, Left: the glossary word behind each line of the sheet (a term in `glossary`). Clicking the line opens the rules section behind that word, or the word in the glossary if no section explains it. `errand` is the errand card's reward line: the rules on errands where the primer has a section, otherwise `midnight`'s.",
+      "purse": "Florins",
+      "pensions": "France's payroll",
+      "withdrawals": "Colloquio",
+      "midnight": "Midnight",
+      "errand": "Errand"
     }
   },
   "glossary": {
@@ -477,7 +559,7 @@
       },
       {
         "term": "/bribe",
-        "text": "Hand {currency} to the guest you're alone with in a Colloquio. Whatever they promise in return is up to them.",
+        "text": "Hand {currency} to the guest you're in a secret conversation with. Whatever they promise in return is up to them.",
         "rules": [
           "Money"
         ],
@@ -521,7 +603,7 @@
       },
       {
         "term": "Colloquio",
-        "text": "A private conversation between two guests. No one else can join or hear. Calling one uses your move, and the guest you call can't refuse, but everyone sees the two of you slip away.",
+        "text": "A secret conversation between two guests. No one else can join or hear it. Starting one uses your move, and the other guest can't refuse, but everyone sees the two of you slip away.",
         "rules": [
           "Conversations"
         ],
@@ -653,7 +735,7 @@
       },
       {
         "term": "Move",
-        "text": "Your turn to change company, when it comes: stay, join another guest's group, or call a Colloquio.",
+        "text": "Your turn to change company, when it comes: stay, join another guest's group, or start a secret conversation.",
         "rules": [
           "Conversations"
         ],
@@ -693,7 +775,7 @@
       },
       {
         "term": "Round of mingling",
-        "text": "Open play, when guests form groups, move, and call Colloquios.",
+        "text": "Open play, when guests form groups, move, and start secret conversations.",
         "rules": [
           "The order of the evening"
         ],
@@ -733,10 +815,10 @@
         "match": []
       },
       {
-        "term": "Web of Secrets",
+        "term": "Web of Confidences",
         "text": "Your record of who is tied to whom, what you've heard of each guest, and your notes. The bar at the bottom of the screen.",
         "match": [
-          "Web of Secrets"
+          "Web of Confidences"
         ]
       }
     ]
