@@ -23,8 +23,9 @@ import { HumanController } from "../core/human.ts";
 import { serveWebSocket } from "../core/ws.ts";
 import { loadDocs } from "../sources/docs.ts";
 import { CAST, castBriefings } from "./cast.ts";
-import { MiniGame, type CallRequest, type Caller, type GameSettings } from "./engine.ts";
+import { MiniGame, type CallRequest, type Caller } from "./engine.ts";
 import { fakeCaller } from "./fake-caller.ts";
+import { FAKE_DEFAULTS, fakeSettings } from "./fake-settings.ts";
 import { playable } from "./player.ts";
 import { buildRecord } from "./record.ts";
 import { screenInfo } from "./screen-info.ts";
@@ -39,11 +40,11 @@ const { values: opts, positionals: runnerArgs } = parseArgs({
     fake: { type: "boolean", default: false },
     port: { type: "string", default: "8770" },
     "ws-port": { type: "string", default: "8771" },
-    seed: { type: "string", default: "1492" },
-    turns: { type: "string", default: "8" },
+    seed: { type: "string", default: String(FAKE_DEFAULTS.seed) },
+    turns: { type: "string", default: String(FAKE_DEFAULTS.turns) },
     "no-open": { type: "boolean", default: false },
     /** Fake games only: how long an AI guest takes to speak, so the screen can be watched. */
-    "fake-delay": { type: "string", default: "600" },
+    "fake-delay": { type: "string", default: String(FAKE_DEFAULTS.delayMs) },
   },
 });
 
@@ -73,24 +74,7 @@ async function startFake(name: string): Promise<void> {
     if (req.kind === "speak") await delay(Number(opts["fake-delay"]));
     return fake(req);
   };
-  const settings: GameSettings = {
-    cast: CAST,
-    briefings,
-    turns: Number(opts.turns),
-    seed: Number(opts.seed),
-    utterancesPerTurn: 12,
-    historyWindow: 10,
-    thoughtWindow: 4,
-    maxCapannello: 4,
-    maxTokens: { plan: 400, think: 250, speak: 200, move: 500, seat: 250, murder: 300, "star-pass": 1800, "claims-pass": 1000, "sweep-reask": 1800, "thought-pass": 600, "perception-pass": 800, "knowledge-check": 300 },
-    playTemperature: 0.7,
-    systemTemperature: 0,
-    checks: ["F2", "F3", "F4", "F5"].flatMap((fact) => CAST.map((character) => ({ character, fact }))),
-    notebook: "perceived",
-    retrieval: "overlap",
-    lore: "off",
-    human: name,
-  };
+  const settings = fakeSettings(name, briefings, { turns: Number(opts.turns), seed: Number(opts.seed) });
   const g = new MiniGame(docs, settings, caller, {}, null, ctrl);
   const started = Date.now();
   void g.play().then(
