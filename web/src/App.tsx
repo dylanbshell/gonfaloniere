@@ -7,7 +7,7 @@
 import { Component, Fragment, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { connect, type Ev } from "./connection.ts";
 import { COMMAND, MENTION, canDo, canSpeak, isCommand, matchCommands, matchGuests, openMenu, withMention, type Trigger } from "./input.ts";
-import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityList, commandMenu, curve, derive, earlierThisStage, errandCardAt, errandDeadline, errandLine, errandTask, factLink, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, noteGroups, ownPlace, payrollSize, placeHeading, playerBriefing, placeList, placeholderExample, preview, readingFor, recordUpTo, refusalWhy, roomOf, rulesLink, runFrom, summaryFor, playerRules, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, webLines, webNames, NODE_RADIUS, type Card, type FactLink, type Line, type GuardedReading, type LoreEntry, type Note, type NotaioItem, type Place, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
+import { FACTION_LINE, NO_SELECTION, appearsIn, briefingCards, chatGuest, cityList, commandMenu, curve, derive, earlierThisStage, errandCardAt, errandDeadline, errandLine, errandTask, factLink, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, noteGroups, ownPlace, payrollSize, placeHeading, playerBriefing, placeList, placeholderExample, preview, readingFor, recordUpTo, refusalWhy, roomOf, rulesLink, runFrom, summaryFor, playerRules, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, webLines, webNames, NODE_RADIUS, type Card, type FactLink, type Line, type GuardedReading, type LoreEntry, type Note, type NotaioItem, type Place, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
 import { allCommands, getInfo, guest, names, narrator, notaioHint, packValue, placeDescription, placeholderExamples, setInfo, stageDescription, tc, w, wt, type GlossEntry, type StartInfo } from "./words.ts";
 
 type Send = (m: unknown) => void;
@@ -35,7 +35,90 @@ export function App() {
   }, []);
   if (error) return <div className="notice danger">{error}</div>;
   if (!info) return null;
-  return <HintLayer>{!game ? <Opening onStart={(me, ws) => setGame({ me, ws })} /> : <Game me={game.me} url={game.ws} />}</HintLayer>;
+  return (
+    <HintLayer>
+      <NarrowNote>{!game ? <Opening onStart={(me, ws) => setGame({ me, ws })} /> : <Game me={game.me} url={game.ws} />}</NarrowNote>
+    </HintLayer>
+  );
+}
+
+// ---- Screen sizes (Interface v0.17) --------------------------------------------------------------------
+//
+// The screen is laid out for a laptop, a desktop, or a tablet held sideways. Things that fold themselves when
+// there's no room (the right panel, Il Notaio's hint, the web's key) come back on their own when there is,
+// unless the player has folded or opened them, which takes them over. The limits are theme tokens.
+
+/** The window's width, kept up to date; null on the server. */
+function useWindowWidth(): number | null {
+  const [width, setWidth] = useState<number | null>(() => (typeof window === "undefined" ? null : window.innerWidth));
+  useEffect(() => {
+    const on = () => setWidth(window.innerWidth);
+    on();
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+  }, []);
+  return width;
+}
+
+/** An element's own width, kept up to date as its space changes; null until it's laid out (and on the server). */
+function useOwnWidth(ref: RefObject<Element | null>): number | null {
+  const [width, setWidth] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const on = () => setWidth(el.getBoundingClientRect().width);
+    on();
+    if (typeof ResizeObserver === "undefined") return;
+    const watch = new ResizeObserver(on);
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, []);
+  return width;
+}
+
+/**
+ * Open or folded, for something that folds itself: it follows `room` (whether there's room for it now) until
+ * the player folds or opens it themselves, which takes it over for the visit.
+ */
+function useSelfFold(room: boolean): { open: boolean; chosen: boolean; set: (open: boolean) => void } {
+  const [chosen, setChosen] = useState<boolean | null>(null);
+  return { open: chosen ?? room, chosen: chosen !== null, set: setChosen };
+}
+
+const NARROW_KEY = "player-screen.narrow-ok";
+
+/**
+ * Phones are left out for now (Interface v0.17, Screen Sizes): in a window narrower than the phone limit, a
+ * note stands in for the screen, which is set aside while it shows, so the page fits the phone. Continue
+ * Anyway holds for the visit.
+ */
+function NarrowNote({ children }: { children: ReactNode }) {
+  const width = useWindowWidth();
+  const [go, setGo] = useState(() => {
+    try {
+      return globalThis.sessionStorage?.getItem(NARROW_KEY) === "yes";
+    } catch {
+      return false;
+    }
+  });
+  if (go || width === null || width >= themeMs("--break-phone", 760)) return <>{children}</>;
+  const on = () => {
+    setGo(true);
+    try {
+      sessionStorage.setItem(NARROW_KEY, "yes");
+    } catch {
+      // Blocked storage: the choice lasts until the page closes.
+    }
+  };
+  return (
+    <main className="narrow-note" role="alertdialog" aria-labelledby="narrow-title">
+      <h1 id="narrow-title">{w("screen.narrow.title")}</h1>
+      <p>{w("screen.narrow.text")}</p>
+      <button className="primary narrow-go" onClick={on}>
+        {w("screen.narrow.go")}
+      </button>
+    </main>
+  );
 }
 
 // ---- Hover explanations (TD v0.40) ---------------------------------------------------------------------
@@ -104,6 +187,53 @@ function HintLayer({ children }: { children: ReactNode }) {
       window.removeEventListener("resize", check);
     };
   }, [tip]);
+  // Interface v0.17: on a touchscreen, which has no hover, a long press shows a thing's explanation without
+  // pressing it; a tap still acts at once. The explanation stays until the next touch.
+  const onRef = useRef(on);
+  onRef.current = on;
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let shown = false;
+    const cancel = () => {
+      if (timer) clearTimeout(timer);
+      timer = null;
+    };
+    const start = (e: TouchEvent) => {
+      cancel();
+      if (shown) setTip(null);
+      shown = false;
+      const el = (e.target as Element | null)?.closest?.("[data-hint], [data-gloss], [data-narrator]");
+      const text = el?.getAttribute("aria-description");
+      if (!el || !text) return;
+      const world = !el.hasAttribute("data-hint");
+      if (!world && !onRef.current) return;
+      timer = setTimeout(() => {
+        timer = null;
+        shown = true;
+        setTip({ text, el, rect: el.getBoundingClientRect(), world });
+      }, themeMs("--long-press", 500));
+    };
+    // The press that showed an explanation doesn't press the thing: its click, and the menu a long press can call up, are dropped.
+    const swallow = (e: Event) => {
+      if (!shown) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.type === "click") shown = false;
+    };
+    document.addEventListener("touchstart", start, { passive: true });
+    for (const x of ["touchmove", "touchcancel"]) document.addEventListener(x, cancel, { passive: true });
+    document.addEventListener("touchend", cancel);
+    document.addEventListener("click", swallow, true);
+    document.addEventListener("contextmenu", swallow, true);
+    return () => {
+      cancel();
+      document.removeEventListener("touchstart", start);
+      for (const x of ["touchmove", "touchcancel"]) document.removeEventListener(x, cancel);
+      document.removeEventListener("touchend", cancel);
+      document.removeEventListener("click", swallow, true);
+      document.removeEventListener("contextmenu", swallow, true);
+    };
+  }, []);
   const hints: Hints = {
     on,
     toggle: () => {
@@ -233,7 +363,9 @@ export function phrases(paragraph: string): string[] {
   return paragraph.match(/[^,;:.!?]+(?:[,;:.!?]+["”’)]*\s*|$)|[,;:.!?]+["”’)]*\s*/g) ?? (paragraph ? [paragraph] : []);
 }
 
-/** A timing from theme.css, in milliseconds. */
+const round2 = (x: number) => Math.round(x * 100) / 100;
+
+/** A timing from theme.css, in milliseconds; or any other plain number or pixel length there (a limit, a share, a count). */
 function themeMs(token: string, fallback: number): number {
   if (typeof document === "undefined") return fallback;
   const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(token));
@@ -1076,7 +1208,7 @@ export function GameView({
         </Boundary>
         <Centre me={me} v={v} send={send} dead={dead} status={status} boxFill={boxFill} initialPast={pastStage} onEntry={openEntry} />
         <Boundary panel="right" fallback={(n) => <aside className="side right">{n}</aside>}>
-          {right.hidden ? <RightHandle onShow={() => right.set(false)} /> : <Right me={me} v={v} onWeb={openWeb} onHide={() => right.set(true)} layout={layout} />}
+          {right.hidden ? <RightHandle onShow={() => right.set(false)} /> : <Right me={me} v={v} onWeb={openWeb} onHide={() => right.set(true)} layout={layout} reopened={right.reopened} />}
         </Boundary>
       </div>
       <Boundary
@@ -1559,6 +1691,8 @@ function Centre({ me, v, send, dead, status, boxFill, initialPast = null, onEntr
   const stream = useRef<HTMLDivElement>(null);
   const hint = useHint();
   const { sel, clear } = useContext(SelContext);
+  /** The conversation's own space, between the stage bar and Il Notaio's hint: his hint folds itself to keep it tall enough. */
+  const area = useRef<HTMLDivElement>(null);
   /** The past stage open in the chat window (Interface v0.5, Past stages), read-only; null for the current stage. */
   const [past, setPast] = useState<string | null>(initialPast);
   // Il Notaio's summary over a past stage (Interface v0.13): expanded when a stage opens; a click in the
@@ -1613,7 +1747,7 @@ function Centre({ me, v, send, dead, status, boxFill, initialPast = null, onEntr
         {/* The connection's state in the header, so the stream doesn't move when it changes. */}
         {status !== "open" && <div className="notice status">{w(status === "closed" ? "screen.reconnecting" : "screen.connecting")}</div>}
       </header>
-      <div className="stream-area">
+      <div className="stream-area" ref={area}>
       <div className={`stream${past && covered && summaryFor(v, past) ? " behind" : ""}`} ref={stream} onClick={sel ? deselectOnBackground(clear) : undefined} onClickCapture={past && covered ? (e) => (e.stopPropagation(), e.preventDefault(), setCovered(false)) : undefined}>
         <Boundary panel="stream">
           {past ? (
@@ -1663,7 +1797,7 @@ function Centre({ me, v, send, dead, status, boxFill, initialPast = null, onEntr
       {/* Interface v0.16: his hint steps aside while an earlier stage is open; his summary is already there. */}
       {!past && (
         <Boundary panel="hint">
-          <NotaioHint me={me} v={v} refused={refused} />
+          <NotaioHint me={me} v={v} refused={refused} room={area} />
         </Boundary>
       )}
       {!dead && (
@@ -1965,9 +2099,34 @@ function StreamLine({ l, me, lore }: { l: Line; me: string; lore: LoreEntry[] })
  * words fade in. A refused command gets its reason here (`refused`), in place of his usual line, and his box
  * opens if it was folded; his usual line comes back once the player types again, without a flash.
  */
-function NotaioHint({ me, v, refused = null }: { me: string; v: View; refused?: string | null }) {
+function NotaioHint({ me, v, refused = null, room }: { me: string; v: View; refused?: string | null; /** The conversation above it (Interface v0.17): in a short window his hint folds itself to keep it at least --stream-min-height tall. */ room?: RefObject<HTMLElement | null> }) {
   const hint = useHint();
-  const [open, setOpen] = useState(true);
+  // Whether there's room for his words: folded by itself when the conversation would have less than its least
+  // height, and open again by itself once it would keep that with his words back, unless the player has folded
+  // or opened it in the meantime.
+  const [fits, setFits] = useState(true);
+  const words = useRef<HTMLParagraphElement>(null);
+  /** How much height his words took when last open. */
+  const took = useRef(0);
+  const fold = useSelfFold(fits);
+  const open = fold.open;
+  const setOpen = fold.set;
+  useLayoutEffect(() => {
+    const el = room?.current;
+    if (!el) return;
+    const check = () => {
+      const least = themeMs("--stream-min-height", 200);
+      const have = el.getBoundingClientRect().height;
+      const mine = words.current?.getBoundingClientRect().height;
+      if (mine) took.current = mine;
+      setFits((was) => (words.current ? have >= least : was ? true : have - took.current >= least));
+    };
+    check();
+    if (typeof ResizeObserver === "undefined") return;
+    const watch = new ResizeObserver(check);
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, [open]);
   // His usual line is the moment's; a refusal is his to explain here, so it isn't a moment of its own.
   const m = hintMoment(v.refusal ? { ...v, refusal: null } : v, me);
   const usual = notaioHint(m.key, m.values);
@@ -1979,13 +2138,13 @@ function NotaioHint({ me, v, refused = null }: { me: string; v: View; refused?: 
     const was = said.current;
     said.current = { text, usual };
     if (text === was.text) return;
-    if (refused) setOpen(true);
+    if (refused && !open) setOpen(true);
     // Back to the line he gave before a refusal: nothing new, so no flash.
     else if (text === was.usual) return;
     setFresh((n) => n + 1);
   }, [text]);
   return (
-    <aside className={`notaio-hint${open ? "" : " collapsed"}`}>
+    <aside className={`notaio-hint${open ? "" : " collapsed"}`} data-fold={fold.chosen ? "chosen" : "auto"}>
       {fresh > 0 && <span key={fresh} className="hint-glow" aria-hidden="true" />}
       <button className="hint-head" aria-expanded={open} onClick={() => setOpen(!open)} {...hint("notaioHint")}>
         <span className="notaio-title">
@@ -1994,7 +2153,7 @@ function NotaioHint({ me, v, refused = null }: { me: string; v: View; refused?: 
         <span className="notaio-toggle">{w(open ? "screen.notaioHint.hide" : "screen.notaioHint.show")}</span>
       </button>
       {open && (
-        <p key={fresh} className={`hint-text${fresh > 0 ? " fresh" : ""}`} data-moment={refused ? "refusal" : m.key}>
+        <p key={fresh} ref={words} className={`hint-text${fresh > 0 ? " fresh" : ""}`} data-moment={refused ? "refusal" : m.key}>
           {text}
         </p>
       )}
@@ -2070,21 +2229,37 @@ function useRightWidth(layout: RefObject<HTMLDivElement | null>, onHide: () => v
   };
 }
 
-/** Whether the right panel is hidden (Interface v0.5): remembered in the browser, shown by default. */
+/**
+ * Whether the right panel is hidden (Interface v0.5): the player's own choice, remembered in the browser.
+ * Interface v0.17: until they've made one, it starts folded to its strip in a window narrower than the fold
+ * limit, so the conversation keeps room for the stage bar, and comes back when there's room; it can still be
+ * opened. `reopened`: it has been brought back from its strip, so the card that was showing is simply there.
+ */
 const RIGHT_HIDDEN_KEY = "player-screen.right-hidden";
 
 function useRightHidden(initial?: boolean) {
-  const [hidden, setHidden] = useState<boolean>(() => {
+  const [chosen, setHidden] = useState<boolean | null>(() => {
     if (initial !== undefined) return initial;
     try {
-      return globalThis.localStorage?.getItem(RIGHT_HIDDEN_KEY) === "hidden";
+      const saved = globalThis.localStorage?.getItem(RIGHT_HIDDEN_KEY);
+      return saved === "hidden" ? true : saved === "shown" ? false : null;
     } catch {
-      return false;
+      return null;
     }
   });
+  const width = useWindowWidth();
+  const hidden = chosen ?? (width !== null && width < themeMs("--break-right-fold", 1044));
+  const was = useRef(hidden);
+  const [reopened, setReopened] = useState(false);
+  useEffect(() => {
+    if (was.current && !hidden) setReopened(true);
+    was.current = hidden;
+  }, [hidden]);
   return {
     hidden,
+    reopened,
     set: (h: boolean) => {
+      if (!h) setReopened(true);
       setHidden(h);
       try {
         localStorage.setItem(RIGHT_HIDDEN_KEY, h ? "hidden" : "shown");
@@ -2172,7 +2347,7 @@ function useCoverCards(over: Over | null) {
 }
 
 /** One card over the "talking with" card: a selected guest's plain raised card, or a lore entry. */
-function CoverCard({ over, v, me, leaving, follows, onGone, onWeb }: { over: Over; v: View; me: string; leaving?: boolean; follows?: boolean; onGone?: () => void; onWeb: (guest: string | null) => void }) {
+function CoverCard({ over, v, me, leaving, follows, still, onGone, onWeb }: { over: Over; v: View; me: string; leaving?: boolean; follows?: boolean; /** Already showing when the panel came back: no slide. */ still?: boolean; onGone?: () => void; onWeb: (guest: string | null) => void }) {
   const hint = useHint();
   const { back, clear } = useContext(SelContext);
   // Whether it came up behind another sliding down, fixed when it first shows, so its slide never restarts.
@@ -2182,7 +2357,7 @@ function CoverCard({ over, v, me, leaving, follows, onGone, onWeb }: { over: Ove
   const self = isGuest && over === me;
   return (
     <section
-      className={`person look${self ? " self" : ""}${leaving ? " leaving" : ""}${behind && !leaving ? " follows" : ""}`}
+      className={`person look${self ? " self" : ""}${leaving ? " leaving" : ""}${behind && !leaving ? " follows" : ""}${still && !leaving ? " still" : ""}`}
       data-guest={isGuest ? over : undefined}
       aria-hidden={leaving || undefined}
       inert={leaving || undefined}
@@ -2228,7 +2403,7 @@ function CoverCard({ over, v, me, leaving, follows, onGone, onWeb }: { over: Ove
  * leaves the talking card's header in view, one click from going back. The panel's left edge resizes it.
  * Clicking the panel's empty background deselects (Interface v0.7).
  */
-function Right({ me, v, onWeb, onHide, layout }: { me: string; v: View; onWeb: (guest: string | null) => void; onHide: () => void; layout: RefObject<HTMLDivElement | null> }) {
+function Right({ me, v, onWeb, onHide, layout, reopened = false }: { me: string; v: View; onWeb: (guest: string | null) => void; onHide: () => void; layout: RefObject<HTMLDivElement | null>; /** The panel was brought back from its strip (Interface v0.17): the card that was showing doesn't slide up again. */ reopened?: boolean }) {
   const s = v.state;
   const hint = useHint();
   const { sel, clear } = useContext(SelContext);
@@ -2239,6 +2414,8 @@ function Right({ me, v, onWeb, onHide, layout }: { me: string; v: View; onWeb: (
   const over: Over | null = sel?.kind === "guest" ? sel.name : sel?.kind === "lore" ? sel.entry : null;
   const cards = useCoverCards(over);
   const filled = !!talk && talk !== me;
+  // The card showing as the panel comes back is simply there; one selected after that slides up as always.
+  const [there] = useState(() => (reopened && over ? overKey(over) : null));
   return (
     <aside className={`side right${over ? " covered" : ""}`} onClick={over ? deselectOnBackground(clear) : undefined}>
       <div className="resize" role="separator" aria-orientation="vertical" onPointerDown={drag} {...hint("resize", { focusable: true })} />
@@ -2273,7 +2450,7 @@ function Right({ me, v, onWeb, onHide, layout }: { me: string; v: View; onWeb: (
       </section>
       {(over || cards.leaving.length > 0) && (
         <div className="covers">
-          {over && <CoverCard key={overKey(over)} over={over} v={v} me={me} follows={cards.leaving.length > 0} onWeb={onWeb} />}
+          {over && <CoverCard key={overKey(over)} over={over} v={v} me={me} follows={cards.leaving.length > 0} still={overKey(over) === there} onWeb={onWeb} />}
           {cards.leaving.map((o) => (
             <CoverCard key={`leaving:${overKey(o)}`} over={o} v={v} me={me} leaving onGone={() => cards.gone(o)} onWeb={onWeb} />
           ))}
@@ -2324,7 +2501,15 @@ function WebDock({
   const hint = useHint();
   const [tab, setTab] = useState<WebTab>(initialTab);
   const [draft, setDraft] = useState("");
-  const [keyOpen, setKeyOpen] = useState(true);
+  // Interface v0.17: the key folds itself away when the drawing's space is too narrow for both, and comes back when
+  // there's room, unless the player has folded or opened it themselves.
+  const map = useRef<HTMLDivElement>(null);
+  const mapWidth = useOwnWidth(map);
+  const keyFold = useSelfFold(mapWidth === null || mapWidth >= themeMs("--break-web-key", 864));
+  const keyOpen = keyFold.open;
+  const setKeyOpen = keyFold.set;
+  /** The side column opened over the web by its handle, in a web too narrow to hold both side by side. */
+  const [sideOpen, setSideOpen] = useState(false);
   /** The key's row that's lit: a relationship type, or the "Secret" row (SECRET); it lights its lines and fades the rest. */
   const [keyType, setKeyType] = useState<string | null>(initialKey);
   /** The note groups folded under their headings, by their guests. */
@@ -2365,7 +2550,6 @@ function WebDock({
   }, [pickedKey, tab]);
   // The drawing's frame is fitted to what's drawn, so the web draws as large as its space allows, centred;
   // then it moves aside just enough that nothing runs under the key at its top-left corner.
-  const map = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);
   const drawn = useRef<SVGGElement>(null);
   const keyBox = useRef<HTMLDivElement>(null);
@@ -2388,7 +2572,8 @@ function WebDock({
       if (!k || !boxes.length) return setAside(0);
       const gap = themeMs("--web-key-clear", 8);
       const under = Math.max(0, ...boxes.filter((r) => r.top < k.bottom + gap).map((r) => k.right + gap - (r.left - aside)));
-      const room = Math.max(0, m.getBoundingClientRect().right - Math.max(...boxes.map((r) => r.right - aside)));
+      // Up to the room on the right, short of the drawing's margin beside the side column.
+      const room = Math.max(0, m.getBoundingClientRect().right - (parseFloat(getComputedStyle(m).paddingRight) || 0) - Math.max(...boxes.map((r) => r.right - aside)));
       const move = Math.round(Math.min(under, room));
       if (move !== aside) setAside(move);
     };
@@ -2439,7 +2624,7 @@ function WebDock({
           </span>
         </button>
         <div className="web" inert={!open}>
-          <div className="web-body">
+          <div className={`web-body${sideOpen ? " side-open" : ""}`}>
             <div className="web-map" ref={map}>
               <svg ref={svg} className="web-diagram" viewBox={frame ?? "-34 -8 168 116"} role="group" aria-label={w("screen.web.title")} style={aside ? { left: aside } : undefined}>
                 <g ref={drawn}>
@@ -2492,8 +2677,15 @@ function WebDock({
                   {/* Each faction's name in its colour, outside the middle of its arc: apart from the key, which is about lines. */}
                   <g className="factions">
                     {arcs.map((f) => (
-                      <text key={f.faction} className="faction-label" x={f.x} y={f.y} textAnchor={f.anchor} style={{ fill: f.colour }} {...hint("faction", { focusable: true })}>
-                        {f.faction}
+                      // Interface v0.17: at its set hour; a long name on two lines, centred on that point.
+                      <text key={f.faction} className="faction-label" data-faction={f.faction} x={f.x} y={round2(f.y - ((f.lines.length - 1) * FACTION_LINE) / 2)} textAnchor={f.anchor} style={{ fill: f.colour }} {...hint("faction", { focusable: true })}>
+                        {f.lines.length === 1
+                          ? f.faction
+                          : f.lines.map((l, i) => (
+                              <tspan key={i} x={f.x} dy={i ? FACTION_LINE : 0}>
+                                {l}
+                              </tspan>
+                            ))}
                       </text>
                     ))}
                   </g>
@@ -2535,6 +2727,10 @@ function WebDock({
                 </div>
               )}
             </div>
+            {/* Interface v0.17: the side column's handle, along the web's right edge; shown only in a web too narrow for both. */}
+            <button className="web-side-handle" aria-expanded={sideOpen} aria-label={w(sideOpen ? "screen.web.sideHideLabel" : "screen.web.sideShowLabel")} onClick={() => setSideOpen(!sideOpen)} {...hint("webSide")}>
+              {w("screen.web.sideShow")}
+            </button>
             <div className="web-side">
               <nav className="tabs">
                 {(["record", "notes"] as const).map((t) => (
@@ -2753,6 +2949,56 @@ function RecordPane({ box, children }: { box: ReactNode; children: ReactNode }) 
   );
 }
 
+/**
+ * The message box grows with what's typed (Interface v0.17): a line at a time, up to nine lines, then it
+ * scrolls. In a short window it stops at about a fifth of the window's height, three lines at least, so it
+ * can't crowd out the conversation. It's never shorter than its placeholder, which `measure` (a hidden box
+ * with the placeholder as its text) gives. Only the height is set, so editing in the middle of the text
+ * leaves the cursor where it is. The limits are theme tokens.
+ */
+function useGrowingBox(area: RefObject<HTMLTextAreaElement | null>, measure: RefObject<HTMLTextAreaElement | null>, text: string, placeholder: string, shown: boolean) {
+  useLayoutEffect(() => {
+    const el = area.current;
+    if (!el) return;
+    const fit = () => {
+      const cs = getComputedStyle(el);
+      const line = parseFloat(cs.lineHeight);
+      if (!Number.isFinite(line) || line <= 0) return;
+      const edges = parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
+      const around = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) + edges;
+      const short = Math.floor((window.innerHeight * themeMs("--input-short-share", 0.2)) / line);
+      const lines = Math.min(themeMs("--input-lines-max", 9), Math.max(themeMs("--input-lines-min", 3), short));
+      const least = (measure.current?.scrollHeight ?? 0) + edges;
+      // The text's own height: the box is shrunk first, so a deleted line gives its room back.
+      const top = el.scrollTop;
+      el.style.height = "0px";
+      const need = el.scrollHeight + edges;
+      const height = Math.max(least, Math.min(need, line * lines + around));
+      el.style.height = `${Math.ceil(height)}px`;
+      el.scrollTop = top;
+      el.dataset.lines = String(Math.round((height - around) / line));
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    // The column's width changes how the words wrap (the right panel folding, a drag): fit again.
+    let width = el.getBoundingClientRect().width;
+    const watch =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(() => {
+            const now = el.getBoundingClientRect().width;
+            if (Math.abs(now - width) < 1) return;
+            width = now;
+            fit();
+          });
+    watch?.observe(el);
+    return () => {
+      window.removeEventListener("resize", fit);
+      watch?.disconnect();
+    };
+  }, [text, placeholder, shown]);
+}
+
 // ---- The input box -------------------------------------------------------------------------------------
 //
 // Buttons by job (TD v0.40): Speak is the one filled button, active only with something to say; Do takes
@@ -2895,6 +3141,11 @@ function InputBox({
   const focus = () => area.current?.focus();
   /** The game waits for the player (a request is open): from a past stage, Return beckons and the placeholder says so. */
   const beckon = past && !!v.pending;
+  // Interface v0.5: the placeholder carries the example, with an @ and a /, using only commands allowed now.
+  const example = placeholderExample(placeholderExamples(), commands.open, talkingWith(v, me) ?? present[0] ?? null, v.spoken);
+  const placeholder = past ? w(beckon ? "screen.input.pastWaiting" : "screen.input.pastPlaceholder") : (example ?? w("screen.input.placeholder"));
+  const measure = useRef<HTMLTextAreaElement>(null);
+  useGrowingBox(area, measure, text, placeholder, !card);
   // Interface v0.16: a decision card takes the message box's place, in the same floating card; if it runs
   // tall, it scrolls there. Reading an earlier stage while one waits, there's nothing to draft, so the card
   // holds one Return button filling it; returning brings the decision card back as it was.
@@ -2908,8 +3159,6 @@ function InputBox({
     ) : (
       <div className="input decision">{card}</div>
     );
-  // Interface v0.5: the placeholder carries the example, with an @ and a /, using only commands allowed now.
-  const example = placeholderExample(placeholderExamples(), commands.open, talkingWith(v, me) ?? present[0] ?? null, v.spoken);
   const folded = !showClosed && commandList.length > 0;
   return (
     <div className={`input${past ? " past" : ""}`} ref={box}>
@@ -2979,7 +3228,7 @@ function InputBox({
             ref={area}
             className={text ? undefined : "empty"}
             value={text}
-            placeholder={past ? w(beckon ? "screen.input.pastWaiting" : "screen.input.pastPlaceholder") : (example ?? w("screen.input.placeholder"))}
+            placeholder={placeholder}
             onChange={(e) => change(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Escape" && menuOpen) {
@@ -2993,6 +3242,8 @@ function InputBox({
             }}
             {...hint("input", { values: { max: info.max } })}
           />
+          {/* The placeholder as text, never seen: how tall the box must be to show it whole. */}
+          <textarea ref={measure} className="measure" value={placeholder} readOnly tabIndex={-1} aria-hidden="true" />
           <div className="field-icons">
             <button
               className="icon"

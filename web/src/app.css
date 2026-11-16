@@ -55,7 +55,9 @@ button.small { font-size: var(--text-xs); padding: 0 var(--space-2); }
 
 /* The game: three columns */
 /* The columns stand above the Web of Secrets' bar, which is always at the bottom (TD v0.44). */
-.layout { display: grid; grid-template-columns: var(--side-width) 1fr var(--right-width); height: calc(var(--screen-height) - var(--web-bar-height)); }
+/* Interface v0.17, Screen Sizes: the side panels grow and shrink with the window within their limits; the conversation
+   keeps its least width first, and the right panel gives way down to its own least */
+.layout { display: grid; grid-template-columns: var(--side-width) minmax(var(--centre-min), 1fr) minmax(var(--right-min), var(--right-width)); height: calc(var(--screen-height) - var(--web-bar-height)); }
 .side { background: var(--surface); border-right: var(--border-width) solid var(--border); padding: var(--space-4); overflow-y: auto; }
 .side.right { border-right: none; border-left: var(--border-width) solid var(--border); }
 /* The sheet (Interface v0.16): each line opens the rules where it's explained, and underlines on hover */
@@ -85,7 +87,9 @@ button.fact:hover .fact-label, button.fact:focus-visible .fact-label, button.lin
 /* Interface v0.16: the stage bar and the message box are floating cards, rounded, each casting a shadow onto
    the conversation, which fades out where it slides under them */
 .conv-head { position: relative; z-index: var(--z-float); min-height: var(--head-height); margin: var(--float-gap) var(--float-gap) 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-float); box-shadow: var(--shadow-float-down); background: var(--surface); display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
-.stream { flex: 1; overflow-y: auto; padding: var(--stream-fade) var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); -webkit-mask-image: var(--stream-mask); mask-image: var(--stream-mask); }
+/* Interface v0.17: one reading column. The conversation's lines, Il Notaio's hint, the message box, and his summary of a past
+   stage share one centred column, at most --reading-width wide, so a line stays a comfortable length and the four line up. */
+.stream { flex: 1; overflow-y: auto; padding: var(--stream-fade) max(var(--float-gap), calc((100% - var(--reading-width)) / 2)); display: flex; flex-direction: column; gap: var(--space-2); -webkit-mask-image: var(--stream-mask); mask-image: var(--stream-mask); }
 /* While Il Notaio's summary is open over a past stage, the dialogue behind it fades: the content, not a tint over it */
 .stream.behind > * { opacity: var(--behind-opacity); }
 .stream > * { transition: opacity var(--motion-slow) ease-out; }
@@ -136,7 +140,7 @@ button.fact:hover .fact-label, button.fact:focus-visible .fact-label, button.lin
 .act-extra p { margin: 0; font-size: var(--text-sm); }
 
 /* The input box: a floating card (Interface v0.16), with an upward shadow over the conversation */
-.input { position: relative; z-index: var(--z-float); min-height: var(--input-box-height); margin: 0 var(--float-gap) var(--float-gap); border-radius: var(--radius-float); box-shadow: var(--shadow-up); background: var(--surface); padding: var(--space-3) var(--space-4); }
+.input { position: relative; z-index: var(--z-float); min-height: var(--input-box-height); margin: 0 max(var(--float-gap), calc((100% - var(--reading-width)) / 2)) var(--float-gap); border-radius: var(--radius-float); box-shadow: var(--shadow-up); background: var(--surface); padding: var(--space-3) var(--space-4); }
 .input.decision { max-height: var(--decision-max-height); overflow-y: auto; border: var(--border-width) solid var(--accent); }
 /* Reading an earlier stage while a decision waits: one wide Return button filling the card, with even space around it */
 .input.past.decision { display: flex; overflow: visible; }
@@ -147,7 +151,10 @@ button.fact:hover .fact-label, button.fact:focus-visible .fact-label, button.lin
 .prompt.waiting { color: var(--accent); font-weight: var(--weight-bold); }
 .row { display: flex; gap: var(--space-3); align-items: stretch; }
 .field { flex: 1; position: relative; display: flex; }
-.field textarea { flex: 1; height: var(--input-height); resize: none; padding-bottom: var(--icon-row-height); }
+/* Interface v0.17: the box grows with what's typed, a line at a time, up to nine lines, then scrolls; never shorter than its
+   placeholder (the screen sets its height; this is where it starts). The second, hidden box measures the placeholder. */
+.field textarea { flex: 1; min-width: 0; height: var(--input-height); resize: none; padding-bottom: var(--icon-row-height); }
+.field textarea.measure { position: absolute; inset: 0 0 auto 0; width: 100%; height: 0; min-height: 0; visibility: hidden; pointer-events: none; overflow: hidden; }
 /* No scrollbar on the empty box; it comes back once there's text to scroll */
 .field textarea.empty { overflow: hidden; }
 .field-icons { position: absolute; left: var(--space-2); bottom: var(--space-1); display: flex; gap: var(--space-1); }
@@ -196,7 +203,7 @@ button.lore-link.selected { background: var(--select-bg); }
 .known { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--space-2); font-size: var(--text-sm); }
 
 /* Il Notaio's hint: docked under the stream, apart from his announcements */
-.notaio-hint { position: relative; z-index: var(--z-float); margin: 0 var(--float-gap) var(--space-2); box-shadow: var(--shadow-up); background: var(--hint-bg); border: var(--border-width) solid var(--hint-border); border-radius: var(--radius-md); color: var(--hint-text); font-size: var(--text-sm); }
+.notaio-hint { position: relative; z-index: var(--z-float); margin: 0 max(var(--float-gap), calc((100% - var(--reading-width)) / 2)) var(--space-2); box-shadow: var(--shadow-up); background: var(--hint-bg); border: var(--border-width) solid var(--hint-border); border-radius: var(--radius-md); color: var(--hint-text); font-size: var(--text-sm); }
 /* Interface v0.17, His boxes: his hint, his reading, and his summary of a past stage behave alike. The title is sized from his
    open words and stays that size open or minimized; Show / Hide at its right, in the small label size, says what a click will do. */
 .hint-head, .reading-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); width: 100%; border: none; background: transparent; color: inherit; font-family: var(--font-body); text-transform: uppercase; letter-spacing: var(--tracking-label); }
@@ -254,13 +261,26 @@ button.tab.on { border-color: var(--accent); color: var(--accent); }
 .portrait.small { width: var(--bar-portrait-size); height: var(--bar-portrait-size); font-size: var(--text-xs); }
 .web-backdrop { position: fixed; inset: 0; z-index: var(--z-dock-backdrop); background: var(--overlay); }
 /* The panel keeps its open size while down, so the bar clips it rather than squashing it */
-.web { flex: none; height: calc(var(--web-height) - var(--web-bar-height)); display: flex; flex-direction: column; border-top: var(--border-width) solid var(--border); }
-.web-body { flex: 1; display: grid; grid-template-columns: 1fr var(--web-side-width); min-height: 0; }
+/* Interface v0.17, Notes for the Build: what's inside the web answers to the web's own width, not the window's */
+.web { flex: none; height: calc(var(--web-height) - var(--web-bar-height)); display: flex; flex-direction: column; border-top: var(--border-width) solid var(--border); container-type: inline-size; container-name: web; }
+.web-body { position: relative; flex: 1; display: grid; grid-template-columns: 1fr var(--web-side-width); min-height: 0; }
 /* Interface v0.16: the drawing is fitted to its space and centred, the key over its top-left corner; the screen moves the drawing aside so nothing runs under the key */
-.web-map { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
-.web-diagram { position: relative; display: block; width: 100%; height: 100%; }
+/* Interface v0.17: the whole drawing stands clear of the screen's left edge and of the side column, and never draws larger
+   than its limit across. Nothing in it is redrawn: it's the same picture, smaller. */
+.web-map { position: relative; min-width: 0; min-height: 0; overflow: hidden; display: flex; justify-content: center; padding: 0 var(--web-margin-side) 0 var(--web-margin-left); }
+.web-diagram { position: relative; display: block; width: 100%; max-width: var(--web-draw-max); height: 100%; }
 /* The column beside the web: its tabs, then the tab's body, which scrolls on its own */
-.web-side { border-left: var(--border-width) solid var(--border); display: flex; flex-direction: column; min-height: 0; }
+.web-side { border-left: var(--border-width) solid var(--border); display: flex; flex-direction: column; min-height: 0; background: var(--surface); }
+/* Interface v0.17: in a web narrower than its limit, the side column folds to a strip with a handle along the web's right
+   edge, so the web keeps its room; the handle opens the column over the web */
+button.web-side-handle { display: none; border: none; border-left: var(--border-width) solid var(--border); border-radius: 0; background: var(--surface); padding: var(--space-3) 0; color: var(--text-muted); font-size: var(--text-xs); letter-spacing: var(--tracking-label); writing-mode: vertical-rl; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+button.web-side-handle:hover, button.web-side-handle:focus-visible { background: var(--select-bg); color: var(--text); }
+@container web (max-width: 840px) {
+  .web-body { grid-template-columns: 1fr var(--web-strip-width); }
+  button.web-side-handle { display: block; }
+  .web-side { display: none; position: absolute; z-index: var(--z-menu); top: 0; bottom: 0; right: var(--web-strip-width); width: min(var(--web-side-min), calc(100% - var(--web-strip-width))); box-shadow: var(--shadow-side); }
+  .web-body.side-open .web-side { display: flex; }
+}
 .web-side > .tabs { flex: none; }
 .web-side > .notes { flex: 1; min-height: 0; overflow-y: auto; }
 .web-side .record, .web-side .notes, .web-side > p { padding: var(--space-3) var(--space-4); }
@@ -282,6 +302,9 @@ button.tab.on { border-color: var(--accent); color: var(--accent); }
 /* Interface v0.16: with someone selected, every line that doesn't touch the selection fades, as lines of other types do when one is picked in the key */
 .edge.sel-off, .edge-under.sel-off { stroke-opacity: var(--edge-dim); }
 .faction-label { font-size: var(--faction-label-size); font-weight: var(--weight-bold); dominant-baseline: middle; text-transform: uppercase; letter-spacing: var(--tracking-label); paint-order: stroke; stroke: var(--surface); stroke-width: var(--label-halo); }
+/* Interface v0.17: a clicked faction name has no focus box; reached by keyboard, it's underlined */
+.faction-label:focus, .faction-label:focus-visible { outline: none; }
+.faction-label:focus-visible { text-decoration: underline; }
 .node { cursor: pointer; }
 .node circle { stroke: var(--surface); stroke-width: var(--edge-width); }
 /* Interface v0.16: a selected guest's ring is twice as thick; no focus box around a clicked guest, a thin dashed ring for keyboard focus */
@@ -344,7 +367,7 @@ button.key-secret { align-items: flex-start; }
 /* His words read larger while his box is open; the size changes in one step, never animated, so the lines rewrap once */
 .reading[data-state="minimized"] { top: auto; max-height: var(--reading-min-height); overflow: hidden; font-size: var(--text-notaio-min); }
 /* Interface v0.16: his summary of a past stage opens a fifth of the way down, with an upward shadow */
-.reading.past-summary { top: var(--summary-top); box-shadow: var(--shadow-up); }
+.reading.past-summary { top: var(--summary-top); box-shadow: var(--shadow-up); left: max(var(--float-gap), calc((100% - var(--reading-width)) / 2)); right: max(var(--float-gap), calc((100% - var(--reading-width)) / 2)); }
 .reading.past-summary[data-state="minimized"] { top: auto; }
 .record-pane:not(.covered) .record { padding-bottom: calc(var(--reading-min-height) + var(--space-4)); }
 /* Interface v0.16: his reading opens a little higher than the stage summary, a seventh of the way down the column, with an upward shadow, and the column behind it faded */
@@ -377,7 +400,8 @@ button.key-secret { align-items: flex-start; }
    with the window and never scrolls; nothing in the row moves on hover: a tooltip shows under it. */
 .conv-where { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: var(--space-1); }
 .phase { font-weight: var(--weight-bold); min-height: var(--stage-bar-height); display: flex; align-items: center; justify-content: center; }
-.stage-bar-wrap { position: relative; }
+/* Interface v0.17: the bar stretches with the window up to its limit, centred in its card */
+.stage-bar-wrap { position: relative; width: 100%; max-width: var(--stage-bar-max); margin: 0 auto; }
 .stage-bar { display: flex; align-items: center; list-style: none; margin: 0; padding: 0 var(--stage-bar-inset); min-height: var(--stage-bar-height); }
 .stage-bar .mark { position: relative; display: flex; align-items: center; flex: none; min-width: 0; }
 .stage-bar .mark + .mark { flex: 1 1 auto; }
@@ -438,6 +462,8 @@ button.person-head { cursor: pointer; }
 .covers { position: absolute; left: 0; right: 0; top: calc(var(--peek-height) + var(--space-4) - var(--cover-shadow-room)); bottom: 0; overflow: hidden; pointer-events: none; }
 .person.look { position: absolute; left: 0; right: 0; top: var(--cover-shadow-room); bottom: 0; overflow-y: auto; background: var(--paper); box-shadow: var(--shadow-raised); border-radius: var(--radius-panel) var(--radius-panel) 0 0; pointer-events: auto; animation: slide-up var(--motion-card) ease-out; }
 .person.look.follows { animation-delay: var(--card-follow); animation-fill-mode: backwards; }
+/* Interface v0.17: reopening the panel doesn't replay the card's slide: the card that was showing is simply there */
+.person.look.still { animation: none; }
 .person.look.leaving { pointer-events: none; animation: slide-down var(--motion-card) ease-in forwards; }
 @keyframes slide-down { from { transform: none; } to { transform: translateY(100%); } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
@@ -513,7 +539,7 @@ button.city-row:hover { background: var(--surface-2); }
 button.city-back { align-self: flex-start; font-size: var(--text-sm); padding: 0 var(--space-2); }
 
 /* The right panel hidden (Interface v0.5): a thin strip with a handle, and the chat widens */
-.layout.right-hidden { grid-template-columns: var(--side-width) 1fr var(--right-strip-width); }
+.layout.right-hidden { grid-template-columns: var(--side-width) minmax(var(--centre-min-folded), 1fr) var(--right-strip-width); }
 button.right-hide { position: absolute; z-index: var(--z-menu); right: var(--space-2); bottom: var(--space-2); border: none; background: var(--surface-2); border-radius: var(--radius-sm); padding: 0 var(--space-2); color: var(--text-muted); font-size: var(--text-md); }
 .side.right.hidden { padding: 0; overflow: hidden; }
 button.right-handle { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); width: 100%; height: 100%; border: none; border-radius: 0; background: transparent; padding: var(--space-3) 0; color: var(--text-muted); font-size: var(--text-md); }
@@ -598,3 +624,9 @@ button.opening-skip { position: fixed; right: var(--space-4); bottom: var(--spac
   .tour-spot { transition: none; }
   .opening-phrase { animation: none; }
 }
+
+/* Interface v0.17, Screen Sizes: phones are left out for now. Under the phone limit a note stands in for the screen, which
+   is set aside while it shows, so the page fits the phone. */
+.narrow-note { min-height: var(--screen-height); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-4); padding: var(--space-5); text-align: center; }
+.narrow-note h1 { margin: 0; }
+.narrow-note p { margin: 0; max-width: var(--narrow-width); color: var(--text-muted); }

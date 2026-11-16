@@ -814,34 +814,81 @@ test("the Web of Confidences (Interface v0.16): the top layer, sliding over 600 
   assert.ok(reading.faded < 0.6 && reading.shadow, "the column behind it faded, under an upward shadow");
   for (const g of await webPicked()) await pickNode(g);
   // The drawing: fitted to its space, centred left of the side column, and clear of the key at its top-left corner.
+  // Interface v0.17: with margins round it (56 to 120px from the screen's left edge, 32 to 80px from the side column),
+  // and never larger than 820px across.
   const fit = () =>
-    page.eval<{ under: number; inside: boolean; centred: number; fills: number; key: number; side: number }>(`(() => {
-      const map = document.querySelector(".web-map").getBoundingClientRect(), k = document.querySelector(".web-key").getBoundingClientRect();
+    page.eval<{ under: number; inside: boolean; centred: number; fills: number; across: number; left: number; right: number; key: number; keyOpen: boolean; side: number; frame: number }>(`(() => {
+      const map = document.querySelector(".web-map").getBoundingClientRect(), k = document.querySelector(".web-key").getBoundingClientRect(), svg = document.querySelector(".web-diagram").getBoundingClientRect();
       const boxes = [...document.querySelectorAll(".web-diagram .node circle, .web-diagram .node-name, .web-diagram .faction-label")].map((x) => x.getBoundingClientRect());
       const l = Math.min(...boxes.map((b) => b.left)), r = Math.max(...boxes.map((b) => b.right)), t = Math.min(...boxes.map((b) => b.top)), bt = Math.max(...boxes.map((b) => b.bottom));
-      return { under: boxes.filter((b) => b.left < k.right && b.top < k.bottom).length, inside: l >= map.left - 1 && r <= map.right + 1 && t >= map.top - 1 && bt <= map.bottom + 1, centred: Math.abs((t + bt) / 2 - (map.top + map.height / 2)), fills: Math.max((r - l) / map.width, (bt - t) / map.height), key: parseFloat(getComputedStyle(document.querySelector(".web-key")).fontSize), side: document.querySelector(".web-side").getBoundingClientRect().width / innerWidth };
+      const cs = getComputedStyle(document.querySelector(".web-map")), room = Math.min(820, map.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight));
+      return { under: boxes.filter((b) => b.left < k.right && b.top < k.bottom).length, inside: l >= map.left - 1 && r <= map.right + 1 && t >= map.top - 1 && bt <= map.bottom + 1, centred: Math.abs((t + bt) / 2 - (map.top + map.height / 2)), fills: Math.max((r - l) / room, (bt - t) / map.height), across: r - l, left: l - map.left, right: map.right - r, key: parseFloat(getComputedStyle(document.querySelector(".web-key")).fontSize), keyOpen: !!document.querySelector(".web-key ul"), side: document.querySelector(".web-side").getBoundingClientRect().width, frame: svg.width };
     })()`);
+  const resize = async (width: number, height = width > 1500 ? 1100 : VIEW.height) => {
+    await page.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
+    await page.until(`innerWidth === ${width}`);
+    await new Promise((r) => setTimeout(r, 250));
+  };
   const sizes: Record<number, Awaited<ReturnType<typeof fit>>> = {};
   try {
     for (const width of [1100, 1440, 2100]) {
-      await page.send("Emulation.setDeviceMetricsOverride", { width, height: width > 1500 ? 1100 : VIEW.height, deviceScaleFactor: 1, mobile: false });
-      await page.until(`innerWidth === ${width}`);
-      await new Promise((r) => setTimeout(r, 250));
+      await resize(width);
       const f = (sizes[width] = await fit());
       assert.equal(f.under, 0, `${width}: nothing runs under the key`);
       assert.ok(f.inside, `${width}: the drawing is inside its space`);
       assert.ok(f.centred < 14, `${width}: centred top to bottom (${f.centred})`);
       assert.ok(f.fills > 0.9, `${width}: fitted to its space (${f.fills})`);
-      assert.ok(Math.abs(f.side - 0.28) < 0.01, `${width}: the side column is about 28% of the window (${f.side})`);
+      assert.ok(f.frame <= 820.5 && f.across <= 821, `${width}: never larger than 820px across (${f.across})`);
+      assert.ok(f.left >= 55 && f.right >= 31, `${width}: clear of the screen's left edge and of the side column (${f.left}, ${f.right})`);
+      assert.ok(Math.abs(f.side - Math.min(480, Math.max(280, 0.28 * width))) < 1.5, `${width}: the side column is about 28% of the web, from 280 to 480px (${f.side})`);
       await page.shot(`web-${width}`);
     }
+    // The key shrinks a little in a small window, and grows no larger than its size at a 1440-pixel window.
+    assert.ok(Math.abs(sizes[1440]!.key - 13) < 0.1, `its size at 1440 (${sizes[1440]!.key})`);
+    assert.ok(Math.abs(sizes[1100]!.key / sizes[1440]!.key - 0.8) < 0.03, `smaller in a small window (${sizes[1100]!.key})`);
+    assert.equal(sizes[2100]!.key, sizes[1440]!.key, "no larger in a large one");
+    // Below 1200px wide the key folds itself away so it doesn't cover the drawing, and comes back above that.
+    assert.deepEqual([sizes[1100]!.keyOpen, sizes[1440]!.keyOpen, sizes[2100]!.keyOpen], [false, true, true], "folded by itself at 1100, back by itself above 1200");
+    await resize(1199);
+    assert.equal((await fit()).keyOpen, false);
+    await resize(1201);
+    assert.equal((await fit()).keyOpen, true);
+    // Unless the player has folded or opened it themselves, which takes it over.
+    await page.eval(`document.querySelector(".web-key .key-head").click()`);
+    await page.until(`!document.querySelector(".web-key ul")`);
+    await resize(1440);
+    assert.equal((await fit()).keyOpen, false, "the player folded it: it stays folded with room to spare");
+    await page.eval(`document.querySelector(".web-key .key-head").click()`);
+    await page.until(`document.querySelector(".web-key ul")`);
+    await resize(1100);
+    assert.equal((await fit()).keyOpen, true, "the player opened it: it stays open in a small window");
+    assert.equal((await fit()).under, 0, "and the drawing still stands clear of it");
+    // In a window under 840px wide the side column folds to a strip with a handle along the web's right edge, so the
+    // web keeps at least 560px; the handle opens the column over the web.
+    await resize(839);
+    const strip = () => page.eval<{ handle: number; label: string; aria: string; side: boolean; map: number; over: boolean; expanded: string }>(`(() => { const h = document.querySelector(".web-side-handle"), sd = document.querySelector(".web-side"), m = document.querySelector(".web-map").getBoundingClientRect(), r = sd.getBoundingClientRect(); return { handle: h.getBoundingClientRect().width, label: h.textContent, aria: h.getAttribute("aria-label"), side: r.width > 0, map: m.width, over: r.width > 0 && r.left < m.right - 1, expanded: h.getAttribute("aria-expanded") }; })()`);
+    let st = await strip();
+    assert.deepEqual([st.side, st.label, st.aria, st.expanded], [false, "What You Heard and Saw · Notes", "Show what you heard and saw, and your notes", "false"]);
+    assert.ok(st.handle > 20 && st.handle < 48 && st.map >= 560, `a strip, and the web keeps its room (${st.map})`);
+    await page.shot("web-side-strip");
+    await page.eval(`document.querySelector(".web-side-handle").click()`);
+    await page.until(`document.querySelector(".web-body.side-open")`);
+    st = await strip();
+    assert.deepEqual([st.side, st.over, st.aria, st.expanded], [true, true, "Hide what you heard and saw, and your notes", "true"], "the column opens over the web");
+    assert.ok(st.map >= 560, "the web keeps its room under it");
+    await page.shot("web-side-over");
+    await page.eval(`document.querySelector(".web-side-handle").click()`);
+    await page.until(`!document.querySelector(".web-body.side-open")`);
+    // Above the limit the column is beside the web again, with no handle.
+    await resize(841);
+    assert.deepEqual(await page.eval<[boolean, boolean]>(`[document.querySelector(".web-side-handle").getBoundingClientRect().width > 0, document.querySelector(".web-side").getBoundingClientRect().width >= 280]`), [false, true]);
   } finally {
     await page.send("Emulation.setDeviceMetricsOverride", { ...VIEW, deviceScaleFactor: 1, mobile: false });
   }
-  // The key grows and shrinks with the window: about 0.8 to 1.45 times its size at 1440 pixels.
-  assert.ok(Math.abs(sizes[1440]!.key - 13) < 0.1, `its size at 1440 (${sizes[1440]!.key})`);
-  assert.ok(Math.abs(sizes[1100]!.key / sizes[1440]!.key - 0.8) < 0.03, `smaller in a small window (${sizes[1100]!.key})`);
-  assert.ok(Math.abs(sizes[2100]!.key / sizes[1440]!.key - 1.45) < 0.03, `larger in a large one (${sizes[2100]!.key})`);
+  // The faction names at their set hours (Interface v0.17), the long one on two lines; a clicked name has no focus box.
+  const names = await page.eval<{ name: string; hour: number; lines: number; outline: string }[]>(`(() => { const svg = document.querySelector(".web-diagram"), circles = [...svg.querySelectorAll(".node circle")].map((c) => c.getBoundingClientRect()), cx = (Math.min(...circles.map((c) => c.left)) + Math.max(...circles.map((c) => c.right))) / 2, cy = (Math.min(...circles.map((c) => c.top)) + Math.max(...circles.map((c) => c.bottom))) / 2; return [...svg.querySelectorAll(".faction-label")].map((t) => { const b = t.getBoundingClientRect(), anchor = t.getAttribute("text-anchor"), x = anchor === "end" ? b.right : anchor === "start" ? b.left : (b.left + b.right) / 2, y = (b.top + b.bottom) / 2; t.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })); t.focus(); return { name: t.dataset.faction, hour: Math.round((((Math.atan2(y - cy, x - cx) * 6) / Math.PI + 3 + 12) % 12) * 2) / 2, lines: t.querySelectorAll("tspan").length || 1, outline: getComputedStyle(t).outlineStyle }; }); })()`);
+  assert.deepEqual(names.map((n) => [n.name, n.hour, n.lines]), [["Medici", 11, 1], ["Pazzi", 1, 1], ["Dominicans", 5, 1], ["French Embassy", 7, 2]]);
+  assert.ok(names.every((n) => n.outline === "none"), "no focus box");
   await page.until(`innerWidth === ${VIEW.width}`);
   await webDown();
 });
@@ -2197,4 +2244,261 @@ test("only what's worth copying can be selected (Interface v0.17): the lines and
   for (const q of [".web-side .tabs .tab", ".web-key .key-head", ".reading .reading-text"]) assert.equal(await sel(q), "none", q);
   await page.key("Escape", 27);
   await page.until(`!document.querySelector(".web-dock.open")`);
+});
+
+// ---- CC-20261116-09 (#179, part 3): Interface v0.17's Screen Sizes -----------------------------------------------
+
+/** Sets the window's size, and waits for the screen to settle in it. */
+async function windowSize(width: number, height: number): Promise<void> {
+  await page.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
+  await page.until(`innerWidth === ${width} && innerHeight === ${height}`);
+  await page.eval(`new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)))`);
+  await new Promise((r) => setTimeout(r, 150));
+}
+
+test("Screen Sizes (Interface v0.17) at 1024×700, 1440×900, and 1920×1080: the side panels within their ranges, the conversation at least 540px, one centred reading column of at most 820px shared by the lines, Il Notaio's hint, and the message box, the stage bar within 900px, and nothing pushed off the page", { skip }, async () => {
+  await page.eval(`localStorage.removeItem("player-screen.right-hidden"); localStorage.removeItem("player-screen.right-width")`);
+  await reopen();
+  await page.until(`document.querySelector(".notaio-hint .hint-text") && document.querySelector(".ln.speech")`);
+  const measure = () =>
+    page.eval<{ left: number; right: number; folded: boolean; centre: number; lines: [number, number]; hint: [number, number]; box: [number, number]; mid: number; bar: [number, number]; card: [number, number]; scroll: boolean }>(`(() => {
+      const r = (q) => document.querySelector(q).getBoundingClientRect(), e = (b) => [Math.round(b.left), Math.round(b.right)];
+      const c = r(".centre"), line = r(".stream .ln");
+      return { left: r(".side.left").width, right: r(".side.right").width, folded: !!document.querySelector(".layout.right-hidden"), centre: c.width, lines: e(line), hint: e(r(".notaio-hint")), box: e(r(".input")), mid: Math.round((c.left + c.right) / 2), bar: e(r(".stage-bar-wrap")), card: e(r(".conv-head")), scroll: document.documentElement.scrollWidth > innerWidth || document.documentElement.scrollHeight > innerHeight };
+    })()`);
+  const clamp = (lo: number, x: number, hi: number) => Math.min(hi, Math.max(lo, x));
+  try {
+    for (const [width, height] of [[1024, 700], [1440, 900], [1920, 1080]] as const) {
+      await windowSize(width, height);
+      const m = await measure();
+      const where = `${width}×${height}`;
+      // The left panel: about a quarter of the window, from 284 to 332px.
+      assert.ok(Math.abs(m.left - clamp(284, width / 4, 332)) < 1, `${where}: the left panel (${m.left})`);
+      // The right panel: from 280 to 480px; under 1044px wide it starts folded to its strip.
+      assert.equal(m.folded, width < 1044, `${where}: the right panel ${width < 1044 ? "starts folded" : "is open"}`);
+      if (!m.folded) assert.ok(m.right >= 280 && m.right <= 480 && Math.abs(m.right - clamp(280, width * 0.24, 480)) < 1, `${where}: the right panel (${m.right})`);
+      else assert.ok(m.right < 48, `${where}: a strip (${m.right})`);
+      assert.ok(m.centre >= 540, `${where}: the conversation's column is at least 540px (${m.centre})`);
+      // One reading column: the lines, his hint, and the message box share their edges, at most 820px, centred.
+      assert.deepEqual(m.hint, m.box, `${where}: Il Notaio's hint lines up with the message box`);
+      assert.deepEqual(m.lines, m.box, `${where}: the lines line up with them`);
+      assert.ok(m.box[1] - m.box[0] <= 820, `${where}: at most 820px (${m.box[1] - m.box[0]})`);
+      if (m.centre > 820 + 24) assert.equal(m.box[1] - m.box[0], 820, `${where}: the full 820px where there's room`);
+      assert.ok(Math.abs((m.box[0] + m.box[1]) / 2 - m.mid) <= 1, `${where}: centred in the conversation`);
+      // The stage bar: at most 900px, centred in its card.
+      assert.ok(m.bar[1] - m.bar[0] <= 900, `${where}: the stage bar (${m.bar[1] - m.bar[0]})`);
+      assert.ok(Math.abs((m.bar[0] + m.bar[1]) / 2 - (m.card[0] + m.card[1]) / 2) <= 1, `${where}: centred`);
+      assert.equal(m.scroll, false, `${where}: nothing pushed off the page`);
+      await page.shot(`sizes-${width}x${height}`);
+    }
+    // Between 1044 and about 1104px the right panel gives way to the conversation's least width, down to its own least.
+    await windowSize(1060, 700);
+    let m = await measure();
+    assert.deepEqual([m.folded, Math.round(m.centre)], [false, 540]);
+    assert.ok(m.right >= 220 && m.right < 280, `the right panel gives way (${m.right})`);
+    // At 1024 it started folded, and can still be opened: the player's choice then holds in any window.
+    await windowSize(1024, 700);
+    assert.equal((await measure()).folded, true);
+    await page.eval(`document.querySelector(".right-handle").click()`);
+    await page.until(`!document.querySelector(".layout.right-hidden")`);
+    m = await measure();
+    assert.ok(m.right >= 219 && m.centre >= 519 && !m.scroll, `opened by hand in a narrow window (${m.right}, ${m.centre})`);
+    await windowSize(1440, 900);
+    assert.equal((await measure()).folded, false);
+    await page.eval(`document.querySelector(".right-hide").click()`);
+    await page.until(`document.querySelector(".layout.right-hidden")`);
+    await windowSize(1920, 1080);
+    assert.equal((await measure()).folded, true, "folded by hand: it stays folded in a wide window");
+  } finally {
+    await page.eval(`localStorage.removeItem("player-screen.right-hidden")`);
+    await windowSize(VIEW.width, VIEW.height);
+    await reopen();
+  }
+});
+
+test("the message box grows with what's typed (Interface v0.17): a line at a time up to nine, then it scrolls; never shorter than its placeholder; a fifth of a short window, three lines at least; the cursor stays where it is", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".input textarea:not(.measure)")`);
+  const box = () => page.eval<{ height: number; lines: number; line: number; scrolls: boolean; least: number; value: string; caret: number }>(`(() => { const t = document.querySelector(".input textarea:not(.measure)"), m = document.querySelector(".input textarea.measure"), cs = getComputedStyle(t); return { height: t.getBoundingClientRect().height, lines: Number(t.dataset.lines), line: parseFloat(cs.lineHeight), scrolls: t.scrollHeight > t.clientHeight + 1, least: m.scrollHeight + 2, value: t.value, caret: t.selectionStart }; })()`);
+  const write = async (text: string) => {
+    await page.eval(`(() => { const t = document.querySelector(".input textarea:not(.measure)"); t.focus(); t.select(); })()`);
+    await (text ? page.type(text) : page.key("Backspace", 8));
+    await page.eval(`new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)))`);
+  };
+  const lines = (n: number) => Array.from({ length: n }, (_, i) => `line ${i + 1}`).join("\n");
+  try {
+    // A window tall enough that nine lines are within a fifth of its height.
+    await windowSize(1440, 1100);
+    await write("");
+    const empty = await box();
+    // Empty, it shows its placeholder whole: both of its lines, clear of the @ and / buttons under them.
+    assert.ok(empty.height >= empty.least - 1, `never shorter than its placeholder (${empty.height} for ${empty.least})`);
+    assert.equal(empty.scrolls, false, "no scrollbar on the empty box");
+    const clear = await page.eval<boolean>(`(() => { const t = document.querySelector(".input textarea:not(.measure)").getBoundingClientRect(), i = document.querySelector(".field-icons").getBoundingClientRect(), m = document.querySelector(".input textarea.measure"), cs = getComputedStyle(m); return t.bottom - parseFloat(cs.paddingBottom) <= i.top + 6; })()`);
+    assert.ok(clear, "the placeholder's lines end above @ and /");
+    // A line at a time.
+    const heights: number[] = [];
+    for (const n of [3, 4, 5, 6, 7, 8, 9]) {
+      await write(lines(n));
+      const b = await box();
+      heights.push(b.height);
+      assert.deepEqual([b.lines, b.scrolls], [n, false], `${n} lines, all in view`);
+    }
+    for (let i = 1; i < heights.length; i++) assert.ok(Math.abs(heights[i]! - heights[i - 1]! - empty.line) < 1.5, `one line taller (${heights[i]! - heights[i - 1]!})`);
+    // Nine lines, then it scrolls.
+    await write(lines(14));
+    const full = await box();
+    assert.deepEqual([full.lines, full.scrolls], [9, true], "it stops at nine lines and scrolls");
+    assert.ok(Math.abs(full.height - heights.at(-1)!) < 1.5);
+    await page.shot("message-box-nine-lines");
+    // Editing in the middle of the text leaves the cursor where it is.
+    await page.eval(`(() => { const t = document.querySelector(".input textarea:not(.measure)"); t.focus(); t.setSelectionRange(8, 8); })()`);
+    await page.type("X");
+    await page.eval(`new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)))`);
+    const edited = await box();
+    assert.deepEqual([edited.caret, edited.value.slice(0, 12)], [9, "line 1\nlXine"], "the cursor stays put");
+    // It gives the room back when lines are deleted.
+    await write("one line");
+    assert.ok(Math.abs((await box()).height - empty.height) < 1.5, "back to its least height");
+    // In a short window it stops at about a fifth of the window's height (three lines at least), so it can't crowd out the conversation.
+    await windowSize(1440, 520);
+    await write(lines(14));
+    const short = await box();
+    assert.deepEqual([short.lines, short.scrolls], [Math.max(3, Math.floor((520 * 0.2) / short.line)), true]);
+    assert.ok(short.lines >= 3 && short.lines < 9);
+    assert.ok(await page.eval<boolean>(`document.querySelector(".stream").getBoundingClientRect().height > 60`), "the conversation keeps its room");
+    await page.shot("message-box-short-window");
+    await write("");
+  } finally {
+    await windowSize(VIEW.width, VIEW.height);
+  }
+});
+
+test("Il Notaio's hint folds itself in a short window (Interface v0.17) to keep the conversation at least 200px tall, and opens again by itself with room, unless the player has folded or opened it", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".notaio-hint .hint-text")`);
+  const hintState = () => page.eval<{ open: boolean; fold: string; stream: number }>(`({ open: !!document.querySelector(".notaio-hint .hint-text"), fold: document.querySelector(".notaio-hint").dataset.fold, stream: document.querySelector(".stream-area").getBoundingClientRect().height })`);
+  try {
+    await windowSize(1200, 700);
+    let h = await hintState();
+    assert.deepEqual([h.open, h.fold], [true, "auto"]);
+    assert.ok(h.stream >= 200);
+    // Shorter and shorter: it folds itself once the conversation would have less than 200px.
+    let folded = 0;
+    for (const height of [640, 600, 560, 520, 480, 440]) {
+      await windowSize(1200, height);
+      h = await hintState();
+      if (!h.open) {
+        folded = height;
+        break;
+      }
+      assert.ok(h.stream >= 200, `${height}: open only while the conversation keeps 200px (${h.stream})`);
+    }
+    assert.ok(folded > 0, "it folded itself");
+    assert.equal(h.fold, "auto");
+    await page.shot("hint-folded-itself");
+    // And back by itself with room.
+    await windowSize(1200, 700);
+    h = await hintState();
+    assert.deepEqual([h.open, h.fold], [true, "auto"], "open again by itself");
+    // The player opens it in the short window: it stays open there; folds it in the tall one: it stays folded.
+    await windowSize(1200, folded);
+    assert.equal((await hintState()).open, false);
+    await page.eval(`document.querySelector(".notaio-hint .hint-head").click()`);
+    await page.until(`document.querySelector(".notaio-hint .hint-text")`);
+    await windowSize(1200, folded - 20);
+    h = await hintState();
+    assert.deepEqual([h.open, h.fold], [true, "chosen"], "opened by the player: it's theirs now");
+    await page.eval(`document.querySelector(".notaio-hint .hint-head").click()`);
+    await page.until(`!document.querySelector(".notaio-hint .hint-text")`);
+    await windowSize(1200, 700);
+    assert.equal((await hintState()).open, false, "folded by the player: it stays folded with room to spare");
+  } finally {
+    await windowSize(VIEW.width, VIEW.height);
+    await reopen();
+  }
+});
+
+test("phones are left out for now (Interface v0.17): under 760px wide a note stands in for the screen, in the pack's words; Continue Anyway holds for the visit", { skip }, async () => {
+  const words = JSON.parse(readFileSync("setting/florence-1492/player.json", "utf8")) as { screen: { narrow: { title: string; text: string; go: string } } };
+  await page.eval(`sessionStorage.removeItem("player-screen.narrow-ok")`);
+  try {
+    await page.send("Emulation.setDeviceMetricsOverride", { width: 759, height: 800, deviceScaleFactor: 1, mobile: false });
+    await page.send("Page.navigate", { url: base });
+    await page.until(`document.querySelector(".narrow-note")`);
+    const note = await page.eval<{ title: string; text: string; go: string; screen: boolean; fits: boolean }>(`({ title: document.querySelector(".narrow-note h1").textContent, text: document.querySelector(".narrow-note p").textContent, go: document.querySelector(".narrow-note button").textContent, screen: !!document.querySelector(".layout, .opening, .web-dock"), fits: document.documentElement.scrollWidth <= innerWidth && document.querySelector(".narrow-note p").getBoundingClientRect().right <= innerWidth })`);
+    assert.deepEqual([note.title, note.text, note.go], [words.screen.narrow.title, words.screen.narrow.text, words.screen.narrow.go]);
+    assert.equal(note.title, "Made for a Larger Screen");
+    assert.equal(note.screen, false, "the screen behind is set aside while it shows");
+    assert.equal(note.fits, true, "so the page fits the phone");
+    await page.shot("phone-note");
+    // A phone's own width, too.
+    await page.send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: false });
+    await page.until(`innerWidth === 390`);
+    assert.equal(await page.eval<boolean>(`!!document.querySelector(".narrow-note") && document.documentElement.scrollWidth <= innerWidth`), true);
+    await page.shot("phone-note-390");
+    // At 760px the screen itself.
+    await page.send("Emulation.setDeviceMetricsOverride", { width: 760, height: 800, deviceScaleFactor: 1, mobile: false });
+    await page.until(`!document.querySelector(".narrow-note") && document.querySelector(".layout")`);
+    await page.send("Emulation.setDeviceMetricsOverride", { width: 759, height: 800, deviceScaleFactor: 1, mobile: false });
+    await page.until(`document.querySelector(".narrow-note")`);
+    // Continue Anyway: the screen, for the rest of the visit, a reload included.
+    await page.eval(`document.querySelector(".narrow-note button").click()`);
+    await page.until(`!document.querySelector(".narrow-note") && document.querySelector(".layout")`);
+    await page.send("Page.navigate", { url: base });
+    await page.until(`document.querySelector(".layout")`);
+    assert.equal(await page.eval<boolean>(`!!document.querySelector(".narrow-note")`), false, "it holds for the visit");
+  } finally {
+    await page.eval(`sessionStorage.removeItem("player-screen.narrow-ok")`);
+    await page.send("Emulation.setDeviceMetricsOverride", { ...VIEW, deviceScaleFactor: 1, mobile: false });
+    await reopen();
+  }
+});
+
+test("on a touchscreen (Interface v0.17) a long press shows an explanation without pressing the thing; a tap still acts at once", { skip }, async () => {
+  await reopen();
+  await page.until(`!document.querySelector('[data-hint="rules"]').disabled`);
+  await HINTS_OFF(false);
+  await page.send("Emulation.setTouchEmulationEnabled", { enabled: true });
+  const at = await page.eval<{ x: number; y: number }>(`(() => { const r = document.querySelector('.side.left [data-hint="rules"]').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()`);
+  const touch = (type: string) => page.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [at] });
+  try {
+    // A long press: the explanation, and the button isn't pressed.
+    await touch("touchStart");
+    await page.until(`document.querySelector(".tip:not(.measuring)")`, 3_000);
+    assert.equal(await page.eval<string>(`document.querySelector(".tip").textContent`), "The rules of the evening, one button per section.");
+    await touch("touchEnd");
+    await new Promise((r) => setTimeout(r, 250));
+    assert.equal(await page.eval<boolean>(`!!document.querySelector(".modal")`), false, "the long press didn't open The Rules");
+    assert.equal(await page.eval<boolean>(`!!document.querySelector(".tip")`), true, "the explanation stays until the next touch");
+    // A tap acts at once, and puts the explanation away.
+    await touch("touchStart");
+    await touch("touchEnd");
+    await page.until(`document.querySelector(".modal.deck-rules")`, 3_000);
+    await page.key("Escape", 27);
+    await page.until(`!document.querySelector(".modal")`);
+  } finally {
+    await page.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+  }
+});
+
+test("reopening the right panel doesn't replay the card's slide (Interface v0.17): the card that was showing is simply there; a card slides up only when the selection changes", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".places .token")`);
+  const other = await page.eval<string[]>(`[...new Set([...document.querySelectorAll(".places .token")].map((t) => t.dataset.guest))].slice(0, 2)`);
+  const pickGuest = (g: string) => page.eval(`document.querySelector(${JSON.stringify(`.places .token[data-guest="${g}"]`)}).click()`);
+  const card = () => page.eval<{ guest: string; still: boolean; animation: string } | null>(`(() => { const c = document.querySelector(".person.look:not(.leaving)"); return c ? { guest: c.dataset.guest, still: c.classList.contains("still"), animation: getComputedStyle(c).animationName } : null; })()`);
+  await pickGuest(other[0]!);
+  await page.until(`document.querySelector(".person.look")`);
+  assert.deepEqual(await card(), { guest: other[0], still: false, animation: "slide-up" }, "selecting slides the card up");
+  await page.eval(`document.querySelector(".right-hide").click()`);
+  await page.until(`document.querySelector(".layout.right-hidden")`);
+  await page.eval(`document.querySelector(".right-handle").click()`);
+  await page.until(`document.querySelector(".person.look")`);
+  assert.deepEqual(await card(), { guest: other[0], still: true, animation: "none" }, "reopened: the card is simply there");
+  await pickGuest(other[1]!);
+  await page.until(`document.querySelector(${JSON.stringify(`.person.look:not(.leaving)[data-guest="${other[1]}"]`)})`);
+  assert.deepEqual(await card(), { guest: other[1], still: false, animation: "slide-up" }, "a new selection slides up as always");
+  await page.key("Escape", 27);
+  await page.eval(`localStorage.removeItem("player-screen.right-hidden")`);
 });
