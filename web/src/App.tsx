@@ -7,7 +7,7 @@
 import { Component, Fragment, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { connect, type Ev } from "./connection.ts";
 import { COMMAND, MENTION, canDo, canSpeak, isCommand, matchCommands, matchGuests, openMenu, withMention, type Trigger } from "./input.ts";
-import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityList, commandMenu, curve, derive, earlierThisStage, errandCardAt, errandDeadline, errandLine, errandTask, factLink, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, notesFor, ownPlace, payrollSize, placeHeading, placeList, placeholderExample, preview, readingFor, recordUpTo, refusalWhy, roomOf, rulesLink, runFrom, summaryFor, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, type Card, type FactLink, type Line, type GuardedReading, type LoreEntry, type Note, type NotaioItem, type Place, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
+import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityList, commandMenu, curve, derive, earlierThisStage, errandCardAt, errandDeadline, errandLine, errandTask, factLink, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, notesFor, ownPlace, payrollSize, placeHeading, playerBriefing, placeList, placeholderExample, preview, readingFor, recordUpTo, refusalWhy, roomOf, rulesLink, runFrom, summaryFor, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, type Card, type FactLink, type Line, type GuardedReading, type LoreEntry, type Note, type NotaioItem, type Place, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
 import { allCommands, getInfo, guest, names, narrator, notaioHint, packValue, placeDescription, placeholderExamples, setInfo, stageDescription, w, type GlossEntry, type StartInfo } from "./words.ts";
 
 type Send = (m: unknown) => void;
@@ -521,51 +521,142 @@ const NO_PLACES: DeckPlaces = { briefing: 0, rules: null, city: null, glossary: 
 /** Opens a modal, where it was left or at the place given. */
 type OpenDeck = (d: DeckName, at?: Partial<DeckPlaces>) => void;
 
+/**
+ * Your briefing as the player reads it (Interface v0.16): five cards, then Your past where there is one. The
+ * setting pack names the cards left out and the ones merged (screen.decks.playerSkips, playerMerges).
+ */
 function briefingDeck(sheet: Sheet): Card[] {
   const past = sheet.past ?? [];
-  return [...briefingCards(sheet.briefing), ...(past.length ? [{ title: w("screen.decks.past"), text: past.map((p) => `**${p.title}**\n${p.text}`).join("\n\n") }] : [])];
+  const cards = playerBriefing(briefingCards(sheet.briefing), packValue("screen.decks.playerSkips"), packValue("screen.decks.playerMerges"));
+  return [...cards, ...(past.length ? [{ title: w("screen.decks.past"), text: past.map((p) => `**${p.title}**\n${p.text}`).join("\n\n") }] : [])];
+}
+
+/** Which way the player is going through the modals (Interface v0.16): the highlights point that way, and cards slide in from that side. */
+type Way = "forward" | "back";
+
+/** One of a modal's two footer buttons: its words, what it does, and whether it leads to another modal ("On to …", "Back to …"). */
+type Step = { label: string; go: () => void; chain?: boolean } | null;
+
+/**
+ * The footer every modal has (Interface v0.16): Previous at the left and Next at the right, worded for what
+ * the modal holds. Going forward, the way on to the next modal breathes; going back, the back button carries
+ * the breathing outline, and fills where it leads to the modal before. A click on its blank space turns on.
+ */
+function DeckFoot({ prev, next, way, counter }: { prev: Step; next: Step; way: Way; counter?: string }) {
+  const hint = useHint();
+  return (
+    <footer className="deck-foot" onClick={(e) => e.target === e.currentTarget && next && !next.chain && next.go()}>
+      {prev ? (
+        <button className={`${way === "back" && prev.chain ? "primary" : "secondary"} deck-prev${way === "back" ? " breathe" : ""}`} onClick={prev.go} {...hint(prev.chain ? "modalPrevious" : "deckBack")}>
+          {prev.label}
+        </button>
+      ) : (
+        <span />
+      )}
+      {counter && <span className="muted deck-counter">{counter}</span>}
+      {next ? (
+        <button className={`secondary deck-next${way === "forward" && next.chain ? " breathe" : ""}`} onClick={next.go} {...hint(next.chain ? "modalNext" : "deckCard")}>
+          {next.label}
+        </button>
+      ) : (
+        <span />
+      )}
+    </footer>
+  );
 }
 
 /**
- * The four modals in a row (Interface v0.7): the open one over the screen, its title and a close, and to its
- * left the one before it, its left side faded out, and to its right the next, its right side faded out.
- * Clicking either slides the row along to it. Escape closes; each modal keeps its place (the caller's).
+ * The four modals in a row (Interface v0.7; v0.16): the open one over the screen, its title centred and a
+ * close at the right, and to its left and right its neighbours, solid, each with a one-line summary of what
+ * it is. Clicking one moves to it, at its beginning. The footers chain the four: on a modal's last item Next
+ * becomes "On to …" and opens the next modal at its beginning; on its first item Previous becomes "Back to
+ * …" and opens the one before at its last. Escape closes.
  */
 function ModalRow({ deck, sheet, places, onPlaces, onDeck, onClose }: { deck: DeckName; sheet: Sheet; places: DeckPlaces; onPlaces: (p: DeckPlaces) => void; onDeck: (d: DeckName) => void; onClose: () => void }) {
   const hint = useHint();
-  useEscape(onClose);
   const at = DECKS.indexOf(deck);
-  const prev = DECKS[at - 1];
-  const next = DECKS[at + 1];
+  const before = DECKS[at - 1];
+  const after = DECKS[at + 1];
   // Which way the row slid, so the modal comes in from the side it was on.
   const [from, setFrom] = useState<"left" | "right" | null>(null);
-  const go = (d: DeckName, side: "left" | "right") => {
-    setFrom(side);
+  const [way, setWay] = useState<Way>("forward");
+  const cards = useMemo(() => briefingDeck(sheet), [sheet]);
+  const rules = useMemo(() => rulesCards(sheet.rules), [sheet]);
+  const lore = sheet.lore ?? [];
+  const topics = useMemo(() => cityList(lore).flatMap((g) => g.entries), [sheet]);
+  /** A modal's beginning, and its last item. */
+  const start = (d: DeckName): Partial<DeckPlaces> => (d === "briefing" ? { briefing: 0 } : d === "rules" ? { rules: null } : d === "city" ? { city: null } : { glossary: "" });
+  const end = (d: DeckName): Partial<DeckPlaces> => (d === "briefing" ? { briefing: Math.max(0, cards.length - 1) } : d === "rules" ? { rules: rules.length ? rules.length - 1 : null } : d === "city" ? { city: topics.at(-1)?.id ?? null } : { glossary: "" });
+  /** To another modal: at its beginning, however it's reached, except by "Back to …", which opens it at its last. */
+  const move = (d: DeckName, to: Way, place: Partial<DeckPlaces> = start(d)) => {
+    setWay(to);
+    setFrom(to === "forward" ? "right" : "left");
+    onPlaces({ ...places, ...place });
     onDeck(d);
   };
-  const title = w(`screen.${deck}`);
+  /** Within the modal. */
+  const turn = (place: Partial<DeckPlaces>, to: Way) => {
+    setWay(to);
+    onPlaces({ ...places, ...place });
+  };
+  const title = (d: DeckName) => w(`screen.${d}`);
+  const onTo = (d: DeckName | undefined): Step => (d ? { label: w("screen.modalRow.next", { title: title(d) }), go: () => move(d, "forward"), chain: true } : null);
+  const backTo = (d: DeckName | undefined): Step => (d ? { label: w("screen.modalRow.previous", { title: title(d) }), go: () => move(d, "back", end(d)), chain: true } : null);
+  const card = Math.min(places.briefing, Math.max(0, cards.length - 1));
+  const rule = places.rules !== null && rules[places.rules] ? places.rules : null;
+  const topic = places.city === null ? -1 : topics.findIndex((e) => e.id === places.city);
+  // Escape closes the modal; with a rules section open over its buttons, it goes back to the buttons first.
+  useEscape(() => (deck === "rules" && rule !== null ? turn({ rules: null }, "back") : onClose()));
+  const steps: { prev: Step; next: Step } =
+    deck === "briefing"
+      ? {
+          prev: card > 0 ? { label: w("screen.decks.previousBriefing"), go: () => turn({ briefing: card - 1 }, "back") } : backTo(before),
+          next: card < cards.length - 1 ? { label: w("screen.decks.nextBriefing"), go: () => turn({ briefing: card + 1 }, "forward") } : onTo(after),
+        }
+      : deck === "rules"
+        ? rule === null
+          ? { prev: backTo(before), next: rules.length ? { label: w("screen.rulesModal.first"), go: () => turn({ rules: 0 }, "forward") } : onTo(after) }
+          : {
+              prev: rule === 0 ? { label: w("screen.rulesModal.overview"), go: () => turn({ rules: null }, "back") } : { label: w("screen.rulesModal.previous"), go: () => turn({ rules: rule - 1 }, "back") },
+              next: rule < rules.length - 1 ? { label: w("screen.rulesModal.next"), go: () => turn({ rules: rule + 1 }, "forward") } : onTo(after),
+            }
+        : deck === "city"
+          ? topic < 0
+            ? { prev: backTo(before), next: topics.length ? { label: w("screen.cityList.first"), go: () => turn({ city: topics[0]!.id }, "forward") } : onTo(after) }
+            : {
+                // On the first topic, the way back to the list above is the way back.
+                prev: topic === 0 ? null : { label: w("screen.cityList.previous"), go: () => turn({ city: topics[topic - 1]!.id }, "back") },
+                next: topic < topics.length - 1 ? { label: w("screen.cityList.next"), go: () => turn({ city: topics[topic + 1]!.id }, "forward") } : onTo(after),
+              }
+          : { prev: backTo(before), next: null };
+  // The highlights point the way the player is going: the next modal's peek lights up on the last item going
+  // forward, the one before on the first item going back; at either end of the chain, Close fills in.
+  const litNext = way === "forward" && !!steps.next?.chain;
+  const litPrev = way === "back" && !!steps.prev?.chain;
+  const closeFills = (way === "forward" && !steps.next) || (way === "back" && !steps.prev && deck === DECKS[0]);
   const peek = (d: DeckName | undefined, side: "left" | "right") =>
     d ? (
       <div
-        className={`modal-peek ${side}`}
+        className={`modal-peek ${side}${(side === "left" ? litPrev : litNext) ? " lit" : ""}`}
         data-deck={d}
         role="button"
         tabIndex={0}
-        aria-label={w(side === "left" ? "screen.modalRow.previous" : "screen.modalRow.next", { title: w(`screen.${d}`) })}
-        onClick={(e) => (e.stopPropagation(), go(d, side))}
+        aria-label={w(side === "left" ? "screen.modalRow.previous" : "screen.modalRow.next", { title: title(d) })}
+        onClick={(e) => (e.stopPropagation(), move(d, side === "left" ? "back" : "forward"))}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            go(d, side);
+            move(d, side === "left" ? "back" : "forward");
           }
         }}
         {...hint(side === "left" ? "modalPrevious" : "modalNext")}
       >
+        {/* Interface v0.16: solid, its contents dimmed, with one line saying what it is rather than its list of topics. */}
         <div className="peek-frame" inert aria-hidden="true">
           <header>
-            <h2>{w(`screen.${d}`)}</h2>
+            <h2>{title(d)}</h2>
           </header>
-          <PeekBody deck={d} sheet={sheet} />
+          <p className="peek-summary">{w(`screen.modalRow.summary.${d}`)}</p>
         </div>
       </div>
     ) : (
@@ -574,99 +665,85 @@ function ModalRow({ deck, sheet, places, onPlaces, onDeck, onClose }: { deck: De
   return (
     <div className="overlay" onClick={onClose}>
       <div className="modal-row">
-        {peek(prev, "left")}
-        <div key={deck} className={`modal deck deck-${deck}${from ? ` from-${from}` : ""}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={title}>
+        {peek(before, "left")}
+        <div key={deck} className={`modal deck deck-${deck}${from ? ` from-${from}` : ""}`} data-way={way} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={title(deck)}>
           <header>
-            <h2>{title}</h2>
-            <button className="secondary" onClick={onClose} {...hint("close")}>
+            <span />
+            <h2>{title(deck)}</h2>
+            <button className={`${closeFills ? "primary" : "secondary"} deck-close`} onClick={onClose} {...hint("close")}>
               {w("screen.close")}
             </button>
           </header>
           {deck === "briefing" ? (
-            <BriefingDeck cards={briefingDeck(sheet)} place={places.briefing} onPlace={(n) => onPlaces({ ...places, briefing: n })} />
+            <BriefingDeck cards={cards} place={card} onPlace={(n) => turn({ briefing: n }, n < card ? "back" : "forward")} steps={steps} way={way} />
           ) : deck === "rules" ? (
-            <RulesSections cards={rulesCards(sheet.rules)} open={places.rules} onOpen={(n) => onPlaces({ ...places, rules: n })} />
+            <RulesSections cards={rules} open={rule} onOpen={(n) => turn({ rules: n }, n === null || (rule !== null && n < rule) ? "back" : "forward")} steps={steps} way={way} />
           ) : deck === "city" ? (
-            <CityList lore={sheet.lore ?? []} open={places.city} onOpen={(id) => onPlaces({ ...places, city: id })} />
+            <CityList lore={lore} open={topic < 0 ? null : places.city} onOpen={(id) => turn({ city: id }, id === null ? "back" : "forward")} steps={steps} way={way} />
           ) : (
-            <Glossary
-              search={places.glossary}
-              onSearch={(q) => onPlaces({ ...places, glossary: q })}
-              rules={rulesCards(sheet.rules)}
-              onRules={(n) => {
-                onPlaces({ ...places, rules: n });
-                go("rules", "left");
-              }}
-            />
+            <Glossary search={places.glossary} onSearch={(q) => onPlaces({ ...places, glossary: q })} rules={rules} onRules={(n) => move("rules", "back", { rules: n })} steps={steps} way={way} />
           )}
         </div>
-        {peek(next, "right")}
+        {peek(after, "right")}
       </div>
     </div>
-  );
-}
-
-/** A neighbouring modal, seen at the row's edge: its titles, still, so nothing in it listens for keys. */
-function PeekBody({ deck, sheet }: { deck: DeckName; sheet: Sheet }) {
-  const items = deck === "briefing" ? briefingDeck(sheet).map((c) => c.title) : deck === "rules" ? rulesCards(sheet.rules).map((c) => c.title) : deck === "city" ? (sheet.lore ?? []).map((e) => e.title) : glossaryList(getInfo()?.glossary ?? []).map((g) => g.term);
-  return (
-    <ul className="peek-items">
-      {items.map((t, i) => (
-        <li key={i}>{t}</li>
-      ))}
-    </ul>
   );
 }
 
 /**
  * The glossary (Interface v0.7): for looking up one word. Alphabetical, the term in bold and a short plain
  * definition; a search box on top narrows it as you type; "More in the rules" under an entry with a rules
- * section behind it opens that section in the rules modal. The search is the caller's, so it's kept.
+ * section behind it opens that section in the rules modal. The search is the caller's, so it's kept. It's the
+ * end of the chain (Interface v0.16): its footer holds only the way back to the modal before.
  */
-function Glossary({ search, onSearch, rules, onRules }: { search: string; onSearch: (q: string) => void; rules: Card[]; onRules: (n: number) => void }) {
+function Glossary({ search, onSearch, rules, onRules, steps, way }: { search: string; onSearch: (q: string) => void; rules: Card[]; onRules: (n: number) => void; steps: { prev: Step; next: Step }; way: Way }) {
   const hint = useHint();
   const list = glossaryList(getInfo()?.glossary ?? [], search);
   return (
-    <div className="glossary">
-      <input className="glossary-search" type="search" value={search} placeholder={w("screen.glossaryModal.search")} aria-label={w("screen.glossaryModal.searchLabel")} onChange={(e) => onSearch(e.target.value)} {...hint("glossarySearch")} />
-      <dl className="glossary-list">
-        {list.map((g) => {
-          const section = rulesSectionFor(g, rules);
-          return (
-            <div className="glossary-entry" key={g.term} data-term={g.term}>
-              <dt>{g.term}</dt>
-              <dd>
-                {g.text}
-                {section !== null && (
-                  <button className="secondary small glossary-rules" onClick={() => onRules(section)} {...hint("glossaryRules")}>
-                    {w("screen.glossaryModal.more")}
-                  </button>
-                )}
-              </dd>
-            </div>
-          );
-        })}
-      </dl>
-      {list.length === 0 && <p className="muted glossary-none">{w("screen.glossaryModal.none")}</p>}
-    </div>
+    <>
+      <div className="glossary">
+        <input className="glossary-search" type="search" value={search} placeholder={w("screen.glossaryModal.search")} aria-label={w("screen.glossaryModal.searchLabel")} onChange={(e) => onSearch(e.target.value)} {...hint("glossarySearch")} />
+        <dl className="glossary-list">
+          {list.map((g) => {
+            const section = rulesSectionFor(g, rules);
+            return (
+              <div className="glossary-entry" key={g.term} data-term={g.term}>
+                <dt>{g.term}</dt>
+                <dd>
+                  {g.text}
+                  {section !== null && (
+                    <button className="secondary small glossary-rules" onClick={() => onRules(section)} {...hint("glossaryRules")}>
+                      {w("screen.glossaryModal.more")}
+                    </button>
+                  )}
+                </dd>
+              </div>
+            );
+          })}
+        </dl>
+        {list.length === 0 && <p className="muted glossary-none">{w("screen.glossaryModal.none")}</p>}
+      </div>
+      <DeckFoot prev={steps.prev} next={steps.next} way={way} />
+    </>
   );
 }
 
 /**
- * Your briefing, a card deck: tabs along the top show where you are and jump; clicking anywhere on the card
- * swipes to the next; a separate back control and the arrow keys go back and forth. No auto-advance. The
- * place is the caller's, so the deck remembers it.
+ * Your briefing, a card deck: tabs along the top show where you are and jump; clicking anywhere on the card,
+ * or on the footer's blank space, turns to the next; Previous and Next at its foot and the arrow keys go
+ * back and forth. Going back, the card slides in from the left. No auto-advance. The place is the caller's.
  */
-function BriefingDeck({ cards, place, onPlace }: { cards: Card[]; place: number; onPlace: (n: number) => void }) {
+function BriefingDeck({ cards, place, onPlace, steps, way }: { cards: Card[]; place: number; onPlace: (n: number) => void; steps: { prev: Step; next: Step }; way: Way }) {
   const hint = useHint();
   const at = Math.min(place, Math.max(0, cards.length - 1));
   const card = cards[at];
-  const go = (n: number) => onPlace(Math.max(0, Math.min(cards.length - 1, n)));
+  /** Within the deck: the card, its footer's blank space, and the arrow keys stop at its ends; only the footer's buttons lead on to another modal. */
+  const within = (s: Step) => s && !s.chain && s.go();
   // Registered once, reading the latest place through a ref, so no key falls between two renders' listeners.
   const keys = useRef((_: KeyboardEvent) => {});
   keys.current = (e) => {
-    if (e.key === "ArrowRight") go(at + 1);
-    else if (e.key === "ArrowLeft") go(at - 1);
+    if (e.key === "ArrowRight") within(steps.next);
+    else if (e.key === "ArrowLeft") within(steps.prev);
   };
   useEffect(() => {
     const on = (e: KeyboardEvent) => keys.current(e);
@@ -678,14 +755,14 @@ function BriefingDeck({ cards, place, onPlace }: { cards: Card[]; place: number;
       {cards.length > 0 && (
         <nav className="tabs">
           {cards.map((c, i) => (
-            <button key={i} className={`tab${i === at ? " on" : ""}`} aria-current={i === at} onClick={() => go(i)} {...hint("deckTab")}>
+            <button key={i} className={`tab${i === at ? " on" : ""}`} aria-current={i === at} onClick={() => onPlace(i)} {...hint("deckTab")}>
               {c.title}
             </button>
           ))}
         </nav>
       )}
       {card ? (
-        <div className="deck-card" key={at} onClick={() => go(at + 1)} {...hint("deckCard", { focusable: true })}>
+        <div className={`deck-card${way === "back" ? " from-left" : ""}`} key={at} onClick={() => within(steps.next)} {...hint("deckCard", { focusable: true })}>
           <h3>{card.title}</h3>
           <div className="deck-text">
             <Rich text={card.text} />
@@ -694,57 +771,64 @@ function BriefingDeck({ cards, place, onPlace }: { cards: Card[]; place: number;
       ) : (
         <div className="deck-card empty">{w("screen.decks.empty")}</div>
       )}
-      <footer className="deck-foot">
-        <button className="secondary" disabled={at === 0} onClick={() => go(at - 1)} {...hint("deckBack")}>
-          {w("screen.decks.back")}
-        </button>
-        {cards.length > 0 && <span className="muted">{w("screen.decks.counter", { n: at + 1, total: cards.length })}</span>}
-      </footer>
+      <DeckFoot prev={steps.prev} next={steps.next} way={way} counter={cards.length > 0 ? w("screen.decks.counter", { n: at + 1, total: cards.length }) : undefined} />
     </>
   );
 }
 
 /**
- * The rules (Interface v0.5): one button per section of the rules primer, filling the modal. Clicking one
- * grows it to fill the modal with that section; its × shrinks it back to the buttons.
+ * The rules (Interface v0.5; v0.16): one button per section of the rules primer, which stay in view; a
+ * section opens as a card over them. A click on the card turns to the next section; its ×, Escape, or a click
+ * outside the card goes back to the buttons; a click on the empty space around the buttons opens the first.
  */
-function RulesSections({ cards, open, onOpen }: { cards: Card[]; open: number | null; onOpen: (n: number | null) => void }) {
+function RulesSections({ cards, open, onOpen, steps, way }: { cards: Card[]; open: number | null; onOpen: (n: number | null) => void; steps: { prev: Step; next: Step }; way: Way }) {
   const hint = useHint();
   const card = open === null ? undefined : cards[open];
+  // A section opened from the buttons grows; turning from one to the next, it slides, from the left going back.
+  const was = useRef<number | null>(null);
+  const grows = was.current === null;
+  useEffect(() => {
+    was.current = open;
+  }, [open]);
   if (!cards.length) return <div className="deck-card empty">{w("screen.decks.empty")}</div>;
   return (
-    <div className="rules-body">
-      {card ? (
-        <section className="rules-section open" data-section={open!} aria-label={card.title}>
-          <div className="rules-section-head">
-            <h3>{card.title}</h3>
-            <button className="icon close" aria-label={w("screen.rulesModal.shrink")} onClick={() => onOpen(null)} {...hint("rulesShrink")}>
-              {w("screen.rulesModal.mark")}
-            </button>
-          </div>
-          <div className="deck-text">
-            <Rich text={card.text} />
-          </div>
-        </section>
-      ) : (
-        <div className="rules-buttons">
+    <>
+      <div className="rules-body">
+        <div className="rules-buttons" inert={!!card} onClick={(e) => e.target === e.currentTarget && onOpen(0)}>
           {cards.map((c, i) => (
             <button key={i} className="rules-section" data-section={i} onClick={() => onOpen(i)} {...hint("rulesSection")}>
               {c.title}
             </button>
           ))}
         </div>
-      )}
-    </div>
+        {card && (
+          <div className="rules-over" onClick={() => onOpen(null)}>
+            <section key={open} className={`rules-section open${grows ? " grows" : way === "back" ? " from-left" : " from-right"}`} data-section={open!} aria-label={card.title} onClick={(e) => (e.stopPropagation(), steps.next && !steps.next.chain && steps.next.go())}>
+              <div className="rules-section-head">
+                <h3>{card.title}</h3>
+                <button className="icon close" aria-label={w("screen.rulesModal.shrink")} onClick={(e) => (e.stopPropagation(), onOpen(null))} {...hint("rulesShrink")}>
+                  {w("screen.rulesModal.mark")}
+                </button>
+              </div>
+              <div className="deck-text">
+                <Rich text={card.text} />
+              </div>
+            </section>
+          </div>
+        )}
+      </div>
+      <DeckFoot prev={steps.prev} next={steps.next} way={way} />
+    </>
   );
 }
 
 /**
- * The city (Interface v0.5): a list scrolled like an inbox, one row per public lore entry with its title
- * and a one-line preview, under subject headers. Clicking a row opens the entry here, with a back arrow to
- * the list. Lore links in the chat open on the right, never here.
+ * The city (Interface v0.5; v0.16): a list scrolled like an inbox, one row per public lore entry with its
+ * title and a one-line preview, under subject headers. Clicking a row opens the entry here, with a way back
+ * to the list that stays put while only the topic slides; Previous and Next topic at its foot, and a click
+ * anywhere on the entry turns to the next. Lore links in the chat open on the right, never here.
  */
-function CityList({ lore, open, onOpen }: { lore: LoreEntry[]; open: string | null; onOpen: (id: string | null) => void }) {
+function CityList({ lore, open, onOpen, steps, way }: { lore: LoreEntry[]; open: string | null; onOpen: (id: string | null) => void; steps: { prev: Step; next: Step }; way: Way }) {
   const hint = useHint();
   const entry = open === null ? undefined : lore.find((e) => e.id === open);
   const list = useRef<HTMLDivElement>(null);
@@ -756,40 +840,48 @@ function CityList({ lore, open, onOpen }: { lore: LoreEntry[]; open: string | nu
   if (!lore.length) return <div className="deck-card empty">{w("screen.decks.empty")}</div>;
   if (entry)
     return (
-      <section className="city-entry" data-lore={entry.id}>
-        <button className="secondary city-back" onClick={() => onOpen(null)} {...hint("cityBack")}>
-          {w("screen.cityList.back")}
-        </button>
-        <h3>{entry.title}</h3>
-        <div className="deck-text">{entry.text}</div>
-      </section>
+      <>
+        <div className="city-open">
+          <button className="secondary city-back" onClick={() => onOpen(null)} {...hint("cityBack")}>
+            {w("screen.cityList.back")}
+          </button>
+          <section key={entry.id} className={`city-entry${way === "back" ? " from-left" : ""}`} data-lore={entry.id} onClick={() => steps.next && !steps.next.chain && steps.next.go()}>
+            <h3>{entry.title}</h3>
+            <div className="deck-text">{entry.text}</div>
+          </section>
+        </div>
+        <DeckFoot prev={steps.prev} next={steps.next} way={way} />
+      </>
     );
   return (
-    <div className="city-list" ref={list}>
-      {cityList(lore).map((g) => (
-        <section key={g.subject ?? ""} className="city-group">
-          <div className="city-subject">{g.subject ?? w("screen.decks.other")}</div>
-          <ul>
-            {g.entries.map((e) => (
-              <li key={e.id}>
-                <button
-                  className="city-row"
-                  data-lore={e.id}
-                  onClick={() => {
-                    scroll.current = list.current?.scrollTop ?? 0;
-                    onOpen(e.id);
-                  }}
-                  {...hint("cityRow")}
-                >
-                  <span className="city-title">{e.title}</span>
-                  <span className="city-preview muted">{preview(e)}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
-    </div>
+    <>
+      <div className="city-list" ref={list}>
+        {cityList(lore).map((g) => (
+          <section key={g.subject ?? ""} className="city-group">
+            <div className="city-subject">{g.subject ?? w("screen.decks.other")}</div>
+            <ul>
+              {g.entries.map((e) => (
+                <li key={e.id}>
+                  <button
+                    className="city-row"
+                    data-lore={e.id}
+                    onClick={() => {
+                      scroll.current = list.current?.scrollTop ?? 0;
+                      onOpen(e.id);
+                    }}
+                    {...hint("cityRow")}
+                  >
+                    <span className="city-title">{e.title}</span>
+                    <span className="city-preview muted">{preview(e)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+      <DeckFoot prev={steps.prev} next={steps.next} way={way} />
+    </>
   );
 }
 

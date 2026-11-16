@@ -545,7 +545,7 @@ test("the left panel (Interface v0.16): the switches centred at the top; You are
     const title = await page.eval<string>(`document.querySelector(".modal.deck-rules section.rules-section.open h3").textContent`);
     const behind = pack.glossary.entries.find((e) => e.term === pack.screen.factLinks[fact])!.rules!.map((r) => r.toLowerCase());
     assert.ok(behind.includes(title.toLowerCase()), `${fact} opens ${title}`);
-    await page.key("Escape", 27);
+    await page.eval(`document.querySelector(".deck-close").click()`);
     await page.until(`!document.querySelector(".overlay")`);
   }
   // The errand card: just the task, ending where the bold part's sentence does.
@@ -563,7 +563,7 @@ test("the left panel (Interface v0.16): the switches centred at the top; You are
   await page.eval(`document.querySelector(".side.left .errand-reward").click()`);
   await page.until(`document.querySelector(".modal.deck-rules section.rules-section.open")`);
   assert.equal(await page.eval<string>(`document.querySelector(".modal.deck-rules section.rules-section.open h3").textContent`), "Midnight");
-  await page.key("Escape", 27);
+  await page.eval(`document.querySelector(".deck-close").click()`);
   await page.until(`!document.querySelector(".overlay")`);
 });
 
@@ -1264,7 +1264,7 @@ test("the right panel hides to a strip with a handle, the chat widens; selecting
   assert.equal(await page.eval<boolean>(`!!document.querySelector(".side.right:not(.hidden) .person.talk")`), true, "shown after a reload");
 });
 
-test("the rules: a button per section filling the modal; one grows to fill it, its × shrinks it back. The city: a list; a row opens its entry, the arrow goes back", { skip }, async () => {
+test("the rules: a button per section filling the modal, staying in view; a section opens as a card over them; a click on it turns to the next; ×, Escape, or a click outside goes back. The city: a list; a row opens its entry, with Previous and Next topic; the way back stays put", { skip }, async () => {
   await reopen();
   await page.eval(`document.querySelector('[data-hint="rules"]').click()`);
   await page.until(`document.querySelector(".deck-rules button.rules-section")`);
@@ -1277,13 +1277,38 @@ test("the rules: a button per section filling the modal; one grows to fill it, i
   await page.eval(`document.querySelectorAll(".deck-rules button.rules-section")[1].click()`);
   await page.until(`document.querySelector(".deck-rules section.rules-section.open")`);
   assert.equal(await page.eval<string>(`document.querySelector(".deck-rules section.rules-section h3").textContent`), title);
-  assert.equal(await page.eval<number>(`document.querySelectorAll(".deck-rules button.rules-section").length`), 0, "the section fills the modal");
+  // Interface v0.16: the buttons stay in view, and the section is a card over them.
+  const over = await page.eval<{ buttons: number; inert: boolean; inside: boolean; shadow: boolean }>(`(() => { const body = document.querySelector(".deck-rules .rules-body").getBoundingClientRect(), c = document.querySelector(".deck-rules section.rules-section.open"), b = c.getBoundingClientRect(); return { buttons: document.querySelectorAll(".deck-rules button.rules-section").length, inert: document.querySelector(".rules-buttons").inert, inside: b.left > body.left && b.right < body.right && b.top > body.top && b.bottom < body.bottom, shadow: getComputedStyle(c).boxShadow !== "none" }; })()`);
+  assert.deepEqual(over, { buttons, inert: true, inside: true, shadow: true }, "the buttons stay in view, behind the card");
   await page.shot("rules-section");
+  const sectionTitle = () => page.eval<string | null>(`document.querySelector(".deck-rules section.rules-section.open h3")?.textContent ?? null`);
+  const titles = await page.eval<string[]>(`[...document.querySelectorAll(".deck-rules button.rules-section")].map((b) => b.textContent)`);
+  // A click on the card turns to the next section; the footer's buttons go back and forth.
+  await page.eval(`document.querySelector(".deck-rules section.rules-section.open .deck-text").click()`);
+  await page.until(`document.querySelector(".deck-rules section.rules-section.open h3").textContent === ${JSON.stringify(titles[2])}`);
+  assert.deepEqual(await page.eval<string[]>(`[...document.querySelectorAll(".deck-rules .deck-foot button")].map((b) => b.textContent)`), ["← Previous rule", "Next rule →"]);
+  await page.eval(`document.querySelector(".deck-rules .deck-prev").click()`);
+  await page.until(`document.querySelector(".deck-rules section.rules-section.open h3").textContent === ${JSON.stringify(titles[1])}`);
+  assert.equal(await page.eval<boolean>(`document.querySelector(".deck-rules section.rules-section.open").classList.contains("from-left")`), true, "going back, it slides in from the left");
+  // Its × goes back to the buttons; so does Escape, and a click outside the card. The modal stays open.
   await page.eval(`document.querySelector('[data-hint="rulesShrink"]').click()`);
-  await page.until(`document.querySelectorAll(".deck-rules button.rules-section").length === ${buttons}`);
-  // It remembers an open section.
+  await page.until(`!document.querySelector(".deck-rules section.rules-section.open")`);
   await page.eval(`document.querySelectorAll(".deck-rules button.rules-section")[1].click()`);
+  await page.until(`document.querySelector(".deck-rules section.rules-section.open")`);
   await page.key("Escape", 27);
+  await page.until(`!document.querySelector(".deck-rules section.rules-section.open") && document.querySelector(".modal.deck-rules")`);
+  await page.eval(`document.querySelectorAll(".deck-rules button.rules-section")[1].click()`);
+  await page.until(`document.querySelector(".deck-rules section.rules-section.open")`);
+  await page.eval(`document.querySelector(".deck-rules .rules-over").click()`);
+  await page.until(`!document.querySelector(".deck-rules section.rules-section.open") && document.querySelector(".modal.deck-rules")`);
+  // A click on the empty space around the buttons opens the first section.
+  await page.eval(`document.querySelector(".deck-rules .rules-buttons").click()`);
+  await page.until(`document.querySelector(".deck-rules section.rules-section.open")`);
+  assert.equal(await sectionTitle(), titles[0]);
+  assert.equal(titles[0], "The evening", "the primer's opening heading in sentence case");
+  assert.deepEqual(await page.eval<string[]>(`[...document.querySelectorAll(".deck-rules .deck-foot button")].map((b) => b.textContent)`), ["← The rules", "Next rule →"]);
+  // Opened from the left panel again, it's where it was left.
+  await page.eval(`document.querySelector(".deck-close").click()`);
   await page.until(`!document.querySelector(".overlay")`);
   await page.eval(`document.querySelector('[data-hint="rules"]').click()`);
   await page.until(`document.querySelector(".deck-rules section.rules-section.open")`);
@@ -1308,6 +1333,20 @@ test("the rules: a button per section filling the modal; one grows to fill it, i
   assert.equal(await page.eval<string>(`document.querySelector(".city-entry h3").textContent`), entry.title);
   assert.equal(await page.eval<boolean>(`!!document.querySelector(".side.right .look:not(.leaving)")`), false, "not on the right: the city opens here");
   await page.shot("city-entry");
+  // Interface v0.16: Next topic at its foot (nothing before the first: the way back to the list is above); a click on the entry turns on; the way back stays put.
+  const ids = await page.eval<string[]>(`(() => { const e = document.querySelector(".city-entry"); return [e.dataset.lore]; })()`);
+  assert.deepEqual(await page.eval<string[]>(`[...document.querySelectorAll(".deck-city .deck-foot button")].map((b) => b.textContent)`), rows.n > 1 ? ["Next topic →"] : ["On to Glossary"]);
+  if (rows.n > 1) {
+    const backTop = () => page.eval<number>(`document.querySelector('[data-hint="cityBack"]').getBoundingClientRect().top`);
+    const top = await backTop();
+    await page.eval(`document.querySelector(".city-entry .deck-text").click()`);
+    await page.until(`document.querySelector(".city-entry").dataset.lore !== ${JSON.stringify(ids[0])}`);
+    assert.equal(await backTop(), top, "the way back to the list stays put");
+    assert.equal(await page.eval<string>(`document.querySelector(".deck-city .deck-prev").textContent`), "← Previous topic");
+    await page.eval(`document.querySelector(".deck-city .deck-prev").click()`);
+    await page.until(`document.querySelector(".city-entry").dataset.lore === ${JSON.stringify(ids[0])}`);
+    assert.equal(await page.eval<boolean>(`document.querySelector(".city-entry").classList.contains("from-left")`), true);
+  }
   await page.eval(`document.querySelector('[data-hint="cityBack"]').click()`);
   await page.until(`document.querySelector(".city-row") && !document.querySelector(".city-entry")`);
   await page.key("Escape", 27);
@@ -1549,47 +1588,149 @@ const HINTS_OFF = async (off: boolean) => {
   if (on === off) await page.eval(`document.querySelector('[data-hint="switch"]').click()`);
 };
 
-test("four modals in a row: Your briefing, The rules, The city, Glossary; each between its faded neighbours; clicking one slides to it; nothing before the first or after the last; each keeps its place; Escape closes", { skip }, async () => {
+test("four modals in a row (Interface v0.16): solid neighbours with one-line summaries, the title centred; clicking one moves to it at its beginning; nothing before the first or after the last; Escape closes", { skip }, async () => {
   await reopen();
   await page.until(`!document.querySelector('[data-hint="glossary"]').disabled`);
   const row = () =>
-    page.eval<{ open: string; left: string | null; right: string | null; leftFaded: boolean; rightFaded: boolean; inView: boolean }>(`(() => {
+    page.eval<{ open: string; left: string | null; right: string | null; solid: boolean; summaries: string[]; inView: boolean; centred: boolean; closeRight: boolean }>(`(() => {
       const m = document.querySelector(".modal.deck"), l = document.querySelector(".modal-peek.left"), r = document.querySelector(".modal-peek.right");
-      const b = m.getBoundingClientRect();
+      const b = m.getBoundingClientRect(), h = m.querySelector("header h2").getBoundingClientRect(), c = m.querySelector(".deck-close").getBoundingClientRect();
+      const peeks = [l, r].filter((p) => !p.classList.contains("empty"));
       return { open: [...m.classList].find((c) => c.startsWith("deck-")).slice(5), left: l.dataset.deck ?? null, right: r.dataset.deck ?? null,
-        leftFaded: getComputedStyle(l).maskImage.startsWith("linear-gradient(to right"), rightFaded: getComputedStyle(r).maskImage.startsWith("linear-gradient(to left"),
-        inView: b.left >= 0 && b.right <= innerWidth && b.top >= 0 && b.bottom <= innerHeight };
+        solid: peeks.every((p) => getComputedStyle(p).maskImage === "none" && getComputedStyle(p).opacity === "1" && getComputedStyle(p.querySelector(".peek-frame")).opacity === "1" && getComputedStyle(p).backgroundColor === getComputedStyle(m).backgroundColor),
+        summaries: peeks.map((p) => p.querySelector(".peek-summary").textContent),
+        inView: b.left >= 0 && b.right <= innerWidth && b.top >= 0 && b.bottom <= innerHeight,
+        centred: Math.abs(h.left + h.width / 2 - (b.left + b.width / 2)) < 2, closeRight: b.right - c.right < 24 };
     })()`);
+  const summary = (JSON.parse(readFileSync("setting/florence-1492/player.json", "utf8")) as { screen: { modalRow: { summary: Record<string, string> } } }).screen.modalRow.summary;
   await page.eval(`document.querySelector('[data-hint="briefing"]').click()`);
   await page.until(`document.querySelector(".deck-briefing .deck-card")`);
   let r = await row();
   assert.deepEqual([r.open, r.left, r.right], ["briefing", null, "rules"], "nothing to the briefing's left");
-  assert.ok(r.inView);
-  // The briefing's place: its second card. The arrow keys still turn it.
+  assert.ok(r.inView && r.centred && r.closeRight, "the title centred, Close at the right");
+  assert.deepEqual(r.summaries, [summary.rules]);
+  // The briefing's second card. The arrow keys still turn it.
   await page.key("ArrowRight", 39);
-  const card = await page.eval<string>(`document.querySelector(".deck .tab.on").textContent`);
-  // Along the row: rules, city, glossary, each with its neighbours, the left side faded on the left and the right on the right.
+  await page.until(`document.querySelectorAll(".deck .tab")[1].classList.contains("on")`);
+  // Along the row: rules, city, glossary, each with its solid neighbours and their one-line summaries, each at its beginning.
   for (const [want, left, right] of [["rules", "briefing", "city"], ["city", "rules", "glossary"], ["glossary", "city", null]] as const) {
     await page.until(`document.querySelector(".modal.deck").getAnimations().length === 0`);
     await clickAt(".modal-peek.right");
     await page.until(`document.querySelector(".modal.deck-${want}")`);
     r = await row();
     assert.deepEqual([r.open, r.left, r.right], [want, left, right], want);
-    assert.ok(r.leftFaded, `${want}: the one before shows faded on its left`);
-    if (right) assert.ok(r.rightFaded, `${want}: the next shows faded on its right`);
+    assert.ok(r.solid, `${want}: its neighbours are solid, not see-through`);
+    assert.deepEqual(r.summaries, [summary[left], ...(right ? [summary[right]] : [])], `${want}: one line each on what they are`);
+    assert.ok(r.centred && r.closeRight, want);
     await page.shot(`modal-row-${want}`);
   }
   // Nothing to the glossary's right: no neighbour there to move to.
   assert.equal(await page.eval<boolean>(`document.querySelector(".modal-peek.right").matches(".empty:not([role])")`), true, "nothing right of the glossary");
-  // Back along: left to the briefing, which kept its card.
+  // Back along: left to the briefing, which starts from its beginning again (Interface v0.16).
   for (const want of ["city", "rules", "briefing"]) {
     // Once the row has stopped sliding (the open one passes over its neighbour as it comes in).
     await page.until(`document.querySelector(".modal.deck").getAnimations().length === 0`);
     await clickAt(".modal-peek.left");
     await page.until(`document.querySelector(".modal.deck-${want}")`);
+    assert.equal(await page.eval<boolean>(`document.querySelector(".modal.deck").classList.contains("from-left")`), true, `${want}: it comes in from the left`);
   }
-  assert.equal(await page.eval<string>(`document.querySelector(".deck .tab.on").textContent`), card, "the briefing kept its place");
+  assert.equal(await page.eval<boolean>(`document.querySelectorAll(".deck .tab")[0].classList.contains("on")`), true, "every modal starts from its beginning when you move to it");
   assert.equal(await page.eval<boolean>(`document.querySelector(".modal-peek.left").matches(".empty:not([role])")`), true, "nothing left of the briefing");
+  await page.key("Escape", 27);
+  await page.until(`!document.querySelector(".overlay")`);
+});
+
+test("the briefing shows five cards; the footers chain the four modals forward and back, with the highlights pointing the way (Interface v0.16)", { skip }, async () => {
+  await reopen();
+  await page.until(`!document.querySelector('[data-hint="briefing"]').disabled`);
+  await page.eval(`document.querySelector('.side.left .me-briefing').click()`);
+  await page.until(`document.querySelector(".deck-briefing .deck-card")`);
+  // Start from the first card, however the briefing was left.
+  await page.eval(`document.querySelectorAll(".deck-briefing .tab")[0].click()`);
+  const tabs = await page.eval<string[]>(`[...document.querySelectorAll(".deck-briefing .tab")].map((t) => t.textContent)`);
+  assert.deepEqual(tabs, ["Who you are", "Your errand tonight", "What you want", "What you know", "Relationships"], "five cards for the player");
+  const merged = async (i: number) => {
+    await page.eval(`document.querySelectorAll(".deck-briefing .tab")[${i}].click()`);
+    await page.until(`document.querySelectorAll(".deck-briefing .tab")[${i}].classList.contains("on")`);
+    return page.eval<string[]>(`[...document.querySelectorAll(".deck-briefing .deck-card .deck-text strong")].map((x) => x.textContent)`);
+  };
+  assert.ok((await merged(2)).includes("Your own reasons"), "What you want: the faction's aims, then Your own reasons");
+  assert.ok((await merged(3)).includes("Keep to yourself"), "What you know: then Keep to yourself");
+  await page.shot("briefing-five");
+  await page.eval(`document.querySelectorAll(".deck-briefing .tab")[0].click()`);
+  const STATE = `(() => {
+      const m = document.querySelector(".modal.deck"), p = m.querySelector(".deck-prev"), n = m.querySelector(".deck-next");
+      return { deck: [...m.classList].find((c) => c.startsWith("deck-")).slice(5), at: m.querySelector(".tab.on")?.textContent ?? m.querySelector("section.rules-section.open")?.dataset.section ?? m.querySelector(".city-entry")?.dataset.lore ?? "", prev: p?.textContent ?? null, next: n?.textContent ?? null, prevCls: p?.className ?? "", nextCls: n?.className ?? "", close: m.querySelector(".deck-close").className, lit: [...document.querySelectorAll(".modal-peek.lit")].map((x) => x.dataset.deck), way: m.dataset.way };
+    })()`;
+  const state = () => page.eval<{ deck: string; at: string; prev: string | null; next: string | null; prevCls: string; nextCls: string; close: string; lit: string[]; way: string }>(STATE);
+  const click = async (sel: string) => {
+    const was = JSON.stringify(await state());
+    await page.eval(`document.querySelector(".modal.deck ${sel}").click()`);
+    await page.until(`JSON.stringify(${STATE}) !== ${JSON.stringify(was)}`);
+    return state();
+  };
+  // Forward through the briefing: Next briefing, until the last card, where the way on breathes and the next modal's peek lights up.
+  let st = await state();
+  assert.deepEqual([st.prev, st.next], [null, "Next briefing →"]);
+  for (let i = 1; i < 5; i++) st = await click(".deck-next");
+  assert.deepEqual([st.prev, st.next], ["← Previous briefing", "On to The rules"]);
+  assert.ok(st.nextCls.includes("breathe"), "the way on breathes");
+  assert.deepEqual(st.lit, ["rules"], "and the next modal's peek lights up");
+  assert.equal(await page.eval<boolean>(`document.querySelector(".deck-next").getAnimations().some((a) => a.effect.getComputedTiming().iterations === Infinity)`), true, "a pulsing outline");
+  // A click on the footer's blank space turns on within the deck only: on the last card it stays.
+  await page.eval(`document.querySelector(".deck-briefing .deck-foot").click()`);
+  assert.equal((await state()).deck, "briefing");
+  await page.shot("modal-chain-on-to");
+  // On to The rules: at its beginning, the buttons.
+  st = await click(".deck-next");
+  assert.deepEqual([st.deck, st.prev, st.next], ["rules", "Back to Your briefing", "First rule →"]);
+  assert.equal(await page.eval<boolean>(`!document.querySelector(".deck-rules section.rules-section.open")`), true);
+  // Through the rules to the last, then on to the city's list, its topics, and the glossary.
+  const rules = await page.eval<number>(`document.querySelectorAll(".deck-rules button.rules-section").length`);
+  for (let i = 0; i < rules; i++) st = await click(".deck-next");
+  assert.deepEqual([st.prev, st.next], ["← Previous rule", "On to The city"]);
+  assert.deepEqual(st.lit, ["city"]);
+  st = await click(".deck-next");
+  assert.deepEqual([st.deck, st.prev, st.next], ["city", "Back to The rules", "First topic →"]);
+  const topics = await page.eval<number>(`document.querySelectorAll(".deck-city .city-row").length`);
+  for (let i = 0; i < topics; i++) st = await click(".deck-next");
+  assert.equal(st.next, "On to Glossary");
+  st = await click(".deck-next");
+  // The glossary, the end of the chain: only the way back, and Close fills in.
+  assert.deepEqual([st.deck, st.prev, st.next], ["glossary", "Back to The city", null]);
+  assert.ok(st.close.includes("primary"), "Close fills in at the end of the chain");
+  await page.shot("modal-chain-end");
+  // Backward, everything mirrors: Back to The city opens it at its last topic, sliding in from the left.
+  st = await click(".deck-prev");
+  assert.deepEqual([st.deck, st.way, st.next], ["city", "back", "On to Glossary"]);
+  assert.equal(await page.eval<boolean>(`!!document.querySelector(".deck-city .city-entry") && document.querySelector(".modal.deck").classList.contains("from-left")`), true, "at its last topic");
+  assert.ok(st.prevCls.includes("breathe") && !st.nextCls.includes("breathe"), "the back button carries the breathing outline; On to goes plain");
+  assert.deepEqual(st.lit, []);
+  // Back to the list, where the back button fills and the previous modal's peek lights up.
+  await page.eval(`document.querySelector('[data-hint="cityBack"]').click()`);
+  await page.until(`document.querySelector(".deck-city .city-list")`);
+  st = await state();
+  assert.deepEqual([st.prev, st.way], ["Back to The rules", "back"]);
+  assert.ok(st.prevCls.includes("primary") && st.prevCls.includes("breathe"), "on the first item the back button fills");
+  assert.deepEqual(st.lit, ["rules"]);
+  // Back to The rules: at its last rule; back through them to the buttons, then to the briefing's last card.
+  st = await click(".deck-prev");
+  assert.deepEqual([st.deck, st.next], ["rules", "On to The city"]);
+  for (let i = 0; i < rules - 1; i++) st = await click(".deck-prev");
+  assert.equal(st.prev, "← The rules");
+  st = await click(".deck-prev");
+  assert.equal(st.prev, "Back to Your briefing");
+  st = await click(".deck-prev");
+  assert.deepEqual([st.deck, st.prev, st.next], ["briefing", "← Previous briefing", "On to The rules"]);
+  assert.equal(await page.eval<boolean>(`document.querySelectorAll(".deck-briefing .tab")[4].classList.contains("on")`), true, "at its last card");
+  // Back to the first card, the start of the chain: Close fills in.
+  for (let i = 0; i < 4; i++) st = await click(".deck-prev");
+  assert.equal(st.prev, null);
+  assert.ok(st.close.includes("primary"), "Close fills in at the start of the chain");
+  assert.equal(await page.eval<boolean>(`document.querySelector(".deck-briefing .deck-card").classList.contains("from-left")`), true, "cards slide in from the left going back");
+  // The motion's sizes: a card slides 24 pixels in 300 ms.
+  const motion = await page.eval<{ ms: number; px: string }>(`(() => { const s = getComputedStyle(document.documentElement); return { ms: parseFloat(getComputedStyle(document.querySelector(".deck-briefing .deck-card")).animationDuration) * 1000, px: s.getPropertyValue("--swipe-distance").trim() }; })()`);
+  assert.deepEqual(motion, { ms: 300, px: "24px" });
   await page.key("Escape", 27);
   await page.until(`!document.querySelector(".overlay")`);
 });

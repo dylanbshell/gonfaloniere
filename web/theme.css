@@ -55,8 +55,14 @@
   /* The rules' section buttons (Interface v0.5), and how small a section starts as it grows */
   --rules-button-width: 180px;
   --rules-button-height: 64px;
-  --grow-from: 0.92;
-  --swipe-distance: 48px;
+  /* Interface v0.16, subtle motion: a card or a city entry slides 24 pixels, one modal giving way to the next
+     48, anything that grows starts at 97%, all in 300 ms */
+  --grow-from: 0.97;
+  --swipe-distance: 24px;
+  --motion-modal: 300ms;
+  /* The breathing highlight (a soft pulsing outline) on the way forward or back through the modals */
+  --motion-breathe: 900ms;
+  --breathe-ring: 4px;
   --motion-fast: 160ms;
   --motion-slow: 260ms;
   /* The web's diagram, in its own units (100 across) */
@@ -178,10 +184,7 @@
   --deck-height: min(var(--modal-max-height), 640px);
   --modal-peek-width: 150px;
   --modal-row-gap: 16px;
-  --modal-slide: 120px;
-  --peek-opacity: 0.92;
-  --peek-fade-left: linear-gradient(to right, transparent, #000 75%);
-  --peek-fade-right: linear-gradient(to left, transparent, #000 75%);
+  --modal-slide: 48px;
   /* Interface v0.7, the opening: how fast Il Notaio writes (a character at a time), the pause before the next
      paragraph, the page's width, and his pen */
   --opening-char: 28ms;
@@ -227,6 +230,9 @@
   --notaio-bg: #eef3ef;
   --to-you-bg: #eef2f9;
   --overlay: rgba(20, 20, 18, 0.45);
+  /* Behind an open rules section, over the buttons; the breathing outline's colour */
+  --rules-backdrop: rgba(20, 20, 18, 0.28);
+  --breathe-colour: rgba(58, 90, 140, 0.5);
   --portrait-text: #ffffff;
   --do: #5a3a8c;
   --do-text: #ffffff;
@@ -296,6 +302,8 @@
     --notaio-bg: #1f2a24;
     --to-you-bg: #1f2633;
     --overlay: rgba(0, 0, 0, 0.6);
+    --rules-backdrop: rgba(0, 0, 0, 0.45);
+    --breathe-colour: rgba(143, 176, 230, 0.55);
     --do: #c3a6ee;
     --do-text: #1a1224;
     --tip-bg: #ecece8;
