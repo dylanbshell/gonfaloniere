@@ -17,11 +17,13 @@ import { MiniGame, type CallRequest, type Caller } from "../src/minigame/engine.
 import { FAKE_READING, fakeCaller } from "../src/minigame/fake-caller.ts";
 import { readLoreFile } from "../src/minigame/lore.ts";
 import { screenContent } from "../src/minigame/player.ts";
-import { unfoundQuotes } from "../src/minigame/reading.ts";
+import { guard } from "../src/minigame/guard.ts";
+import { assembleReading, assembleSummary, guardLines, summaryLines, unfoundQuotes } from "../src/minigame/reading.ts";
 import { buildRecord } from "../src/minigame/record.ts";
 import { exportView } from "../src/minigame/view.ts";
 import { relationshipTypes, relationships } from "../src/setting/pack.ts";
 import { loadDocs, type DocSources } from "../src/sources/docs.ts";
+import { derive } from "../web/src/model.ts";
 import { fakeDocs, fakeSettings } from "./fixtures/fake-game.ts";
 
 const F = "Francesco Pazzi";
@@ -270,13 +272,79 @@ test("TD v0.51's past-stage summaries: written once as each stage ends, grouped 
   for (const s of summaries) {
     const sentences = s.groups.flatMap((g) => g.items).filter((i) => i.kind === "sentence");
     assert.ok(sentences.length <= 10);
-    assert.equal(s.empty, sentences.length ? null : "Nothing reached you in this stage.");
+    // The empty line only when the stage has nothing at all to show, neither lines nor events (#174).
+    assert.equal(s.empty, s.groups.length ? null : "Nothing reached you in this stage.");
+    assert.ok(s.groups.every((g) => g.items.length), "no empty group is sent");
     // Each group is one stretch the player was in during the stage, by its first line in the log.
     for (const g of s.groups) {
       const first = log.find((e) => e.seq === g.from) as { conversation?: string };
       assert.equal(first.conversation, g.conversation);
     }
   }
+  // The arrival in the fake game: Il Notaio's announcements and no spoken line, so its events and no empty line.
+  const arrival = summaries[0]!;
+  const shown = arrival.groups.flatMap((g) => g.items);
+  assert.ok(shown.length > 0 && shown.every((i) => i.kind === "event"), "the arrival shows events only");
+  assert.equal(arrival.empty, null);
+});
+
+/** A small player's log: each state (a stage's label) and the lines and announcements that follow it. */
+function smallLog(parts: ({ stage: string } | { notaio: string } | { speaker: string; text: string })[]): Outgoing[] {
+  let seq = 1;
+  let turn = 0;
+  return parts.map((p): Outgoing => {
+    if ("stage" in p) return { type: "state", seq: seq++, state: { phaseLabel: p.stage, turn: ++turn, conversation: { kind: "capannello", others: [] }, present: [] }, commands: [] } as unknown as Outgoing;
+    const at = { seq: seq++, id: `L${seq}`, turn, conversation: "C1" };
+    return ("notaio" in p ? { type: "notaio", ...at, text: p.notaio, about: [] } : { type: "line", ...at, speaker: p.speaker, addressee: null, text: p.text, you: p.speaker === F }) as unknown as Outgoing;
+  });
+}
+
+test("the empty line is for nothing at all (#174): a past stage, or a guest, with events but no lines shows the events and no empty line", () => {
+  const [S1, S2, S3, S4, S5] = ["The guests' arrival", "The first round of mingling, early", "The first round of mingling, midway", "The first round of mingling, late", "Midnight"];
+  const log = smallLog([
+    { stage: S1 },
+    { notaio: "The doors are open." },
+    { notaio: "The guests are seated." },
+    { stage: S2 },
+    { speaker: "Lupo", text: "I keep watch in the garden." },
+    { notaio: "A cup was raised." },
+    { stage: S3 },
+    { speaker: "Lupo", text: "Nothing more tonight." },
+    { speaker: "Lupo", text: "Good night." },
+    { stage: S4 },
+    { speaker: F, text: "My own line." },
+  ]);
+  const v = derive(log as never);
+  const summary = (stage: string) => {
+    const chosen = summaryLines(v, F, stage);
+    return { chosen, s: assembleSummary(v, stage, chosen, guard(null, guardLines(chosen)), []) };
+  };
+  const kinds = (s: { groups: { items: { kind: string }[] }[] }) => s.groups.map((g) => g.items.map((i) => i.kind));
+
+  // A past stage with events but no lines: its events, and no empty line.
+  const events = summary(S1);
+  assert.equal(events.chosen.length, 0);
+  assert.deepEqual(kinds(events.s), [["event", "event"]]);
+  assert.equal(events.s.empty, null);
+  // With neither: only the empty line. (A stage where only the player spoke, and one with nothing in the log.)
+  for (const stage of [S4, S5]) assert.deepEqual(summary(stage).s, { type: "stage-summary", stage, groups: [], empty: "Nothing reached you in this stage." });
+  // With lines, as before: no empty line, with or without events beside them.
+  assert.deepEqual(kinds(summary(S2).s), [["sentence", "event"]]);
+  assert.deepEqual(kinds(summary(S3).s), [["sentence", "sentence"]]);
+  for (const stage of [S2, S3]) assert.equal(summary(stage).s.empty, null);
+  // The shape the screen stores is the same: type, stage, groups (conversation, from, items), empty.
+  assert.deepEqual(Object.keys(events.s), ["type", "stage", "groups", "empty"]);
+  assert.deepEqual(Object.keys(events.s.groups[0]!), ["conversation", "from", "items"]);
+
+  // A guest's reading, the same two cases: events but no lines shows the events and no empty line...
+  const bg = { connections: [], lore: [] };
+  const seen = assembleReading(bg, [], [], [{ seq: 6, stage: S2, item: "notaio", text: "A cup was raised." }], [], [S1, S2, S3, S4, S5]);
+  assert.deepEqual(seen.stages.map((s) => [s.stage, s.items.map((i) => i.kind)]), [[S2, ["event"]]]);
+  assert.equal(seen.empty, null);
+  // ...and neither shows only the empty line.
+  const none = assembleReading(bg, [], [], [], [], [S1, S2, S3, S4, S5]);
+  assert.deepEqual(none.stages, []);
+  assert.equal(none.empty, "You have heard and seen nothing of them tonight.");
 });
 
 test("TD v0.51's guard in play: a reply that isn't JSON is repaired once, then every line is code's plain version", async () => {
