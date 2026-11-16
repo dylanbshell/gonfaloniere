@@ -316,7 +316,8 @@ const order = (track: string[], stage: string) => (track.indexOf(stage) < 0 ? In
 
 /**
  * TD v0.51's past-stage summary, assembled: bullets grouped by conversation (each stretch the player was in
- * during the stage), in order, each with its lines' sentences and notes and the events seen there.
+ * during the stage), in order, each with its lines' sentences and notes and the events seen there; or, for a
+ * stage with neither, the line saying the player heard nothing.
  */
 export function assembleSummary(v: V, stage: string, chosen: ChosenLine[], verdicts: GuardVerdict[], lore: PublicLore[]): Extract<OutgoingBody, { type: "stage-summary" }> {
   const noted = new Set<string>();
@@ -337,5 +338,6 @@ export function assembleSummary(v: V, stage: string, chosen: ChosenLine[], verdi
       ),
     };
   });
-  return { type: "stage-summary", stage, groups: groups.filter((g) => g.items.length), empty: chosen.length ? null : say("notaio", "reading.emptyStage") };
+  // The empty line is for a stage with nothing at all to show, neither lines nor events (#174).
+  return { type: "stage-summary", stage, groups: groups.filter((g) => g.items.length), empty: groups.some((g) => g.items.length) ? null : say("notaio", "reading.emptyStage") };
 }
