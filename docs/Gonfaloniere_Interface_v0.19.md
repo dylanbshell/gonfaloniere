@@ -323,6 +323,7 @@ The demo is built by patching the screen and adding scripts to the page, which i
 - **The blocks that stay put** *(v0.19)* on the right panel's cards (the heading, then a guest's portrait and name, or an entry's title) are sticky inside the card, so the heading needs a fixed height for the block under it to sit against. The card that slides up stops by the same measures. **Sizing from the bar's own width** (the stage circles) and the panel's (its margins, where the card stops) are container queries
 - **The card's new lines come from the setting pack** *(v0.19)*: the description per guest, the faction lines (from the rules' win conditions), and each public entry's guests. Nothing new from the engine
 - **The review tool** *(v0.19)*: in `npm run demo`, the note that a reference was copied sits at the top left of the page
+- **More Below can't loop** *(v0.19)*: once the left panel's top was pinned, the demo's left panel kept failing for Dylan (not reproduced in Chrome; likely Safari, at some window heights). The likely cause: showing More Below changes what's left to scroll, so a check after every render could turn it on and off without end until React gave up. The fix: it comes on only with clearly more than its own room left (16px) and goes off at 2px, and the check runs a frame after the render. **A failed panel says what failed** in the demo (the error, small, under the notice, and a Try Again button); worth keeping in the build
 
 ---
 
@@ -1204,6 +1205,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | The docked Continue did nothing when clicked | It always carries the page to the choice | The Opening |
 | Scrolling further before Continue spoiled the move to the choice | The choice moves with the page and docks once there | The Opening |
 | The opening's "Choose Your Family" title and cards larger, still changing with the window's width; Il Notaio's title and story scrolling right off the top, but back on a scroll up, with the cards "kind of sticky" | Sized from the window; the story scrolls off; the choice docks at the bottom when rereading | The Opening |
+| The left panel kept failing ("This part of the screen ran into a problem") since its scrolling changed | More Below made loop-proof; a failed panel shows its error and Try Again | Notes for the Build |
 | When the left panel scrolls, the errand should slide under the information buttons; then, "it still works the same way" (the buttons only stuck once the top had scrolled away) | The top, through the four buttons, stays put from the start | Left |
 
 ---
