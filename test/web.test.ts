@@ -21,7 +21,7 @@ import { settingPack } from "../src/setting/pack.ts";
 import { GameView, Opening } from "../web/src/App.tsx";
 import type { Ev } from "../web/src/connection.ts";
 import { canDo, canSpeak, openMenu, trigger, withMention } from "../web/src/input.ts";
-import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityCards, cityList, curve, derive, factionArcs, placeholderExample, preview, selectBack, selectInChat, selectInWeb, selectLore, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, lineStages, loreParts, readingFor, roomOf, summaryFor, rulesCards, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, glossaryList, lineParts, midnightLine, notesFor, rulesSectionFor, type LoreEntry, type View } from "../web/src/model.ts";
+import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityCards, cityList, curve, derive, factionArcs, placeholderExample, preview, selectBack, selectInChat, selectInWeb, selectLore, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, lineStages, loreParts, readingFor, roomOf, summaryFor, rulesCards, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, glossaryList, lineParts, midnightLine, notesFor, rulesSectionFor, type LoreEntry, type View, factLink, rulesLink, errandTask, errandCardAt } from "../web/src/model.ts";
 import { notaioHint, setInfo, type StartInfo } from "../web/src/words.ts";
 import { fakeCaller, fakeDocs, fakeSettings } from "./fixtures/fake-game.ts";
 
@@ -507,7 +507,7 @@ test("the left column (TD v0.45): the sheet, then the three decks, then the erra
 
 test("steady sizes: the sheet and the prompt are laid out before the first state, from theme tokens; the example is in the placeholder", () => {
   const h = game({ v: derive([]) });
-  assert.match(h, /<dl class="facts">/, "the sheet's facts before any state");
+  assert.match(h, /<div class="facts"><div class="fact" data-fact="purse">/, "the sheet's facts before any state");
   assert.match(h, /class="prompt"/, "the prompt's line");
   assert.doesNotMatch(h, /class="example/, "no example line under the box (Interface v0.5)");
   const css = readFileSync("web/src/app.css", "utf8");
@@ -580,7 +580,7 @@ test("the Web of Secrets: a bar always there, a key of the six types that highli
   const v = derive(at["speak:capannello"]!);
   const shut = game({ v });
   assert.match(shut, /class="web-dock"/, "always on the page");
-  assert.match(shut, /class="web-bar" aria-expanded="false"[^>]*>.*The Web of Secrets/);
+  assert.match(shut, /class="web-bar" aria-expanded="false"[^>]*>.*Web of Confidences/);
   assert.match(shut, /class="web" inert=""/, "down: nothing in it takes focus");
   const h = game({ v, web: ["Lupo"] });
   assert.match(h, /class="web-dock open"/);
@@ -641,7 +641,7 @@ test("the room (TD v0.45–v0.48, a game without places): your own group marked,
 
 // ---- CC-20261114-12 (#132): the place list and the conversation line (Interface v0.9) ----------------------
 
-test("the place list: every place in the pack's order, empty ones faded, yours marked, a private one behind a closed door; portraits select, your own opens your briefing", async () => {
+test("the place list: every place in the pack's order, empty ones faded, yours marked, a private one behind a closed door; every portrait selects, your own included", async () => {
   const { at } = await playedLog();
   const v = derive(at["speak:capannello"]!);
   const pack = settingPack().places!;
@@ -664,12 +664,12 @@ test("the place list: every place in the pack's order, empty ones faded, yours m
     assert.ok(left.includes(`<span class="place-name" tabindex="0" aria-description="${esc(d)}">${name[0]!.toUpperCase()}${name.slice(1)}</span>`), `${name}: heading and description`);
   }
   assert.deepEqual(Object.keys(PLAYER.screen.places.descriptions).filter((k) => !k.startsWith("_")), pack, "a description for every place, keyed by its name");
-  // Every guest in a place has a portrait; other guests' select, the player's own opens the briefing.
-  for (const p of sp)
-    for (const g of p.guests)
-      if (g === F) assert.match(left, new RegExp(`<button class="token me" aria-label="${esc(F)}"[^>]*data-hint="myBriefing"`));
-      else assert.match(left, new RegExp(`<button class="token" aria-label="${esc(g)}" aria-pressed="false" data-guest="${esc(g)}"[^>]*data-hint="room(Token|Pair)"`), `${g}'s portrait selects`);
-  assert.doesNotMatch(left, new RegExp(`data-guest="${esc(F)}"`), "the player's own portrait doesn't select");
+  // Every guest in a place has a portrait that selects them, the player's own included (Interface v0.16).
+  assert.ok(sp.some((p) => p.guests.includes(F)));
+  for (const p of sp) for (const g of p.guests) assert.match(left, new RegExp(`<button class="token" aria-label="${esc(g)}" aria-pressed="false" data-guest="${esc(g)}"[^>]*data-hint="room(Token|Pair)"`), `${g}'s portrait selects`);
+  // "You are here" on its own line under the place's name: after the name (and any door), taking the row's whole width.
+  assert.match(left, /<li class="place own" data-place="[^"]*"><span class="place-head"><span class="place-name"[^>]*>[^<]*<\/span><span class="place-own">You are here<\/span><\/span>/);
+  assert.match(readFileSync("web/src/app.css", "utf8"), /\.place-own \{[^}]*flex-basis: 100%/);
   // A private place: the closed-door mark, and its guests' portraits say so.
   const col = derive(at["speak:colloquio"]!);
   const priv = col.state!.places!.filter((p) => p.private);
@@ -717,7 +717,7 @@ test("the conversation line names the place: a group, a group of one, a Colloqui
   const col = derive(at["speak:colloquio"]!);
   const cOwn = col.state!.places!.find((p) => p.own)!;
   const other = (col.state!.conversation as { other: string }).other;
-  assert.ok(members(game({ v: col })).endsWith(`>${esc(`In ${cOwn.name}, aside with ${other}`)}`), members(game({ v: col })));
+  assert.ok(members(game({ v: col })).endsWith(`>${esc(`In ${cOwn.name}, in secret with ${other}`)}`), members(game({ v: col })));
   // Between seats (a Colloquio has ended, no place is yours yet): the conversation as before.
   const between: View = { ...col, state: { ...col.state!, places: col.state!.places!.map((p) => ({ ...p, own: false })) } };
   assert.doesNotMatch(members(game({ v: between })), /\bIn the /);
@@ -767,7 +767,9 @@ test("the errand card says what the errand earns: the reward with plot_reward on
     assert.match(card, new RegExp(`data-hint="${c.hover}"`), `${c.name}: the card's hover`);
     assert.ok(card.includes(esc(c.text)), `${c.name}: the line, from player.json`);
     if (c.kind === "status") assert.ok(!card.includes("errand-reward"), "the check's result replaces the line");
-    else assert.match(card, new RegExp(`class="errand-reward" data-reward="${c.kind}"`), c.name);
+    else assert.match(card, new RegExp(`class="errand-reward link" data-reward="${c.kind}"`), c.name);
+    // Interface v0.16: the line opens the rules (a button, with its own explanation).
+    assert.match(card, /<button class="errand-(reward|result) link"[^>]*data-hint="factLink"/, `${c.name}: the line opens the rules`);
   }
   // The hovers say the same as the lines.
   assert.match(PLAYER.screen.hints.errandReward, /last council before midnight.*extra act/);
@@ -787,7 +789,7 @@ test("the track's errand mark: on the deadline stage with plot_reward on, with i
   const h = game({ v: on });
   assert.equal((h.match(/class="errand-mark"/g) ?? []).length, 1);
   assert.match(h, /class="mark next deadline" aria-label="The last council"[^>]*><span class="errand-mark" role="img" aria-label="Your errand&#x27;s deadline"[^>]*data-hint="trackDeadline"/);
-  assert.equal(PLAYER.screen.hints.trackDeadline, "Your errand's deadline: finish it before this for an extra act at midnight.");
+  assert.equal(PLAYER.screen.hints.trackDeadline, "Your errand's deadline. Finish before this stage for an extra act at midnight.");
   assert.doesNotMatch(game({ v: flagged(base, { plotReward: false }) }), /errand-mark/, "a deadline but the flag off");
   assert.doesNotMatch(game({ v: flagged(base, { plotReward: true, deadline: "Not a stage" }) }), /errand-mark/, "a deadline the track doesn't have");
 });
@@ -1229,7 +1231,7 @@ test("the midnight line in the sheet: one act; with plot_reward on, +1 in the er
   for (const c of cases) {
     assert.equal(midnightLine(c.v.state).extra, c.extra, c.name);
     const h = sheet(c.v);
-    assert.ok(h.includes(`<div class="midnight-line"><div>${esc(words.acts)}</div>`), `${c.name}: one act`);
+    assert.match(h, new RegExp(`<div class="midnight-line"><button class="fact link" data-fact="midnight"[^>]*><span class="fact-label">${esc(words.acts).replace(/[()]/g, "\\$&")}</span></button>`), `${c.name}: one act`);
     if (c.extra) assert.ok(h.includes(`data-extra="${c.extra}">${esc(words[c.extra])}<`), `${c.name}: ${words[c.extra]}`);
     else assert.doesNotMatch(h, /midnight-extra/, `${c.name}: no second line`);
   }
@@ -1246,7 +1248,7 @@ test("the web's bar: one centered group, the arrow and the title, and only with 
   const v = derive(at["speak:capannello"]!);
   const bar = (h: string) => h.slice(h.indexOf('<button class="web-bar"'), h.indexOf("</button>", h.indexOf('<button class="web-bar"')));
   const none = bar(game({ v }));
-  assert.match(none, /<span class="web-bar-group"><span class="web-bar-arrow" aria-hidden="true">▲<\/span><span class="web-bar-title">The Web of Secrets<\/span><\/span>$/, "just the arrow and the title");
+  assert.match(none, /<span class="web-bar-group"><span class="web-bar-arrow" aria-hidden="true">▲<\/span><span class="web-bar-title">Web of Confidences<\/span><\/span>$/, "just the arrow and the title");
   const one = bar(game({ v, selected: { kind: "guest", name: "Lupo" } }));
   assert.match(one, /class="web-bar-dot"[^>]*>·<\/span><span class="web-bar-portraits"><span class="portrait small"[^>]*>L<\/span><\/span><span class="web-bar-sel">Lupo<\/span>/);
   const pair = bar(game({ v, web: ["Lupo", "Giorgia Pazzi"] }));
@@ -1258,7 +1260,7 @@ test("the web's bar: one centered group, the arrow and the title, and only with 
   assert.match(css, /\.web-bar \{[^}]*justify-content: center;/, "centered");
 });
 
-test("portraits select their guest wherever they appear; the player's own name or portrait opens their briefing", async () => {
+test("portraits select their guest wherever they appear, the player's own in the places too; their name and large portrait open their briefing", async () => {
   const { at } = await playedLog();
   const v = derive(at["speak:capannello"]!);
   const h = game({ v });
@@ -1269,10 +1271,14 @@ test("portraits select their guest wherever they appear; the player's own name o
   const right = h.slice(h.indexOf('class="side right'), h.indexOf('class="web-dock'));
   const others = v.state!.present.filter((p) => p !== talkingWith(v, F));
   assert.equal((right.slice(right.indexOf('class="tokens"')).match(/<button class="token"/g) ?? []).length, others.length, "a button per token");
-  // The player's own: opens the briefing, with the hover "Your briefing", never selects.
-  assert.match(left, /<button class="who me-briefing"[^>]*aria-description="Your briefing" data-hint="myBriefing"><span class="portrait large"/);
+  // The player's own name and large portrait at the top: open the briefing, with the hover "Your briefing".
+  // Interface v0.16: "You are …" over the role line (the public subtitle, until Characters writes a role), centred, with no "You" label.
+  assert.match(left, new RegExp(`<button class="who column me-briefing"[^>]*aria-description="Your briefing" data-hint="myBriefing"><span class="portrait large"[^>]*>[^<]*</span><span class="name">You are ${esc(F)}</span><span class="muted role">${esc(info.roster.find((r) => r.name === F)!.subtitle)}</span></button>`));
   assert.equal(PLAYER.screen.hints.myBriefing, "Your briefing");
-  assert.doesNotMatch(left, new RegExp(`data-guest="${F}"`), "the player's own portrait doesn't select");
+  assert.doesNotMatch(left, /<div class="label">You<\/div>/, "no You label");
+  // Their own portrait in the places selects them, like anyone's (Interface v0.16).
+  assert.match(left, new RegExp(`<button class="token" aria-label="${esc(F)}" aria-pressed="false" data-guest="${esc(F)}"`), "the player's own portrait selects them");
+  assert.match(game({ v, selected: { kind: "guest", name: F } }), new RegExp(`<section class="person look[^"]*" data-guest="${esc(F)}"`), "and the right panel shows their own card");
   assert.match(PLAYER.screen.hints.portrait, /\{name\}/);
 });
 
@@ -1406,7 +1412,7 @@ test("the tour: a card per step in Il Notaio's voice, in the doc's order, ending
   assert.doesNotMatch(game({ v }), /class="tour"/, "it starts in the browser, after the choice");
   assert.deepEqual(Object.keys(NOTAIO_PACK.tour.steps), ["sheet", "decks", "errand", "room", "stageBar", "conversation", "right", "web", "briefing"], "the doc's eight, then Your briefing");
   assert.equal(NOTAIO_PACK.tour.steps.briefing, "Start with your briefing.");
-  assert.ok(NOTAIO_PACK.tour.steps.conversation!.endsWith(" Speak as your character would, plainly. The other guests are played by AI, and they hear you as guests in 1492 would: modern slang, internet talk, or talk about the game itself will confuse them, and the evening may not play as it should."), "Interface v0.14, The Tour, step 6: the message box's card ends with the warning, word for word");
+  assert.ok(NOTAIO_PACK.tour.steps.conversation!.endsWith(" The other guests think it's 1492, so modern talk will confuse them."), "Interface v0.16, The Tour, step 6: the message box's card keeps the warning (v0.14), shorter");
   Object.keys(NOTAIO_PACK.tour.steps).forEach((key, i) => {
     const h = game({ v, tourStep: i });
     assert.deepEqual(missingWords(h), [], key);
@@ -1430,9 +1436,131 @@ test("Il Notaio's name, glossed wherever it shows: his notes, his hint, his read
   const h = game({ v, web: ["Lupo"] });
   assert.match(h, new RegExp(`<div class="ln notaio" data-line="\\w+"><span class="sp"><span class="narrator-name" tabindex="0" data-narrator="" ${hover.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`), "his notes in the stream");
   assert.match(h, /<button class="hint-head"[^>]*><span><span class="narrator-name"[^>]*>Il Notaio<\/span>, to you<\/span>/, "his hint");
-  assert.match(h, /<div class="reading-head"><span class="narrator-name"[^>]*>Il Notaio<\/span>&#x27;s reading\. He may be wrong\.<\/div>/, "his reading");
+  assert.match(h, /<div class="reading-head"><span class="narrator-name"[^>]*>Il Notaio<\/span>&#x27;s reading<\/div>/, "his reading");
   assert.equal(NOTAIO_PACK.name.hover, "Il Notaio: Italian for “the notary”. He records the evening and belongs to no faction.");
   assert.ok(info.glossary!.find((e) => e.term === "Il Notaio")!.text.startsWith(NOTAIO_PACK.name.gloss), "his glossary entry starts with the same gloss");
   assert.ok(NOTAIO_PACK.name.gloss.startsWith("Italian for"));
   assert.ok(!("orientation" in (info.words as object)) && !("start" in (info.words as { screen: object }).screen), "the start screen's words went with it");
+});
+
+// ---- CC-20261116-03 (#177): Interface v0.16's words, the left panel, and the world card ---------------------
+
+/** Every word in a pack file a player can see: its values, without the `_comment` keys. */
+const packWords = (file: string): string => JSON.stringify(JSON.parse(readFileSync(`setting/florence-1492/${file}`, "utf8"), (k, v) => (k.startsWith("_") ? undefined : v)));
+
+test("Interface v0.16's words: secret conversations, payments from France, the Web of Confidences, plain directions, and Il Notaio's plain hints", () => {
+  const s = PLAYER.screen;
+  const rows: [unknown, string][] = [
+    [s.withdrawals, "Secret conversations"],
+    [s.pensions, "Payments from France"],
+    [s.private, "Secret"],
+    [s.colloquio, "Secret conversation with {other}"],
+    [s.withYouPrivately, "In a secret conversation with you"],
+    [s.placeLine.colloquio, "In {place}, in secret with {other}"],
+    [s.places.private, "Secret conversation: behind a closed door"],
+    [s.move.colloquio, "Start a secret conversation…"],
+    [s.seat.colloquio, "Start a secret conversation…"],
+    [s.midnight.intro, "Choose your act for midnight."],
+    [s.midnight.introTwo, "Choose one or two acts for midnight."],
+    [s.errandCard.noReward, "Errands earn no extra act at midnight."],
+    [s.pastStage.summaryTitle, "{notaio}'s summary of this stage"],
+    [s.reading.title, "{notaio}'s reading"],
+    [s.input.waiting, "Your turn: speak or pass."],
+    [s.input.answering, "{name} spoke to you. Answer or pass."],
+    [s.input.closing, "{name} ended the conversation. Say a last word or pass."],
+    [s.input.used, "You've already spoken this turn."],
+    [s.input.held, "Your words will be said at the next pause."],
+    [s.input.closed, "Make your choice above."],
+    [s.youAre, "You are {name}"],
+    [s.seat.allFull, "Every group is full."],
+    [s.right.lookingAtSelf, "This is you"],
+    [s.right.youTag, "You"],
+    [s.web.title, "Web of Confidences"],
+    [s.right.openWeb, "Open in the Web of Confidences"],
+    [s.opening.choose, "Choose your family"],
+    [s.opening.fullGameOnly, "In the full game"],
+    [(JSON.parse(readFileSync("setting/florence-1492/player.json", "utf8")) as { refusals: Record<string, string> }).refusals.end_mistimed, "There's no secret conversation for you to end."],
+  ];
+  for (const [have, want] of rows) assert.equal(have, want);
+  // The examples: two lines, a comma before "or".
+  assert.equal(s.input.examples.length, 4);
+  for (const e of s.input.examples as { text: string }[]) assert.match(e.text, /^Speak as your character would…\n“@\{guest\} [^”]+”, or “\{command\}[^”]*”$/, e.text);
+  assert.ok((s.input.examples as { text: string }[]).some((e) => e.text.includes("My family never forgets, and rarely forgives")));
+  // No "Web of Secrets" a player can see, in either file; the glossary's term is renamed, and Colloquio stays the game's word.
+  for (const f of ["player.json", "notaio.json"]) assert.doesNotMatch(packWords(f), /Web of Secrets/, f);
+  assert.ok(PACK_GLOSSARY.some((g) => g.term === "Web of Confidences" && g.match.includes("Web of Confidences")));
+  assert.match(PACK_GLOSSARY.find((g) => g.term === "Colloquio")!.text, /^A secret conversation between two guests\./);
+  assert.match(PACK_GLOSSARY.find((g) => g.term === "/bribe")!.text, /the guest you're in a secret conversation with/);
+  assert.match(PACK_GLOSSARY.find((g) => g.term === "Move")!.text, /or start a secret conversation\.$/);
+  assert.match(PACK_GLOSSARY.find((g) => g.term === "Round of mingling")!.text, /start secret conversations\.$/);
+  // "Call aside", "withdrawn", and "a private word" are gone from what the player is told (his notes to the room keep their register).
+  assert.doesNotMatch(JSON.stringify(JSON.parse(packWords("player.json")).screen), /call(ed)? aside|withdrawn|private word|private talk|He may be wrong/i);
+  // Il Notaio's hints, plain.
+  assert.equal(NOTAIO.hints.mingling, "You're with other guests. Speak when it's your turn, or pass. Hover over anything to see what it does.");
+  assert.equal(NOTAIO.hints.seat, "Your secret conversation is over. Choose where to go next.");
+  assert.equal(NOTAIO.hints.colloquio, "You're in a secret conversation with {other}. No one else can hear you, but everyone saw you leave.");
+  assert.doesNotMatch(JSON.stringify(NOTAIO.hints), /private word|withdrawn|draw someone aside/);
+  // The explanations: the doc's table; `nextMove` and `generate` wait with their features (#177, items 4 and 4b).
+  const hints = Object.keys(s.hints).filter((k) => !k.startsWith("_"));
+  assert.equal(hints.length, 91);
+  for (const k of ["factLink", "lookingAtSelf"]) assert.ok(hints.includes(k), k);
+  for (const k of ["nextMove", "generate"]) assert.ok(!hints.includes(k), k);
+  assert.equal(s.hints.end, "End this secret conversation. The other guest gets a last word.");
+  assert.equal(s.hints.resize, "Drag to resize. Drag all the way in to hide.");
+});
+
+test("each line of the sheet opens the rules where it's explained (Interface v0.16): by its glossary word, from the pack; the glossary if no section explains it", async () => {
+  const { at } = await playedLog();
+  const v = derive(at["speak:capannello"]!);
+  const rules = rulesCards(v.sheet!.rules);
+  const links = PLAYER.screen.factLinks as Record<string, string>;
+  assert.deepEqual(Object.keys(links).filter((k) => !k.startsWith("_")), ["purse", "pensions", "withdrawals", "midnight", "errand"]);
+  for (const k of ["purse", "pensions", "withdrawals", "midnight"]) {
+    const l = factLink(links[k], info.glossary!, rules);
+    assert.equal(l?.deck, "rules", k);
+    const entry = info.glossary!.find((g) => g.term === links[k])!;
+    assert.ok(l?.deck === "rules" && entry.rules.map((t) => t.toLowerCase()).includes(rules[l.section]!.title.toLowerCase()), `${k}: the section behind ${links[k]}`);
+  }
+  // A word with no section behind it opens in the glossary; an unknown word leads nowhere.
+  assert.deepEqual(factLink("Errand", info.glossary!, rules), { deck: "glossary", search: "Errand" });
+  assert.equal(factLink("no such word", info.glossary!, rules), null);
+  assert.equal(rulesLink("Errand", info.glossary!, rules), null, "the primer has no section on errands yet");
+  assert.equal(rules[rulesLink("Midnight", info.glossary!, rules)!]!.title, "Midnight", "so the reward line opens Midnight");
+  // On the screen: the labels, each a button with the explanation; before the sheet arrives, plain lines.
+  const h = game({ v });
+  for (const [k, label] of [["purse", "Purse"], ["pensions", "Payments from France"], ["withdrawals", "Secret conversations"]]) assert.match(h, new RegExp(`<button class="fact link" data-fact="${k}" aria-description="Click for the rules on this\\." data-hint="factLink"><span class="fact-label">${label}</span><span class="fact-value">`), k);
+  assert.doesNotMatch(game({ v: derive([]) }), /class="fact link"/);
+  const css = readFileSync("web/src/app.css", "utf8");
+  assert.match(css, /button\.fact:hover \.fact-label[^{]*\{[^}]*text-decoration: underline/, "they underline on hover");
+});
+
+test("the errand card shows just the task (Interface v0.16): cut after its bold part; its card in the briefing is found by its own words", () => {
+  const briefings = castBriefings(fakeDocs);
+  const f = errandText(briefings[F]!);
+  assert.equal(errandTask(f), "This comes first: it is what you came for. Before the last council before midnight, **give Friar Tommaso at least 3 Florins in total**, in one gift or several.");
+  for (const [name, b] of Object.entries(briefings)) {
+    const errand = errandText(b!);
+    const task = errandTask(errand);
+    assert.ok(errand.startsWith(task.slice(0, -1)) && task.length <= errand.length, name);
+    assert.match(task, /\*\*[^*]+\*\*/, `${name}: the task keeps its bold part`);
+    assert.match(task, /[.!?](\*\*)?$/, `${name}: it ends on a full stop`);
+    // The errand's card in the briefing, by the errand's own words.
+    const cards = briefingCards(b!);
+    assert.equal(cards[errandCardAt(cards, errand)]!.title, "Your errand tonight", name);
+  }
+  assert.equal(errandTask("Find the letter."), "Find the letter.", "no bold part: the whole errand");
+  assert.equal(errandCardAt([], "x"), 0);
+});
+
+test("hovers about the world are a light card, apart from the dark explanations; its looks are theme tokens, light and dark", () => {
+  const css = readFileSync("web/src/app.css", "utf8");
+  assert.match(css, /\.tip\.world \{[^}]*background: var\(--world-bg\)[^}]*color: var\(--world-text\)[^}]*var\(--world-border\)[^}]*box-shadow: var\(--shadow-world\)/);
+  const theme = readFileSync("web/theme.css", "utf8");
+  const dark = theme.slice(theme.indexOf("prefers-color-scheme: dark"));
+  for (const t of ["--world-bg", "--world-text", "--world-border", "--shadow-world"]) {
+    assert.match(theme.slice(0, theme.indexOf("prefers-color-scheme: dark")), new RegExp(`${t}: `), `${t}, light`);
+    assert.match(dark, new RegExp(`${t}: `), `${t}, dark`);
+  }
+  // The explanations' switch governs only the explanations: nothing in the styles or the code stills motion by it.
+  assert.doesNotMatch(css, /hints-off|explanations-off/);
 });

@@ -45,17 +45,17 @@
   },
   "hints": {
     "_comment": "Il Notaio's hint to the player (TD v0.40, Il Notaio's hint): a line or two for what the moment asks, in a box under the stream, styled apart from his announcements. Templates only, no model calls. Drafted by Claude Code for Dylan's review (CC-20261112-03). `council` and `ballot` are for the full game. `errandDeadline` (TD v0.47): with plot_reward on, the last round before the errand's deadline, shown whether or not the errand is done.",
-    "mingling": "You're among the guests. Listen, and speak when the company turns to you, or pass. Hover over anything on the screen to learn what it's for.",
-    "answering": "{name} has spoken to you directly. An answer is expected, though silence says something too.",
-    "colloquio": "You and {other} have withdrawn for a private word. No one else hears you, but everyone saw you go.",
-    "move": "The company is shifting. Stay where you are, join another group, or draw someone aside for a private word.",
-    "seat": "Your private word is over. Find a group to join.",
-    "midnight": "Midnight. Choose your act in secret. Every act lands at once, and no killer is ever named.",
-    "council": "Your faction has gathered apart. Only your own people hear what is said here.",
-    "ballot": "The ballot. Every guest casts one vote, and may buy more for the same candidate.",
-    "refused": "That couldn't be done; the reason is just above your box. The / menu shows what you can do now.",
-    "errandDeadline": "This is the last round before the last council. To earn your errand's extra act at midnight, it must be finished before that council begins.",
-    "dead": "You have died. You can still read the web, what you heard and saw, and your notes, and you'll hear the city's announcements."
+    "mingling": "You're with other guests. Speak when it's your turn, or pass. Hover over anything to see what it does.",
+    "answering": "{name} spoke to you directly. Answer, or pass.",
+    "colloquio": "You're in a secret conversation with {other}. No one else can hear you, but everyone saw you leave.",
+    "move": "Your chance to move: stay, join another group, or start a secret conversation.",
+    "seat": "Your secret conversation is over. Choose where to go next.",
+    "midnight": "Midnight. Choose your act in secret. All acts happen at once, and no killer is named.",
+    "council": "Your faction is meeting alone. Only your own people can hear you.",
+    "ballot": "The ballot. Everyone casts one vote, and can buy more for the same candidate.",
+    "refused": "That didn't work. The reason is just above the message box. Type / to see what you can do now.",
+    "errandDeadline": "This is the last round before the last council. Finish your errand before that council to earn an extra act at midnight.",
+    "dead": "You've died. You can still read the web, what you heard and saw, and your notes, and you'll hear the city's announcements."
   },
   "reading": {
     "_comment": "TD v0.44, Il Notaio's reading in the Web of Secrets: the prompt in TD names him and his trade in its own words; these replace them when the prompt is loaded. His name is in-world-names.json's narrator.",
@@ -103,14 +103,14 @@
   "tour": {
     "_comment": "Interface v0.8, The Tour: one card per part of the screen, in Il Notaio's voice, in the tour's order. `conversation` is step 6, the message box's card (#151 adds the warning there, Interface v0.14). `briefing` is the last: the Your briefing button, which starts the evening. Drafted by Claude Code (CC-20261114-10) for Dylan's review.",
     "steps": {
-      "sheet": "This is you: your purse, the payments you've taken, how often you've drawn someone aside, and what you may do at midnight. Click your name or portrait for your briefing.",
-      "decks": "Your briefing, the rules of the evening, what the whole city knows, and a glossary of the evening's words. Each opens over the room, and each keeps your place.",
-      "errand": "Your errand: what you came to do tonight. It stays pinned here, and once it's been judged, the result shows here too.",
-      "room": "The room: who stands with whom. You see every group, and who has slipped away in private, but never what they say. Click a portrait to look at that guest.",
-      "stageBar": "The evening, stage by stage. The long one is now. Click an earlier one to read it again; nothing can be said from there.",
-      "conversation": "The conversation you're in, and your box beneath it. Type what your character says, and Speak. Begin with @ to address one guest, or / for what you may do instead of speaking. Speak as your character would, plainly. The other guests are played by AI, and they hear you as guests in 1492 would: modern slang, internet talk, or talk about the game itself will confuse them, and the evening may not play as it should.",
-      "right": "Whoever has your ear, or whoever you've chosen to look at: only what everyone at the party knows of them.",
-      "web": "The Web of Secrets: who is tied to whom, what you heard and saw of each guest, and your own notes. Click the bar to raise it.",
+      "sheet": "This is you: your money, your payments from France, and your secret conversations. Click any line to learn more.",
+      "decks": "Your briefing, the rules, what the city knows, and the game's words.",
+      "errand": "Your errand: the one thing you came to do tonight.",
+      "room": "Every place in the house, and who's in it. You can see who's together, but not hear them.",
+      "stageBar": "The evening, stage by stage. Click an earlier stage to read it again.",
+      "conversation": "Type what your character says, then click Speak. Start with @ to talk to one guest, or / to act. The other guests think it's 1492, so modern talk will confuse them.",
+      "right": "The guest you're talking with, or the one you clicked. Only what everyone knows.",
+      "web": "The Web of Confidences: who's connected, what you've heard, and your notes.",
       "briefing": "Start with your briefing."
     }
   }

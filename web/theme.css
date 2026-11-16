@@ -190,6 +190,11 @@
   --do-lit: var(--accent);
   --tip-bg: #2a2a27;
   --tip-text: #f6f6f4;
+  /* Interface v0.16: the light "world" card, for hovers about the world rather than the screen */
+  --world-bg: #fffdf8;
+  --world-text: #1d1d1b;
+  --world-border: #d8c79a;
+  --shadow-world: 0 4px 14px rgba(20, 20, 18, 0.2);
   --errand-bg: #fbf6ea;
   --errand-border: #d8c79a;
   --errand-accent: #7a5a12;
@@ -247,6 +252,10 @@
     --do-text: #1a1224;
     --tip-bg: #ecece8;
     --tip-text: #1d1d1b;
+    --world-bg: #2a2925;
+    --world-text: #ecece8;
+    --world-border: #6b5d38;
+    --shadow-world: 0 4px 18px rgba(0, 0, 0, 0.55);
     --errand-bg: #2a261b;
     --errand-border: #6b5d38;
     --errand-accent: #e0c27e;
