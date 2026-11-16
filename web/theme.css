@@ -55,6 +55,15 @@
   --text-notaio-title: 0.875rem;
   /* More Below, smaller than the smallest labels */
   --text-more: 0.625rem;
+  /* Interface v0.17, the modals: their reading text a little larger than the screen's, with more room between its
+     lines; the briefing's tabs, which are its cards' titles; the glossary's terms, a step down from 15px */
+  --text-modal: 0.9375rem;
+  --line-height-modal: 1.6;
+  --text-tab: 1rem;
+  --text-term: 0.875rem;
+  /* The rules' numerals, in a serif, on a small round badge */
+  --font-numeral: var(--font-guest);
+  --numeral-size: 26px;
   --line-height: 1.45;
   --tracking-label: 0.06em;
   --weight-normal: 400;
@@ -143,7 +152,6 @@
   --node-focus-dash: 0.8 0.6;
   /* Il Notaio's reading opens a seventh of the way down the column */
   --reading-top: 14.3%;
-  --deck-card-min-height: 220px;
   /* The rules' section buttons (Interface v0.5), and how small a section starts as it grows */
   --rules-button-width: 180px;
   --rules-button-height: 64px;
@@ -280,12 +288,54 @@
   --motion-card: 220ms;
   --card-follow: 80ms;
   --cover-shadow-room: 12px;
-  /* Interface v0.7: the four modals in a row. The open one, and at each side a slice of its neighbour, its
-     outer side faded out; a move slides the row along */
-  --deck-height: min(var(--modal-max-height), 640px);
-  --modal-peek-width: 150px;
+  /* Interface v0.7; v0.17: the four modals in a row, the open one between its neighbours. The row keeps clear of the
+     screen's edges (3% of the window, 24 to 64px) and of the Web of Confidences' bar, and the modals of the top and
+     bottom (less in a window under 760px tall, below). A move slides the row along. */
+  --modal-edge: clamp(24px, 3cqw, 64px);
+  --modal-margin-y: 24px;
+  --modal-full-height: 640px;
+  --deck-height: min(var(--modal-full-height), calc(var(--screen-height) - var(--web-bar-height) - var(--modal-margin-y) * 2));
   --modal-row-gap: 16px;
   --modal-slide: 48px;
+  /* Rounder corners on the modal, the whole side modals, and an open rules section's card */
+  --radius-modal: 30px;
+  /* The screen behind an open modal is dimmed and softly blurred */
+  --blur-behind: 5px;
+  /* The side modals, in two sizes by the room beside the modal in focus. From --break-side-modals wide: the whole
+     previous and next modals, drawn still, scaled to fit the room (never more than 80% of the modal in focus) and evenly
+     blurred. Narrower: two paddles, as tall as the whole side modals were when they gave way, the title on end. The row
+     is never narrower than the modal and both paddles: below that the overlay scrolls sideways. */
+  --break-side-modals: 1408px;
+  --side-modal-most: 0.8;
+  --side-modal-room: calc((100cqw - var(--modal-edge) * 2 - var(--modal-width) - var(--modal-row-gap) * 2) / 2);
+  --side-modal-scale: min(var(--side-modal-most), tan(atan2(var(--side-modal-room), var(--modal-width))));
+  --blur-side: 3.5px;
+  --paddle-width: 40px;
+  --paddle-height: calc(var(--deck-height) * 0.55);
+  --modal-row-min: calc(var(--modal-width) + (var(--paddle-width) + var(--modal-row-gap)) * 2);
+  /* A hovered side modal or paddle: a thin ring in the accent; a clicked paddle flashes for about two-thirds of a second */
+  --side-ring: 2px;
+  --motion-paddle-flash: 660ms;
+  /* Inside every modal: one number scales the margins round the header, the tabs, the content, and the footer; the
+     reading text sits further in still. */
+  --modal-pad: 28px;
+  --modal-pad-header: calc(var(--modal-pad) * 0.75);
+  --modal-pad-foot: calc(var(--modal-pad) * 0.6);
+  --modal-pad-text: calc(var(--modal-pad) * 1.6);
+  /* Edges that fade where there's more to scroll */
+  --scroll-fade: 36px;
+  --mask-more-below: linear-gradient(to bottom, #000 calc(100% - var(--scroll-fade)), transparent);
+  --mask-more-above: linear-gradient(to bottom, transparent, #000 var(--scroll-fade));
+  --mask-more-both: linear-gradient(to bottom, transparent, #000 var(--scroll-fade), #000 calc(100% - var(--scroll-fade)), transparent);
+  /* Lists in the modals' text: a hanging indent, a little room around them, a small dot in the accent or quiet bold numerals */
+  --list-indent: 22px;
+  --list-dot: 5px;
+  /* Behind an open rules section the buttons are slightly blurred, and the dimmed backdrop fades in at its top and bottom (Interface v0.18) */
+  --blur-rules: 2.5px;
+  --rules-backdrop-fade: 22px;
+  --mask-rules-backdrop: linear-gradient(to bottom, transparent, #000 var(--rules-backdrop-fade), #000 calc(100% - var(--rules-backdrop-fade)), transparent);
+  /* The city's stuck subject heading: a fade under it */
+  --city-heading-fade: 10px;
   /* Interface v0.7, the opening: how fast Il Notaio writes (a character at a time), the pause before the next
      paragraph, the page's width, and his pen */
   --opening-comma: 260ms;
@@ -333,7 +383,7 @@
   --to-you-bg: #eef2f9;
   --overlay: rgba(20, 20, 18, 0.45);
   /* Behind an open rules section, over the buttons; the breathing outline's colour */
-  --rules-backdrop: rgba(20, 20, 18, 0.28);
+  --rules-backdrop: rgba(20, 20, 18, 0.26);
   --breathe-colour: rgba(58, 90, 140, 0.5);
   --portrait-text: #ffffff;
   --do: #5a3a8c;
@@ -381,6 +431,14 @@
   --faction-5: #5a5a5a;
 }
 
+/* Interface v0.17, Screen Sizes: short screens. In a window under 760px tall, the modals' top and bottom margins come in. */
+@media (max-height: 759px) {
+  :root {
+    --modal-margin-y: 8px;
+    --modal-pad: 22px;
+  }
+}
+
 /* Interface v0.17, Screen Sizes: the smallest labels are a pixel larger from an 1800-pixel window up (11 to 12px; More Below 10 to 11px) */
 @media (min-width: 1800px) {
   :root {
@@ -416,7 +474,7 @@
     --notaio-bg: #1f2a24;
     --to-you-bg: #1f2633;
     --overlay: rgba(0, 0, 0, 0.6);
-    --rules-backdrop: rgba(0, 0, 0, 0.45);
+    --rules-backdrop: rgba(0, 0, 0, 0.4);
     --breathe-colour: rgba(143, 176, 230, 0.55);
     --do: #c3a6ee;
     --do-text: #1a1224;

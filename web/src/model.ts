@@ -499,6 +499,41 @@ export function playerRules(pack: unknown, values: RulesValues, opts: { plotRewa
   });
 }
 
+/** A rules section's numeral (Interface v0.17): I, II, III, … for its place, counted from one. */
+export function roman(n: number): string {
+  const marks: [number, string][] = [[1000, "M"], [900, "CM"], [500, "D"], [400, "CD"], [100, "C"], [90, "XC"], [50, "L"], [40, "XL"], [10, "X"], [9, "IX"], [5, "V"], [4, "IV"], [1, "I"]];
+  let out = "";
+  let left = Math.max(0, Math.floor(n));
+  for (const [value, mark] of marks) for (; left >= value; left -= value) out += mark;
+  return out;
+}
+
+/** A block of a modal's reading text (Interface v0.17): running text, or a list its lines spelled out ("- …" a bullet, "1. …" a number). */
+export type ProseBlock = { kind: "text"; text: string } | { kind: "bullets" | "numbers"; items: string[] };
+
+/**
+ * A modal's text as blocks: lines that start "- " together make a bulleted list, lines that start "1." (any
+ * number) a numbered one; everything else is running text, kept as written. The blank lines right before and
+ * after a list are dropped, since the list has its own room.
+ */
+export function proseBlocks(text: string): ProseBlock[] {
+  const out: ProseBlock[] = [];
+  const kindOf = (line: string) => (/^\s*[-•]\s+\S/.test(line) ? "bullets" : /^\s*\d+[.)]\s+\S/.test(line) ? "numbers" : "text");
+  for (const line of text.split("\n")) {
+    const kind = kindOf(line);
+    const last = out.at(-1);
+    if (kind === "text") {
+      if (last?.kind === "text") last.text += `\n${line}`;
+      else out.push({ kind, text: line });
+    } else {
+      const item = line.replace(/^\s*(?:[-•]|\d+[.)])\s+/, "");
+      if (last?.kind === kind) last.items.push(item);
+      else out.push({ kind, items: [item] });
+    }
+  }
+  return out.map((b) => (b.kind === "text" ? { ...b, text: b.text.replace(/^\n+|\n+$/g, "") } : b)).filter((b) => b.kind !== "text" || b.text !== "");
+}
+
 /** The city: one card per public lore entry, grouped by subject (entries without one last), then by title. */
 export function cityCards(lore: LoreEntry[]): Card[] {
   const key = (e: LoreEntry) => [e.subject === null ? 1 : 0, e.subject ?? "", e.title] as const;

@@ -15,6 +15,7 @@ A curated slice of the probe logs. The raw logs (hundreds of MB of prompts and r
 | [voice-check/](voice-check/) | TD v0.29's voice check: Dylan's blind read only, 15 spoken lines from v0.27 and 15 from v0.29, unlabelled. The key and the admission readings stay unpublished until the read is done. Written by `npm run minigame:voice` |
 | [minigame/](minigame/) | Watchable mini-games: each `game-<id>.view.html` is the replay viewer with one game's replay record embedded (no model calls, seeds, or provider details). Open it in a browser. Written by `npm run minigame:view` |
 | [sites/](sites/) | Replays ready to deploy as websites: each folder is one game's `index.html` (the viewer with the game embedded, plus link-preview tags for the site's address) and `preview.png`, the 1200×630 image link previews show. Each is live on Netlify; the sites are listed below. Written by `npm run minigame:view -- <record> --site <url>` |
+| [screen/v0.18/](screen/v0.18/) | Screenshots of the player screen built to Interface v0.18 (#179), taken by `test/browser.test.ts` on the fake game (no model calls; the guests' lines are the fake caller's placeholders): the screen at 1024×700, 1440×900, and 1920×1080, the side modals' two sizes, an open rules section, a briefing card with a list, the Web of Confidences, the phone note, and the long-labels check |
 
 **Hosted replays** (deployed with the Netlify CLI from `sites/`):
 

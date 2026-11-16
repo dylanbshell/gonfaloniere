@@ -139,7 +139,7 @@ test("a deck opens over the screen: the input box is under it everywhere, and th
       return hits;
     };
     const m = document.querySelector(".modal").getBoundingClientRect();
-    return { overInput: grid(document.querySelector(".input").getBoundingClientRect(), ".overlay"), overModal: grid(m, ".modal"), inView: m.top >= 0 && m.bottom <= innerHeight };
+    return { overInput: grid(document.querySelector(".input").getBoundingClientRect(), ".overlay"), overModal: grid(m, ".overlay"), inView: m.top >= 0 && m.bottom <= innerHeight };
   })()`);
   await page.shot("deck");
   assert.deepEqual([...new Set(r.overInput)], ["deck"], "everywhere over the input box, the deck's layer is on top");
@@ -556,7 +556,7 @@ test("the left panel (Interface v0.16): the switches centred at the top; You are
   for (const fact of ["purse", "pensions", "withdrawals", "midnight"]) {
     await page.eval(`document.querySelector('.side.left [data-fact="${fact}"]').click()`);
     await page.until(`document.querySelector(".modal.deck-rules section.rules-section.open")`);
-    const title = await page.eval<string>(`document.querySelector(".modal.deck-rules section.rules-section.open h3").textContent`);
+    const title = await page.eval<string>(`document.querySelector(".modal.deck-rules section.rules-section.open").getAttribute("aria-label")`);
     const behind = pack.glossary.entries.find((e) => e.term === pack.screen.factLinks[fact])!.rules!.map((r) => r.toLowerCase());
     assert.ok(behind.includes(title.toLowerCase()), `${fact} opens ${title}`);
     await page.eval(`document.querySelector(".deck-close").click()`);
@@ -568,15 +568,16 @@ test("the left panel (Interface v0.16): the switches centred at the top; You are
   await page.shot("left-v016");
   // Clicking it opens the briefing at the errand's card.
   await page.eval(`document.querySelector(".side.left .errand-text").click()`);
-  await page.until(`document.querySelector(".modal.deck-briefing .deck-card h3")`);
-  assert.equal(await page.eval<string>(`document.querySelector(".modal.deck-briefing .deck-card h3").textContent`), "Your Errand Tonight");
+  await page.until(`document.querySelector(".modal.deck-briefing .deck-card")`);
+  assert.equal(await page.eval<string>(`document.querySelector(".modal.deck-briefing .tab.on").textContent`), "Your Errand Tonight", "the tab is the card's title (Interface v0.17)");
+  assert.equal(await page.eval<boolean>(`!!document.querySelector(".modal.deck-briefing .deck-card h3")`), false, "the card doesn't repeat it");
   assert.ok((await page.eval<string>(`document.querySelector(".modal.deck-briefing .deck-card").textContent`)).includes("a gift to the friars that the city will hear of"), "the reasons stay in the briefing");
   await page.key("Escape", 27);
   await page.until(`!document.querySelector(".overlay")`);
   // Its reward line opens the rules on errands: the player's own rules have Your Errand (Interface v0.17).
   await page.eval(`document.querySelector(".side.left .errand-reward").click()`);
   await page.until(`document.querySelector(".modal.deck-rules section.rules-section.open")`);
-  assert.equal(await page.eval<string>(`document.querySelector(".modal.deck-rules section.rules-section.open h3").textContent`), "Your Errand");
+  assert.equal(await page.eval<string>(`document.querySelector(".modal.deck-rules section.rules-section.open").getAttribute("aria-label")`), "Your Errand");
   await page.eval(`document.querySelector(".deck-close").click()`);
   await page.until(`!document.querySelector(".overlay")`);
 });
@@ -1431,22 +1432,23 @@ test("the rules: a button per section filling the modal, staying in view; a sect
   const fill = await page.eval<number>(`(() => { const m = document.querySelector(".deck-rules .rules-body").getBoundingClientRect(), g = document.querySelector(".rules-buttons").getBoundingClientRect(); return g.width / m.width; })()`);
   assert.ok(fill > 0.85, "the buttons fill the modal's width");
   await page.shot("rules-buttons");
-  const title = await page.eval<string>(`document.querySelectorAll(".deck-rules button.rules-section")[1].textContent`);
+  const title = await page.eval<string>(`document.querySelectorAll(".deck-rules button.rules-section .rules-name")[1].textContent`);
   await page.eval(`document.querySelectorAll(".deck-rules button.rules-section")[1].click()`);
   await page.until(`document.querySelector(".deck-rules section.rules-section.open")`);
-  assert.equal(await page.eval<string>(`document.querySelector(".deck-rules section.rules-section h3").textContent`), title);
+  assert.equal(await page.eval<string>(`document.querySelector(".deck-rules section.rules-section.open").getAttribute("aria-label")`), title);
   // Interface v0.16: the buttons stay in view, and the section is a card over them.
+  await page.until(`document.querySelector(".deck-rules section.rules-section.open").getAnimations().length === 0`);
   const over = await page.eval<{ buttons: number; inert: boolean; inside: boolean; shadow: boolean }>(`(() => { const body = document.querySelector(".deck-rules .rules-body").getBoundingClientRect(), c = document.querySelector(".deck-rules section.rules-section.open"), b = c.getBoundingClientRect(); return { buttons: document.querySelectorAll(".deck-rules button.rules-section").length, inert: document.querySelector(".rules-buttons").inert, inside: b.left > body.left && b.right < body.right && b.top > body.top && b.bottom < body.bottom, shadow: getComputedStyle(c).boxShadow !== "none" }; })()`);
   assert.deepEqual(over, { buttons, inert: true, inside: true, shadow: true }, "the buttons stay in view, behind the card");
   await page.shot("rules-section");
-  const sectionTitle = () => page.eval<string | null>(`document.querySelector(".deck-rules section.rules-section.open h3")?.textContent ?? null`);
-  const titles = await page.eval<string[]>(`[...document.querySelectorAll(".deck-rules button.rules-section")].map((b) => b.textContent)`);
+  const sectionTitle = () => page.eval<string | null>(`document.querySelector(".deck-rules section.rules-section.open")?.getAttribute("aria-label") ?? null`);
+  const titles = await page.eval<string[]>(`[...document.querySelectorAll(".deck-rules button.rules-section .rules-name")].map((b) => b.textContent)`);
   // A click on the card turns to the next section; the footer's buttons go back and forth.
   await page.eval(`document.querySelector(".deck-rules section.rules-section.open .deck-text").click()`);
-  await page.until(`document.querySelector(".deck-rules section.rules-section.open h3").textContent === ${JSON.stringify(titles[2])}`);
+  await page.until(`document.querySelector(".deck-rules section.rules-section.open").getAttribute("aria-label") === ${JSON.stringify(titles[2])}`);
   assert.deepEqual(await page.eval<string[]>(`[...document.querySelectorAll(".deck-rules .deck-foot button")].map((b) => b.textContent)`), ["← Previous Rule", "Next Rule →"]);
   await page.eval(`document.querySelector(".deck-rules .deck-prev").click()`);
-  await page.until(`document.querySelector(".deck-rules section.rules-section.open h3").textContent === ${JSON.stringify(titles[1])}`);
+  await page.until(`document.querySelector(".deck-rules section.rules-section.open").getAttribute("aria-label") === ${JSON.stringify(titles[1])}`);
   assert.equal(await page.eval<boolean>(`document.querySelector(".deck-rules section.rules-section.open").classList.contains("from-left")`), true, "going back, it slides in from the left");
   // Its × goes back to the buttons; so does Escape, and a click outside the card. The modal stays open.
   await page.eval(`document.querySelector('[data-hint="rulesShrink"]').click()`);
@@ -1770,57 +1772,181 @@ const HINTS_OFF = async (off: boolean) => {
   if (on === off) await page.eval(`document.querySelector('[data-hint="switch"]').click()`);
 };
 
-test("four modals in a row (Interface v0.16): solid neighbours with one-line summaries, the title centred; clicking one moves to it at its beginning; nothing before the first or after the last; Escape closes", { skip }, async () => {
+test("four modals in a row (Interface v0.16; v0.17): the title centred, Close at the right; in a narrower window two paddles, the title on end with an arrow; clicking one moves to that modal at its beginning, and flashes; nothing before the first or after the last; Escape closes", { skip }, async () => {
   await reopen();
   await page.until(`!document.querySelector('[data-hint="glossary"]').disabled`);
+  const clickAt = async (sel: string) => {
+    const at = await page.eval<{ x: number; y: number }>(`(() => { const b = document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; })()`);
+    for (const type of ["mousePressed", "mouseReleased"]) await page.send("Input.dispatchMouseEvent", { type, ...at, button: "left", clickCount: 1 });
+  };
   const row = () =>
-    page.eval<{ open: string; left: string | null; right: string | null; solid: boolean; summaries: string[]; inView: boolean; centred: boolean; closeRight: boolean }>(`(() => {
-      const m = document.querySelector(".modal.deck"), l = document.querySelector(".modal-peek.left"), r = document.querySelector(".modal-peek.right");
+    page.eval<{ open: string; left: string | null; right: string | null; paddles: { title: string; arrow: string; width: number; tall: number; colour: boolean; corner: string; mode: string; whole: boolean }[]; inView: boolean; centred: boolean; closeRight: boolean; width: number; corner: string; clearOfBar: boolean; blur: string }>(`(() => {
+      const m = document.querySelector(".modal.deck"), l = document.querySelector(".modal-side.left"), r = document.querySelector(".modal-side.right");
       const b = m.getBoundingClientRect(), h = m.querySelector("header h2").getBoundingClientRect(), c = m.querySelector(".deck-close").getBoundingClientRect();
-      const peeks = [l, r].filter((p) => !p.classList.contains("empty"));
+      const sides = [l, r].filter((p) => !p.classList.contains("empty"));
       return { open: [...m.classList].find((c) => c.startsWith("deck-")).slice(5), left: l.dataset.deck ?? null, right: r.dataset.deck ?? null,
-        solid: peeks.every((p) => getComputedStyle(p).maskImage === "none" && getComputedStyle(p).opacity === "1" && getComputedStyle(p.querySelector(".peek-frame")).opacity === "1" && getComputedStyle(p).backgroundColor === getComputedStyle(m).backgroundColor),
-        summaries: peeks.map((p) => p.querySelector(".peek-summary").textContent),
+        paddles: sides.map((p) => { const pad = p.querySelector(".paddle"), pb = p.getBoundingClientRect(); return { title: pad.querySelector(".paddle-title").textContent, arrow: pad.querySelector(".paddle-arrow").textContent, width: pb.width, tall: pb.height / b.height, colour: getComputedStyle(pad).backgroundColor === getComputedStyle(m).backgroundColor && getComputedStyle(pad).opacity === "1", corner: getComputedStyle(pad).borderTopLeftRadius, mode: getComputedStyle(pad.querySelector(".paddle-title")).writingMode, whole: getComputedStyle(p.querySelector(".side-whole")).display !== "none" }; }),
         inView: b.left >= 0 && b.right <= innerWidth && b.top >= 0 && b.bottom <= innerHeight,
-        centred: Math.abs(h.left + h.width / 2 - (b.left + b.width / 2)) < 2, closeRight: b.right - c.right < 24 };
+        centred: Math.abs(h.left + h.width / 2 - (b.left + b.width / 2)) < 2 && Math.abs(b.left + b.width / 2 - innerWidth / 2) < 2, closeRight: b.right - c.right < 40, width: b.width, corner: getComputedStyle(m).borderTopLeftRadius,
+        clearOfBar: b.bottom <= document.querySelector(".web-bar").getBoundingClientRect().top, blur: getComputedStyle(document.querySelector(".modal-overlay")).backdropFilter };
     })()`);
-  const summary = (JSON.parse(readFileSync("setting/florence-1492/player.json", "utf8")) as { screen: { modalRow: { summary: Record<string, string> } } }).screen.modalRow.summary;
   await page.eval(`document.querySelector('[data-hint="briefing"]').click()`);
   await page.until(`document.querySelector(".deck-briefing .deck-card")`);
   let r = await row();
   assert.deepEqual([r.open, r.left, r.right], ["briefing", null, "rules"], "nothing to the briefing's left");
-  assert.ok(r.inView && r.centred && r.closeRight, "the title centred, Close at the right");
-  assert.deepEqual(r.summaries, [summary.rules]);
-  // The briefing's second card. The arrow keys still turn it.
+  assert.ok(r.inView && r.centred && r.closeRight, "the modal centred, its title centred, Close at the right");
+  // Interface v0.17: 640px wide with 30px corners, clear of the Web of Confidences' bar, the screen behind softly blurred.
+  assert.deepEqual([r.width, r.corner, r.clearOfBar, r.blur], [640, "30px", true, "blur(5px)"]);
+  // In this window (1200px) the side modal is a paddle: 40px wide, 55% of the modal's height, the modal's colour, the title on end, an arrow below.
+  assert.deepEqual(r.paddles.map((p) => [p.title, p.arrow, p.width, p.colour, p.corner, p.mode, p.whole]), [["The Rules", "›", 40, true, "12px", "vertical-rl", false]]);
+  assert.ok(Math.abs(r.paddles[0]!.tall - 0.55) < 0.01, `as tall as the whole side modals were when they gave way (${r.paddles[0]!.tall})`);
+  // The right paddle's title reads bottom to top, so both face the middle.
+  assert.notEqual(await page.eval<string>(`getComputedStyle(document.querySelector(".modal-side.right .paddle-title")).transform`), "none");
+  await page.shot("modal-paddle-briefing");
+  // Hovering lights its title in the accent and rings it.
+  const accent = await page.eval<string>(`(() => { const p = document.createElement("i"); p.style.color = "var(--accent)"; document.body.append(p); const c = getComputedStyle(p).color; p.remove(); return c; })()`);
+  const over = await page.eval<{ x: number; y: number }>(`(() => { const b = document.querySelector(".modal-side.right").getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + 20 }; })()`);
+  await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...over });
+  await page.until(`getComputedStyle(document.querySelector(".modal-side.right .paddle-title")).color === ${JSON.stringify(accent)}`);
+  assert.notEqual(await page.eval<string>(`getComputedStyle(document.querySelector(".modal-side.right")).boxShadow`), "none", "a thin ring");
+  await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 2, y: 2 });
+  // The briefing's second card. The arrow keys still turn it (the still neighbours take no keys).
   await page.key("ArrowRight", 39);
-  await page.until(`document.querySelectorAll(".deck .tab")[1].classList.contains("on")`);
-  // Along the row: rules, city, glossary, each with its solid neighbours and their one-line summaries, each at its beginning.
+  await page.until(`document.querySelectorAll(".modal.deck .tab")[1].classList.contains("on")`);
+  // Along the row: rules, city, glossary, each between its paddles, each at its beginning. A clicked paddle flashes.
   for (const [want, left, right] of [["rules", "briefing", "city"], ["city", "rules", "glossary"], ["glossary", "city", null]] as const) {
     await page.until(`document.querySelector(".modal.deck").getAnimations().length === 0`);
-    await clickAt(".modal-peek.right");
+    await clickAt(".modal-side.right");
     await page.until(`document.querySelector(".modal.deck-${want}")`);
+    if (right) assert.equal(await page.eval<boolean>(`document.querySelector(".modal-side.right").classList.contains("flash")`), true, `${want}: the clicked paddle flashes`);
+    // Once the modal has arrived and the flash has gone (about two-thirds of a second, then its colour settling).
+    await page.until(`document.querySelector(".modal.deck").getAnimations().length === 0 && !document.querySelector(".modal-side.flash") && [...document.querySelectorAll(".paddle")].every((p) => p.getAnimations().length === 0)`);
     r = await row();
     assert.deepEqual([r.open, r.left, r.right], [want, left, right], want);
-    assert.ok(r.solid, `${want}: its neighbours are solid, not see-through`);
-    assert.deepEqual(r.summaries, [summary[left], ...(right ? [summary[right]] : [])], `${want}: one line each on what they are`);
+    assert.deepEqual(r.paddles.map((p) => p.arrow), right ? ["‹", "›"] : ["‹"], `${want}: the paddles' arrows`);
+    assert.ok(r.paddles.every((p) => p.colour && p.width === 40 && !p.whole), `${want}: paddles, the same colour as the modal`);
     assert.ok(r.centred && r.closeRight, want);
     await page.shot(`modal-row-${want}`);
   }
   // Nothing to the glossary's right: no neighbour there to move to.
-  assert.equal(await page.eval<boolean>(`document.querySelector(".modal-peek.right").matches(".empty:not([role])")`), true, "nothing right of the glossary");
+  assert.equal(await page.eval<boolean>(`document.querySelector(".modal-side.right").matches(".empty:not([role])")`), true, "nothing right of the glossary");
   // Back along: left to the briefing, which starts from its beginning again (Interface v0.16).
   for (const want of ["city", "rules", "briefing"]) {
     // Once the row has stopped sliding (the open one passes over its neighbour as it comes in).
     await page.until(`document.querySelector(".modal.deck").getAnimations().length === 0`);
-    await clickAt(".modal-peek.left");
+    await clickAt(".modal-side.left");
     await page.until(`document.querySelector(".modal.deck-${want}")`);
     assert.equal(await page.eval<boolean>(`document.querySelector(".modal.deck").classList.contains("from-left")`), true, `${want}: it comes in from the left`);
   }
-  assert.equal(await page.eval<boolean>(`document.querySelectorAll(".deck .tab")[0].classList.contains("on")`), true, "every modal starts from its beginning when you move to it");
-  assert.equal(await page.eval<boolean>(`document.querySelector(".modal-peek.left").matches(".empty:not([role])")`), true, "nothing left of the briefing");
+  assert.equal(await page.eval<boolean>(`document.querySelectorAll(".modal.deck .tab")[0].classList.contains("on")`), true, "every modal starts from its beginning when you move to it");
+  assert.equal(await page.eval<boolean>(`document.querySelector(".modal-side.left").matches(".empty:not([role])")`), true, "nothing left of the briefing");
   await page.key("Escape", 27);
   await page.until(`!document.querySelector(".overlay")`);
 });
+
+test("the side modals' two sizes (Interface v0.17), by the room beside the modal in focus: from 1408px the whole previous and next modals, drawn still at their start, scaled to fit and never more than 80% of the modal in focus, evenly blurred, their titles flat at full size toward the middle; narrower, paddles; below the row's least width the overlay scrolls sideways; in a short window the margins come in", { skip }, async () => {
+  await reopen();
+  await page.until(`!document.querySelector('[data-hint="rules"]').disabled`);
+  const sides = () =>
+    page.eval<{ modal: { w: number; h: number; top: number; bottom: number; mid: number }; sides: { deck: string; at: string; whole: boolean; paddle: boolean; w: number; h: number; scale: number; blur: string; colour: boolean; corner: string; inert: boolean; title: string; titleSize: number; titleToward: number; titleHidden: boolean; start: string; ring: boolean }[]; bar: number; scrolls: boolean }>(`(() => {
+      const m = document.querySelector(".modal.deck"), b = m.getBoundingClientRect(), h2 = parseFloat(getComputedStyle(m.querySelector("header h2")).fontSize);
+      return { modal: { w: b.width, h: b.height, top: b.top, bottom: b.bottom, mid: b.left + b.width / 2 }, bar: document.querySelector(".web-bar").getBoundingClientRect().top, scrolls: (() => { const o = document.querySelector(".modal-overlay"); return o.scrollWidth > o.clientWidth + 1; })(),
+        sides: [...document.querySelectorAll(".modal-side:not(.empty)")].map((s) => { const r = s.getBoundingClientRect(), whole = s.querySelector(".side-whole"), scaled = s.querySelector(".side-scaled"), still = s.querySelector(".still-modal"), t = s.querySelector(".side-title"), tr = t.getBoundingClientRect(), left = s.classList.contains("left");
+          return { deck: s.dataset.deck, at: left ? "left" : "right", whole: getComputedStyle(whole).display !== "none", paddle: getComputedStyle(s.querySelector(".paddle")).display !== "none", w: r.width, h: r.height, scale: scaled.getBoundingClientRect().width / 640, blur: getComputedStyle(scaled).filter, colour: getComputedStyle(whole).backgroundColor === getComputedStyle(m).backgroundColor, corner: getComputedStyle(s).borderTopLeftRadius, inert: whole.inert && whole.getAttribute("aria-hidden") === "true",
+            title: t.textContent, titleSize: parseFloat(getComputedStyle(t).fontSize) / h2, titleToward: left ? r.right - tr.right : tr.left - r.left, titleHidden: getComputedStyle(still.querySelector("header h2")).visibility === "hidden",
+            start: still.dataset.deck === "briefing" ? "tab:" + [...still.querySelectorAll(".tab")].findIndex((x) => x.classList.contains("on")) : still.dataset.deck === "rules" ? "buttons:" + still.querySelectorAll("button.rules-section").length + ":" + !!still.querySelector("section.rules-section.open") : still.dataset.deck === "city" ? "list:" + !!still.querySelector(".city-list") : "search:" + still.querySelector(".glossary-search").value,
+            ring: getComputedStyle(s).boxShadow !== "none" }; }) };
+    })()`);
+  try {
+    // The rules, between the briefing and the city, with the briefing left on its third card and a rules section open.
+    await page.eval(`document.querySelector('[data-hint="briefing"]').click()`);
+    await page.until(`document.querySelector(".deck-briefing .deck-card")`);
+    await page.eval(`document.querySelectorAll(".modal.deck .tab")[2].click()`);
+    await page.until(`document.querySelectorAll(".modal.deck .tab")[2].classList.contains("on")`);
+    await page.key("Escape", 27);
+    await page.until(`!document.querySelector(".overlay")`);
+    await page.eval(`document.querySelector('[data-hint="rules"]').click()`);
+    await page.until(`document.querySelector(".modal.deck-rules")`);
+    for (const [width, height] of [[1440, 900], [1920, 1080], [1408, 900]] as const) {
+      await windowSize(width, height);
+      const s = await sides();
+      const where = `${width}×${height}`;
+      assert.deepEqual(s.sides.map((x) => [x.deck, x.at, x.whole, x.paddle]), [["briefing", "left", true, false], ["city", "right", true, false]], `${where}: the whole previous and next modals`);
+      const edge = Math.min(64, Math.max(24, width * 0.03));
+      const scale = Math.min(0.8, (width - edge * 2 - 640 - 32) / 2 / 640);
+      for (const x of s.sides) {
+        assert.ok(Math.abs(x.scale - scale) < 0.005 && x.scale <= 0.8001, `${where} ${x.deck}: scaled to fit its room, never more than 80% of the modal in focus (${x.scale} for ${scale})`);
+        assert.ok(Math.abs(x.w - 640 * scale) < 1.5 && Math.abs(x.h - s.modal.h * scale) < 1.5, `${where} ${x.deck}: its size (${x.w}×${x.h})`);
+        assert.deepEqual([x.blur, x.colour, x.corner, x.inert], ["blur(3.5px)", true, "30px", true], `${where} ${x.deck}: evenly blurred, the modal's colour, 30px corners, still`);
+        assert.ok(Math.abs(x.titleSize - 1) < 0.01 && x.titleHidden, `${where} ${x.deck}: its title at the focused modal's title size, not shrunk with the rest`);
+        assert.ok(x.titleToward < x.w / 2 && x.titleToward >= 0, `${where} ${x.deck}: toward the modal in focus (${x.titleToward})`);
+      }
+      // Each drawn as itself at its start: the briefing's first card, not the third it was left on; the city's list.
+      assert.deepEqual(s.sides.map((x) => [x.title, x.start]), [["Your Briefing", "tab:0"], ["The City", "list:true"]], where);
+      assert.equal(s.scrolls, false, `${where}: the row fits`);
+      assert.ok(s.modal.bottom <= s.bar, `${where}: clear of the Web of Confidences' bar`);
+      await page.shot(`modal-sides-whole-${width}`);
+    }
+    // Keys go to the modal in focus only: an arrow key doesn't turn the still briefing's card.
+    await page.key("ArrowRight", 39);
+    await new Promise((r) => setTimeout(r, 150));
+    assert.equal((await sides()).sides[0]!.start, "tab:0");
+    // Where it's the way the player is heading, it has the accent ring: on the last rule, the city.
+    await page.eval(`[...document.querySelectorAll(".modal.deck button.rules-section")].at(-1).click()`);
+    await page.until(`document.querySelector(".modal.deck section.rules-section.open")`);
+    let s = await sides();
+    assert.deepEqual(s.sides.map((x) => x.ring), [false, true], "the next modal is ringed");
+    assert.equal(s.sides[0]!.start, "tab:0");
+    await page.shot("modal-sides-whole-heading");
+    await page.key("Escape", 27);
+    // The glossary's still copy has an empty search; the rules' its buttons with no section open.
+    await page.eval(`document.querySelector(".modal-side.right").click()`);
+    await page.until(`document.querySelector(".modal.deck-city")`);
+    s = await sides();
+    assert.deepEqual(s.sides.map((x) => [x.deck, x.start]), [["rules", `buttons:10:false`], ["glossary", "search:"]]);
+    await page.eval(`document.querySelector(".modal-side.left").click()`);
+    await page.until(`document.querySelector(".modal.deck-rules")`);
+    // A pixel narrower: paddles.
+    await windowSize(1407, 900);
+    s = await sides();
+    assert.deepEqual(s.sides.map((x) => [x.whole, x.paddle, x.w, x.corner]), [[false, true, 40, "12px"], [false, true, 40, "12px"]], "paddles under 1408px");
+    assert.ok(Math.abs(s.sides[0]!.h / s.modal.h - 0.55) < 0.01);
+    await page.shot("modal-sides-paddles-1407");
+    await windowSize(1024, 700);
+    s = await sides();
+    assert.ok(s.sides.every((x) => x.paddle && !x.whole) && !s.scrolls, "1024×700: paddles, and the row fits");
+    assert.ok(s.modal.bottom <= s.bar && s.modal.top >= 0, "1024×700: within the window, clear of the bar");
+    // In a window under 760px tall the top and bottom margins come in; taller, they're wider.
+    const marginAt = async (height: number) => {
+      await windowSize(1200, height);
+      const x = await sides();
+      return { top: x.modal.top, bottom: x.bar - x.modal.bottom, h: x.modal.h };
+    };
+    const short = await marginAt(700);
+    const tall = await marginAt(800);
+    assert.ok(short.top >= 7 && short.top < 12 && short.bottom >= 7, `under 760px tall the margins come in (${short.top}, ${short.bottom})`);
+    assert.ok(tall.top >= 23 && tall.bottom >= 23, `taller, the full margins (${tall.top}, ${tall.bottom})`);
+    assert.ok(short.h > 600 && tall.h === 640);
+    const tiny = await marginAt(560);
+    assert.ok(tiny.top >= 7 && tiny.bottom >= 7 && tiny.h < 520, "a shorter window still holds the whole modal");
+    // The row never shrinks below the modal and both paddles: in a window narrower than that, the overlay scrolls sideways, opening centred on the modal in focus.
+    await page.key("Escape", 27);
+    await page.until(`!document.querySelector(".overlay")`);
+    await windowSize(770, 700);
+    await page.eval(`document.querySelector('[data-hint="rules"]').click()`);
+    await page.until(`document.querySelector(".modal.deck-rules")`);
+    s = await sides();
+    assert.equal(s.scrolls, true, "770px: the overlay scrolls sideways");
+    assert.deepEqual([s.modal.w, s.sides.map((x) => x.w)], [640, [40, 40]], "the modal and both paddles keep their sizes");
+    assert.ok(Math.abs(s.modal.mid - 385) <= 1, `opening centred on the modal in focus (${s.modal.mid})`);
+    await page.shot("modal-row-scrolls-770");
+  } finally {
+    await page.key("Escape", 27);
+    await windowSize(VIEW.width, VIEW.height);
+    await reopen();
+  }
+});
+
 
 test("the briefing shows five cards; the footers chain the four modals forward and back, with the highlights pointing the way (Interface v0.16)", { skip }, async () => {
   await reopen();
@@ -1842,7 +1968,7 @@ test("the briefing shows five cards; the footers chain the four modals forward a
   await page.eval(`document.querySelectorAll(".deck-briefing .tab")[0].click()`);
   const STATE = `(() => {
       const m = document.querySelector(".modal.deck"), p = m.querySelector(".deck-prev"), n = m.querySelector(".deck-next");
-      return { deck: [...m.classList].find((c) => c.startsWith("deck-")).slice(5), at: m.querySelector(".tab.on")?.textContent ?? m.querySelector("section.rules-section.open")?.dataset.section ?? m.querySelector(".city-entry")?.dataset.lore ?? "", prev: p?.textContent ?? null, next: n?.textContent ?? null, prevCls: p?.className ?? "", nextCls: n?.className ?? "", close: m.querySelector(".deck-close").className, lit: [...document.querySelectorAll(".modal-peek.lit")].map((x) => x.dataset.deck), way: m.dataset.way };
+      return { deck: [...m.classList].find((c) => c.startsWith("deck-")).slice(5), at: m.querySelector(".tab.on")?.textContent ?? m.querySelector("section.rules-section.open")?.dataset.section ?? m.querySelector(".city-entry")?.dataset.lore ?? "", prev: p?.textContent ?? null, next: n?.textContent ?? null, prevCls: p?.className ?? "", nextCls: n?.className ?? "", close: m.querySelector(".deck-close").className, lit: [...document.querySelectorAll(".modal-side.lit")].map((x) => x.dataset.deck), way: m.dataset.way };
     })()`;
   const state = () => page.eval<{ deck: string; at: string; prev: string | null; next: string | null; prevCls: string; nextCls: string; close: string; lit: string[]; way: string }>(STATE);
   const click = async (sel: string) => {
@@ -1947,7 +2073,7 @@ test("the glossary: alphabetical, a search that narrows as you type and is kept,
   await page.until(`[...document.querySelectorAll(".glossary-entry")].some((e) => e.dataset.term === "Florins" && e.querySelector(".glossary-rules"))`);
   await page.eval(`[...document.querySelectorAll(".glossary-entry")].find((e) => e.dataset.term === "Florins").querySelector(".glossary-rules").click()`);
   await page.until(`document.querySelector(".deck-rules section.rules-section.open")`);
-  assert.equal(await page.eval<string>(`document.querySelector(".deck-rules section.rules-section h3").textContent`), "Money and Bribes");
+  assert.equal(await page.eval<string>(`document.querySelector(".deck-rules section.rules-section.open").getAttribute("aria-label")`), "Money and Bribes");
   await page.shot("glossary-more-in-the-rules");
   await page.eval(`document.querySelector('[data-hint="rulesShrink"]').click()`);
   await page.key("Escape", 27);
@@ -2501,4 +2627,260 @@ test("reopening the right panel doesn't replay the card's slide (Interface v0.17
   assert.deepEqual(await card(), { guest: other[1], still: false, animation: "slide-up" }, "a new selection slides up as always");
   await page.key("Escape", 27);
   await page.eval(`localStorage.removeItem("player-screen.right-hidden")`);
+});
+
+// ---- CC-20261116-10 (#179, part 4): Interface v0.17–v0.18's modals, and the long-labels check ---------------------
+
+test("inside every modal (Interface v0.17–v0.18): no rule lines, 15px reading text, real lists, tabs as the cards' titles, edges that fade where there's more, More Below in line with the page counter, numerals on the rules, a backdrop that fades in, the city's sticky headings, and the glossary's smaller terms and way back", { skip }, async () => {
+  await reopen();
+  await page.until(`!document.querySelector('[data-hint="glossary"]').disabled`);
+  const css = (sel: string, prop: string) => page.eval<string>(`getComputedStyle(document.querySelector(${JSON.stringify(sel)}))[${JSON.stringify(prop)}]`);
+  try {
+    await windowSize(1200, 800);
+    // Your Briefing: the tabs are the cards' titles (16px, wrapping, fixed under the modal's title); the card doesn't repeat its title.
+    await page.eval(`document.querySelector('[data-hint="briefing"]').click()`);
+    await page.until(`document.querySelector(".modal.deck-briefing .deck-card")`);
+    const tabs = async () => page.eval<{ size: number; top: number; bottom: number; inside: boolean; rows: number }>(`(() => { const m = document.querySelector(".modal.deck").getBoundingClientRect(), t = [...document.querySelectorAll(".modal.deck .tab")].map((x) => x.getBoundingClientRect()), n = document.querySelector(".modal.deck .tabs").getBoundingClientRect(); return { size: parseFloat(getComputedStyle(document.querySelector(".modal.deck .tab")).fontSize), top: Math.round(n.top), bottom: Math.round(n.bottom), inside: t.every((b) => b.left >= m.left + 20 && b.right <= m.right - 20), rows: new Set(t.map((b) => Math.round(b.top))).size }; })()`);
+    const first = await tabs();
+    assert.deepEqual([first.size, first.inside], [16, true], "larger tabs, kept out of the side margins");
+    assert.ok(first.rows >= 2, "they wrap onto a second line");
+    assert.equal(await page.eval<boolean>(`!!document.querySelector(".modal.deck .deck-card h3")`), false);
+    for (const prop of ["borderBottomWidth"]) for (const sel of [".modal.deck > header", ".modal.deck > .tabs"]) assert.equal(await css(sel, prop), "0px", `${sel}: no rule line`);
+    assert.equal(await css(".modal.deck .deck-foot", "borderTopWidth"), "0px", "no rule line over the footer");
+    assert.deepEqual([await css(".modal.deck .deck-text", "fontSize"), parseFloat(await css(".modal.deck .deck-text", "lineHeight")) / 15], ["15px", 1.6], "the reading text at 15px, line height 1.6");
+    // A short card: its text centred top to bottom, not scrolling, with no More Below and no fade.
+    const card = () => page.eval<{ scrolls: boolean; fade: string; more: boolean; centred: number; inset: number }>(`(() => { const c = document.querySelector(".modal.deck .deck-card"), b = c.getBoundingClientRect(), t = c.querySelector(".deck-text").getBoundingClientRect(), m = document.querySelector(".modal.deck").getBoundingClientRect(); return { scrolls: c.scrollHeight > c.clientHeight + 1, fade: c.dataset.fade, more: !!document.querySelector(".modal.deck .deck-foot .more-below"), centred: Math.abs((t.top + t.bottom) / 2 - (b.top + b.bottom) / 2), inset: t.left - m.left }; })()`);
+    let c = await card();
+    assert.deepEqual([c.scrolls, c.fade, c.more], [false, "none", false]);
+    assert.ok(c.centred < 24, `a short card's text is centred top to bottom (${c.centred})`);
+    assert.ok(c.inset > 40, `the reading text sits further in than the modal's margin (${c.inset})`);
+    // The tabs never move from card to card.
+    for (let i = 1; i < 5; i++) {
+      await page.eval(`document.querySelectorAll(".modal.deck .tab")[${i}].click()`);
+      await page.until(`document.querySelectorAll(".modal.deck .tab")[${i}].classList.contains("on") && document.querySelector(".modal.deck .deck-card").getAnimations().length === 0`);
+      const t = await tabs();
+      assert.deepEqual([t.top, t.bottom], [first.top, first.bottom], `card ${i + 1}: the tabs stay put`);
+    }
+    // Real lists: the lines a briefing spells out with "- " are bullets, with a small dot in the accent and a hanging indent.
+    await page.eval(`document.querySelectorAll(".modal.deck .tab")[2].click()`);
+    await page.until(`document.querySelector(".modal.deck .prose-list.bullets li")`);
+    const list = await page.eval<{ items: number; dot: [string, string]; hang: boolean; raw: boolean }>(`(() => { const l = document.querySelector(".modal.deck .prose-list.bullets"), li = l.querySelector("li"), d = getComputedStyle(li, "::before"), p = document.querySelector(".modal.deck .deck-text").getBoundingClientRect(); const accent = (() => { const i = document.createElement("i"); i.style.color = "var(--accent)"; document.body.append(i); const x = getComputedStyle(i).color; i.remove(); return x; })(); return { items: l.querySelectorAll("li").length, dot: [d.width, d.backgroundColor === accent ? "accent" : d.backgroundColor], hang: li.getBoundingClientRect().left > p.left + 10, raw: /^\\s*- /m.test(document.querySelector(".modal.deck .deck-text").textContent) }; })()`);
+    assert.ok(list.items >= 2);
+    assert.deepEqual([list.dot, list.hang, list.raw], [["5px", "accent"], true, false], "a small accent dot, a hanging indent, and no typed dashes left");
+    await page.shot("modal-briefing-list");
+    // A card that runs long, in a short window: its lower edge fades, and More Below sits in the footer in line with the page counter, at 10px.
+    await windowSize(1200, 560);
+    await page.eval(`document.querySelectorAll(".modal.deck .tab")[3].click()`);
+    await page.until(`document.querySelectorAll(".modal.deck .tab")[3].classList.contains("on")`);
+    let long = -1;
+    for (let i = 0; i < 5 && long < 0; i++) {
+      await page.eval(`document.querySelectorAll(".modal.deck .tab")[${i}].click()`);
+      await page.until(`document.querySelectorAll(".modal.deck .tab")[${i}].classList.contains("on") && document.querySelector(".modal.deck .deck-card").getAnimations().length === 0`);
+      await page.eval(`new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)))`);
+      if ((await card()).scrolls) long = i;
+    }
+    assert.ok(long >= 0, "a card that scrolls in a 560px-tall window");
+    c = await card();
+    assert.deepEqual([c.fade, c.more], ["below", true]);
+    assert.notEqual(await css(".modal.deck .deck-card", "maskImage"), "none", "its lower edge fades");
+    const more = await page.eval<{ size: number; inLine: boolean; way: string }>(`(() => { const b = document.querySelector(".modal.deck .deck-foot .more-below"), n = document.querySelector(".modal.deck .deck-counter").getBoundingClientRect(), r = b.getBoundingClientRect(); return { size: parseFloat(getComputedStyle(b).fontSize), inLine: Math.abs((r.top + r.bottom) / 2 - (n.top + n.bottom) / 2) < 3 && r.left >= n.right, way: document.querySelector(".modal.deck").dataset.way }; })()`);
+    assert.deepEqual([more.size, more.inLine], [10, true], "More Below, small, in line with the page counter");
+    await page.shot("modal-more-below");
+    // Clicking it scrolls on, and leaves the card and the way the highlights point alone.
+    await page.eval(`document.querySelector(".modal.deck .deck-foot .more-below").click()`);
+    await page.until(`document.querySelector(".modal.deck .deck-card").scrollTop > 10`);
+    assert.equal(await page.eval<boolean>(`document.querySelectorAll(".modal.deck .tab")[${long}].classList.contains("on") && document.querySelector(".modal.deck").dataset.way === ${JSON.stringify(more.way)}`), true);
+    await page.until(`["above", "both"].includes(document.querySelector(".modal.deck .deck-card").dataset.fade)`);
+    // A card whose text only just fits doesn't scroll at all: its bottom margin gives way first.
+    const fits = await page.eval<{ before: boolean; after: boolean }>(`(async () => { const c = document.querySelector(".modal.deck .deck-card"), t = c.querySelector(".deck-text"); c.scrollTop = 0; const pad = parseFloat(getComputedStyle(c).paddingTop); const room = c.clientHeight - pad; const was = t.style.cssText; t.style.cssText = "height:" + (room - 6) + "px; overflow:hidden; flex:none"; await new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok))); const before = c.scrollHeight > c.clientHeight + 1; t.style.cssText = "height:" + (room + 30) + "px; overflow:hidden; flex:none"; await new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok))); const after = c.scrollHeight > c.clientHeight + 1; t.style.cssText = was; return { before, after }; })()`);
+    assert.deepEqual(fits, { before: false, after: true }, "text that just fits doesn't scroll; text that doesn't fit does");
+    await page.key("Escape", 27);
+    await page.until(`!document.querySelector(".overlay")`);
+    await windowSize(1200, 800);
+    // The Rules: Roman numerals in a small round badge at each button's left, its name centred.
+    await page.eval(`document.querySelector('[data-hint="rules"]').click()`);
+    await page.until(`document.querySelector(".modal.deck-rules button.rules-section")`);
+    const badges = await page.eval<{ numerals: string[]; round: boolean; left: boolean; centred: boolean; serif: boolean }>(`(() => { const bs = [...document.querySelectorAll(".modal.deck button.rules-section")]; const b = bs[4], r = b.getBoundingClientRect(), n = b.querySelector(".numeral"), nr = n.getBoundingClientRect(), name = b.querySelector(".rules-name").getBoundingClientRect(); return { numerals: bs.map((x) => x.querySelector(".numeral").textContent), round: Math.abs(nr.width - nr.height) < 1 && parseFloat(getComputedStyle(n).borderTopLeftRadius) >= nr.width / 2, left: nr.left - r.left < 20, centred: Math.abs((name.left + name.right) / 2 - (r.left + r.right) / 2) < 2, serif: /Serif/.test(getComputedStyle(n).fontFamily) }; })()`);
+    assert.deepEqual(badges.numerals, ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]);
+    assert.deepEqual([badges.round, badges.left, badges.centred, badges.serif], [true, true, true, true], "a round badge at the left, the numeral in a serif, the name centred");
+    // An open section: "V. Stages and Turns", centred; a numbered list where the text spells one out; 30px corners.
+    await page.eval(`document.querySelectorAll(".modal.deck button.rules-section")[4].click()`);
+    await page.until(`document.querySelector(".modal.deck section.rules-section.open") && document.querySelector(".modal.deck section.rules-section.open").getAnimations().length === 0`);
+    assert.equal(await page.eval<string>(`document.querySelector(".modal.deck section.rules-section.open h3").textContent`), "V. Stages and Turns");
+    assert.equal(await css(".modal.deck section.rules-section.open", "borderTopLeftRadius"), "30px");
+    // Behind it the buttons are dimmed lightly and slightly blurred; the backdrop fades in over 22px at its top and bottom, and the card isn't faded.
+    const back = await page.eval<{ blur: string; mask: string; dim: string; spans: boolean; card: string; inert: boolean }>(`(() => { const b = document.querySelector(".modal.deck .rules-backdrop"), cs = getComputedStyle(b), body = document.querySelector(".modal.deck .rules-body").getBoundingClientRect(), r = b.getBoundingClientRect(); return { blur: cs.backdropFilter, mask: cs.maskImage, dim: cs.backgroundColor, spans: Math.abs(r.top - body.top) < 1 && Math.abs(r.bottom - body.bottom) < 1, card: getComputedStyle(document.querySelector(".modal.deck section.rules-section.open")).maskImage, inert: document.querySelector(".modal.deck .rules-buttons").inert }; })()`);
+    assert.equal(back.blur, "blur(2.5px)");
+    assert.match(back.mask, /linear-gradient\(.*22px.*calc\(100% - 22px\)/, "fading in over 22px at its top and bottom");
+    assert.match(back.dim, /rgba\(\d+, \d+, \d+, 0\.(26|4)\)/, "dimmed lightly: 26%, 40% in dark mode");
+    assert.deepEqual([back.spans, back.card, back.inert], [true, "none", true], "between the header and the footer; the card above it isn't faded");
+    await page.shot("modal-rules-section-backdrop");
+    await page.eval(`document.querySelectorAll(".modal.deck .deck-prev")[0].click()`);
+    await page.until(`document.querySelector(".modal.deck section.rules-section.open")?.dataset.section === "3"`);
+    await page.key("Escape", 27);
+    await page.until(`!document.querySelector(".modal.deck section.rules-section.open")`);
+    await page.eval(`document.querySelectorAll(".modal.deck button.rules-section")[1].click()`);
+    await page.until(`document.querySelector(".modal.deck .prose-list.numbers li")`);
+    const numbered = await page.eval<{ tag: string; items: number; marker: string; typed: boolean }>(`(() => { const l = document.querySelector(".modal.deck .prose-list.numbers"); return { tag: l.tagName, items: l.children.length, marker: getComputedStyle(l.querySelector("li"), "::marker").fontWeight, typed: /^\\s*1\\. /m.test(l.textContent) }; })()`);
+    assert.deepEqual(numbered, { tag: "OL", items: 3, marker: "600", typed: false }, "How to Win's order is a numbered list with quiet bold numerals");
+    await page.shot("modal-rules-numbered-list");
+    await page.key("Escape", 27);
+    // The City: its list keeps the screen's size; the subject headings stick at its top as it scrolls, and nothing shows above the stuck one.
+    await windowSize(1200, 560);
+    await page.eval(`document.querySelector(".modal-side.right").click()`);
+    await page.until(`document.querySelector(".modal.deck-city .city-list")`);
+    assert.equal(await css(".modal.deck .city-title", "fontSize"), "13px");
+    const sticky = await page.eval<{ scrolls: boolean; stuck: boolean; above: number; fade: boolean; more: boolean }>(`(async () => { const l = document.querySelector(".modal.deck .city-list"); const scrolls = l.scrollHeight > l.clientHeight + 20; l.scrollTop = 60; await new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok))); const top = l.getBoundingClientRect().top; const heads = [...l.querySelectorAll(".city-subject")].map((h) => h.getBoundingClientRect()); const stuck = heads.some((h) => Math.abs(h.top - top) < 1); const rows = [...l.querySelectorAll(".city-row")].map((r) => r.getBoundingClientRect()); const head = heads.filter((h) => Math.abs(h.top - top) < 1).at(-1); const el = document.elementFromPoint(rows[0].left + 20, top + 4); return { scrolls, stuck, above: el && el.closest(".city-subject") ? 0 : 1, fade: getComputedStyle(l.querySelector(".city-subject"), "::after").backgroundImage.includes("gradient"), more: !!document.querySelector(".modal.deck .more-below") }; })()`);
+    assert.deepEqual(sticky, { scrolls: true, stuck: true, above: 0, fade: true, more: false }, "a heading stuck at the top with a fade under it; no More Below on a list");
+    await page.shot("modal-city-sticky");
+    // On the first topic, the way back to the list has nothing to its left in the footer: it isn't shown twice.
+    await page.eval(`document.querySelector(".modal.deck .city-row").click()`);
+    await page.until(`document.querySelector(".modal.deck .city-entry")`);
+    assert.deepEqual(await page.eval<[boolean, boolean]>(`[!!document.querySelector(".modal.deck .city-back"), !!document.querySelector(".modal.deck .deck-prev")]`), [true, false]);
+    assert.equal(await css(".modal.deck .city-entry .deck-text", "fontSize"), "15px");
+    await windowSize(1200, 800);
+    // The Glossary, walked to from The City: its terms 14px over 13px definitions; its way back is plain.
+    await page.eval(`document.querySelector(".modal-side.right").click()`);
+    await page.until(`document.querySelector(".modal.deck-glossary .glossary-entry")`);
+    assert.deepEqual([await css(".modal.deck .glossary-entry dt", "fontSize"), await css(".modal.deck .glossary-entry dd", "fontSize")], ["14px", "13px"]);
+    assert.equal(await page.eval<boolean>(`document.querySelector(".modal.deck .deck-prev").classList.contains("breathe")`), false, "walked to: its way back doesn't breathe");
+    assert.equal(await page.eval<boolean>(`!!document.querySelector(".modal.deck .more-below")`), false);
+    await page.key("Escape", 27);
+    await page.until(`!document.querySelector(".overlay")`);
+    // Opened straight from the chat (its button), it has nowhere further to go, so its way back to The City breathes.
+    await page.eval(`document.querySelector('[data-hint="glossary"]').click()`);
+    await page.until(`document.querySelector(".modal.deck-glossary .deck-prev")`);
+    assert.deepEqual(await page.eval<[boolean, string, boolean]>(`(() => { const p = document.querySelector(".modal.deck .deck-prev"); return [p.classList.contains("breathe"), p.textContent, p.getAnimations().some((a) => a.effect.getComputedTiming().iterations === Infinity)]; })()`), [true, "Back to the City", true]);
+    await page.shot("modal-glossary-from-chat");
+  } finally {
+    await page.key("Escape", 27);
+    await windowSize(VIEW.width, VIEW.height);
+    await reopen();
+  }
+});
+
+test("long labels (Interface v0.17, Notes for the Build): with every short label half again as long, as a translation might run, no control spills: on the screen, in each modal, in the Web of Confidences, in a past stage, and on the tour", { skip }, async () => {
+  // Every short label of the setting pack's words, half again as long, before the screen reads them. Sentences (the
+  // explanations, prompts, and placeholders) and the typed commands are left as they are.
+  const longer = `(() => {
+    const stretch = (o, path) => {
+      for (const k of Object.keys(o)) {
+        const v = o[k], at = path + "." + k;
+        if (typeof v === "string") { if (v.length <= 30 && !/^\\.(commands|refusals|titleCase)|\\.(hints|descriptions)\\./.test(at)) o[k] = v + v.replace(/\\{\\w+\\}/g, "").slice(0, Math.ceil(v.replace(/\\{\\w+\\}/g, "").length / 2)).toLowerCase(); }
+        else if (v && typeof v === "object" && !Array.isArray(v)) stretch(v, at);
+      }
+    };
+    const f = window.fetch;
+    window.fetch = async (...a) => { const r = await f(...a); if (!String(a[0]).includes("/api/start") || (a[1] && a[1].method === "POST")) return r; const j = await r.json(); stretch(j.words, ""); window.__long = true; return new Response(JSON.stringify(j), { status: r.status, headers: { "content-type": "application/json" } }); };
+  })()`;
+  await page.send("Page.enable");
+  const { identifier } = await page.send<{ identifier: string }>("Page.addScriptToEvaluateOnNewDocument", { source: longer });
+  // What spills: a control whose words run past its own box (unless it ends them in an ellipsis by design), or that reaches outside its panel or the window.
+  const spills = (where: string) =>
+    page.eval<string[]>(`(() => {
+      const out = [];
+      const panels = ".side.left, .centre, .side.right, .modal.deck, .modal-side, .web-dock, .tour-card, .narrow-note, .tip";
+      for (const el of document.querySelectorAll("button, .label, .tab, .stage, .fact, .notaio-title, .notaio-toggle, .paddle, h2, h3, .deck-counter, .prompt, .count, .you-tag, .type-chip, .web-bar-title, .side-title")) {
+        if (el.closest("[inert]") || el.closest(".measuring")) continue;
+        const r = el.getBoundingClientRect();
+        if (!r.width || !r.height || getComputedStyle(el).visibility === "hidden") continue;
+        const cs = getComputedStyle(el), name = (el.className && String(el.className).split(" ")[0]) || el.tagName, words = el.textContent.trim().slice(0, 40);
+        const clips = cs.textOverflow === "ellipsis" || [...el.querySelectorAll("*")].some((c) => getComputedStyle(c).textOverflow === "ellipsis");
+        if (!clips && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1) && cs.overflowY !== "auto") out.push(name + " overflows its own box: " + words);
+        const p = el.closest(panels);
+        const b = p ? p.getBoundingClientRect() : { left: 0, right: innerWidth, top: 0, bottom: innerHeight };
+        const scrolled = el.closest(".side.left, .stream, .notes, .record-scroll, .reading, .glossary-list, .city-list, .deck-card, .rules-buttons, .modal-overlay");
+        if (r.left < b.left - 1 || r.right > b.right + 1) out.push(name + " reaches outside its panel sideways: " + words);
+        if (!scrolled && (r.top < b.top - 1 || r.bottom > b.bottom + 1)) out.push(name + " reaches outside its panel: " + words);
+      }
+      if (document.documentElement.scrollWidth > innerWidth) out.push("the page scrolls sideways");
+      return out.map((x) => ${JSON.stringify(where)} + ": " + x);
+    })()`);
+  const found: string[] = [];
+  const check = async (where: string) => {
+    await page.eval(`new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)))`);
+    await page.until(`document.getAnimations().every((a) => a.effect?.getComputedTiming().iterations === Infinity)`);
+    found.push(...(await spills(where)));
+    await page.shot(`long-${where.replace(/[^a-z0-9]+/gi, "-")}`);
+  };
+  try {
+    for (const [width, height] of [[1024, 700], [1440, 900]] as const) {
+      await windowSize(width, height);
+      await reopen();
+      await page.until(`window.__long && !document.querySelector('[data-hint="glossary"]').disabled`);
+      const at = `${width}×${height}`;
+      // The labels really are longer: "Your Briefing" and half of it again.
+      assert.equal(await page.eval<string>(`document.querySelector('.side.left [data-hint="briefing"]').textContent`), "Your Briefingyour br");
+      await check(`${at} the screen`);
+      // Each modal: the briefing, the rules' buttons, an open section, the city's list, an entry, the glossary.
+      await page.eval(`document.querySelector('[data-hint="briefing"]').click()`);
+      await page.until(`document.querySelector(".modal.deck-briefing .deck-card")`);
+      await check(`${at} the briefing`);
+      await page.eval(`document.querySelector(".modal-side.right").click()`);
+      await page.until(`document.querySelector(".modal.deck-rules button.rules-section")`);
+      await check(`${at} the rules`);
+      await page.eval(`document.querySelectorAll(".modal.deck button.rules-section")[4].click()`);
+      await page.until(`document.querySelector(".modal.deck section.rules-section.open")`);
+      await check(`${at} a rules section`);
+      await page.key("Escape", 27);
+      await page.until(`!document.querySelector(".modal.deck section.rules-section.open")`);
+      await page.eval(`document.querySelector(".modal-side.right").click()`);
+      await page.until(`document.querySelector(".modal.deck-city .city-row")`);
+      await check(`${at} the city`);
+      await page.eval(`document.querySelectorAll(".modal.deck .city-row")[1].click()`);
+      await page.until(`document.querySelector(".modal.deck .city-entry")`);
+      await check(`${at} a city entry`);
+      await page.eval(`document.querySelector(".modal-side.right").click()`);
+      await page.until(`document.querySelector(".modal.deck-glossary .glossary-entry")`);
+      await check(`${at} the glossary`);
+      await page.key("Escape", 27);
+      await page.until(`!document.querySelector(".overlay")`);
+      // A guest's card on the right (opened first where it starts folded).
+      if (await page.eval<boolean>(`!!document.querySelector(".right-handle")`)) await page.eval(`document.querySelector(".right-handle").click()`);
+      await page.eval(`document.querySelector(".places .token").click()`);
+      await page.until(`document.querySelector(".person.look")`);
+      await check(`${at} a guest's card`);
+      // The Web of Confidences: the key, both tabs, his reading.
+      await page.eval(`document.querySelector(".web-bar").click()`);
+      await page.until(`document.querySelector(".web-dock.open .node:not(.me)") && document.querySelector(".web-dock").getAnimations().length === 0`);
+      await check(`${at} the web`);
+      await page.eval(`[...document.querySelectorAll(".web-side .tab")][1].click()`);
+      await page.until(`document.querySelector(".web-side .notes")`);
+      await check(`${at} the web's notes`);
+      await page.key("Escape", 27);
+      await page.until(`!document.querySelector(".web-dock.open") && document.querySelector(".web-dock").getAnimations().length === 0`);
+      await page.key("Escape", 27);
+      // A past stage: Return to Current Stage grows taller rather than spilling when its words run to a third line.
+      await page.until(`document.querySelector(".stage-bar .mark.past .stage")`);
+      await page.eval(`document.querySelector(".stage-bar .mark.past .stage").click()`);
+      await page.until(`document.querySelector(".input.past button.return")`);
+      const ret = await page.eval<{ lines: number; inside: boolean; fits: boolean }>(`(() => { const b = document.querySelector(".input.past button.return"), r = b.getBoundingClientRect(), c = document.querySelector(".input").getBoundingClientRect(), range = document.createRange(); range.selectNodeContents(b); const t = range.getBoundingClientRect(); return { lines: Math.round(t.height / parseFloat(getComputedStyle(b).lineHeight)), inside: r.top >= c.top && r.bottom <= c.bottom && r.right <= c.right, fits: t.top >= r.top && t.bottom <= r.bottom && t.left >= r.left - 1 && t.right <= r.right + 1 }; })()`);
+      assert.ok(ret.lines >= 3, `${at}: Return's longer words run to a third line (${ret.lines})`);
+      assert.deepEqual([ret.inside, ret.fits], [true, true], `${at}: it grows taller rather than spilling`);
+      await check(`${at} a past stage`);
+      await page.eval(`document.querySelector('[data-hint="return"]').click()`);
+      await page.until(`!document.querySelector(".past-stage")`);
+      // The tour's card.
+      await page.eval(`document.querySelector(".tour-again").click()`);
+      await page.until(`document.querySelector(".tour-card:not(.measuring)")`);
+      await check(`${at} the tour`);
+      await page.key("Escape", 27);
+      await page.until(`!document.querySelector(".tour")`);
+    }
+    // A paddle's title too long for it ends in an ellipsis before the arrow, which stays in view.
+    await windowSize(1200, 560);
+    await page.eval(`document.querySelector('[data-hint="rules"]').click()`);
+    await page.until(`document.querySelector(".modal.deck-rules")`);
+    await page.eval(`document.querySelector(".modal-side.left .paddle-title").textContent = "A Title Much Too Long for Any Paddle to Hold in a Short Window"`);
+    const paddle = await page.eval<{ clipped: boolean; ellipsis: string; arrow: boolean }>(`(() => { const p = document.querySelector(".modal-side.left .paddle").getBoundingClientRect(), t = document.querySelector(".modal-side.left .paddle-title"), a = document.querySelector(".modal-side.left .paddle-arrow").getBoundingClientRect(), r = t.getBoundingClientRect(); return { clipped: t.scrollHeight > t.clientHeight && r.top >= p.top && r.bottom <= a.top, ellipsis: getComputedStyle(t).textOverflow, arrow: a.bottom <= p.bottom && a.height > 0 }; })()`);
+    assert.deepEqual(paddle, { clipped: true, ellipsis: "ellipsis", arrow: true });
+    await page.shot("long-paddle-title");
+    await page.key("Escape", 27);
+    assert.deepEqual(found, [], "nothing spilled");
+  } finally {
+    await page.send("Page.removeScriptToEvaluateOnNewDocument", { identifier });
+    await page.eval(`localStorage.removeItem("player-screen.right-hidden")`);
+    await windowSize(VIEW.width, VIEW.height);
+    await reopen();
+  }
 });

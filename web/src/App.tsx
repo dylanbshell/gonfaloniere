@@ -7,7 +7,7 @@
 import { Component, Fragment, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { connect, type Ev } from "./connection.ts";
 import { COMMAND, MENTION, canDo, canSpeak, isCommand, matchCommands, matchGuests, openMenu, withMention, type Trigger } from "./input.ts";
-import { FACTION_LINE, NO_SELECTION, appearsIn, briefingCards, chatGuest, cityList, commandMenu, curve, derive, earlierThisStage, errandCardAt, errandDeadline, errandLine, errandTask, factLink, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, noteGroups, ownPlace, payrollSize, placeHeading, playerBriefing, placeList, placeholderExample, preview, readingFor, recordUpTo, refusalWhy, roomOf, rulesLink, runFrom, summaryFor, playerRules, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, webLines, webNames, NODE_RADIUS, type Card, type FactLink, type Line, type GuardedReading, type LoreEntry, type Note, type NotaioItem, type Place, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
+import { FACTION_LINE, NO_SELECTION, proseBlocks, roman, appearsIn, briefingCards, chatGuest, cityList, commandMenu, curve, derive, earlierThisStage, errandCardAt, errandDeadline, errandLine, errandTask, factLink, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, noteGroups, ownPlace, payrollSize, placeHeading, playerBriefing, placeList, placeholderExample, preview, readingFor, recordUpTo, refusalWhy, roomOf, rulesLink, runFrom, summaryFor, playerRules, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, webLines, webNames, NODE_RADIUS, type Card, type FactLink, type Line, type GuardedReading, type LoreEntry, type Note, type NotaioItem, type Place, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
 import { allCommands, getInfo, guest, names, narrator, notaioHint, packValue, placeDescription, placeholderExamples, setInfo, stageDescription, tc, w, wt, type GlossEntry, type StartInfo } from "./words.ts";
 
 type Send = (m: unknown) => void;
@@ -660,6 +660,41 @@ function Rich({ text }: { text: string }) {
   return <>{text.split(/(\*\*[^*]+\*\*)/).map((part, i) => (part.startsWith("**") && part.endsWith("**") ? <strong key={i}>{part.slice(2, -2)}</strong> : part))}</>;
 }
 
+/**
+ * A modal's reading text (Interface v0.17): running text as written, and real lists where its lines spell one
+ * out ("- …" bullets with a small dot in the accent, "1. …" a numbered list with quiet numerals), each with a
+ * hanging indent.
+ */
+function Prose({ text }: { text: string }) {
+  return (
+    <>
+      {proseBlocks(text).map((b, i) =>
+        b.kind === "text" ? (
+          <p key={i} className="prose-text">
+            <Rich text={b.text} />
+          </p>
+        ) : b.kind === "bullets" ? (
+          <ul key={i} className="prose-list bullets">
+            {b.items.map((x, n) => (
+              <li key={n}>
+                <Rich text={x} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <ol key={i} className="prose-list numbers">
+            {b.items.map((x, n) => (
+              <li key={n}>
+                <Rich text={x} />
+              </li>
+            ))}
+          </ol>
+        ),
+      )}
+    </>
+  );
+}
+
 /** Closes on Escape, ahead of the chat's own Escape (which clears the selection); only while `active`. */
 function useEscape(onEscape: () => void, active = true) {
   const latest = useRef(onEscape);
@@ -721,18 +756,21 @@ type Step = { label: string; go: () => void; chain?: boolean } | null;
  * the modal holds. Going forward, the way on to the next modal breathes; going back, the back button carries
  * the breathing outline, and fills where it leads to the modal before. A click on its blank space turns on.
  */
-function DeckFoot({ prev, next, way, counter }: { prev: Step; next: Step; way: Way; counter?: string }) {
+function DeckFoot({ prev, next, way, counter, more, prevBreathes = false }: { prev: Step; next: Step; way: Way; counter?: string; /** The reading area above, where it scrolls: More Below sits in line with the page counter (Interface v0.17). */ more?: ReturnType<typeof useMoreBelow>; /** The way back breathes although the player isn't going back: the Glossary opened straight from the chat. */ prevBreathes?: boolean }) {
   const hint = useHint();
   return (
     <footer className="deck-foot" onClick={(e) => e.target === e.currentTarget && next && !next.chain && next.go()}>
       {prev ? (
-        <button className={`${way === "back" && prev.chain ? "primary" : "secondary"} deck-prev${way === "back" ? " breathe" : ""}`} onClick={prev.go} {...hint(prev.chain ? "modalPrevious" : "deckBack")}>
+        <button className={`${way === "back" && prev.chain ? "primary" : "secondary"} deck-prev${way === "back" || prevBreathes ? " breathe" : ""}`} onClick={prev.go} {...hint(prev.chain ? "modalPrevious" : "deckBack")}>
           {prev.label}
         </button>
       ) : (
         <span />
       )}
-      {counter && <span className="muted deck-counter">{counter}</span>}
+      <span className="deck-mid">
+        {counter && <span className="muted deck-counter">{counter}</span>}
+        {more && <MoreBelow m={more} />}
+      </span>
       {next ? (
         <button className={`secondary deck-next${way === "forward" && next.chain ? " breathe" : ""}`} onClick={next.go} {...hint(next.chain ? "modalNext" : "deckCard")}>
           {next.label}
@@ -759,6 +797,21 @@ function ModalRow({ deck, sheet, state, places, onPlaces, onDeck, onClose }: { d
   // Which way the row slid, so the modal comes in from the side it was on.
   const [from, setFrom] = useState<"left" | "right" | null>(null);
   const [way, setWay] = useState<Way>("forward");
+  /** The player has moved along the row. Until then, a modal is where it was opened from the chat (Interface v0.17). */
+  const [walked, setWalked] = useState(false);
+  /** The side whose paddle was just clicked: it flashes for a moment. */
+  const [flash, setFlash] = useState<"left" | "right" | null>(null);
+  useEffect(() => {
+    if (!flash) return;
+    const t = setTimeout(() => setFlash(null), themeMs("--motion-paddle-flash", 660));
+    return () => clearTimeout(t);
+  }, [flash]);
+  // In a window narrower than the modal and both paddles, the overlay scrolls sideways: it opens centred on the modal in focus.
+  const overlay = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = overlay.current;
+    if (el && el.scrollWidth > el.clientWidth) el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2;
+  }, [deck]);
   const cards = useMemo(() => briefingDeck(sheet), [sheet]);
   const rules = useMemo(() => rulesDeck(sheet, state), [sheet, state?.plotReward, state?.livingOthers.length]);
   const lore = sheet.lore ?? [];
@@ -768,6 +821,7 @@ function ModalRow({ deck, sheet, state, places, onPlaces, onDeck, onClose }: { d
   const end = (d: DeckName): Partial<DeckPlaces> => (d === "briefing" ? { briefing: Math.max(0, cards.length - 1) } : d === "rules" ? { rules: rules.length ? rules.length - 1 : null } : d === "city" ? { city: topics.at(-1)?.id ?? null } : { glossary: "" });
   /** To another modal: at its beginning, however it's reached, except by "Back to …", which opens it at its last. */
   const move = (d: DeckName, to: Way, place: Partial<DeckPlaces> = start(d)) => {
+    setWalked(true);
     setWay(to);
     setFrom(to === "forward" ? "right" : "left");
     onPlaces({ ...places, ...place });
@@ -813,39 +867,71 @@ function ModalRow({ deck, sheet, state, places, onPlaces, onDeck, onClose }: { d
   const litNext = way === "forward" && !!steps.next?.chain;
   const litPrev = way === "back" && !!steps.prev?.chain;
   const closeFills = (way === "forward" && !steps.next) || (way === "back" && !steps.prev && deck === DECKS[0]);
-  const peek = (d: DeckName | undefined, side: "left" | "right") =>
-    d ? (
+  const noSteps = { prev: null, next: null };
+  /** A modal's contents: the one in focus at its place, or a neighbour drawn still at its start. */
+  const body = (d: DeckName, still: boolean) =>
+    d === "briefing" ? (
+      <BriefingDeck cards={cards} place={still ? 0 : card} onPlace={(n) => turn({ briefing: n }, n < card ? "back" : "forward")} steps={still ? noSteps : steps} way={still ? "forward" : way} still={still} />
+    ) : d === "rules" ? (
+      <RulesSections cards={rules} open={still ? null : rule} onOpen={(n) => turn({ rules: n }, n === null || (rule !== null && n < rule) ? "back" : "forward")} steps={still ? noSteps : steps} way={still ? "forward" : way} still={still} />
+    ) : d === "city" ? (
+      <CityList lore={lore} open={still || topic < 0 ? null : places.city} onOpen={(id) => turn({ city: id }, id === null ? "back" : "forward")} steps={still ? noSteps : steps} way={still ? "forward" : way} still={still} />
+    ) : (
+      <Glossary search={still ? "" : places.glossary} onSearch={(q) => onPlaces({ ...places, glossary: q })} rules={rules} onRules={(n) => move("rules", "back", { rules: n })} steps={still ? noSteps : steps} way={still ? "forward" : way} still={still} prevBreathes={!still && !walked} />
+    );
+  /**
+   * A side modal (Interface v0.17), in two sizes by the room the row has beside the modal in focus (a container
+   * query picks one): the whole neighbour, drawn as itself at its start, still, scaled to fit and evenly
+   * blurred, its title flat in its header toward the middle at full size; or a paddle, the title on end with
+   * an arrow below. Clicking either moves to that modal; the one the player is heading for is ringed.
+   */
+  const side = (d: DeckName | undefined, at: "left" | "right") => {
+    if (!d) return <div className={`modal-side ${at} empty`} aria-hidden="true" />;
+    const go = () => {
+      setFlash(at);
+      move(d, at === "left" ? "back" : "forward");
+    };
+    return (
       <div
-        className={`modal-peek ${side}${(side === "left" ? litPrev : litNext) ? " lit" : ""}`}
+        className={`modal-side ${at}${(at === "left" ? litPrev : litNext) ? " lit" : ""}${flash === at ? " flash" : ""}`}
         data-deck={d}
         role="button"
         tabIndex={0}
-        aria-label={wt(side === "left" ? "screen.modalRow.previous" : "screen.modalRow.next", { title: title(d) })}
-        onClick={(e) => (e.stopPropagation(), move(d, side === "left" ? "back" : "forward"))}
+        aria-label={wt(at === "left" ? "screen.modalRow.previous" : "screen.modalRow.next", { title: title(d) })}
+        onClick={(e) => (e.stopPropagation(), go())}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            move(d, side === "left" ? "back" : "forward");
+            go();
           }
         }}
-        {...hint(side === "left" ? "modalPrevious" : "modalNext")}
+        {...hint(at === "left" ? "modalPrevious" : "modalNext")}
       >
-        {/* Interface v0.16: solid, its contents dimmed, with one line saying what it is rather than its list of topics. */}
-        <div className="peek-frame" inert aria-hidden="true">
-          <header>
-            <h2>{title(d)}</h2>
-          </header>
-          <p className="peek-summary">{w(`screen.modalRow.summary.${d}`)}</p>
+        <div className="side-whole" inert aria-hidden="true">
+          <div className="side-scaled">
+            <div className="still-modal deck" data-deck={d}>
+              <header>
+                <span />
+                <h2>{title(d)}</h2>
+                <span />
+              </header>
+              {body(d, true)}
+            </div>
+          </div>
+          <div className="side-title">{title(d)}</div>
+        </div>
+        <div className="paddle" aria-hidden="true">
+          <span className="paddle-title">{title(d)}</span>
+          <span className="paddle-arrow">{w(`screen.modalRow.paddle.${at}`)}</span>
         </div>
       </div>
-    ) : (
-      <div className={`modal-peek ${side} empty`} aria-hidden="true" />
     );
+  };
   return (
-    <div className="overlay" onClick={onClose}>
+    <div className="overlay modal-overlay" ref={overlay} onClick={onClose}>
+      {/* The modal in focus comes first in the page, so it's what a reader or a search finds first; its neighbours are placed on either side of it. */}
       <div className="modal-row">
-        {peek(before, "left")}
-        <div key={deck} className={`modal deck deck-${deck}${from ? ` from-${from}` : ""}`} data-way={way} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={title(deck)}>
+        <div key={deck} className={`modal deck deck-${deck}${from ? ` from-${from}` : ""}`} data-deck={deck} data-way={way} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={title(deck)}>
           <header>
             <span />
             <h2>{title(deck)}</h2>
@@ -853,17 +939,10 @@ function ModalRow({ deck, sheet, state, places, onPlaces, onDeck, onClose }: { d
               {w("screen.close")}
             </button>
           </header>
-          {deck === "briefing" ? (
-            <BriefingDeck cards={cards} place={card} onPlace={(n) => turn({ briefing: n }, n < card ? "back" : "forward")} steps={steps} way={way} />
-          ) : deck === "rules" ? (
-            <RulesSections cards={rules} open={rule} onOpen={(n) => turn({ rules: n }, n === null || (rule !== null && n < rule) ? "back" : "forward")} steps={steps} way={way} />
-          ) : deck === "city" ? (
-            <CityList lore={lore} open={topic < 0 ? null : places.city} onOpen={(id) => turn({ city: id }, id === null ? "back" : "forward")} steps={steps} way={way} />
-          ) : (
-            <Glossary search={places.glossary} onSearch={(q) => onPlaces({ ...places, glossary: q })} rules={rules} onRules={(n) => move("rules", "back", { rules: n })} steps={steps} way={way} />
-          )}
+          {body(deck, false)}
         </div>
-        {peek(after, "right")}
+        {side(before, "left")}
+        {side(after, "right")}
       </div>
     </div>
   );
@@ -875,14 +954,16 @@ function ModalRow({ deck, sheet, state, places, onPlaces, onDeck, onClose }: { d
  * section behind it opens that section in the rules modal. The search is the caller's, so it's kept. It's the
  * end of the chain (Interface v0.16): its footer holds only the way back to the modal before.
  */
-function Glossary({ search, onSearch, rules, onRules, steps, way }: { search: string; onSearch: (q: string) => void; rules: Card[]; onRules: (n: number) => void; steps: { prev: Step; next: Step }; way: Way }) {
+function Glossary({ search, onSearch, rules, onRules, steps, way, still = false, prevBreathes = false }: { search: string; onSearch: (q: string) => void; rules: Card[]; onRules: (n: number) => void; steps: { prev: Step; next: Step }; way: Way; /** Drawn still, as a side modal: no keys, nothing to press. */ still?: boolean; /** Opened straight from the chat (Interface v0.17): its way back to the modal before breathes. */ prevBreathes?: boolean }) {
   const hint = useHint();
   const list = glossaryList(getInfo()?.glossary ?? [], search);
+  const m = useMoreBelow();
   return (
     <>
       <div className="glossary">
-        <input className="glossary-search" type="search" value={search} placeholder={w("screen.glossaryModal.search")} aria-label={w("screen.glossaryModal.searchLabel")} onChange={(e) => onSearch(e.target.value)} {...hint("glossarySearch")} />
-        <dl className="glossary-list">
+        <input className="glossary-search" type="search" value={search} readOnly={still} placeholder={w("screen.glossaryModal.search")} aria-label={w("screen.glossaryModal.searchLabel")} onChange={(e) => onSearch(e.target.value)} {...hint("glossarySearch")} />
+        {/* Its edges fade where there's more to scroll; a list to look a word up in has no More Below. */}
+        <dl className="glossary-list fades" ref={m.ref} data-fade={m.fade}>
           {list.map((g) => {
             const section = rulesSectionFor(g, rules);
             return (
@@ -902,7 +983,7 @@ function Glossary({ search, onSearch, rules, onRules, steps, way }: { search: st
         </dl>
         {list.length === 0 && <p className="muted glossary-none">{w("screen.glossaryModal.none")}</p>}
       </div>
-      <DeckFoot prev={steps.prev} next={steps.next} way={way} />
+      <DeckFoot prev={steps.prev} next={steps.next} way={way} prevBreathes={prevBreathes} />
     </>
   );
 }
@@ -912,10 +993,11 @@ function Glossary({ search, onSearch, rules, onRules, steps, way }: { search: st
  * or on the footer's blank space, turns to the next; Previous and Next at its foot and the arrow keys go
  * back and forth. Going back, the card slides in from the left. No auto-advance. The place is the caller's.
  */
-function BriefingDeck({ cards, place, onPlace, steps, way }: { cards: Card[]; place: number; onPlace: (n: number) => void; steps: { prev: Step; next: Step }; way: Way }) {
+function BriefingDeck({ cards, place, onPlace, steps, way, still = false }: { cards: Card[]; place: number; onPlace: (n: number) => void; steps: { prev: Step; next: Step }; way: Way; /** Drawn still, as a side modal: no keys, nothing to press. */ still?: boolean }) {
   const hint = useHint();
   const at = Math.min(place, Math.max(0, cards.length - 1));
   const card = cards[at];
+  const m = useMoreBelow();
   /** Within the deck: the card, its footer's blank space, and the arrow keys stop at its ends; only the footer's buttons lead on to another modal. */
   const within = (s: Step) => s && !s.chain && s.go();
   // Registered once, reading the latest place through a ref, so no key falls between two renders' listeners.
@@ -925,12 +1007,14 @@ function BriefingDeck({ cards, place, onPlace, steps, way }: { cards: Card[]; pl
     else if (e.key === "ArrowLeft") within(steps.prev);
   };
   useEffect(() => {
+    if (still) return;
     const on = (e: KeyboardEvent) => keys.current(e);
     document.addEventListener("keydown", on);
     return () => document.removeEventListener("keydown", on);
-  }, []);
+  }, [still]);
   return (
     <>
+      {/* Interface v0.17: the tabs are the cards' titles, fixed under the modal's title, so they never move from card to card. */}
       {cards.length > 0 && (
         <nav className="tabs">
           {cards.map((c, i) => (
@@ -941,16 +1025,16 @@ function BriefingDeck({ cards, place, onPlace, steps, way }: { cards: Card[]; pl
         </nav>
       )}
       {card ? (
-        <div className={`deck-card${way === "back" ? " from-left" : ""}`} key={at} onClick={() => within(steps.next)} {...hint("deckCard", { focusable: true })}>
-          <h3>{tc(card.title)}</h3>
+        // The card doesn't repeat its title: its text starts a short way below the tabs, centred top to bottom when it's short.
+        <div className={`deck-card fades${way === "back" ? " from-left" : ""}`} key={at} ref={m.ref} data-fade={m.fade} aria-label={tc(card.title)} onClick={() => within(steps.next)} {...hint("deckCard", { focusable: true })}>
           <div className="deck-text">
-            <Rich text={card.text} />
+            <Prose text={card.text} />
           </div>
         </div>
       ) : (
         <div className="deck-card empty">{w("screen.decks.empty")}</div>
       )}
-      <DeckFoot prev={steps.prev} next={steps.next} way={way} counter={cards.length > 0 ? w("screen.decks.counter", { n: at + 1, total: cards.length }) : undefined} />
+      <DeckFoot prev={steps.prev} next={steps.next} way={way} counter={cards.length > 0 ? w("screen.decks.counter", { n: at + 1, total: cards.length }) : undefined} more={still ? undefined : m} />
     </>
   );
 }
@@ -960,9 +1044,10 @@ function BriefingDeck({ cards, place, onPlace, steps, way }: { cards: Card[]; pl
  * section opens as a card over them. A click on the card turns to the next section; its ×, Escape, or a click
  * outside the card goes back to the buttons; a click on the empty space around the buttons opens the first.
  */
-function RulesSections({ cards, open, onOpen, steps, way }: { cards: Card[]; open: number | null; onOpen: (n: number | null) => void; steps: { prev: Step; next: Step }; way: Way }) {
+function RulesSections({ cards, open, onOpen, steps, way, still = false }: { cards: Card[]; open: number | null; onOpen: (n: number | null) => void; steps: { prev: Step; next: Step }; way: Way; /** Drawn still, as a side modal. */ still?: boolean }) {
   const hint = useHint();
   const card = open === null ? undefined : cards[open];
+  const m = useMoreBelow();
   // A section opened from the buttons grows; turning from one to the next, it slides, from the left going back.
   const was = useRef<number | null>(null);
   const grows = was.current === null;
@@ -975,28 +1060,36 @@ function RulesSections({ cards, open, onOpen, steps, way }: { cards: Card[]; ope
       <div className="rules-body">
         <div className="rules-buttons" inert={!!card} onClick={(e) => e.target === e.currentTarget && onOpen(0)}>
           {cards.map((c, i) => (
+            // Interface v0.17: its Roman numeral in a small round badge at its left, its name centred.
             <button key={i} className="rules-section" data-section={i} onClick={() => onOpen(i)} {...hint("rulesSection")}>
-              {tc(c.title)}
+              <span className="numeral" aria-hidden="true">
+                {roman(i + 1)}
+              </span>
+              <span className="rules-name">{tc(c.title)}</span>
             </button>
           ))}
         </div>
+        {/* Behind an open section the buttons are dimmed lightly and slightly blurred; the backdrop fades in at its top and bottom (Interface v0.18). The card above it isn't faded. */}
+        {card && <div className="rules-backdrop" aria-hidden="true" />}
         {card && (
           <div className="rules-over" onClick={() => onOpen(null)}>
             <section key={open} className={`rules-section open${grows ? " grows" : way === "back" ? " from-left" : " from-right"}`} data-section={open!} aria-label={tc(card.title)} onClick={(e) => (e.stopPropagation(), steps.next && !steps.next.chain && steps.next.go())}>
               <div className="rules-section-head">
-                <h3>{tc(card.title)}</h3>
+                <h3>{w("screen.rulesModal.numbered", { numeral: roman(open! + 1), title: tc(card.title) })}</h3>
                 <button className="icon close" aria-label={w("screen.rulesModal.shrink")} onClick={(e) => (e.stopPropagation(), onOpen(null))} {...hint("rulesShrink")}>
                   {w("screen.rulesModal.mark")}
                 </button>
               </div>
-              <div className="deck-text">
-                <Rich text={card.text} />
+              <div className="rules-section-text fades" ref={m.ref} data-fade={m.fade}>
+                <div className="deck-text">
+                  <Prose text={card.text} />
+                </div>
               </div>
             </section>
           </div>
         )}
       </div>
-      <DeckFoot prev={steps.prev} next={steps.next} way={way} />
+      <DeckFoot prev={steps.prev} next={steps.next} way={way} more={still || !card ? undefined : m} />
     </>
   );
 }
@@ -1007,10 +1100,11 @@ function RulesSections({ cards, open, onOpen, steps, way }: { cards: Card[]; ope
  * to the list that stays put while only the topic slides; Previous and Next topic at its foot, and a click
  * anywhere on the entry turns to the next. Lore links in the chat open on the right, never here.
  */
-function CityList({ lore, open, onOpen, steps, way }: { lore: LoreEntry[]; open: string | null; onOpen: (id: string | null) => void; steps: { prev: Step; next: Step }; way: Way }) {
+function CityList({ lore, open, onOpen, steps, way, still = false }: { lore: LoreEntry[]; open: string | null; onOpen: (id: string | null) => void; steps: { prev: Step; next: Step }; way: Way; /** Drawn still, as a side modal. */ still?: boolean }) {
   const hint = useHint();
   const entry = open === null ? undefined : lore.find((e) => e.id === open);
-  const list = useRef<HTMLDivElement>(null);
+  const list = useRef<HTMLDivElement | null>(null);
+  const m = useMoreBelow();
   // Back at the list, at the place it was left.
   const scroll = useRef(0);
   useLayoutEffect(() => {
@@ -1024,17 +1118,27 @@ function CityList({ lore, open, onOpen, steps, way }: { lore: LoreEntry[]; open:
           <button className="secondary city-back" onClick={() => onOpen(null)} {...hint("cityBack")}>
             {w("screen.cityList.back")}
           </button>
-          <section key={entry.id} className={`city-entry${way === "back" ? " from-left" : ""}`} data-lore={entry.id} onClick={() => steps.next && !steps.next.chain && steps.next.go()}>
+          <section key={entry.id} className={`city-entry fades${way === "back" ? " from-left" : ""}`} data-lore={entry.id} ref={m.ref} data-fade={m.fade} onClick={() => steps.next && !steps.next.chain && steps.next.go()}>
             <h3>{tc(entry.title)}</h3>
-            <div className="deck-text">{entry.text}</div>
+            <div className="deck-text">
+              <Prose text={entry.text} />
+            </div>
           </section>
         </div>
-        <DeckFoot prev={steps.prev} next={steps.next} way={way} />
+        <DeckFoot prev={steps.prev} next={steps.next} way={way} more={still ? undefined : m} />
       </>
     );
   return (
     <>
-      <div className="city-list" ref={list}>
+      {/* Interface v0.17: its edges fade where there's more to scroll, and its subject headings stick at its top. A list has no More Below. */}
+      <div
+        className="city-list fades"
+        ref={(el) => {
+          list.current = el;
+          m.ref(el);
+        }}
+        data-fade={m.fade === "both" || m.fade === "below" ? "below" : "none"}
+      >
         {cityList(lore).map((g) => (
           <section key={g.subject ?? ""} className="city-group">
             <div className="city-subject">{g.subject ?? w("screen.decks.other")}</div>
@@ -1385,28 +1489,35 @@ function Tour({ step, onStep, onSkip, onFinish }: { step: number; onStep: (n: nu
  * and clicking it scrolls on (CC-20261113-01, #88: every control reachable at laptop heights).
  */
 function useMoreBelow() {
-  const ref = useRef<HTMLElement>(null);
+  // The element is kept in state, so a reading area that comes and goes (an open rules section) is watched whenever it's there.
+  const [el, setEl] = useState<HTMLElement | null>(null);
   const [more, setMore] = useState(false);
+  const [above, setAbove] = useState(false);
   const check = () => {
-    const el = ref.current;
     if (!el) return;
     // Not counting the hint's own room at the end: once only that is left below, there's nothing more to see.
     const hint = el.querySelector<HTMLElement>(":scope > .more-below");
     const own = hint ? hint.offsetHeight + parseFloat(getComputedStyle(hint).marginTop) : 0;
     setMore(el.scrollTop + el.clientHeight < el.scrollHeight - own - 2);
+    setAbove(el.scrollTop > 2);
   };
-  // After every render (new content), on scrolling, and on resizing the window.
+  // After every render (new content), on scrolling, and whenever its space changes.
   useLayoutEffect(check);
   useEffect(() => {
-    const el = ref.current;
-    el?.addEventListener("scroll", check);
+    if (!el) return;
+    el.addEventListener("scroll", check);
     window.addEventListener("resize", check);
+    const watch = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(check);
+    watch?.observe(el);
     return () => {
-      el?.removeEventListener("scroll", check);
+      el.removeEventListener("scroll", check);
       window.removeEventListener("resize", check);
+      watch?.disconnect();
     };
-  }, []);
-  return { ref, more, on: () => ref.current?.scrollBy({ top: ref.current.clientHeight * 0.8, behavior: "smooth" }) };
+  }, [el]);
+  /** Which of its edges fade (Interface v0.17): where there's more to scroll to, above or below. */
+  const fade = more && above ? "both" : more ? "below" : above ? "above" : "none";
+  return { ref: setEl as (el: HTMLElement | null) => void, more, fade, on: () => el?.scrollBy({ top: el.clientHeight * 0.8, behavior: "smooth" }) };
 }
 
 function MoreBelow({ m }: { m: ReturnType<typeof useMoreBelow> }) {
