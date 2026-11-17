@@ -9,7 +9,7 @@
 *Nov 17. Dylan's further notes on the demo, after v0.19 merged. Detail in the sections named; the record is in Playtest Findings, Demo review, part 3.*
 
 - **The right panel's cards stand in from the window's edge** (Right): the "talking with" card and the cards that slide over it stand 12px in from the window's right edge, as the "talking with" card stands above the panel's foot
-- **The cards that slide over it match it at the bottom** (Right): they end where it does, level with the message box, with the same round corners (28px); your own card's accent edge now goes all the way round
+- **The cards that slide over it match it at the bottom** (Right): they end where it does, level with the message box, with the same round corners (28px); your own card's accent edge now goes all the way round. **Folded to its strip,** the panel ends there too, with round bottom corners
 
 **Build:** **#191** builds v0.19; v0.20's changes get a task of their own once this version is on `main` (Build State).
 
@@ -467,7 +467,7 @@ In the chat view, **one thing is selected at a time:** a guest or a lore topic. 
   - **The same width as the card under it** (a narrower card was tried and dropped)
 - **Headings that stay put** *(Dylan; v0.19)*: when a card scrolls, **its heading stays** ("Talking with", "Looking at", "This is you", "The city"), and **so does a guest's portrait, name, and You tag;** the subtitle and everything after slide under them, fading as they go, with a space above the subtitle so it starts clear of the fade. **On a city entry, its title stays** and the words slide under it. Each card scrolls by itself (the panel's hide control stays in its corner), and **More Below** shows when a card runs past the bottom, as on the left
 - **Resizable, and hideable by dragging** *(v0.16)*: a drag handle on the left edge sets the width, remembered in the browser. **Dragging well past the narrowest hides the panel,** as its hide control does; while the drag is past that point, the panel fades to show what letting go will do. Letting go anywhere, even off the window, finishes the drag
-- **Can be hidden** to a thin strip with a handle *(v0.5)*, which shows the selected guest's portrait
+- **Can be hidden** to a thin strip with a handle *(v0.5)*, which shows the selected guest's portrait; **the strip ends level with the message box, with round bottom corners** *(Dylan; v0.20)*
 - **What it shows is public and fixed** *(fuller since v0.19, Dylan)*, in order:
   - **Portrait, name, and subtitle**
   - **A short description:** two or three sentences, public only. *(Characters' to write, tracker; the demo's are placeholders drawn only from the public lore entries and connections, and stay short where those say little)*
@@ -1216,7 +1216,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | The left panel scrolls a lot on a 1080p monitor; then, your portrait beside your name and role, with more room above and below; then, the empty places on one line; then, a little less room above you (then back), and the pinned top compressing in a shorter window, never overlapping; then, fully compressed, the errand stopped sliding under the buttons | Side by side, the pinned top about 70px shorter; the empty places folded into one line. It fits a 1920×960 window without scrolling. The top stays pinned down to 520px tall (640px before) | Left |
 | The "Talking with" card's bottom corners as round as its top ones; the cards that slide over it as they are | 28px all round, its bottom level with the message box's; the sliding cards keep square bottoms | Right |
 | *(v0.20)* The "talking with" card and its covering cards in from the right edge, about as far as from the bottom | 12px in from the window's right edge | Right |
-| *(v0.20)* The covering cards' bottom corners to match the "talking with" card's | They end level with it, 28px corners; your own card's edge all round | Right |
+| *(v0.20)* The covering cards' bottom corners to match the "talking with" card's; then the same for the folded strip | They end level with it, 28px corners; your own card's edge all round; the strip too | Right |
 | No blue line along the bottom of your own card | The accent edge on the sides and top only | Right |
 | A scroll fade under Il Notaio's title in the opening; then, it covered his first line before anything had moved | Done, coming in as the page scrolls | The Opening |
 | A click or a key press to move on to "Choose Your Family"; then, only the Continue button, not another click | Continue under the story, focused, so Enter or Space presses it | The Opening |
