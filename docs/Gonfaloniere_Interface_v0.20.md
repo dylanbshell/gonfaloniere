@@ -6,20 +6,29 @@
 
 ## Changes in v0.20
 
-*Nov 17. Dylan's further notes on the demo, after v0.19 merged. Detail in the sections named; the record is in Playtest Findings, Demo review, part 3.*
+*Nov 17. Dylan's fourth round of review on the demo page, after v0.19 merged, each change tried in the demo first. Detail in the sections named; the record is in Playtest Findings (the rows marked v0.20).*
 
-- **A gentler paddle press** (The modals): a light accent tint and a thin ring, under half a second, rather than a full accent fill
-- **The side modals run off the screen before they become paddles** (The modals): up to 85% of the modal in focus, shrinking only to 75% (480px), then cut off by the screen's edges, the modal in focus centred; paddles, taller, below 1280px
-- **The panel's hide control moves to the heading** (Right): on the "talking with" heading's line, at its right, lined up with a covering card's close button, rather than in the bottom-right corner on the cards
-- **Small tweaks** (Right; The input box): the card that slides up stops 29px under the heading and the "talking with" card ends 97px above the bar; "No one has your ear" is centred, sits right under the heading when a card is up (visible above it) and slides back down when it goes; the arrow keys stop at the menu's ends; the @ menu's portraits are 28px, its guests further apart; the menus are as wide as the message box; in a narrow box the prompt keeps its line and the next-move line drops below it
-- **The @ and / menus come down over the prompt's line, and the arrow keys move through them** (The input box): they end just above the box, covering "Your turn"; Up and Down skip the folded "Not available now" commands, and Return picks the lit entry
-- **The right panel's cards stand in from the window's edge** (Right): the "talking with" card and the cards that slide over it stand 12px in from the window's right edge, as the "talking with" card stands above the panel's foot
-- **The card that slides up stops in one place** (Right): about 29px under the heading (85px below the "talking with" card's top) at every width, whether or not someone has your ear; the 40% stop in a wide panel and the under-the-portrait stop in a narrow one are gone, and the name of whoever has your ear always shows beside "Talking with"
-- **The panel higher, its cards ending higher** (Right): it starts 12px from the top of the screen, level with the stage bar (48px before), and the "talking with" card and the folded strip end 97px above the Web of Confidences' bar (12px before, level with the message box)
-- **A sliding card reaches the bar until it stops** (Right): while a card slides up or down over the "talking with" card, its bottom reaches all the way to the Web of Confidences' bar, square, until it has stopped at the top or gone off the bottom; stopped, it ends level with the message box, 12px above the bar, rounded
-- **The cards that slide over it match it at the bottom** (Right): they end level with the message box, 12px above the Web of Confidences' bar, with the same round corners (28px); your own card's accent edge now goes all the way round. **Folded to its strip,** the panel ends there too, with round bottom corners
+**The right panel** (Right; Screen Sizes):
+- **Higher, and in from the edge:** the panel starts **12px from the top of the screen,** level with the stage bar (48px in v0.19). The "talking with" card and the cards that slide over it stand **12px in from the window's right edge**
+- **The "talking with" card ends 97px above the Web of Confidences' bar** (level with the message box in v0.19), and the folded strip ends there too, with round bottom corners
+- **The card that slides up** ends, once stopped, **level with the message box, 12px above the bar,** with the same 28px round corners as the "talking with" card; your own card's accent edge goes all the way round. **While it slides up or down,** its bottom reaches all the way to the bar, square, with no accent line along it, until it has stopped or gone off the bottom
+- **It stops in one place:** about **29px under the heading** (85px below the "talking with" card's top) at every width, whether or not someone has your ear. v0.19's 40% stop in a wide panel and under-the-portrait stop in a narrow one are gone, and **the name of whoever has your ear always shows beside "Talking with"**
+- **"No one has your ear" is centred.** With no card up it rests 64px lower than with one; it **slides up** to just under the heading as a card comes (shown above the card, over the heading's fade) and back down as the card goes, in step with it
+- **The hide control (⇥) moves to the heading's line,** at its right, **centred over a covering card's close button** at every width (it sat in the bottom-right corner, on the cards)
 
-**Build:** **#191** builds v0.19; v0.20's changes get a task of their own once this version is on `main` (Build State).
+**The input box** (The input box):
+- **The @ and / menus come down over the prompt's line,** ending 6px above the box (covering "Your turn"), and are **as wide as the message box,** lined up with it
+- **The arrow keys move through either menu:** Down lights the first entry, Up the last, and they **stop at the ends** rather than wrapping. In the / menu they skip the folded **"Not available now"** section. Return picks the lit entry (with nothing lit, Return sends as before); pointing lights an entry too; typing or reopening clears it
+- **The @ menu:** portraits 28px (44px), each row 42px tall with 2px between, and 10px of room above the first guest and below the last. **The / menu:** the same 10px above its first command, its foot as it was, and 8px between the last command open now and the divider over "Not available now"
+- **In a narrow box the prompt keeps its line;** the next-move line drops below it, still at the right, rather than crushing the prompt to a word a line
+
+**The modals** (Briefing, rules, the city, and the glossary; Screen Sizes):
+- **The side modals are larger,** up to **85% of the modal in focus** (80%), and shrink only to **75% (480px)**. Below that, **they keep their size and run off the screen's sides,** the modal in focus centred and their titles still showing toward the middle. **Paddles only below 1280px** (1408px in v0.19), now 75% of a modal's height (55%)
+- **A gentler paddle press:** a light accent tint and a thin ring, its words in the accent, under half a second (a full accent fill, a 4px ring and light words in v0.19)
+
+**In the demo only:** the Fast-forward button moves to the bottom left.
+
+**Build:** **#191** built v0.19 (PRs #194 to #198). **#200** builds v0.20 (Build State; Notes for the Build).
 
 ## Changes in v0.19
 
@@ -315,10 +324,10 @@ This doc covers **the player screen as the player meets it**: what's on it, wher
 
 ---
 
-## Build State *(Nov 15)*
+## Build State *(Nov 15; Nov 17)*
 
 1. **The mini-game is playable** as Francesco, with everything this doc designed through v0.15 built (the first screens, then #102, #109, #113, #114, #117, #128, #132, #141, #146, #148, and #151; v0.15's list). Francesco's errand can't be done there (Friar Tommaso isn't in the cast), and the mini-game runs with `plot_reward` off
-2. **v0.16 and v0.17 are designed and shown in the demo, not built.** Dylan reviewed the demo page (Nov 15), and every v0.16 change was tried there first. **One build task** builds v0.16: **#177**. Most of it needs nothing new from the engine. The command menu's reasons can be worked out from the player's own state until the engine sends them; **the next-move line and the missed-move hint need the engine** to put the player's next movement window in their state (Technical Design handoff), so the build leaves them out if that isn't there yet. **Generate needs a model call Technical Design hasn't specified** (handoff), so #177 leaves it out. The demo is private to Dylan; **#172** adds `npm run demo` to rebuild it from the repo. Its guests' lines are the fake caller's placeholders. **v0.17** (Dylan's further review, Nov 15–16) and **v0.18**'s two small changes are built by **#179**, after #177, since both change the same screen; Notes for the Build says what it should do differently from the demo. **v0.19** (Dylan's third round, Nov 16) is built by **#191**, after #179, for the same reason. *In the demo, the mini-game's last third of its round shows as the second round of mingling, so the bar has an example of a later stage*
+2. **v0.16 and v0.17 are designed and shown in the demo, not built.** Dylan reviewed the demo page (Nov 15), and every v0.16 change was tried there first. **One build task** builds v0.16: **#177**. Most of it needs nothing new from the engine. The command menu's reasons can be worked out from the player's own state until the engine sends them; **the next-move line and the missed-move hint need the engine** to put the player's next movement window in their state (Technical Design handoff), so the build leaves them out if that isn't there yet. **Generate needs a model call Technical Design hasn't specified** (handoff), so #177 leaves it out. The demo is private to Dylan; **#172** adds `npm run demo` to rebuild it from the repo. Its guests' lines are the fake caller's placeholders. **v0.17** (Dylan's further review, Nov 15–16) and **v0.18**'s two small changes are built by **#179**, after #177, since both change the same screen; Notes for the Build says what it should do differently from the demo. **v0.19** (Dylan's third round, Nov 16) was built by **#191** (PRs #194 to #198). **v0.20** (the fourth round, Nov 17) is built by **#200**. *In the demo, the mini-game's last third of its round shows as the second round of mingling, so the bar has an example of a later stage*
 3. **Then the full game,** once the full game loop is built: councils, Piero, candidate selection, speeches and `/repent`, the ballot and `/buy`, the run-off, and the full death and result screens. Dylan playing a whole game is the milestone's test (tracker, item 2)
 4. **Then v1, the first public release:** Il Notaio's full player-facing role (Onboarding, below)
 
@@ -341,6 +350,12 @@ The demo is built by patching the screen and adding scripts to the page, which i
 - **The card's new lines come from the setting pack** *(v0.19)*: the description per guest, the faction lines (from the rules' win conditions), and each public entry's guests. Nothing new from the engine
 - **The opening's choice** *(v0.19)*: its fade-in is an animation, not a transition, since the title's and descriptions' opacity also follows the scroll once it's docked (a transition lagged them by its whole length). Its shrink is measured against its full height and where it would sit unstuck, not its current height, which its own folding changes
 - **The review tool** *(v0.19)*: in `npm run demo`, the note that a reference was copied sits at the top left of the page
+- **The sliding card's full height** *(v0.20)*: while it moves, the card reaches the bar, square; stopped, it ends 12px above it, rounded. In the demo the slide's keyframes carry the full-height bottom and square corners, so the card takes its resting shape when the animation ends; the "leaving" slide does the same from its first frame. Reduced motion keeps the fades
+- **"No one has your ear" follows the card** *(v0.20)*: its slide goes by whether a card is up (in the demo, `:has()` on a covering card that isn't leaving) and uses the cards' own motion token, so the two move together
+- **The hide control's place** *(v0.20)*: centred over the covering card's close button. In the demo a script measures the card's scrollbar and edge and hands the width to the panel; the build can instead lay the control out the same way the card lays out its close button (the same side margin, container-sized), with the scrollbar allowed for. **Check on a Mac with overlay scrollbars and with "always show scroll bars"**
+- **The menus' place and width** *(v0.20)*: the @ and / menus end just above the message box and match its width. In the demo they're measured from the box on each render and on resize; in the build, put the menus in the same box as the field (or anchor them to it) so they size with it
+- **The arrow keys in the menus** *(v0.20)*: one lit index per open menu, reset when the menu changes; it counts only the commands open now, so it never lands in "Not available now". The lit entry scrolls into view. Pointing sets the same index, so only one entry is ever lit
+- **The side modals' sizes** *(v0.20)*: three ranges: shrinking (up to 85% of the modal, down to 75%), then fixed at 75% and running off the screen's sides with the modal in focus centred, then paddles. The demo goes by window width (1736px and 1280px); in the build, as Notes for the Build says above, go by the overlay's own width
 - **More Below can't loop** *(v0.19)*: once the left panel's top was pinned, the demo's left panel kept failing for Dylan (not reproduced in Chrome; likely Safari, at some window heights). The likely cause: showing More Below changes what's left to scroll, so a check after every render could turn it on and off without end until React gave up. The fix: it comes on only with clearly more than its own room left (16px) and goes off at 2px, and the check runs a frame after the render. **A failed panel says what failed** in the demo (the error, small, under the notice, and a Try Again button); worth keeping in the build
 
 ---
