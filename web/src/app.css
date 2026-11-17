@@ -37,7 +37,7 @@ h3 { font-size: var(--text-md); margin: 0 0 var(--space-3); }
 .portrait { display: inline-flex; align-items: center; justify-content: center; flex: none; width: var(--portrait-size); height: var(--portrait-size); border-radius: var(--radius-round); color: var(--portrait-text); font-size: var(--text-sm); font-weight: var(--weight-bold); }
 .portrait.large { width: var(--portrait-size-lg); height: var(--portrait-size-lg); font-size: var(--text-lg); }
 /* Interface v0.17: the player's own portrait, name, and role at the top of the left panel, a size up from the panel's other words */
-.me-briefing .portrait.large { width: var(--portrait-size-me); height: var(--portrait-size-me); font-size: var(--text-xl); }
+.me-briefing .portrait.large { width: var(--left-portrait); height: var(--left-portrait); font-size: var(--text-lg); }
 .who { display: flex; align-items: center; gap: var(--space-3); }
 .who.column { flex-direction: column; text-align: center; }
 .guest { text-decoration: underline dotted; text-underline-offset: var(--space-1); cursor: pointer; }
@@ -60,8 +60,16 @@ button.small { font-size: var(--text-xs); padding: 0 var(--space-2); }
 .layout { display: grid; grid-template-columns: var(--side-width) minmax(var(--centre-min), 1fr) minmax(var(--right-min), var(--right-width)); height: calc(var(--screen-height) - var(--web-bar-height)); }
 .side { background: var(--surface); border-right: var(--border-width) solid var(--border); padding: var(--space-4); overflow-y: auto; }
 .side.right { border-right: none; border-left: var(--border-width) solid var(--border); }
+/* Interface v0.19: the left panel's margins, text, portraits, and tokens are all sized from its width (theme.css's units); its
+   scrollbar is thin, so the player's name doesn't rewrap when it appears */
+.side.left { padding: 0 var(--left-pad) var(--left-pad); scrollbar-width: thin; --text-xs: var(--left-text-xs); --text-sm: var(--left-text-sm); --text-md: var(--left-text-md); --text-lg: var(--left-text-lg); --token-size: var(--left-token); font-size: var(--text-md); }
+/* Its top (you, your sheet, the four buttons) stays put from the start; the errand and the places slide under the buttons
+   with a fade. Only its gaps close up in a shorter window. */
+.left-top { position: var(--left-pin); top: 0; z-index: var(--z-float); margin: 0 calc(var(--left-pad) * -1); padding: var(--left-gap-head) var(--left-pad) var(--left-gap-under); background: var(--surface); }
+.left-top::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: var(--left-top-fade); background: linear-gradient(to bottom, var(--surface), transparent); pointer-events: none; }
 /* The sheet (Interface v0.16): each line opens the rules where it's explained, and underlines on hover */
-.facts { display: flex; flex-direction: column; gap: var(--space-1); margin: var(--space-4) 0 0; }
+.facts { display: flex; flex-direction: column; gap: var(--left-facts-gap); margin: var(--left-gap-facts) 0 0; }
+.sheet-panel { padding-bottom: var(--left-sheet-bottom); }
 .fact { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); width: 100%; min-height: var(--line-sm); border: none; border-radius: 0; background: transparent; padding: 0; font-size: var(--text-sm); text-align: left; }
 .fact-label { color: var(--text-muted); }
 .fact-value { text-align: right; }
@@ -71,11 +79,11 @@ button.fact:hover .fact-label, button.fact:focus-visible .fact-label, button.lin
 .here .portrait { width: var(--portrait-size); height: var(--portrait-size); }
 .buttons { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-5); }
 /* Interface v0.16: Show me around and the explanations' switch, centred at the top, with room around them */
-.side-head { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: var(--space-2); margin: var(--space-1) 0 var(--space-4); }
+.side-head { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: var(--space-2); margin: 0; }
 .side-head button { white-space: nowrap; }
 
 /* The errand card, pinned under the sheet */
-.errand { margin-top: var(--space-4); background: var(--errand-bg); border: var(--border-width) solid var(--errand-border); border-radius: var(--radius-md); padding: var(--space-3); font-size: var(--text-sm); }
+.errand { margin-top: var(--left-errand-top); background: var(--errand-bg); border: var(--border-width) solid var(--errand-border); border-radius: var(--radius-md); padding: var(--left-errand-pad-y) var(--left-errand-pad-x); font-size: var(--text-sm); }
 .errand[role="button"] { cursor: pointer; }
 .errand .label { margin: 0 0 var(--space-1); }
 .errand-result { margin-top: var(--space-2); font-weight: var(--weight-bold); }
@@ -293,11 +301,14 @@ button.tab.on { border-color: var(--accent); color: var(--accent); }
 /* The panel keeps its open size while down, so the bar clips it rather than squashing it */
 /* Interface v0.17, Notes for the Build: what's inside the web answers to the web's own width, not the window's */
 .web { flex: none; height: calc(var(--web-height) - var(--web-bar-height)); display: flex; flex-direction: column; border-top: var(--border-width) solid var(--border); container-type: inline-size; container-name: web; }
-.web-body { position: relative; flex: 1; display: grid; grid-template-columns: 1fr var(--web-side-width); min-height: 0; }
+/* Interface v0.19: its contents stop at --web-max, centred */
+.web-body { position: relative; flex: 1; display: grid; grid-template-columns: 1fr var(--web-side-width); min-height: 0; width: 100%; max-width: var(--web-max); margin: 0 auto; }
 /* Interface v0.16: the drawing is fitted to its space and centred, the key over its top-left corner; the screen moves the drawing aside so nothing runs under the key */
 /* Interface v0.17: the whole drawing stands clear of the screen's left edge and of the side column, and never draws larger
    than its limit across. Nothing in it is redrawn: it's the same picture, smaller. */
-.web-map { position: relative; min-width: 0; min-height: 0; overflow: hidden; display: flex; justify-content: center; padding: 0 var(--web-margin-side) 0 var(--web-margin-left); }
+/* Interface v0.19: the drawing centres across the whole width when the key is folded; with the key open, the screen sets the
+   left margin so it centres in the room between the key and the side column. */
+.web-map { position: relative; min-width: 0; min-height: 0; overflow: hidden; display: flex; justify-content: center; padding: 0 var(--web-margin-left); }
 .web-diagram { position: relative; display: block; width: 100%; max-width: var(--web-draw-max); height: 100%; }
 /* The column beside the web: its tabs, then the tab's body, which scrolls on its own */
 .web-side { border-left: var(--border-width) solid var(--border); display: flex; flex-direction: column; min-height: 0; background: var(--surface); }
@@ -305,7 +316,7 @@ button.tab.on { border-color: var(--accent); color: var(--accent); }
    edge, so the web keeps its room; the handle opens the column over the web */
 button.web-side-handle { display: none; border: none; border-left: var(--border-width) solid var(--border); border-radius: 0; background: var(--surface); padding: var(--space-3) 0; color: var(--text-muted); font-size: var(--text-xs); letter-spacing: var(--tracking-label); writing-mode: vertical-rl; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 button.web-side-handle:hover, button.web-side-handle:focus-visible { background: var(--select-bg); color: var(--text); }
-@container web (max-width: 840px) {
+@container web (max-width: 1100px) {
   .web-body { grid-template-columns: 1fr var(--web-strip-width); }
   button.web-side-handle { display: block; }
   .web-side { display: none; position: absolute; z-index: var(--z-menu); top: 0; bottom: 0; right: var(--web-strip-width); width: min(var(--web-side-min), calc(100% - var(--web-strip-width))); box-shadow: var(--shadow-side); }
@@ -366,7 +377,7 @@ button.note-fold { font-size: var(--text-xs); padding: 0 var(--space-1); }
 .deck-text > :first-child::first-letter { text-transform: uppercase; }
 
 /* Short windows, failed panels, and a steady layout (CC-20261113-01, #88) */
-.buttons.decks { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); margin-top: var(--space-3); }
+.buttons.decks { display: grid; grid-template-columns: 1fr 1fr; gap: var(--left-buttons-gap); margin-top: var(--left-gap-buttons); }
 .buttons.decks button { font-size: var(--text-sm); padding: var(--space-1) var(--space-2); }
 .more-below { position: sticky; bottom: 0; display: block; margin: var(--space-3) auto 0; font-size: var(--text-more); background: var(--surface); box-shadow: var(--shadow-raised); border-radius: var(--radius-round); }
 .notice.status { margin: 0; }
@@ -547,7 +558,12 @@ button.icon.close { font-size: var(--text-lg); line-height: 1; padding: 0 var(--
 .cluster:not(.pair):hover .stack-item + .stack-item, .cluster:not(.pair):focus-within .stack-item + .stack-item { margin-left: var(--space-1); }
 .joint { width: var(--space-2); height: var(--mark-ring); background: var(--text-muted); }
 /* The places (Interface v0.9): every place in a fixed order, empty ones faded; yours marked; a private one behind a closed door */
-.places { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+.places { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--left-place-gap); }
+.side.left > .label { margin: var(--left-places-top) 0 var(--left-places-below); }
+/* Interface v0.19: the empty places, folded into one faded line a fixed distance under the last occupied place */
+.places-empty { margin-top: calc(var(--left-empty-gap) - var(--left-place-gap)); padding-left: calc(var(--space-2) + var(--mark-ring)); opacity: var(--place-empty-opacity); font-size: var(--text-sm); }
+.places-empty .place.empty { display: inline; min-height: 0; padding: 0; border: none; opacity: 1; }
+.places-empty .place-name { white-space: normal; }
 .place { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: calc(var(--token-size) + var(--mark-ring) * 2); padding-left: var(--space-2); border-left: var(--mark-ring) solid transparent; }
 .place.empty { opacity: var(--place-empty-opacity); }
 .place.own { border-left-color: var(--accent); }
@@ -570,12 +586,16 @@ button.token .portrait { width: var(--token-size); height: var(--token-size); fo
 .here button.token .portrait { width: var(--portrait-size); height: var(--portrait-size); font-size: var(--text-sm); }
 button.token.large .portrait { width: var(--portrait-size-lg); height: var(--portrait-size-lg); font-size: var(--text-lg); }
 /* The player's own name and portrait open their briefing (Interface v0.7) */
-button.me-briefing { display: flex; width: 100%; border: none; background: transparent; padding: 0; gap: var(--space-1); }
+/* Interface v0.19: the portrait beside the name and role, spanning both rows; the name balanced so it wraps as "You are /
+   Francesco Pazzi", the role at the panel's small size */
+button.me-briefing { display: grid; grid-template-columns: var(--left-portrait) 1fr; grid-template-rows: auto auto; column-gap: var(--left-portrait-gap); align-items: center; width: 100%; margin: var(--left-gap-above-me) 0 var(--left-gap-below-me); border: none; background: transparent; padding: 0; text-align: left; }
+.me-briefing .portrait { grid-row: 1 / span 2; }
 button.me-briefing:hover:not(:disabled) .name { text-decoration: underline; }
-.me-briefing .name { margin-top: var(--space-2); font-size: var(--text-lg); }
-.me-briefing .role { font-size: var(--text-md); }
+.me-briefing .name { align-self: end; font-size: var(--text-lg); line-height: 1.2; text-wrap: balance; }
+.me-name { white-space: nowrap; }
+.me-briefing .role { align-self: start; font-size: var(--text-sm); }
 /* Interface v0.8: the midnight line, and the extra act an errand can earn in the errand card's accent */
-.midnight-line { margin-top: var(--space-1); font-size: var(--text-sm); }
+.midnight-line { margin-top: var(--left-midnight-top); font-size: var(--text-sm); }
 .midnight-extra { color: var(--errand-accent); }
 
 /* The rules (Interface v0.5; v0.16): one button per section, filling the modal and staying in view; a section opens as a card over them */

@@ -1638,8 +1638,13 @@ function Left({ me, v, onDeck, onTour, nudge = false }: { me: string; v: View; o
   const openReward = rewardAt === null ? undefined : (e: { stopPropagation: () => void }) => (e.stopPropagation(), onDeck("rules", { rules: rewardAt }));
   /** The errand card opens the briefing at the errand's card, found by the errand's own words. */
   const openErrand = () => v.sheet && onDeck("briefing", { briefing: errandCardAt(briefingDeck(v.sheet), v.sheet.errand ?? "") });
+  // Interface v0.19: "You are {name}", the name kept whole on its own line.
+  const [youBefore, youAfter = ""] = w("screen.youAre").split("{name}");
   return (
     <aside className="side left" ref={m.ref}>
+      {/* Interface v0.19: the top (you, your sheet, the four buttons) stays put when the panel scrolls; the errand and the
+          places slide under the buttons with a fade. In a very short window the whole panel scrolls (theme.css). */}
+      <div className="left-top">
       {/* Interface v0.16: Show me around and the explanations' switch, centred at the top on their own line. */}
       <div className="side-head">
         <button className="switch tour-again" onClick={onTour} {...hint("tourAgain")}>
@@ -1651,9 +1656,15 @@ function Left({ me, v, onDeck, onTour, nudge = false }: { me: string; v: View; o
         {/* Interface v0.16: the portrait, "You are …", and the role in plain words, centred, with no label or ring. The
             public subtitle stands in for the role until Characters writes one per guest. Interface v0.7: the name or
             portrait opens the briefing, at the place it was left. */}
-        <button className="who column me-briefing" disabled={!v.sheet} onClick={() => onDeck("briefing")} {...hint("myBriefing")}>
+        {/* Interface v0.19: the portrait beside the name and role, not above them. */}
+        <button className="me-briefing" disabled={!v.sheet} onClick={() => onDeck("briefing")} {...hint("myBriefing")}>
           <Portrait name={me} large />
-          <span className="name">{w("screen.youAre", { name: me })}</span>
+          <span className="name">
+            {youBefore}
+            <span className="me-name">{me}</span>
+            {youAfter && <wbr />}
+            {youAfter}
+          </span>
           <span className="muted role">{g?.subtitle}</span>
         </button>
         {/* Laid out before the first state arrives, so nothing below moves when it does. */}
@@ -1680,6 +1691,7 @@ function Left({ me, v, onDeck, onTour, nudge = false }: { me: string; v: View; o
             {w(`screen.${d}`)}
           </button>
         ))}
+      </div>
       </div>
       {v.sheet?.errand && (
         // Interface v0.16: just the task; clicking the card opens the briefing at the errand's card.
@@ -1808,6 +1820,23 @@ function PlaceRow({ place, heading, council }: { place: Place; heading: string; 
   );
 }
 
+/** A place that keeps a row of its own (Interface v0.19): someone is there, or it's the player's own, or a secret conversation's. */
+const occupied = (p: Place) => p.guests.length > 0 || p.own || p.private;
+
+/** An empty place on the folded line (Interface v0.19): its name as the pack gives it, its description on hover. */
+function EmptyPlace({ place }: { place: Place }) {
+  const h = useContext(HintsContext);
+  const desc = placeDescription(place.name);
+  const show = (e: { currentTarget: Element }) => desc && h.show(desc, e.currentTarget, true);
+  return (
+    <span className="place empty" data-place={place.name}>
+      <span className="place-name" tabIndex={0} aria-description={desc || undefined} onMouseEnter={show} onMouseLeave={h.hide} onFocus={show} onBlur={h.hide}>
+        {place.name}
+      </span>
+    </span>
+  );
+}
+
 /**
  * The place list (Interface v0.9, Left: The places; TD v0.49), in place of the room's clusters: every place in
  * the pack's order, always shown, empty ones faded, so the list never shifts. In a council only the player's
@@ -1826,9 +1855,23 @@ function PlaceList({ me, v, list }: { me: string; v: View; list: Place[] }) {
       <div className="room places-view">
         {list.length ? (
           <ul className="places">
-            {list.map((p) => (
+            {list.filter(occupied).map((p) => (
               <PlaceRow key={p.name} place={p} heading={heading(p)} council={c?.kind === "council"} />
             ))}
+            {/* Interface v0.19: the empty places fold into one faded line after them, in the pack's order, each name keeping its description on hover. */}
+            {list.some((p) => !occupied(p)) && (
+              <li className="places-empty">
+                <span className="places-empty-label">{w("screen.places.empty")}</span>{" "}
+                {list
+                  .filter((p) => !occupied(p))
+                  .map((p, i, all) => (
+                    <Fragment key={p.name}>
+                      <EmptyPlace place={p} />
+                      {i < all.length - 1 && w("screen.places.emptySep")}
+                    </Fragment>
+                  ))}
+              </li>
+            )}
           </ul>
         ) : (
           <div className="places-quiet muted">{w("screen.places.quiet")}</div>
@@ -2782,12 +2825,14 @@ function WebDock({
     if (tab === "notes" && picked.length) notesBox.current?.querySelector(".note-group.lit")?.scrollIntoView({ block: "nearest" });
   }, [pickedKey, tab]);
   // The drawing's frame is fitted to what's drawn, so the web draws as large as its space allows, centred;
-  // then it moves aside just enough that nothing runs under the key at its top-left corner.
+  // Interface v0.19: with the key open, the drawing centres in the room between the key and the side column (its left
+  // margin reaches past the key); folded, across the whole width.
   const svg = useRef<SVGSVGElement>(null);
   const drawn = useRef<SVGGElement>(null);
   const keyBox = useRef<HTMLDivElement>(null);
   const [frame, setFrame] = useState<string | null>(null);
-  const [aside, setAside] = useState(0);
+  /** The drawing's left margin with the key open: from the map's left edge to just past the key. Null with the key folded. */
+  const [keyRoom, setKeyRoom] = useState<number | null>(null);
   useLayoutEffect(() => {
     const fit = () => {
       const g = drawn.current;
@@ -2798,17 +2843,15 @@ function WebDock({
       if (!b.width || !b.height) return;
       const pad = 2;
       const next = [b.x - pad, b.y - pad, b.width + pad * 2, b.height + pad * 2].map((n) => Math.round(n * 10) / 10).join(" ");
-      if (next !== frame) return setFrame(next);
-      // Clear of the key: how far the drawing's guests, names, and faction names reach under it, up to the room on the right.
-      const k = keyBox.current?.getBoundingClientRect();
-      const boxes = [...el.querySelectorAll(".node circle, .node-name, .faction-label")].map((x) => x.getBoundingClientRect());
-      if (!k || !boxes.length) return setAside(0);
-      const gap = themeMs("--web-key-clear", 8);
-      const under = Math.max(0, ...boxes.filter((r) => r.top < k.bottom + gap).map((r) => k.right + gap - (r.left - aside)));
-      // Up to the room on the right, short of the drawing's margin beside the side column.
-      const room = Math.max(0, m.getBoundingClientRect().right - (parseFloat(getComputedStyle(m).paddingRight) || 0) - Math.max(...boxes.map((r) => r.right - aside)));
-      const move = Math.round(Math.min(under, room));
-      if (move !== aside) setAside(move);
+      // Only a real change: the names' boxes shift by a hair as the drawing's scale changes, which mustn't refit it again
+      // and again (a loop).
+      const was = frame?.split(" ").map(Number);
+      if (!was || next.split(" ").some((n, i) => Math.abs(Number(n) - was[i]!) > 0.5)) {
+        if (next !== frame) return setFrame(next);
+      }
+      const k = keyOpen ? keyBox.current?.getBoundingClientRect() : null;
+      const room = k ? Math.round(k.right - m.getBoundingClientRect().left + themeMs("--web-key-clear", 8)) : null;
+      if (room !== keyRoom) setKeyRoom(room);
     };
     fit();
     if (typeof ResizeObserver === "undefined" || !map.current) return;
@@ -2820,7 +2863,7 @@ function WebDock({
       watch.disconnect();
       on.cancel();
     };
-  }, [frame, aside, open, keyOpen, info.roster.length]);
+  }, [frame, keyRoom, open, keyOpen, info.roster.length]);
   /** One note: clicking it selects its guest or pair (Interface v0.16); a free note selects no one. */
   const NoteItem = ({ n }: { n: Note }) => (
     <li className="note" key={n.id} data-note={n.id} onClick={n.guests.length ? () => selection.set(n.guests) : undefined} {...(n.guests.length ? hint("noteItem") : {})}>
@@ -2862,8 +2905,8 @@ function WebDock({
         </button>
         <div className="web" inert={!open}>
           <div className={`web-body${sideOpen ? " side-open" : ""}`}>
-            <div className="web-map" ref={map}>
-              <svg ref={svg} className="web-diagram" viewBox={frame ?? "-34 -8 168 116"} role="group" aria-label={w("screen.web.title")} style={aside ? { left: aside } : undefined}>
+            <div className="web-map" ref={map} style={keyRoom === null ? undefined : { paddingLeft: keyRoom }}>
+              <svg ref={svg} className="web-diagram" viewBox={frame ?? "-34 -8 168 116"} role="group" aria-label={w("screen.web.title")}>
                 <g ref={drawn}>
                   {/* Interface v0.5: an arc in each faction's colour around its part of the ring. */}
                   <g className="faction-arcs">

@@ -704,18 +704,25 @@ test("the place list: every place in the pack's order, empty ones faded, yours m
   assert.match(left, /data-hint="places"/);
   assert.ok(left.includes(`>${PLAYER.screen.places.title}<`));
   assert.doesNotMatch(left, /data-cluster=/, "the place list replaces the room's clusters");
-  const rows = [...left.matchAll(/<li class="place([^"]*)" data-place="([^"]*)">/g)].map((r) => ({ cls: r[1]!, name: r[2]! }));
-  assert.deepEqual(rows.map((r) => r.name), pack, "every place, in the pack's order");
+  // Interface v0.19: the occupied places (and the player's own, and a secret conversation's) keep a row each, in the pack's
+  // order; the empty ones fold into one faded line after them, "Empty: …", in the pack's order.
   const sp = v.state!.places!;
-  assert.deepEqual(rows.map((r) => r.cls.includes("empty")), sp.map((p) => p.guests.length === 0), "empty places stay, faded");
-  assert.ok(sp.some((p) => !p.guests.length));
-  assert.deepEqual(rows.map((r) => r.cls.includes(" own")), sp.map((p) => p.own), "your own place is marked");
+  const busy = (p: (typeof sp)[number]) => p.guests.length > 0 || p.own || p.private;
+  const rows = [...left.matchAll(/<li class="place([^"]*)" data-place="([^"]*)">/g)].map((r) => ({ cls: r[1]!, name: r[2]! }));
+  assert.deepEqual(rows.map((r) => r.name), sp.filter(busy).map((p) => p.name), "the occupied places, in the pack's order");
+  const empty = [...left.matchAll(/<span class="place empty" data-place="([^"]*)">/g)].map((r) => r[1]!);
+  assert.deepEqual(empty, sp.filter((p) => !busy(p)).map((p) => p.name), "the empty ones, on one line");
+  assert.deepEqual(pack.filter((p) => rows.some((r) => r.name === p) || empty.includes(p)), pack, "every place, in the pack's order");
+  assert.ok(empty.length > 0);
+  assert.match(left, /<li class="places-empty"><span class="places-empty-label">Empty:<\/span> <span class="place empty"/);
+  assert.deepEqual(rows.map((r) => r.cls.includes(" own")), sp.filter(busy).map((p) => p.own), "your own place is marked");
   assert.equal(sp.filter((p) => p.own).length, 1);
-  // Headings: the first letter capitalized; the hover is Lore's description, the same as the issue gives it.
+  // Headings: the first letter capitalized on a row, the pack's words on the empty line; the hover is Lore's description.
   for (const name of pack) {
     const d = PLAYER.screen.places.descriptions[name] as string;
     assert.ok(d && d.length > 20, name);
-    assert.ok(left.includes(`<span class="place-name" tabindex="0" aria-description="${esc(d)}">${name[0]!.toUpperCase()}${name.slice(1)}</span>`), `${name}: heading and description`);
+    const shown = empty.includes(name) ? name : `${name[0]!.toUpperCase()}${name.slice(1)}`;
+    assert.ok(left.includes(`<span class="place-name" tabindex="0" aria-description="${esc(d)}">${shown}</span>`), `${name}: heading and description`);
   }
   assert.deepEqual(Object.keys(PLAYER.screen.places.descriptions).filter((k) => !k.startsWith("_")), pack, "a description for every place, keyed by its name");
   // Every guest in a place has a portrait that selects them, the player's own included (Interface v0.16).
@@ -1377,7 +1384,8 @@ test("portraits select their guest wherever they appear, the player's own in the
   for (const p of v.state!.present) assert.match(left, new RegExp(`<button class="token" aria-label="${esc(p)}" aria-pressed="false" data-guest="${esc(p)}"[^>]*data-hint="roomToken"`), `${p}'s portrait selects`);
   // The player's own name and large portrait at the top: open the briefing, with the hover "Your briefing".
   // Interface v0.16: "You are …" over the role line (the public subtitle, until Characters writes a role), centred, with no "You" label.
-  assert.match(left, new RegExp(`<button class="who column me-briefing"[^>]*aria-description="Your briefing" data-hint="myBriefing"><span class="portrait large"[^>]*>[^<]*</span><span class="name">You are ${esc(F)}</span><span class="muted role">${esc(info.roster.find((r) => r.name === F)!.subtitle)}</span></button>`));
+  // Interface v0.19: the portrait beside the name and role; the name kept whole on its line.
+  assert.match(left, new RegExp(`<button class="me-briefing"[^>]*aria-description="Your briefing" data-hint="myBriefing"><span class="portrait large"[^>]*>[^<]*</span><span class="name">You are <span class="me-name">${esc(F)}</span></span><span class="muted role">${esc(info.roster.find((r) => r.name === F)!.subtitle)}</span></button>`));
   assert.equal(PLAYER.screen.hints.myBriefing, "Your briefing");
   assert.doesNotMatch(left, /<div class="label">You<\/div>/, "no You label");
   // Their own portrait in the places selects them, like anyone's (Interface v0.16).
@@ -2217,7 +2225,7 @@ test("Screen Sizes (Interface v0.17): every limit is a theme token; the reading 
     ["--web-side-width", "clamp(280px, 28cqw, 480px)"],
     ["--break-right-fold", "1044px"],
     ["--break-web-key", "864px"],
-    ["--break-web-side", "840px"],
+    ["--break-web-side", "1100px"],
     ["--break-phone", "760px"],
     ["--long-press", "500ms"],
   ] as const)
@@ -2234,9 +2242,9 @@ test("Screen Sizes (Interface v0.17): every limit is a theme token; the reading 
   assert.match(css, /\.layout \{[^}]*grid-template-columns: var\(--side-width\) minmax\(var\(--centre-min\), 1fr\) minmax\(var\(--right-min\), var\(--right-width\)\);/);
   // The web's own width decides what's inside it (a container query), not the window's.
   assert.match(css, /\.web \{[^}]*container-type: inline-size; container-name: web; \}/);
-  assert.match(css, /@container web \(max-width: 840px\) \{\s*\.web-body \{ grid-template-columns: 1fr var\(--web-strip-width\); \}/);
+  assert.match(css, /@container web \(max-width: 1100px\) \{\s*\.web-body \{ grid-template-columns: 1fr var\(--web-strip-width\); \}/);
   assert.doesNotMatch(noComments(css), /@media[^{]*(min|max)-(width|height)/, "no window media query in the components' styles");
-  assert.match(css, /\.web-map \{[^}]*padding: 0 var\(--web-margin-side\) 0 var\(--web-margin-left\); \}/);
+  assert.match(css, /\.web-map \{[^}]*padding: 0 var\(--web-margin-left\); \}/);
   assert.match(css, /\.web-diagram \{[^}]*max-width: var\(--web-draw-max\)/);
   // On the screen: the side column's handle with its words and explanation; the message box's hidden twin; his hint folding by itself.
   const { at } = await playedLog();
@@ -2366,4 +2374,24 @@ test("the right panel's guest cards (Interface v0.19): a description, Their fact
   assert.match(css, /\.person-head \{ position: sticky; top: 0;/);
   assert.match(css, /\.person \.who\.column \{ position: sticky; top: var\(--right-head-height\);/);
   assert.match(css, /\.lore-entry h3 \{ position: sticky; top: var\(--right-head-height\);[^}]*text-align: center; \}/);
+});
+
+// ---- CC-20261117-03 (#191, part 3): Interface v0.19's left panel and the Web of Confidences -------------------------
+
+test("the left panel and the Web of Confidences (Interface v0.19), as tokens: the panel's units, the top that stays put and closes up, the tighter rhythm under 1240px tall, the empty places' line; the web's 1600px and its side column folding under 1100px", () => {
+  const theme = readFileSync("web/theme.css", "utf8");
+  const css = noComments(readFileSync("web/src/app.css", "utf8"));
+  for (const t of ["--lu: calc(var(--side-width) / 300);", "--left-pad: calc(24 * var(--lu));", "--left-portrait: calc(64 * var(--lu));", "--left-portrait-gap: calc(16 * var(--lu));", "--left-empty-gap: calc(28 * var(--lu));", "--vroom: max(0px, min(300px, 100vh - 700px));", "--left-pin: sticky;", "--web-max: 1600px;", "--break-web-side: 1100px;"]) assert.ok(theme.includes(t), t);
+  // Text in units, but never below the screen's own size in rem, so a reader's font-size setting still counts.
+  assert.match(theme, /--left-text-sm: max\(var\(--text-sm\), calc\(14 \* var\(--lu\)\)\);/);
+  // Each gap of the pinned top: a third of its full size, plus --vroom times a number.
+  for (const g of ["above-me", "below-me", "facts", "buttons", "under"]) assert.match(theme, new RegExp(`--left-gap-${g}: calc\\(\\d+ \\* var\\(--lu\\) \\/ 3 \\+ var\\(--vroom\\) \\* 0\\.\\d+\\);`), g);
+  assert.match(theme, /@media \(max-height: 1239px\) \{\s*:root \{[^}]*--left-token: calc\(28 \* var\(--lu\)\);/);
+  assert.match(theme, /@media \(max-height: 519px\) \{\s*:root \{\s*--left-pin: static;/);
+  assert.match(css, /\.left-top \{ position: var\(--left-pin\); top: 0;/);
+  assert.match(css, /\.side\.left \{[^}]*scrollbar-width: thin;/);
+  assert.match(css, /button\.me-briefing \{ display: grid; grid-template-columns: var\(--left-portrait\) 1fr;/);
+  assert.match(css, /\.me-briefing \.name \{[^}]*text-wrap: balance; \}/);
+  assert.match(css, /\.web-body \{[^}]*max-width: var\(--web-max\); margin: 0 auto; \}/);
+  assert.equal(PLAYER.screen.places.empty, "Empty:");
 });
