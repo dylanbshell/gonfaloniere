@@ -1177,3 +1177,14 @@ export function noteGroups(notes: Note[]): NoteGroup[] {
   const kind = (g: NoteGroup) => (g.about.length === 1 ? 0 : g.about.length === 2 ? 1 : 2);
   return groups.map((g, i) => ({ g, i })).sort((a, b) => kind(a.g) - kind(b.g) || a.i - b.i).map((x) => x.g);
 }
+
+// ---- The opening's pace (Interface v0.19, The Opening) ---------------------------------------------------------
+
+/**
+ * How long Il Notaio's paragraph waits before the next: about what one of its sentences would take to read (the
+ * paragraph's length over its number of sentences, times `charMs` and 1.15), `least` at least.
+ */
+export function paragraphPause(text: string, charMs: number, least: number): number {
+  const sentences = Math.max(1, (text.match(/[.!?]+["”’)]*(?=\s|$)/g) ?? []).length);
+  return Math.max(least, Math.round((text.length / sentences) * charMs * 1.15));
+}

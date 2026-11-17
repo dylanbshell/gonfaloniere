@@ -18,10 +18,10 @@ import type { LoreEntry as StoredLore } from "../src/minigame/lore.ts";
 import { glossary, screenInfo } from "../src/minigame/screen-info.ts";
 import { rulesText } from "../src/prompt/assemble.ts";
 import { settingPack } from "../src/setting/pack.ts";
-import { GameView, Opening, phrases } from "../web/src/App.tsx";
+import { GameView, Opening } from "../web/src/App.tsx";
 import type { Ev } from "../web/src/connection.ts";
 import { canDo, canSpeak, openMenu, trigger, withMention } from "../web/src/input.ts";
-import { NO_SELECTION, appearsIn, briefingCards, chatGuest, cityCards, cityList, curve, derive, factionArcs, placeholderExample, preview, selectBack, selectInChat, selectInWeb, selectLore, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, lineStages, loreParts, readingFor, roomOf, summaryFor, rulesCards, playerRules, proseBlocks, roman, titleCase, titleRule, wrapName, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, glossaryList, lineParts, midnightLine, noteGroups, webLines, webNames, NODE_RADIUS, rulesSectionFor, type Card, type LoreEntry, type View, factLink, rulesLink, errandTask, errandCardAt, commandMenu, commandWhy, payrollSize, refusalWhy, refusedCommand, playerBriefing } from "../web/src/model.ts";
+import { NO_SELECTION, paragraphPause, appearsIn, briefingCards, chatGuest, cityCards, cityList, curve, derive, factionArcs, placeholderExample, preview, selectBack, selectInChat, selectInWeb, selectLore, earlierThisStage, errandDeadline, errandLine, factionLabels, heardAndSaw, hintMoment, lineStages, loreParts, readingFor, roomOf, summaryFor, rulesCards, playerRules, proseBlocks, roman, titleCase, titleRule, wrapName, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, glossaryList, lineParts, midnightLine, noteGroups, webLines, webNames, NODE_RADIUS, rulesSectionFor, type Card, type LoreEntry, type View, factLink, rulesLink, errandTask, errandCardAt, commandMenu, commandWhy, payrollSize, refusalWhy, refusedCommand, playerBriefing } from "../web/src/model.ts";
 import { notaioHint, packValue, setInfo, tc, w, type StartInfo } from "../web/src/words.ts";
 import { fakeCaller, fakeDocs, fakeSettings } from "./fixtures/fake-game.ts";
 
@@ -89,15 +89,23 @@ const rulesOf = (v: View) => playerRules(packValue("rules"), v.sheet!.values!, {
 /** Words the screen shows but couldn't find in player.json come out as their keys. */
 const missingWords = (h: string) => h.match(/\bscreen\.[\w.]+|\b(?:refusals|commands|hints)\.[\w.]+|undefined|\[object Object\]/g) ?? [];
 
-test("the opening's choice (Interface v0.7): one card, for Francesco, with his portrait, name, and public subtitle (no separate faction line, Interface v0.16)", () => {
+test("the opening written out (Interface v0.19): every paragraph, then Continue, and no choice until Continue is pressed; no hover explanations anywhere on it", () => {
   const h = html(createElement(Opening, { onStart: () => {}, written: true }));
   assert.deepEqual(missingWords(h), []);
   assert.equal(info.playable.length, 1);
-  const card = h.slice(h.indexOf('class="start-card"'));
+  assert.match(h, /<div class="opening-continue-bar shown" style="margin-top:0"><button class="primary opening-continue" tabindex="0">Continue<\/button><\/div>/);
+  // The choice, once Continue has carried the page to it: one card for Francesco with his portrait, name, public subtitle (no
+  // separate faction line, Interface v0.16), and the short description from the setting pack (Interface v0.19).
+  const c = html(createElement(Opening, { onStart: () => {}, written: true, atChoice: true }));
+  assert.deepEqual(missingWords(c), []);
+  const card = c.slice(c.indexOf('class="start-card"'));
   const g = info.roster.find((r) => r.name === F)!;
-  assert.match(card, /class="portrait large"/);
-  assert.ok(card.includes(`<div class="name">${F}</div><div class="muted subtitle">${esc(g.subtitle)}</div>`), "name, then subtitle");
-  assert.match(card, /data-hint="play"/);
+  const pack = JSON.parse(readFileSync("setting/florence-1492/player.json", "utf8")) as { guests: Record<string, { description: string }> };
+  assert.ok(card.includes(`<div class="name">${F}</div><div class="muted subtitle">${esc(g.subtitle)}</div></div><p class="choice-desc">${esc(pack.guests[F]!.description)}</p><button class="primary">Play as ${F}</button>`), "name, subtitle, description, then the button");
+  assert.match(c, /<h2 class="choice-title">Choose your family…<\/h2>/);
+  assert.doesNotMatch(c, /data-hint|aria-description/);
+  assert.doesNotMatch(h, /start-card|opening-choice/, "only Continue moves on");
+  assert.doesNotMatch(h, /data-hint|aria-description|data-narrator/, "no hover explanations on the opening, Il Notaio's name included");
 });
 
 test("the game screen renders at every kind of wait, and the end screen at the end, with every word from the setting pack", async () => {
@@ -242,7 +250,6 @@ test("hover explanations: every control and panel has one, in player.json's word
     const bare = controls.filter((c) => !c.includes("data-hint") && !/earlier-line/.test(c) && !c.startsWith("<select") && !c.includes('aria-hidden="true"'));
     assert.deepEqual(bare, [], "controls without an explanation");
   }
-  hints.add("play");
   const words = (info.words as { screen: { hints: Record<string, string> } }).screen.hints;
   for (const k of hints) assert.ok(typeof words[k] === "string" && words[k].length > 10, `screen.hints.${k}`);
   assert.match(html(createElement(GameView, { me: F, v: derive(at.move!), send: () => {}, status: "open" })), /class="switch" aria-pressed="true"/, "on by default");
@@ -1539,10 +1546,11 @@ const NOTAIO_PACK = JSON.parse(readFileSync("setting/florence-1492/notaio.json",
 test("the opening: his name glossed at the top before he writes, Skip, and the story a list of paragraphs in notaio.json, ending on the orientation line", () => {
   const h = html(createElement(Opening, { onStart: () => {} }));
   assert.deepEqual(missingWords(h), []);
-  assert.match(h, /<header class="opening-head"><h1 class="opening-name"><span class="narrator-name"[^>]*>Il Notaio<\/span><\/h1><div class="opening-gloss">Italian for “the notary”<\/div><\/header>/);
-  assert.doesNotMatch(h, /class="opening-para"/, "before he writes, only his name");
-  assert.match(h, /class="secondary small opening-skip"[^>]*data-hint="openingSkip"/);
-  assert.doesNotMatch(h, /start-card/, "the choice comes at the end");
+  // Interface v0.19: his name has no hover and no dotted underline here; its gloss is just under it.
+  assert.match(h, /<header class="opening-head"><h1 class="opening-name"><span class="narrator-name plain">Il Notaio<\/span><\/h1><div class="opening-gloss">Italian for “the notary”<\/div><\/header>/);
+  assert.doesNotMatch(h, /class="opening-para/, "before he writes, only his name");
+  assert.match(h, /<button class="opening-skip">Skip<\/button>/, "Skip, a normal-size button with no explanation");
+  assert.doesNotMatch(h, /start-card|opening-continue/, "the choice comes at the end, after Continue");
   assert.ok(Array.isArray(NOTAIO_PACK.opening.paragraphs) && NOTAIO_PACK.opening.paragraphs.length === 6, "#148: Lore's six placeholder paragraphs");
   assert.ok(NOTAIO_PACK.opening.paragraphs.at(-1)!.endsWith(" Speak as your character would, plainly."), "Interface v0.14: the last paragraph ends on the orientation line");
   assert.equal(NOTAIO_PACK.opening.paragraphs.join(" ").split("Speak as your character would, plainly.").length, 2, "#148: the orientation line once, not appended again");
@@ -1551,16 +1559,41 @@ test("the opening: his name glossed at the top before he writes, Skip, and the s
   assert.equal((written.match(/class="opening-para" data-state="done"/g) ?? []).length, NOTAIO_PACK.opening.paragraphs.length, "Skip: every paragraph, whole");
   assert.doesNotMatch(written, /opening-skip/);
   const theme = readFileSync("web/theme.css", "utf8");
-  for (const t of ["--opening-comma", "--opening-sentence", "--opening-fade", "--opening-pause", "--tour-dim", "--motion-tour", "--z-tour"]) assert.match(theme, new RegExp(`${t}:`), t);
-  // Interface v0.16: he writes a phrase at a time, split at commas and sentence ends, with a longer pause after a sentence.
-  for (const p of NOTAIO_PACK.opening.paragraphs) assert.equal(phrases(p).join(""), p, "the phrases are the paragraph, whole");
-  assert.deepEqual(phrases("I keep its record, as notaries do. He is called \"the Unfortunate\". Choose."), ["I keep its record, ", "as notaries do. ", "He is called \"the Unfortunate\". ", "Choose."]);
-  assert.deepEqual(phrases(""), []);
-  const t = (k: string) => parseFloat(theme.match(new RegExp(`${k}: (\\d+)ms`))![1]!);
-  assert.ok(t("--opening-sentence") > t("--opening-comma"), "a longer pause after a sentence than after a comma");
-  assert.match(readFileSync("web/src/app.css", "utf8"), /\.opening-phrase \{ animation: fade-in var\(--opening-fade\)/, "each phrase fades in");
-  assert.match(readFileSync("web/src/app.css", "utf8"), /prefers-reduced-motion: reduce\)[^@]*\.opening-phrase \{ animation: none; \}/);
-  assert.match(readFileSync("web/src/app.css", "utf8"), /prefers-reduced-motion: reduce\)[^@]*\.tour-spot \{ transition: none; \}/, "the spotlight jumps with reduced motion");
+  for (const t of ["--opening-fade", "--opening-pause", "--tour-dim", "--motion-tour", "--z-tour"]) assert.match(theme, new RegExp(`${t}:`), t);
+  // Interface v0.19: a paragraph at a time, each waiting about what one of its sentences takes to read, 1.2s at least.
+  assert.equal(paragraphPause("Short.", 45, 1200), 1200, "1.2s at least");
+  assert.equal(paragraphPause("One sentence of forty characters, ok. Two", 10, 0), Math.round((41 / 1) * 10 * 1.15), "its length over its sentences");
+  assert.equal(paragraphPause("Aaaa aaaa. Bbbb bbbb. Cccc cccc.", 100, 0), Math.round((32 / 3) * 100 * 1.15));
+  const quoted = "He is called \"the Unfortunate\". Choose.";
+  assert.equal(paragraphPause(quoted, 100, 0), Math.round((quoted.length / 2) * 100 * 1.15), "a closing quote stays with its sentence");
+  const css = readFileSync("web/src/app.css", "utf8");
+  assert.match(css, /\.opening-para\.fresh \{ animation: fade-in var\(--opening-fade\)/, "each paragraph fades in whole");
+  assert.match(css, /prefers-reduced-motion: reduce\)[^@]*\.opening-para\.fresh, [^{]*\{ animation: none; \}/);
+  assert.match(css, /prefers-reduced-motion: reduce\)[^@]*\.tour-spot \{ transition: none; \}/, "the spotlight jumps with reduced motion");
+});
+
+test("the opening's looks and pace (Interface v0.19), as tokens: two sizes, the title close to the top with its fade, Skip set in from the corner, Continue's place and shadow, the glides, the two stops, and the choice sized from the window", () => {
+  const theme = readFileSync("web/theme.css", "utf8");
+  const css = noComments(readFileSync("web/src/app.css", "utf8"));
+  for (const t of ["--opening-width: 620px;", "--opening-text: 1.125rem;", "--opening-name-size: 1.5rem;", "--opening-gloss-size: 0.8125rem;", "--opening-line: 1.45;", "--opening-least: 1200ms;", "--opening-last: 2500ms;", "--opening-fit: 16px;", "--opening-room-extra: 32px;", "--opening-head-top: 14px;", "--opening-head-below: 8px;", "--opening-head-fade: 24px;", "--opening-skip-inset: clamp(24px, 4vw, 64px);", "--opening-continue-below: clamp(44px, 7vh, 80px);", "--opening-continue-fade: 500ms;", "--opening-end-least: 400ms;", "--opening-end-most: 750ms;", "--opening-glide-least: 1800ms;", "--opening-glide-most: 3200ms;", "--opening-settle-least: 550ms;", "--opening-settle-most: 1100ms;", "--opening-carry-least: 1000ms;", "--opening-carry-most: 1800ms;", "--opening-point-least: 80px;", "--opening-point-share: 0.12;", "--opening-point-most: 120px;", "--opening-give-stop: 0.85;", "--opening-give-point: 0.35;", "--opening-quiet: 150ms;", "--opening-nudge: 8px;", "--choice-width: min(1240px, 90vw);", "--choice-fade: 1300ms;", "--choice-least: 0.667;", "--choice-shrink-share: 0.5;"]) assert.ok(theme.includes(t), t);
+  assert.match(theme, /@media \(min-width: 1400px\) \{\s*:root \{\s*--opening-width: 800px;\s*--opening-text: 1\.375rem;\s*--opening-name-size: 1\.875rem;\s*--opening-gloss-size: 1rem;/);
+  assert.match(theme, /@media \(min-width: 1400px\) and \(max-height: 759px\) \{\s*:root \{\s*--opening-text: 1\.125rem;/);
+  for (const t of ["--choice-title-size", "--choice-card-width", "--choice-portrait", "--choice-name-size", "--choice-text-size", "--choice-button-size"]) assert.match(theme, new RegExp(`${t}: clamp\\([^;]*vw[^;]*\\);`), `${t}: from the window's width`);
+  assert.match(css, /\.choice-title \{[^}]*font-family: var\(--font-notaio\); font-weight: var\(--weight-semibold\);/, "the choice's title in his typeface, semibold");
+  assert.equal(PLAYER.screen.opening.choose, "Choose your family…", "a sentence in his voice, with the ellipsis");
+  assert.equal(tc(PLAYER.screen.opening.choose) === PLAYER.screen.opening.choose, false, "which the screen doesn't title-case (it would change it)");
+  assert.match(css, /button\.opening-skip \{ position: fixed; right: var\(--opening-skip-inset\); bottom: var\(--opening-skip-inset\); font-size: var\(--text-md\); padding: var\(--space-2\) var\(--space-5\); \}/);
+  assert.match(css, /\.opening-continue-bar \{ position: sticky; bottom: 0;[^}]*padding: var\(--space-6\) 0 var\(--opening-continue-below\);/);
+  assert.match(css, /\.opening\.written \{ padding-bottom: 0; \}/);
+  assert.match(css, /\.opening-choice\.arrived \.choice-title, \.opening-choice\.arrived \.choice-cards \{ animation: choice-in var\(--choice-fade\) ease-out; \}/, "the fade-in is an animation");
+  assert.match(css, /@keyframes choice-in \{ from \{ opacity: 0; \} \}/, "from opacity 0, to whatever the scroll says");
+  assert.match(css, /\.opening-choice\.docked \{ position: sticky; bottom: 0;/);
+  assert.equal(PLAYER.screen.opening.continue, "Continue");
+  assert.equal(PLAYER.screen.opening.more, "More");
+  // The descriptions on the choice cards are the guests' own, from the setting pack.
+  const code = noComments(readFileSync("web/src/App.tsx", "utf8"));
+  assert.match(code, /guestDescription\(name\)/);
+  for (const t of ["--opening-char", "--opening-least", "--opening-last", "--opening-fit", "--opening-glide-least", "--opening-point-share", "--opening-give-stop", "--opening-quiet", "--opening-nudge", "--choice-shrink-share"]) assert.ok(code.includes(`themeMs("${t}"`) || code.includes(`themePx("${t}"`), t);
 });
 
 test("the tour: a card per step in Il Notaio's voice, in the doc's order, ending on Your briefing; Back, Skip tour, and Show me around; not on the server's first render", async () => {
@@ -1634,7 +1667,7 @@ test("Interface v0.16's words: secret conversations, payments from France, the W
     [s.right.youTag, "You"],
     [s.web.title, "Web of Confidences"],
     [s.right.openWeb, "Open in the Web of Confidences"],
-    [s.opening.choose, "Choose Your Family"],
+    [s.opening.choose, "Choose your family…"],
     [s.opening.fullGameOnly, "In the Full Game"],
     [(JSON.parse(readFileSync("setting/florence-1492/player.json", "utf8")) as { refusals: Record<string, string> }).refusals.end_mistimed, "There's no secret conversation for you to end."],
   ];
@@ -1659,8 +1692,8 @@ test("Interface v0.16's words: secret conversations, payments from France, the W
   assert.doesNotMatch(JSON.stringify(NOTAIO.hints), /private word|withdrawn|draw someone aside/);
   // The explanations: the doc's table; `nextMove` and `generate` wait with their features (#177, items 4 and 4b).
   const hints = Object.keys(s.hints).filter((k) => !k.startsWith("_"));
-  // Interface v0.19 adds panelRetry (a failed panel's Try Again).
-  assert.equal(hints.length, 93);
+  // Interface v0.19 adds panelRetry (a failed panel's Try Again), and drops play and openingSkip: no explanations on the opening.
+  assert.equal(hints.length, 91);
   assert.equal(s.hints.webSide, "What you heard and saw, and your notes. Click to open or close.", "new in Interface v0.17");
   for (const k of ["factLink", "lookingAtSelf"]) assert.ok(hints.includes(k), k);
   for (const k of ["nextMove", "generate"]) assert.ok(!hints.includes(k), k);
@@ -1987,10 +2020,10 @@ test("the Web of Confidences' looks and the opening's choice (Interface v0.16): 
   // The opening's choice: the setting's playable characters not in this game, greyed out after the playable one, with no button.
   assert.deepEqual(info.fullGameOnly, [{ name: "Piero de' Medici" }], "from the pack's playable list, not a name in the code");
   assert.deepEqual(screenInfo(settingPack().playable as CharacterName[], castBriefings(fakeDocs), { tunables: fakeDocs.tunables, minigame: true }).fullGameOnly, [], "none when every playable character is in the game");
-  const opening = html(createElement(Opening, { onStart: () => {}, written: true }));
-  assert.match(opening, /<h2>Choose Your Family<\/h2>/);
+  const opening = html(createElement(Opening, { onStart: () => {}, written: true, atChoice: true }));
+  assert.match(opening, /<h2 class="choice-title">Choose your family…<\/h2>/);
   const locked = opening.slice(opening.indexOf('class="start-card locked"'));
-  assert.ok(opening.indexOf('class="start-card locked"') > opening.indexOf('data-hint="play"'), "after the playable one");
+  assert.ok(opening.indexOf('class="start-card locked"') > opening.indexOf(">Play as "), "after the playable one");
   assert.match(locked, /^class="start-card locked" data-guest="Piero de&#x27; Medici" aria-disabled="true">/);
   assert.match(locked, /<div class="locked-label">In the Full Game<\/div>/);
   assert.doesNotMatch(locked, /<button/);
@@ -2039,7 +2072,7 @@ test("title case (Interface v0.17–v0.18): every word but the pack's small ones
     s.errandCard.title, s.errandDeadline, s.pastStage.summaryTitle, s.earlier.title, s.hintsSwitch.on, s.hintsSwitch.off, s.rulesModal.shrink, s.rulesModal.previous, s.rulesModal.next, s.rulesModal.first, s.rulesModal.overview,
     s.cityList.back, s.cityList.first, s.cityList.previous, s.cityList.next, s.decks.past, s.decks.previousBriefing, s.decks.nextBriefing, s.right.lore, s.right.known, s.right.lookingAt, s.right.lookingAtSelf, s.right.openWeb, s.notaioHint.title,
     s.web.title, s.web.record, s.web.notes, s.web.heard, s.web.saw, s.web.writeOn, s.web.writeFree, s.web.save, s.web.conclude, s.web.free, s.web.sideShow, s.more, s.reading.title, s.room, s.withYou, s.withYouPrivately, s.places.title,
-    s.glossaryModal.more, s.opening.choose, s.opening.fullGameOnly, s.tour.skip, s.tour.again, s.narrow.title, s.narrow.go,
+    s.glossaryModal.more, s.opening.fullGameOnly, s.opening.continue, s.opening.more, s.tour.skip, s.tour.again, s.narrow.title, s.narrow.go,
     ...(s.decks.playerMerges as { title: string; subheadings: string[] }[]).flatMap((m) => [m.title, ...m.subheadings]),
     ...((PLAYER as unknown as { rules: { sections: { title: string }[] } }).rules.sections.map((x) => x.title)),
   ];

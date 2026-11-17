@@ -7,7 +7,7 @@
 import { Component, Fragment, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { connect, type Ev } from "./connection.ts";
 import { COMMAND, MENTION, canDo, canSpeak, isCommand, matchCommands, matchGuests, openMenu, withMention, type Trigger } from "./input.ts";
-import { FACTION_LINE, NO_SELECTION, proseBlocks, roman, appearsIn, briefingCards, chatGuest, cityList, commandMenu, curve, derive, earlierThisStage, errandCardAt, errandDeadline, errandLine, errandTask, factLink, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, noteGroups, ownPlace, payrollSize, placeHeading, playerBriefing, placeList, placeholderExample, preview, readingFor, recordUpTo, refusalWhy, roomOf, rulesLink, runFrom, summaryFor, playerRules, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, webLines, webNames, NODE_RADIUS, type Card, type FactLink, type Line, type GuardedReading, type LoreEntry, type Note, type NotaioItem, type Place, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
+import { FACTION_LINE, NO_SELECTION, paragraphPause, proseBlocks, roman, appearsIn, briefingCards, chatGuest, cityList, commandMenu, curve, derive, earlierThisStage, errandCardAt, errandDeadline, errandLine, errandTask, factLink, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, noteGroups, ownPlace, payrollSize, placeHeading, playerBriefing, placeList, placeholderExample, preview, readingFor, recordUpTo, refusalWhy, roomOf, rulesLink, runFrom, summaryFor, playerRules, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, webLines, webNames, NODE_RADIUS, type Card, type FactLink, type Line, type GuardedReading, type LoreEntry, type Note, type NotaioItem, type Place, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
 import { allCommands, cityGuests, factionWins, getInfo, guest, guestDescription, names, narrator, notaioHint, packValue, placeDescription, placeholderExamples, setInfo, stageDescription, tc, w, wt, type GlossEntry, type StartInfo } from "./words.ts";
 
 type Send = (m: unknown) => void;
@@ -394,21 +394,6 @@ function FailedOverlay({ notice, onClose }: { notice: ReactNode; onClose: () => 
   );
 }
 
-// ---- The opening (Interface v0.7, The Opening; v0.16) ------------------------------------------------------
-//
-// It replaces the start screen. Il Notaio's name heads the page, glossed, before he writes; then he writes
-// the story a phrase at a time, each fading in, split at commas and sentence ends, with a longer pause after
-// a sentence than after a comma; each paragraph follows the last by itself, the earlier ones staying on the
-// page, and the page follows the text down as it grows. A click anywhere fast-forwards: it finishes the
-// paragraph being written. Skip writes it all out. At the end, one card per playable character; choosing one
-// starts the game (and the tour). With reduced motion set, each paragraph appears whole. The pauses and the
-// fade are theme tokens.
-
-/** A paragraph as the phrases Il Notaio writes one at a time: split after each comma, semicolon, colon, and sentence end, the closing quote and the space kept with it. */
-export function phrases(paragraph: string): string[] {
-  return paragraph.match(/[^,;:.!?]+(?:[,;:.!?]+["”’)]*\s*|$)|[,;:.!?]+["”’)]*\s*/g) ?? (paragraph ? [paragraph] : []);
-}
-
 const round2 = (x: number) => Math.round(x * 100) / 100;
 
 /** A timing from theme.css, in milliseconds; or any other plain number or pixel length there (a limit, a share, a count). */
@@ -432,46 +417,398 @@ function useReducedMotion(): boolean {
   return reduced;
 }
 
-export function Opening({ onStart, written = false }: { onStart: (me: string, ws: string) => void; /** The story already written out (as after Skip), for the tests. */ written?: boolean }) {
+// ---- The opening (Interface v0.7, The Opening; v0.16; v0.19) ---------------------------------------------
+//
+// It replaces the start screen. Il Notaio's name heads the page, glossed, before he writes; then he writes the
+// story a paragraph at a time, each fading in whole and waiting about what one of its sentences would take to
+// read before the next. The page doesn't follow him: a paragraph that wouldn't fit on the screen waits until the
+// reader scrolls down to make room, and after the first screen they come as soon as there's room. The first
+// click brings the next paragraph at once; the second shows the whole story, with More in Continue's place until
+// the page reaches its end; once it's all shown, a click or More glides to the end, where Continue sits. Only
+// Continue moves on: the page glides on until his story is off the top and the choice sits in the middle of the
+// screen, fading in once it's there. Docked, the choice shrinks as the reader scrolls back up to reread, and the
+// page rests at one of two stops, the choice or the story's end, with a wheel meeting resistance between them.
+// With reduced motion, paragraphs appear whole and the glides jump. Every timing and size is a theme token.
+
+/** A pixel length from theme.css (a plain number in px). */
+const themePx = themeMs;
+
+/** Ease in and out: slow to start and to stop. */
+const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+/** Ease out: it starts at speed and slows to a stop. */
+const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
+
+/** How long a glide takes for a distance: from `least` for nothing to `most` for two screens or more. */
+const glideMs = (distance: number, least: number, most: number) => least + (most - least) * Math.min(1, Math.abs(distance) / (2 * Math.max(1, window.innerHeight)));
+
+/** The page's end: how far the window can scroll. */
+const pageEnd = () => Math.max(0, (document.scrollingElement ?? document.documentElement).scrollHeight - window.innerHeight);
+
+/**
+ * One glide of the page (Interface v0.19): an eased scroll to `to()`, re-read each frame (the page's height can
+ * change as it goes), over `ms`. A wheel, a touch, a key, or a press stops it at once, unless `keep` says the
+ * caller handles the wheel itself. With reduced motion it jumps. Returns a stop.
+ */
+function glidePage(to: () => number, ms: number, ease: (t: number) => number, reduced: boolean, onDone: (stopped: boolean) => void, keep = false): () => void {
+  if (reduced || typeof requestAnimationFrame === "undefined") {
+    window.scrollTo(0, to());
+    onDone(false);
+    return () => {};
+  }
+  const from = window.scrollY;
+  const start = performance.now();
+  let frame = 0;
+  let over = false;
+  const end = (stopped: boolean) => {
+    if (over) return;
+    over = true;
+    cancelAnimationFrame(frame);
+    for (const e of keep ? ["touchstart", "keydown", "pointerdown"] : ["wheel", "touchstart", "keydown", "pointerdown"]) window.removeEventListener(e, interrupt, true);
+    onDone(stopped);
+  };
+  const interrupt = () => end(true);
+  for (const e of keep ? ["touchstart", "keydown", "pointerdown"] : ["wheel", "touchstart", "keydown", "pointerdown"]) window.addEventListener(e, interrupt, { capture: true, passive: true });
+  const step = (now: number) => {
+    const t = Math.min(1, (now - start) / Math.max(1, ms));
+    window.scrollTo(0, from + (to() - from) * ease(t));
+    if (t >= 1) end(false);
+    else frame = requestAnimationFrame(step);
+  };
+  frame = requestAnimationFrame(step);
+  return () => end(true);
+}
+
+/** Whether a click landed on a control (a button, a card), which the story's own click leaves alone. */
+const onControl = (t: EventTarget | null) => t instanceof Element && !!t.closest("button, a, .start-card");
+
+export function Opening({ onStart, written = false, atChoice = false }: { onStart: (me: string, ws: string) => void; /** The story already written out (as after Skip), for the tests. */ written?: boolean; /** Moved on to the choice from the start, for the tests. */ atChoice?: boolean }) {
   const info = getInfo();
   const paragraphs = narrator.paragraphs();
-  const hint = useHint();
+  const total = paragraphs.length;
   const reduced = useReducedMotion();
-  /** How many paragraphs are written whole, and how many phrases of the next one. Before the first: his name alone. */
-  const [pen, setPen] = useState<{ done: number; shown: number; begun: boolean }>({ done: written ? paragraphs.length : 0, shown: 0, begun: written });
+  /** How many paragraphs are on the page; before the first, his name alone, for a moment. */
+  const [shown, setShown] = useState(written ? total : 0);
+  const [begun, setBegun] = useState(written);
+  /** The next paragraph's reading time is over: it comes as soon as it fits. */
+  const [due, setDue] = useState(false);
+  /** After the first screen (a paragraph has had to wait, or the reader scrolled down): no more reading times. */
+  const [quick, setQuick] = useState(false);
+  /** The next paragraph would fit on the screen where it goes, and how much room it needs below the story. */
+  const [fit, setFit] = useState<{ fits: boolean; room: number }>({ fits: true, room: 0 });
+  /** Clicks on the story: the first brings the next paragraph, the second everything. */
+  const [clicks, setClicks] = useState(0);
+  /** The second click showed everything: Continue waits, hidden, until the page reaches its end. */
+  const [held, setHeld] = useState(false);
+  /** The last paragraph's reading time is over. */
+  const [lastDue, setLastDue] = useState(written);
+  /** The reader has reached the page's end (by scrolling, More, or a click). */
+  const [atEnd, setAtEnd] = useState(false);
+  /** Continue has come (it stays). */
+  const [continued, setContinued] = useState(written);
+  /** Moving on: the choice rising with the page, unseen, then arrived in the middle of the screen. */
+  const [phase, setPhase] = useState<"story" | "rising" | "arrived">(atChoice ? "arrived" : "story");
+  /** The room kept above Continue for a reader scrolled into the story's room as it finished. */
+  const [keep, setKeep] = useState(0);
+  /** The room above and below the choice, so it can sit in the middle of the screen with the story off the top. */
+  const [around, setAround] = useState<{ above: number; below: number } | null>(null);
   const [starting, setStarting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const finished = pen.done >= paragraphs.length;
-  const current = paragraphs[pen.done] ?? "";
-  const parts = useMemo(() => phrases(current), [current]);
+  const finished = shown >= total;
+  const page = useRef<HTMLDivElement>(null);
+  const head = useRef<HTMLElement>(null);
+  const story = useRef<HTMLDivElement>(null);
+  const ghost = useRef<HTMLParagraphElement>(null);
+  const bar = useRef<HTMLDivElement>(null);
+  const continueButton = useRef<HTMLButtonElement>(null);
+  const roomAbove = useRef<HTMLDivElement>(null);
+  const choice = useRef<HTMLElement>(null);
+  /** The choice's full height, measured unshrunk. */
+  const full = useRef(0);
+  const lastY = useRef(0);
+  const stopGlide = useRef<(() => void) | null>(null);
+  const glide = (to: () => number, ms: number, ease: (t: number) => number, onDone: (stopped: boolean) => void = () => {}, keepWheel = false) => {
+    stopGlide.current?.();
+    stopGlide.current = glidePage(to, ms, ease, reduced, (stopped) => {
+      stopGlide.current = null;
+      onDone(stopped);
+    }, keepWheel);
+  };
+  useEffect(() => () => stopGlide.current?.(), []);
+
+  // His name alone for a moment; then the first paragraph is due.
   useEffect(() => {
-    if (finished) return;
-    const pause = themeMs("--opening-pause", 700);
-    // His name first, alone, for a moment; then each paragraph a phrase at a time, then a pause before the next.
-    // With reduced motion, each paragraph appears whole.
-    const start = (i: number) => (reduced ? phrases(paragraphs[i] ?? "").length : 0);
-    if (!pen.begun) {
-      const t = setTimeout(() => setPen((p) => ({ ...p, begun: true, shown: start(p.done) })), pause);
-      return () => clearTimeout(t);
-    }
-    if (pen.shown < parts.length) {
-      // A longer pause after a sentence than after a comma.
-      const last = parts[pen.shown - 1] ?? "";
-      const wait = pen.shown === 0 || reduced ? 0 : /[.!?]["”’)]*\s*$/.test(last) ? themeMs("--opening-sentence", 620) : themeMs("--opening-comma", 260);
-      const t = setTimeout(() => setPen((p) => ({ ...p, shown: reduced ? parts.length : p.shown + 1 })), wait);
-      return () => clearTimeout(t);
-    }
-    const t = setTimeout(() => setPen((p) => ({ done: p.done + 1, shown: start(p.done + 1), begun: true })), pause);
+    if (begun) return;
+    const t = setTimeout(() => (setBegun(true), setDue(true)), themeMs("--opening-pause", 700));
     return () => clearTimeout(t);
-  }, [pen, finished, reduced, current]);
-  // The page follows the text down as it grows, and brings the choice into view at the end.
-  const foot = useRef<HTMLDivElement>(null);
+  }, [begun]);
+  // Each paragraph waits about what one of its sentences would take to read before the next is due (none after the first screen).
   useEffect(() => {
-    if (pen.begun && !written) foot.current?.scrollIntoView({ block: "end", behavior: reduced ? "auto" : "smooth" });
-  }, [pen.done, pen.shown, pen.begun]);
-  /** A click anywhere fast-forwards: it finishes the paragraph being written. */
-  const finish = () => !finished && setPen((p) => ({ ...p, begun: true, shown: parts.length }));
-  const skip = () => setPen({ done: paragraphs.length, shown: 0, begun: true });
+    if (!begun || finished || due || shown === 0) return;
+    if (quick || reduced) return setDue(true);
+    const t = setTimeout(() => setDue(true), paragraphPause(paragraphs[shown - 1] ?? "", themeMs("--opening-char", 45), themeMs("--opening-least", 1200)));
+    return () => clearTimeout(t);
+  }, [begun, shown, due, quick, reduced, finished]);
+  // After the last paragraph, its reading time (2.5s at least), then Continue.
+  useEffect(() => {
+    if (!finished || lastDue) return;
+    const t = setTimeout(() => setLastDue(true), Math.max(themeMs("--opening-last", 2500), paragraphPause(paragraphs[total - 1] ?? "", themeMs("--opening-char", 45), themeMs("--opening-least", 1200))));
+    return () => clearTimeout(t);
+  }, [finished, lastDue]);
+  /** Where the next paragraph would go: whether it ends far enough above the screen's bottom (or, taller than the screen, starts in its top quarter), and the room it needs below the story. */
+  const measure = () => {
+    const g = ghost.current;
+    if (!g) return setFit((f) => (f.fits && f.room === 0 ? f : { fits: true, room: 0 }));
+    const r = g.getBoundingClientRect();
+    const H = window.innerHeight;
+    const clear = themePx("--opening-fit", 16);
+    const fits = r.bottom <= H - clear || (r.height > H - clear && r.top <= H / 4);
+    const room = Math.ceil(r.height + themePx("--opening-room-extra", 32));
+    setFit((f) => (f.fits === fits && f.room === room ? f : { fits, room }));
+  };
+  useLayoutEffect(measure, [shown, total]);
+  // The next paragraph comes when it's due and fits; one that's due but doesn't fit waits, and the page is past its first screen.
+  useEffect(() => {
+    if (!due || finished || phase !== "story") return;
+    if (fit.fits) {
+      setShown((n) => Math.min(total, n + 1));
+      setDue(false);
+    } else setQuick(true);
+  }, [due, fit, finished, phase]);
+  // Scrolling and resizing, once a frame: the next paragraph may fit now; a scroll down ends the first screen; the page's end; the title's fade.
+  useEffect(() => {
+    if (phase !== "story") return;
+    const on = perFrame(() => {
+      const y = window.scrollY;
+      if (y > lastY.current + 1 && !finished) setQuick(true);
+      lastY.current = y;
+      head.current?.style.setProperty("--head-fade", String(Math.max(0, Math.min(1, y / themePx("--opening-head-fade", 24)))));
+      const end = pageEnd();
+      if (finished && (end > 1 ? y >= end - 2 : held)) setAtEnd(true);
+      measure();
+    });
+    window.addEventListener("scroll", on.run, { passive: true });
+    window.addEventListener("resize", on.run);
+    on.run();
+    return () => {
+      window.removeEventListener("scroll", on.run);
+      window.removeEventListener("resize", on.run);
+      on.cancel();
+    };
+  }, [phase, finished, held, shown]);
+  // Continue comes after the last paragraph's reading time, or as soon as the reader reaches the page's end; held by a second click until the end.
+  useEffect(() => {
+    if (finished && !continued && (atEnd || (lastDue && !held))) setContinued(true);
+  }, [finished, atEnd, lastDue, held, continued]);
+  // It takes the focus when it comes, so Enter or Space presses it.
+  useEffect(() => {
+    if (continued && phase === "story") continueButton.current?.focus({ preventScroll: true });
+  }, [continued]);
+  // As the story finishes, the room below it is no longer the next paragraph's: what a reader scrolled into is kept, above Continue, so the page doesn't shrink under them.
+  useLayoutEffect(() => {
+    if (!finished || written) return;
+    const s = story.current;
+    const b = bar.current;
+    if (!s || !b) return;
+    const y = lastY.current;
+    const storyEnd = s.getBoundingClientRect().bottom + window.scrollY;
+    setKeep(Math.max(themePx("--opening-keep-least", 16), Math.round(y + window.innerHeight - storyEnd - b.offsetHeight)));
+    window.scrollTo(0, y);
+  }, [finished]);
+  // And it shrinks as they scroll back up, so Continue stays at the screen's foot rather than under the story's end.
+  useEffect(() => {
+    if (!finished || phase !== "story") return;
+    const on = perFrame(() => {
+      const s = story.current;
+      const b = bar.current;
+      if (!s || !b) return;
+      const storyEnd = s.getBoundingClientRect().bottom + window.scrollY;
+      setKeep((k) => Math.max(themePx("--opening-keep-least", 16), Math.min(k, Math.round(window.scrollY + window.innerHeight - storyEnd - b.offsetHeight))));
+    });
+    window.addEventListener("scroll", on.run, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", on.run);
+      on.cancel();
+    };
+  }, [finished, phase]);
+
+  /** To the page's end, Continue not moving: a short glide. */
+  const toEnd = () => glide(pageEnd, glideMs(pageEnd() - window.scrollY, themeMs("--opening-end-least", 400), themeMs("--opening-end-most", 750)), easeInOut, () => setAtEnd(true));
+  /** A click on the story: the next paragraph; then everything; once it's all shown, the page's end. */
+  const click = (e: { target: EventTarget | null }) => {
+    if (phase !== "story" || onControl(e.target)) return;
+    if (finished) return toEnd();
+    const n = clicks + 1;
+    setClicks(n);
+    setDue(false);
+    if (n === 1) setShown((s) => Math.min(total, s + 1));
+    else {
+      setShown(total);
+      setHeld(true);
+    }
+  };
+  /** More: the rest of the story at once, and down to its end, where Continue comes. Not a click on the story. */
+  const more = () => {
+    setShown(total);
+    setHeld(true);
+    requestAnimationFrame(toEnd);
+  };
+  /** Skip: everything at once, with Continue. */
+  const skip = () => {
+    setShown(total);
+    setLastDue(true);
+    setHeld(false);
+  };
+  /** Continue: the choice comes, and the page glides on until the story is off the top and the choice is in the middle of the screen. */
+  const onward = () => {
+    stopGlide.current?.();
+    setPhase("rising");
+  };
+  // The choice is laid out unseen: its height measured unshrunk sizes the room above and below it, then the page glides there.
+  useLayoutEffect(() => {
+    if (phase !== "rising") return;
+    const c = choice.current;
+    if (!c) return;
+    c.style.setProperty("--fold", "0");
+    full.current = c.getBoundingClientRect().height;
+    const room = Math.max(0, Math.round((window.innerHeight - full.current) / 2));
+    setAround({ above: room, below: room });
+  }, [phase]);
+  useEffect(() => {
+    if (phase !== "rising" || !around) return;
+    const target = () => {
+      const c = choice.current;
+      return c ? Math.min(pageEnd(), c.getBoundingClientRect().top + window.scrollY - around.above) : pageEnd();
+    };
+    glide(target, glideMs(target() - window.scrollY, themeMs("--opening-glide-least", 1800), themeMs("--opening-glide-most", 3200)), easeInOut, () => setPhase("arrived"));
+  }, [phase, around]);
+  // Docked, the choice shrinks as the reader scrolls back up toward the story, measured from where it would sit unstuck at its full height.
+  const stops = () => {
+    const a = roomAbove.current;
+    const H = window.innerHeight;
+    const naturalBottom = a ? a.getBoundingClientRect().bottom + window.scrollY + full.current : 0;
+    const dock = naturalBottom - H;
+    return { choice: pageEnd(), story: Math.max(0, dock - H * themeMs("--choice-shrink-share", 0.5)), dock };
+  };
+  useEffect(() => {
+    if (phase !== "arrived") return;
+    const c = choice.current;
+    const fold = () => {
+      if (!c) return;
+      const s = stops();
+      const p = Math.max(0, Math.min(1, (s.dock - window.scrollY) / Math.max(1, s.dock - s.story)));
+      const v = String(Math.round(p * 1000) / 1000);
+      if (c.style.getPropertyValue("--fold") !== v) c.style.setProperty("--fold", v);
+    };
+    // On a resize its full height is measured again, unshrunk.
+    const remeasure = () => {
+      if (!c) return;
+      const was = c.style.getPropertyValue("--fold");
+      c.style.setProperty("--fold", "0");
+      full.current = c.getBoundingClientRect().height;
+      c.style.setProperty("--fold", was);
+      fold();
+    };
+    const onScroll = perFrame(fold);
+    const onResize = perFrame(remeasure);
+    window.addEventListener("scroll", onScroll.run, { passive: true });
+    window.addEventListener("resize", onResize.run);
+    fold();
+    return () => {
+      window.removeEventListener("scroll", onScroll.run);
+      window.removeEventListener("resize", onResize.run);
+      onScroll.cancel();
+      onResize.cancel();
+    };
+  }, [phase]);
+  // Two stops once the choice has come up: the choice, and the end of his story. A wheel or trackpad moving away from
+  // either meets resistance that builds toward a decisive point; short of it the page settles back, past it the page
+  // breaks free and carries on to the other stop. The page never rests between them.
+  useEffect(() => {
+    if (phase !== "arrived") return;
+    let carrying: number | null = null;
+    let settle: ReturnType<typeof setTimeout> | null = null;
+    let pressed = false;
+    const point = () => Math.max(themePx("--opening-point-least", 80), Math.min(themePx("--opening-point-most", 120), window.innerHeight * themeMs("--opening-point-share", 0.12)));
+    const give = (d: number) => themeMs("--opening-give-stop", 0.85) - (themeMs("--opening-give-stop", 0.85) - themeMs("--opening-give-point", 0.35)) * Math.min(1, d / point());
+    const carry = (dir: 1 | -1) => {
+      carrying = dir;
+      const to = () => (dir > 0 ? stops().choice : stops().story);
+      glide(to, glideMs(to() - window.scrollY, themeMs("--opening-carry-least", 1000), themeMs("--opening-carry-most", 1800)), easeOut, () => (carrying = null), true);
+    };
+    const back = (to: number) => glide(() => to, glideMs(to - window.scrollY, themeMs("--opening-settle-least", 550), themeMs("--opening-settle-most", 1100)), easeInOut);
+    /** Left between or short of a point (a scrollbar, a key, a wheel that stopped): the page goes to the stop it belongs to. */
+    const rest = () => {
+      if (pressed || carrying !== null || stopGlide.current) return;
+      const s = stops();
+      const y = window.scrollY;
+      if (y < s.story - 1) return;
+      const near = Math.abs(y - s.choice) <= Math.abs(y - s.story) ? s.choice : s.story;
+      if (Math.abs(y - near) > 1) back(near);
+    };
+    const quiet = () => {
+      if (settle) clearTimeout(settle);
+      settle = setTimeout(rest, themeMs("--opening-quiet", 150));
+    };
+    const wheel = (e: WheelEvent) => {
+      if (e.ctrlKey) return;
+      const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * window.innerHeight : e.deltaY;
+      quiet();
+      if (carrying !== null) {
+        // While a carry runs, more the same way (or a stray nudge the other way) is absorbed; a real scroll back stops it.
+        if (Math.sign(dy) === carrying || Math.abs(dy) < themePx("--opening-nudge", 8)) return e.preventDefault();
+        stopGlide.current?.();
+        carrying = null;
+      }
+      const s = stops();
+      const y = window.scrollY;
+      // Reading the story above its end: free, but a step that would pass its end stops there.
+      if (y < s.story - 1) {
+        if (y + dy > s.story) {
+          e.preventDefault();
+          window.scrollTo(0, s.story);
+        }
+        return;
+      }
+      e.preventDefault();
+      stopGlide.current?.();
+      const p = point();
+      if (dy < 0) {
+        if (y > s.choice - p) {
+          // Up, away from the choice: resistance building toward the point; past it, the page carries on to the story's end.
+          const next = y + dy * give(s.choice - y);
+          if (s.choice - next >= p) carry(-1);
+          else window.scrollTo(0, next);
+        } else if (y > s.story + p) carry(-1);
+        // Toward the story's end and on up into the story: freely.
+        else window.scrollTo(0, y + dy);
+      } else if (dy > 0) {
+        if (y < s.story + p) {
+          // Down, away from the story's end: the same resistance; past the point, on to the choice.
+          const next = y + dy * give(y - s.story);
+          if (next - s.story >= p) carry(1);
+          else window.scrollTo(0, next);
+        } else if (y < s.choice - p) carry(1);
+        else window.scrollTo(0, Math.min(s.choice, y + dy));
+      }
+    };
+    const down = () => (pressed = true);
+    const up = () => {
+      pressed = false;
+      quiet();
+    };
+    window.addEventListener("wheel", wheel, { passive: false });
+    window.addEventListener("scroll", quiet, { passive: true });
+    for (const x of ["pointerdown", "touchstart"]) window.addEventListener(x, down, { passive: true });
+    for (const x of ["pointerup", "pointercancel", "touchend", "touchcancel"]) window.addEventListener(x, up, { passive: true });
+    return () => {
+      if (settle) clearTimeout(settle);
+      window.removeEventListener("wheel", wheel);
+      window.removeEventListener("scroll", quiet);
+      for (const x of ["pointerdown", "touchstart"]) window.removeEventListener(x, down);
+      for (const x of ["pointerup", "pointercancel", "touchend", "touchcancel"]) window.removeEventListener(x, up);
+    };
+  }, [phase]);
+
   const start = async (name: string) => {
     setStarting(name);
     const r = await fetch("/api/start", { method: "POST", body: JSON.stringify({ character: name }) });
@@ -482,79 +819,88 @@ export function Opening({ onStart, written = false }: { onStart: (me: string, ws
       setStarting(null);
     }
   };
+  const showMore = phase === "story" && !continued && ((held && !atEnd) || (shown > 0 && !finished && !fit.fits));
+  const card = (name: string, locked: boolean) => {
+    const g = guest(name);
+    const description = guestDescription(name);
+    return (
+      <div className={`start-card${locked ? " locked" : ""}`} key={name} data-guest={name} aria-disabled={locked || undefined}>
+        <div className="who column">
+          <Portrait name={name} large />
+          <div className="name">{name}</div>
+          {/* Interface v0.16: no separate faction line; the subtitle opens with the faction. */}
+          <div className="muted subtitle">{g?.subtitle}</div>
+        </div>
+        {/* Interface v0.19: a short description of the character, from the setting pack; left out where it has none. */}
+        {description && <p className="choice-desc">{description}</p>}
+        {locked ? (
+          <div className="locked-label">{w("screen.opening.fullGameOnly")}</div>
+        ) : (
+          <button className="primary" disabled={!!starting} onClick={() => void start(name)}>
+            {starting === name ? w("screen.opening.starting") : w("screen.opening.play", { name })}
+          </button>
+        )}
+      </div>
+    );
+  };
+  const classes = ["opening", finished && "written", phase !== "story" && "onward"].filter(Boolean).join(" ");
+  // Interface v0.19: no hover explanations on the opening, so nothing here carries one.
   return (
-    <div className={`opening${finished ? " finished" : ""}`} onClick={finish}>
-      {/* Interface v0.11: his name heads the page, glossed, before he writes, and stays at the top while he does. */}
-      <header className="opening-head">
+    <div ref={page} className={classes} onClick={click}>
+      {/* Interface v0.11: his name heads the page, glossed, and stays at the top while he writes, the story sliding under it with a fade. */}
+      <header ref={head} className="opening-head">
         <h1 className="opening-name">
-          <NarratorName />
+          <NarratorName plain />
         </h1>
         <div className="opening-gloss">{narrator.gloss()}</div>
       </header>
-      <div className="opening-story" aria-live="polite">
-        {paragraphs.slice(0, pen.done).map((p, i) => (
-          <p key={i} className="opening-para" data-state="done">
+      <div ref={story} className="opening-story" aria-live="polite">
+        {paragraphs.slice(0, shown).map((p, i) => (
+          <p key={i} className={`opening-para${i === shown - 1 && !written ? " fresh" : ""}`} data-state="done">
             {p}
           </p>
         ))}
-        {!finished && pen.begun && (
-          <p className="opening-para" data-state="writing" data-full={current}>
-            {parts.slice(0, pen.shown).map((x, i) => (
-              <span key={i} className="opening-phrase">
-                {x}
-              </span>
-            ))}
+        {/* The next paragraph, unseen, where it would go: whether it fits, and the room it needs. */}
+        {begun && !finished && (
+          <p ref={ghost} className="opening-ghost" aria-hidden="true">
+            {paragraphs[shown]}
           </p>
         )}
       </div>
+      {/* While he writes, just the room the next paragraph needs below the story, so the reader can scroll down to make room for it. */}
+      {!finished && <div className="opening-room" style={{ height: fit.room }} />}
+      {finished && phase === "story" && (
+        <div ref={bar} className={`opening-continue-bar${continued ? " shown" : ""}`} style={{ marginTop: keep }}>
+          <button ref={continueButton} className="primary opening-continue" tabIndex={continued ? 0 : -1} onClick={onward}>
+            {w("screen.opening.continue")}
+          </button>
+        </div>
+      )}
+      {showMore && (
+        <button className="opening-more" onClick={(e) => (e.stopPropagation(), more())}>
+          {w("screen.opening.more")}
+        </button>
+      )}
       {!finished && (
-        <button className="secondary small opening-skip" onClick={(e) => (e.stopPropagation(), skip())} {...hint("openingSkip")}>
+        <button className="opening-skip" onClick={(e) => (e.stopPropagation(), skip())}>
           {w("screen.opening.skip")}
         </button>
       )}
-      {finished && (
-        <section className="opening-choice" aria-label={w("screen.opening.choose")}>
-          <h2>{w("screen.opening.choose")}</h2>
-          <div className="cards">
-            {info.playable.map((p) => {
-              const g = guest(p.name);
-              return (
-                <div className="start-card" key={p.name} data-guest={p.name}>
-                  <div className="who">
-                    <Portrait name={p.name} large />
-                    <div>
-                      <div className="name">{p.name}</div>
-                      {/* Interface v0.16: no separate faction line; the subtitle opens with the faction. */}
-                      <div className="muted subtitle">{g?.subtitle}</div>
-                    </div>
-                  </div>
-                  <button className="primary" disabled={!!starting} onClick={() => void start(p.name)} {...hint("play")}>
-                    {starting === p.name ? w("screen.opening.starting") : w("screen.opening.play", { name: p.name })}
-                  </button>
-                </div>
-              );
-            })}
-            {/* Interface v0.16: the playable characters not in this game show greyed out after the playable ones, so the player knows there's more. */}
-            {(info.fullGameOnly ?? []).map((p) => {
-              const g = guest(p.name);
-              return (
-                <div className="start-card locked" key={p.name} data-guest={p.name} aria-disabled="true">
-                  <div className="who">
-                    <Portrait name={p.name} large />
-                    <div>
-                      <div className="name">{p.name}</div>
-                      <div className="muted subtitle">{g?.subtitle}</div>
-                    </div>
-                  </div>
-                  <div className="locked-label">{w("screen.opening.fullGameOnly")}</div>
-                </div>
-              );
-            })}
-          </div>
-          {error && <div className="notice danger">{error}</div>}
-        </section>
+      {phase !== "story" && (
+        <>
+          <div ref={roomAbove} className="opening-choice-above" style={{ height: around?.above ?? 0 }} />
+          <section ref={choice} className={`opening-choice${phase === "arrived" ? " arrived docked" : " rising"}`} aria-label={w("screen.opening.choose")}>
+            <h2 className="choice-title">{w("screen.opening.choose")}</h2>
+            <div className="cards choice-cards">
+              {info.playable.map((p) => card(p.name, false))}
+              {/* Interface v0.16: the playable characters not in this game show greyed out after the playable ones, so the player knows there's more. */}
+              {(info.fullGameOnly ?? []).map((p) => card(p.name, true))}
+            </div>
+            {error && <div className="notice danger">{error}</div>}
+          </section>
+          <div className="opening-choice-below" style={{ height: around?.below ?? 0 }} />
+        </>
       )}
-      <div ref={foot} className="opening-foot" />
     </div>
   );
 }
@@ -562,11 +908,13 @@ export function Opening({ onStart, written = false }: { onStart: (me: string, ws
 /**
  * Il Notaio's name wherever it shows (Interface v0.11): his notes in the stream, his hint, his reading, the
  * opening, and the tour's cards. Its hover glosses it, even with the hover explanations off, since it
- * explains a name rather than a control.
+ * explains a name rather than a control. On the opening (`plain`, Interface v0.19) it has no hover and no
+ * underline: its gloss is written just under it.
  */
-function NarratorName() {
+function NarratorName({ plain = false }: { plain?: boolean }) {
   const h = useContext(HintsContext);
   const hover = narrator.hover();
+  if (plain) return <span className="narrator-name plain">{w("screen.notaio")}</span>;
   return (
     <span className="narrator-name" tabIndex={0} data-narrator="" aria-description={hover} onMouseEnter={(e) => h.show(hover, e.currentTarget, true)} onMouseLeave={h.hide} onFocus={(e) => h.show(hover, e.currentTarget, true)} onBlur={h.hide}>
       {w("screen.notaio")}
