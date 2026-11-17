@@ -187,8 +187,8 @@
      Notaio's hint, the message box, and his summary. The conversation fades where it slides under them. */
   --float-gap: 12px;
   --radius-float: 14px;
-  /* Interface v0.17: the right panel's top corners, and those of the cards that slide up over it */
-  --radius-panel: 22px;
+  /* Interface v0.17; v0.19: the right panel's top corners, and those of its cards (the "talking with" card's all round) */
+  --radius-panel: 28px;
   --shadow-float-down: 0 6px 16px rgba(20, 20, 18, 0.16);
   --shadow-up: 0 -6px 16px rgba(20, 20, 18, 0.14);
   --stream-fade: 24px;
@@ -217,8 +217,26 @@
   /* A command that isn't open now, greyed in the menu */
   --closed-opacity: 0.7;
   /* The right panel: how far it stops short of the top; how far past its narrowest a drag hides it, and its fade meanwhile; the player's own card's accent edge */
-  --right-top-gap: 12px;
+  --right-top-gap: 48px;
   --right-hide-past: 60px;
+  /* Interface v0.19, the right panel: its text a step up throughout (12, 15, 17, and 21px); its cards' side margins
+     growing with the panel's own width, 24 to 40px, and a deeper top margin; the heading's fixed height, for the
+     blocks that stay put under it; the fade where the words slide under them; the colour of the card a part sits on */
+  --right-text-xs: 0.75rem;
+  --right-text-sm: 0.9375rem;
+  --right-text-md: 1.0625rem;
+  --right-text-lg: 1.3125rem;
+  --right-card-side: clamp(24px, calc(24px + (100cqw - 280px) * 0.08), 40px);
+  --right-card-top: 28px;
+  --right-head-height: calc(var(--right-card-top) + var(--peek-height) + var(--space-2));
+  --right-fade: 20px;
+  --card-bg: var(--surface);
+  /* Where the card that slides up stops: with no one at the player's ear, this far under the heading, just covering
+     "No one has your ear"; with someone, under their portrait, or this share of the way down in a panel at least
+     --break-right-stop wide */
+  --right-stop-empty: 14px;
+  --right-stop-share: 40%;
+  --break-right-stop: 380px;
   --right-hiding-opacity: 0.35;
   --self-edge: 2px;
   /* The Web of Secrets' bar: a shadow above it, so it reads as one layer over everything (TD v0.44) */
@@ -456,6 +474,7 @@
   :root {
     --text-xs: 0.75rem;
     --text-more: 0.6875rem;
+    --right-text-xs: 0.8125rem;
     --text-notaio-note-min: 0.75rem;
   }
 }

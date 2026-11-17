@@ -1847,12 +1847,14 @@ test("the floating cards and the right panel (Interface v0.16): layer shadows, t
   const own = game({ v, selected: { kind: "guest", name: F } });
   const card = own.slice(own.indexOf('<section class="person look self"'));
   assert.match(card, /^<section class="person look self" data-guest="Francesco Pazzi"><header class="person-head"><span class="label" aria-description="Your own card: what everyone knows about you\." data-hint="lookingAtSelf" tabindex="0">This Is You<\/span>/);
-  assert.match(card, /<div class="name">Francesco Pazzi<\/div><div class="you-tag">You<\/div><div class="muted">/);
-  assert.match(css, /\.person\.look\.self \{[^}]*var\(--self-edge\) var\(--accent\)/);
+  // Interface v0.19: the portrait, name, and You tag stay put together; the subtitle follows them.
+  assert.match(card, /<div class="name">Francesco Pazzi<\/div><div class="you-tag">You<\/div><\/div><div class="muted card-subtitle">/);
+  // Its accent edge round the sides and top, not along the bottom (Interface v0.19).
+  assert.match(css, /\.person\.look\.self \{ border: var\(--self-edge\) solid var\(--accent\); border-bottom: none; \}/);
   // No card repeats the faction above the subtitle: the name, then the subtitle.
   const other = game({ v, selected: { kind: "guest", name: "Lupo" } });
   const lupo = info.roster.find((r) => r.name === "Lupo")!;
-  assert.ok(other.includes(`<div class="name">Lupo</div><div class="muted">${esc(lupo.subtitle)}</div>`));
+  assert.ok(other.includes(`<div class="name">Lupo</div></div><div class="muted card-subtitle">${esc(lupo.subtitle)}</div>`));
   assert.doesNotMatch(other, /class="person look self"|you-tag/);
 });
 
@@ -2167,7 +2169,7 @@ test("three typefaces as theme tokens (Interface v0.17, The Look): each face ser
   // The smallest labels, a pixel larger from 1800px wide.
   assert.match(theme, /@media \(min-width: 1800px\) \{\s*:root \{\s*--text-xs: 0\.75rem;\s*--text-more: 0\.6875rem;/);
   // Corners and the identity: the right panel's top and its cards' 22px; your portrait 84px.
-  assert.match(theme, /--radius-panel: 22px;/);
+  assert.match(theme, /--radius-panel: 28px;/, "28px since Interface v0.19");
   assert.match(theme, /--portrait-size-me: 84px;/);
   assert.match(css, /\.person\.look \{[^}]*border-radius: var\(--radius-panel\) var\(--radius-panel\) 0 0/);
   // Selection: nothing but what's worth copying.
@@ -2316,4 +2318,52 @@ test("Interface v0.19's build notes and centre, as tokens and code: resize work 
   // A failed panel: the notice, the error under it, and Try Again, in the pack's words.
   assert.equal(PLAYER.screen.panelRetry, "Try Again");
   assert.ok(PLAYER.screen.hints.panelRetry.length > 10);
+});
+
+// ---- CC-20261117-02 (#191, part 2): Interface v0.19's right panel ------------------------------------------------
+
+test("the right panel's guest cards (Interface v0.19): a description, Their faction wins if, Known to all, and In the city from the setting pack, every one public; a row whose words are missing is left out; a city entry ends with the guests it concerns", async () => {
+  const { at } = await playedLog();
+  const v = withLore(derive(at["speak:capannello"]!));
+  const right = (h: string) => h.slice(h.indexOf('class="side right'), h.indexOf('class="web-dock'));
+  const card = right(game({ v, selected: { kind: "guest", name: "Giorgia Pazzi" } }));
+  const pack = JSON.parse(readFileSync("setting/florence-1492/player.json", "utf8")) as { guests: Record<string, { description: string }>; factionWins: Record<string, string>; cityGuests: Record<string, string[]> };
+  assert.ok(card.includes(`<p class="card-description">${esc(pack.guests["Giorgia Pazzi"]!.description)}</p>`));
+  assert.ok(card.includes(`<div class="label">Their Faction Wins If</div><p class="card-wins">${esc(pack.factionWins.Pazzi!)}</p>`));
+  assert.match(card, /<div class="label">Known to All<\/div>/);
+  assert.deepEqual(missingWords(card), []);
+  // Every guest has a description, every faction a line, in the pack; the entries named exist and are public, and none is San Frediano.
+  const roster = settingPack().roster.map((r) => r.name);
+  for (const n of roster) assert.ok(pack.guests[n]?.description, n);
+  for (const f of settingPack().factions) assert.ok(pack.factionWins[f.name], f.name);
+  const lore = JSON.parse(readFileSync("lore/lore.json", "utf8")) as { id: string; kind: string }[];
+  for (const [id, guests] of Object.entries(pack.cityGuests).filter(([k]) => !k.startsWith("_"))) {
+    assert.equal(lore.find((e) => e.id === id)?.kind, "lore", `${id}: a public entry`);
+    for (const g of guests) assert.ok(roster.includes(g), `${id}: ${g}`);
+  }
+  assert.ok(!("pub-san-frediano" in pack.cityGuests), "no one is linked to San Frediano");
+  // Missing words: the row is left out, not shown empty or as a key.
+  try {
+    setInfo({ ...info, words: { ...info.words, guests: {}, factionWins: {}, cityGuests: {} } });
+    const bare = right(game({ v, selected: { kind: "guest", name: "Giorgia Pazzi" } }));
+    assert.doesNotMatch(bare, /card-description|card-wins|card-city|Their Faction Wins If|In the City/);
+    assert.deepEqual(missingWords(bare), []);
+  } finally {
+    setInfo(info);
+  }
+  // A city entry: its title, its words, then the guests it concerns, each a chip that selects them.
+  const entry: LoreEntry = { id: "pub-pazzi", title: "The Pazzi now", aliases: [], subject: "Families", text: "What remains of the family." };
+  const h = right(game({ v, selected: { kind: "lore", entry, back: null } }));
+  assert.match(h, /<h3>The Pazzi Now<\/h3><p>What remains of the family\.<\/p><div class="label">Guests It Concerns<\/div><ul class="lore-guests">/);
+  for (const g of pack.cityGuests[entry.id]!) assert.ok(h.includes(`<button class="guest-chip" data-guest="${esc(g)}"`), g);
+  assert.doesNotMatch(right(game({ v, selected: { kind: "lore", entry: LORE[0]!, back: null } })), /Guests It Concerns/, "an entry that concerns no one has no such row");
+  // The looks are tokens: the panel's place and corners, its text a step up, the margins, the fade, and where the card stops.
+  const theme = readFileSync("web/theme.css", "utf8");
+  for (const t of ["--right-top-gap: 48px;", "--radius-panel: 28px;", "--right-text-xs: 0.75rem;", "--right-text-sm: 0.9375rem;", "--right-text-md: 1.0625rem;", "--right-text-lg: 1.3125rem;", "--right-card-side: clamp(24px, calc(24px + (100cqw - 280px) * 0.08), 40px);", "--right-card-top: 28px;", "--right-fade: 20px;", "--right-stop-empty: 14px;", "--right-stop-share: 40%;", "--break-right-stop: 380px;"]) assert.ok(theme.includes(t), t);
+  const css = noComments(readFileSync("web/src/app.css", "utf8"));
+  assert.match(css, /\.side\.right \{[^}]*container-type: inline-size; container-name: right;/);
+  assert.match(css, /@container right \(min-width: 380px\) \{\s*\.side\.right\.ear \.covers \{ top: calc\(var\(--right-stop-share\) - var\(--cover-shadow-room\)\); \}/);
+  assert.match(css, /\.person-head \{ position: sticky; top: 0;/);
+  assert.match(css, /\.person \.who\.column \{ position: sticky; top: var\(--right-head-height\);/);
+  assert.match(css, /\.lore-entry h3 \{ position: sticky; top: var\(--right-head-height\);[^}]*text-align: center; \}/);
 });
