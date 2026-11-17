@@ -159,6 +159,16 @@
   --modal-width: 640px;
   --input-height: 72px;
   --menu-height: 220px;
+  /* Interface v0.20, the @ and / menus: they end this far above the box; room above their first entry (and below the
+     @ menu's last); the @ menu's rows, their gap, and its portraits; the room over "Not available now" */
+  --menu-gap: 6px;
+  --menu-pad-top: 10px;
+  --menu-row-height: 42px;
+  --menu-row-gap: 2px;
+  --menu-portrait: 28px;
+  --menu-closed-room: 8px;
+  /* Interface v0.20: when what stands at the right of the prompt's line drops below the prompt, this much room between */
+  --prompt-line-wrap-gap: 2px;
   --screen-height: 100vh;
   --modal-max-height: 90vh;
   --opacity-disabled: 0.5;

@@ -154,8 +154,9 @@ button.fact:hover .fact-label, button.fact:focus-visible .fact-label, button.lin
 /* Reading an earlier stage while a decision waits: one wide Return button filling the card, with even space around it */
 .input.past.decision { display: flex; overflow: visible; }
 .input.past.decision button.return.wide { flex: 1; max-width: none; font-size: var(--text-md); }
-/* The prompt's line: the prompt at the left, the character count at the right, over the buttons */
-.prompt-line { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-2); }
+/* The prompt's line: the prompt at the left, the character count at the right, over the buttons. Interface v0.20: in a narrow
+   box the prompt keeps its line whole, and what stands at its right drops below it, still at the right. */
+.prompt-line { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: var(--prompt-line-wrap-gap) var(--space-3); margin-bottom: var(--space-2); }
 .prompt { min-height: var(--line-sm); font-size: var(--text-sm); color: var(--text-muted); }
 .prompt.waiting { color: var(--accent); font-weight: var(--weight-bold); }
 .row { display: flex; gap: var(--space-3); align-items: stretch; }
@@ -173,13 +174,21 @@ button.fact:hover .fact-label, button.fact:focus-visible .fact-label, button.lin
 .actions button.end { width: 100%; font-size: var(--text-sm); }
 /* Return to current stage: as tall as the box beside it and narrower, its words on two lines */
 .actions button.return { align-self: stretch; flex: 1; max-width: var(--return-width); white-space: normal; line-height: 1.2; padding: var(--space-1) var(--space-2); }
-.count { font-size: var(--text-xs); color: var(--text-muted); white-space: nowrap; }
+.count { margin-left: auto; font-size: var(--text-xs); color: var(--text-muted); white-space: nowrap; }
 .count.over { color: var(--danger); }
-.dropdown { z-index: var(--z-menu); position: absolute; bottom: 100%; left: var(--space-4); list-style: none; margin: 0; padding: var(--space-1); background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-md); max-height: var(--menu-height); overflow-y: auto; min-width: var(--card-width); }
+/* Interface v0.20: the @ and / menus sit in the box's own field, so they come down over the prompt's line, ending --menu-gap
+   above the box, as wide as it and lined up with it, at every width. The arrow keys, or pointing, light one entry. */
+.dropdown { z-index: var(--z-menu); position: absolute; bottom: calc(100% + var(--menu-gap)); left: 0; right: 0; list-style: none; margin: 0; padding: var(--menu-pad-top) var(--space-1) var(--space-1); background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-md); max-height: var(--menu-height); overflow-y: auto; }
 .dropdown button { display: flex; align-items: center; gap: var(--space-2); width: 100%; border: none; text-align: left; }
+.dropdown button.lit { background: var(--select-bg); }
 .dropdown.menu button { flex-direction: column; align-items: flex-start; gap: 0; }
-/* Interface v0.16: the commands that aren't open now, folded at the menu's foot, greyed, each with its reason */
-.menu-closed { border-top: var(--border-width) solid var(--border); margin-top: var(--space-1); padding-top: var(--space-1); }
+/* Interface v0.20, the @ menu: small portraits, rows a fixed height apart, and the same room above the first and below the last */
+.dropdown[data-menu="guests"] { display: flex; flex-direction: column; gap: var(--menu-row-gap); padding-bottom: var(--menu-pad-top); }
+.dropdown[data-menu="guests"] button { height: var(--menu-row-height); padding-top: 0; padding-bottom: 0; }
+.dropdown[data-menu="guests"] .portrait { width: var(--menu-portrait); height: var(--menu-portrait); font-size: var(--text-xs); }
+/* Interface v0.16: the commands that aren't open now, folded at the menu's foot, greyed, each with its reason. Interface
+   v0.20: more room between the last command open now and the divider over them. */
+.menu-closed { border-top: var(--border-width) solid var(--border); margin-top: calc(var(--space-1) + var(--menu-closed-room)); padding-top: var(--space-1); }
 .menu-closed ul { list-style: none; margin: 0; padding: 0; }
 .dropdown.menu button.menu-more { font-size: var(--text-xs); color: var(--text-muted); }
 .cmd-closed { display: flex; flex-direction: column; padding: var(--space-1) var(--space-3); color: var(--text-muted); opacity: var(--closed-opacity); cursor: default; }
