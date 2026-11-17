@@ -255,8 +255,8 @@
   --return-width: 120px;
   /* A command that isn't open now, greyed in the menu */
   --closed-opacity: 0.7;
-  /* The right panel: how far it stops short of the top; how far past its narrowest a drag hides it, and its fade meanwhile; the player's own card's accent edge */
-  --right-top-gap: 48px;
+  /* The right panel: how far it stops short of the top (Interface v0.20: level with the stage bar); how far past its narrowest a drag hides it, and its fade meanwhile; the player's own card's accent edge */
+  --right-top-gap: 12px;
   --right-hide-past: 60px;
   /* Interface v0.19, the right panel: its text a step up throughout (12, 15, 17, and 21px); its cards' side margins
      growing with the panel's own width, 24 to 40px, and a deeper top margin; the heading's fixed height, for the
@@ -270,12 +270,21 @@
   --right-head-height: calc(var(--right-card-top) + var(--peek-height) + var(--space-2));
   --right-fade: 20px;
   --card-bg: var(--surface);
-  /* Where the card that slides up stops: with no one at the player's ear, this far under the heading, just covering
-     "No one has your ear"; with someone, under their portrait, or this share of the way down in a panel at least
-     --break-right-stop wide */
-  --right-stop-empty: 14px;
-  --right-stop-share: 40%;
-  --break-right-stop: 380px;
+  /* Interface v0.20: the cards stand this far in from the window's right edge; the "talking with" card (and the folded
+     strip) ends this far above the Web of Confidences' bar, and a card that slid up over it, once stopped, this far,
+     level with the message box. While it slides, it reaches the bar, square. */
+  --right-edge-gap: 12px;
+  --right-talk-foot: 97px;
+  --right-cover-foot: 12px;
+  /* Interface v0.20: where the card that slides up stops, this far under the heading, at every width and whether or not
+     someone has the player's ear. "No one has your ear" sits right under the heading while a card is up, and this much
+     lower with none, sliding in step with the card. */
+  --right-stop: 29px;
+  --no-ear-drop: 64px;
+  /* Interface v0.20: the hide control (on the heading's line) and a covering card's close button share one width, so the
+     one is centred over the other */
+  --right-control-width: 32px;
+  --cover-inset: 0px;
   --right-hiding-opacity: 0.35;
   --self-edge: 2px;
   /* The Web of Secrets' bar: a shadow above it, so it reads as one layer over everything (TD v0.44) */

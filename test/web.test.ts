@@ -1419,7 +1419,7 @@ test("the right panel's cards: Open in the Web of Secrets only on a filled talki
   assert.match(looking.slice(looking.indexOf('class="covers"')), /data-hint="openWeb"/, "a selected guest's card keeps it");
   // Looks and timings are theme tokens, with a fade for reduced motion.
   const css = readFileSync("web/src/app.css", "utf8");
-  assert.match(css, /\.person\.look\.leaving \{[^}]*animation: slide-down var\(--motion-card\)/);
+  assert.match(css, /\.person\.look\.leaving \{[^}]*animation: cover-down var\(--motion-card\)/);
   assert.match(css, /\.person\.look\.follows \{ animation-delay: var\(--card-follow\);/);
   assert.match(css, /prefers-reduced-motion: reduce\)[^@]*\.person\.look\.leaving \{ animation: fade-out/);
   const theme = readFileSync("web/theme.css", "utf8");
@@ -1890,8 +1890,8 @@ test("the floating cards and the right panel (Interface v0.16): layer shadows, t
   assert.match(card, /^<section class="person look self" data-guest="Francesco Pazzi"><header class="person-head"><span class="label" aria-description="Your own card: what everyone knows about you\." data-hint="lookingAtSelf" tabindex="0">This Is You<\/span>/);
   // Interface v0.19: the portrait, name, and You tag stay put together; the subtitle follows them.
   assert.match(card, /<div class="name">Francesco Pazzi<\/div><div class="you-tag">You<\/div><\/div><div class="muted card-subtitle">/);
-  // Its accent edge round the sides and top, not along the bottom (Interface v0.19).
-  assert.match(css, /\.person\.look\.self \{ border: var\(--self-edge\) solid var\(--accent\); border-bottom: none; \}/);
+  // Its accent edge all the way round, now the card stops short of the panel's foot (Interface v0.20; v0.19 left out the bottom).
+  assert.match(css, /\.person\.look\.self \{ border: var\(--self-edge\) solid var\(--accent\); \}/);
   // No card repeats the faction above the subtitle: the name, then the subtitle.
   const other = game({ v, selected: { kind: "guest", name: "Lupo" } });
   const lupo = info.roster.find((r) => r.name === "Lupo")!;
@@ -2212,7 +2212,7 @@ test("three typefaces as theme tokens (Interface v0.17, The Look): each face ser
   // Corners and the identity: the right panel's top and its cards' 22px; your portrait 84px.
   assert.match(theme, /--radius-panel: 28px;/, "28px since Interface v0.19");
   assert.match(theme, /--portrait-size-me: 84px;/);
-  assert.match(css, /\.person\.look \{[^}]*border-radius: var\(--radius-panel\) var\(--radius-panel\) 0 0/);
+  assert.match(css, /\.person\.look \{[^}]*border-radius: var\(--radius-panel\);/, "rounded all round once stopped (Interface v0.20)");
   // Selection: nothing but what's worth copying.
   assert.match(css, /body \{[^}]*user-select: none; \}/);
   assert.match(css, /\.ln, \.heard, \.saw, \.note-text, textarea, input, \.opening-story, \.end \{ -webkit-user-select: text; user-select: text; \}/);
@@ -2400,13 +2400,50 @@ test("the right panel's guest cards (Interface v0.19): a description, Their fact
   assert.doesNotMatch(right(game({ v, selected: { kind: "lore", entry: LORE[0]!, back: null } })), /Guests It Concerns/, "an entry that concerns no one has no such row");
   // The looks are tokens: the panel's place and corners, its text a step up, the margins, the fade, and where the card stops.
   const theme = readFileSync("web/theme.css", "utf8");
-  for (const t of ["--right-top-gap: 48px;", "--radius-panel: 28px;", "--right-text-xs: 0.75rem;", "--right-text-sm: 0.9375rem;", "--right-text-md: 1.0625rem;", "--right-text-lg: 1.3125rem;", "--right-card-side: clamp(24px, calc(24px + (100cqw - 280px) * 0.08), 40px);", "--right-card-top: 28px;", "--right-fade: 20px;", "--right-stop-empty: 14px;", "--right-stop-share: 40%;", "--break-right-stop: 380px;"]) assert.ok(theme.includes(t), t);
+  // (Interface v0.20: 12px down, not 48px; the card stops in one place, so v0.19's two stops are gone.)
+  for (const t of ["--right-top-gap: 12px;", "--radius-panel: 28px;", "--right-text-xs: 0.75rem;", "--right-text-sm: 0.9375rem;", "--right-text-md: 1.0625rem;", "--right-text-lg: 1.3125rem;", "--right-card-side: clamp(24px, calc(24px + (100cqw - 280px) * 0.08), 40px);", "--right-card-top: 28px;", "--right-fade: 20px;"]) assert.ok(theme.includes(t), t);
   const css = noComments(readFileSync("web/src/app.css", "utf8"));
   assert.match(css, /\.side\.right \{[^}]*container-type: inline-size; container-name: right;/);
-  assert.match(css, /@container right \(min-width: 380px\) \{\s*\.side\.right\.ear \.covers \{ top: calc\(var\(--right-stop-share\) - var\(--cover-shadow-room\)\); \}/);
   assert.match(css, /\.person-head \{ position: sticky; top: 0;/);
   assert.match(css, /\.person \.who\.column \{ position: sticky; top: var\(--right-head-height\);/);
   assert.match(css, /\.lore-entry h3 \{ position: sticky; top: var\(--right-head-height\);[^}]*text-align: center; \}/);
+});
+
+// ---- CC-20261117-06 (#200, part 1): Interface v0.20's right panel --------------------------------------------------
+
+test("the right panel (Interface v0.20), as tokens: 12px down and 12px in from the edge; the talking-with card and the strip ending 97px above the bar, a covering card 12px above it once stopped and at the bar while it slides; one stop; No one has your ear centred, sliding with the card; the hide control on the heading's line; the name beside Talking With", async () => {
+  const theme = readFileSync("web/theme.css", "utf8");
+  for (const t of ["--right-top-gap: 12px;", "--right-edge-gap: 12px;", "--right-talk-foot: 97px;", "--right-cover-foot: 12px;", "--right-stop: 29px;", "--no-ear-drop: 64px;", "--right-control-width: 32px;"]) assert.ok(theme.includes(t), t);
+  for (const t of ["--right-stop-empty", "--right-stop-share", "--break-right-stop"]) assert.ok(!theme.includes(t), `${t}: v0.19's two stops are gone`);
+  const css = noComments(readFileSync("web/src/app.css", "utf8"));
+  assert.match(css, /\.person\.talk \{[^}]*right: var\(--right-edge-gap\); bottom: var\(--right-talk-foot\);/);
+  assert.match(css, /\.side\.right\.hidden \{[^}]*margin-bottom: var\(--right-talk-foot\); border-radius: var\(--radius-panel\); \}/, "the strip ends where the cards do, round at the bottom");
+  assert.match(css, /\.covers \{[^}]*top: calc\(var\(--right-head-height\) \+ var\(--border-width\) \+ var\(--right-stop\) - var\(--cover-shadow-room\)\);/);
+  assert.doesNotMatch(css, /\.ear\b|@container right/, "one stop at every width, whoever has the player's ear");
+  assert.match(css, /\.person\.look \{[^}]*right: var\(--right-edge-gap\);[^}]*bottom: var\(--right-cover-foot\);[^}]*border-radius: var\(--radius-panel\);[^}]*animation: cover-up var\(--motion-card\) ease-out;/);
+  // The slides carry the full-height, square bottom with no accent line, from first frame to last.
+  const square = "bottom: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom-width: 0;";
+  for (const k of ["cover-up", "cover-down"]) {
+    const frames = css.match(new RegExp(`@keyframes ${k} \\{ from \\{([^}]*)\\} to \\{([^}]*)\\} \\}`));
+    assert.ok(frames, k);
+    for (const f of [frames[1]!, frames[2]!]) assert.ok(f.includes(square), `${k}: ${f}`);
+  }
+  // Reduced motion keeps the fades, and No one has your ear doesn't slide.
+  assert.match(css, /prefers-reduced-motion: reduce\)[^@]*\.person\.look \{ animation: fade-in[^@]*\.no-ear \{ transition: none; \}/);
+  assert.match(css, /\.no-ear \{[^}]*text-align: center;[^}]*transform: translateY\(var\(--no-ear-drop\)\); transition: transform var\(--motion-card\) ease-in; \}/);
+  assert.match(css, /\.side\.right\.covered \.no-ear \{ transform: none; transition-timing-function: ease-out; \}/);
+  // The hide control on the heading's line, laid out as the card lays out its close button, the same width.
+  assert.match(css, /button\.right-hide \{[^}]*top: calc\(var\(--right-card-top\) \+ var\(--border-width\)\); right: calc\(var\(--right-edge-gap\) \+ var\(--right-card-side\) \+ var\(--cover-inset\)\); width: var\(--right-control-width\);/);
+  assert.match(css, /\.person\.look \.person-head button\.close \{ width: var\(--right-control-width\);/);
+  // The name of whoever has the player's ear beside Talking With, covered or not.
+  const { at } = await playedLog();
+  const colloquio = derive(at["speak:colloquio"]!);
+  const other = talkingWith(colloquio, F)!;
+  const right = (h: string) => h.slice(h.indexOf('class="side right'), h.indexOf('class="web-dock'));
+  for (const selected of [null, { kind: "guest" as const, name: "Lupo" }]) {
+    const h = right(game({ v: colloquio, selected }));
+    assert.ok(h.includes(`<span class="person-head-name">${esc(other)}</span>`), `${selected ? "covered" : "uncovered"}: the name beside the heading`);
+  }
 });
 
 // ---- CC-20261117-03 (#191, part 3): Interface v0.19's left panel and the Web of Confidences -------------------------

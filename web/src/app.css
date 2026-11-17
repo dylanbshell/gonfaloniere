@@ -373,7 +373,6 @@ button.note-fold { font-size: var(--text-xs); padding: 0 var(--space-1); }
 .note-count { color: var(--text-muted); }
 .note-group.lit .note-heading { color: var(--accent); }
 .note-group.lit .note { border-left-color: var(--accent); }
-@keyframes slide-up { from { transform: translateY(100%); } to { transform: none; } }
 .deck-text > :first-child::first-letter { text-transform: uppercase; }
 
 /* Short windows, failed panels, and a steady layout (CC-20261113-01, #88) */
@@ -496,8 +495,9 @@ button.key-secret { align-items: flex-start; }
 /* While a drag is past the point where letting go hides it, the panel fades */
 .side.right.hiding { opacity: var(--right-hiding-opacity); }
 /* The player's own card: an accent edge all the way round, and a small "You" tag under the name */
-/* Interface v0.19: the accent edge round the sides and top, not along the bottom, where the card meets the panel's foot */
-.person.look.self { border: var(--self-edge) solid var(--accent); border-bottom: none; }
+/* Interface v0.20: the accent edge all the way round, now the card stops short of the panel's foot (round the sides and top
+   only in v0.19); while it slides, its bottom has no accent line (the slide's keyframes, below) */
+.person.look.self { border: var(--self-edge) solid var(--accent); }
 .you-tag { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-label); color: var(--accent-text); background: var(--accent); border-radius: var(--radius-round); padding: 0 var(--space-2); }
 .resize { position: absolute; top: 0; bottom: 0; left: 0; width: var(--resize-width); cursor: col-resize; z-index: var(--z-menu); }
 .resize:hover, .resize:focus-visible { background: var(--select-bg); }
@@ -505,7 +505,9 @@ button.key-secret { align-items: flex-start; }
    height; on a guest's card the portrait, name, and You tag stay put under it, and the subtitle and everything after slide
    under them with a fade. */
 .person { padding: 0 var(--right-card-side) var(--space-4); }
-.person.talk { position: absolute; top: 0; left: 0; right: 0; bottom: var(--space-3); overflow-y: auto; background: var(--talk-bg); --card-bg: var(--talk-bg); border: var(--border-width) solid var(--border); border-radius: var(--radius-panel); }
+/* Interface v0.20: the "talking with" card stands --right-edge-gap in from the window's right edge and ends --right-talk-foot
+   above the Web of Confidences' bar */
+.person.talk { position: absolute; top: 0; left: 0; right: var(--right-edge-gap); bottom: var(--right-talk-foot); overflow-y: auto; background: var(--talk-bg); --card-bg: var(--talk-bg); border: var(--border-width) solid var(--border); border-radius: var(--radius-panel); }
 .person-head { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: var(--space-2); width: 100%; height: var(--right-head-height); margin: 0; border: none; border-radius: 0; background: var(--card-bg); padding: var(--right-card-top) 0 var(--space-2); text-align: left; }
 .person .who.column { position: sticky; top: var(--right-head-height); z-index: 1; background: var(--card-bg); padding-bottom: var(--space-2); }
 .person .who.column::after, .lore-entry h3::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: var(--right-fade); background: linear-gradient(to bottom, var(--card-bg), transparent); pointer-events: none; }
@@ -521,31 +523,37 @@ button.guest-chip { display: inline-flex; align-items: center; gap: var(--space-
 .person .more-below { background: var(--card-bg); }
 .person-head .label { margin: 0; }
 button.person-head { cursor: pointer; }
-.person-head-name { font-weight: var(--weight-bold); font-size: var(--text-sm); }
+.person-head-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--weight-bold); font-size: var(--text-sm); }
+/* Interface v0.20: the name of whoever has your ear shows beside "Talking with" at every width, keeping clear of the hide control */
+.person.talk .person-head { padding-right: calc(var(--right-control-width) + var(--space-2)); }
 .speaking-dot { width: var(--dot-size); height: var(--dot-size); border-radius: var(--radius-round); background: var(--accent); animation: pulse var(--motion-pulse) ease-in-out infinite alternate; }
 @keyframes pulse { from { opacity: var(--opacity-disabled); } to { opacity: 1; } }
-.no-ear { font-style: italic; }
+/* Interface v0.20: "No one has your ear" is centred. While a card is up it sits right under the heading, above the card at
+   full strength; with none it sits --no-ear-drop lower, sliding up and down in step with the card (its motion token, and
+   its easing each way). */
+.no-ear { position: relative; z-index: 3; margin: 0; text-align: center; font-style: italic; transform: translateY(var(--no-ear-drop)); transition: transform var(--motion-card) ease-in; }
+.side.right.covered .no-ear { transform: none; transition-timing-function: ease-out; }
 /* The cards over the "talking with" card, in a frame that hides them as they slide down out of it (Interface v0.7) */
-/* Interface v0.19: where the card that slides up stops. With no one at the player's ear, just under the heading, covering "No
-   one has your ear"; with someone, just under their portrait, or in a panel at least --break-right-stop wide, 40% of the way
-   down, so both cards show. It glides between them as the panel is resized. Where it covers the name under that portrait,
-   the name shows beside "Talking with" instead. */
-.covers { position: absolute; left: 0; right: 0; top: calc(var(--right-head-height) + var(--right-stop-empty) - var(--cover-shadow-room)); bottom: 0; overflow: hidden; pointer-events: none; transition: top var(--motion-slow) ease-out; }
-.side.right.ear .covers { top: calc(var(--right-head-height) + var(--portrait-size-lg) + var(--mark-ring) * 2 + var(--space-2) - var(--cover-shadow-room)); }
-@container right (min-width: 380px) {
-  .side.right.ear .covers { top: calc(var(--right-stop-share) - var(--cover-shadow-room)); }
-  .side.right.ear .person-head-name { display: none; }
-}
-.person.look { position: absolute; left: 0; right: 0; top: var(--cover-shadow-room); bottom: 0; overflow-y: auto; background: var(--paper); --card-bg: var(--paper); box-shadow: var(--shadow-raised); border-radius: var(--radius-panel) var(--radius-panel) 0 0; pointer-events: auto; animation: slide-up var(--motion-card) ease-out; }
+/* Interface v0.20: the card that slides up stops in one place, --right-stop under the heading, at every width and whether or
+   not someone has the player's ear (v0.19's two stops, and the glide between them, are gone). It stands in from the window's
+   edge like the "talking with" card. Stopped, it ends --right-cover-foot above the Web of Confidences' bar, level with the
+   message box, rounded all round; while it slides up or down, its bottom reaches the bar, square, with no accent line along
+   it, until it has stopped or gone off the bottom: the slides' keyframes carry that shape, so the card takes its resting one
+   when the slide ends, and the slide down has it from its first frame. */
+.covers { position: absolute; left: 0; right: 0; top: calc(var(--right-head-height) + var(--border-width) + var(--right-stop) - var(--cover-shadow-room)); bottom: 0; overflow: hidden; pointer-events: none; }
+.person.look { position: absolute; left: 0; right: var(--right-edge-gap); top: var(--cover-shadow-room); bottom: var(--right-cover-foot); overflow-y: auto; background: var(--paper); --card-bg: var(--paper); box-shadow: var(--shadow-raised); border-radius: var(--radius-panel); pointer-events: auto; animation: cover-up var(--motion-card) ease-out; }
 .person.look.follows { animation-delay: var(--card-follow); animation-fill-mode: backwards; }
 /* Interface v0.17: reopening the panel doesn't replay the card's slide: the card that was showing is simply there */
 .person.look.still { animation: none; }
-.person.look.leaving { pointer-events: none; animation: slide-down var(--motion-card) ease-in forwards; }
-@keyframes slide-down { from { transform: none; } to { transform: translateY(100%); } }
+.person.look.leaving { pointer-events: none; animation: cover-down var(--motion-card) ease-in forwards; }
+@keyframes cover-up { from { transform: translateY(100%); bottom: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom-width: 0; } to { transform: none; bottom: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom-width: 0; } }
+@keyframes cover-down { from { transform: none; bottom: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom-width: 0; } to { transform: translateY(100%); bottom: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom-width: 0; } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
 .person.look .person-head { justify-content: space-between; }
 button.icon.close { font-size: var(--text-lg); line-height: 1; padding: 0 var(--space-2); }
+/* Interface v0.20: a covering card's close button as wide as the hide control above it */
+.person.look .person-head button.close { width: var(--right-control-width); padding: 0; text-align: center; }
 
 /* The room (TD v0.45): your own group marked, other groups as overlapping tokens that spread on hover, private pairs joined */
 .room { display: flex; flex-direction: column; gap: var(--space-3); }
@@ -639,9 +647,13 @@ button.city-back { align-self: flex-start; font-size: var(--text-sm); padding: 0
 
 /* The right panel hidden (Interface v0.5): a thin strip with a handle, and the chat widens */
 .layout.right-hidden { grid-template-columns: var(--side-width) minmax(var(--centre-min-folded), 1fr) var(--right-strip-width); }
-button.right-hide { position: absolute; z-index: var(--z-menu); right: var(--space-2); bottom: var(--space-2); border: none; background: var(--surface-2); border-radius: var(--radius-sm); padding: 0 var(--space-2); color: var(--text-muted); font-size: var(--text-md); }
-/* Hidden, the strip keeps the panel's colour */
-.side.right.hidden { padding: 0; overflow: hidden; background: var(--talk-bg); border: var(--border-width) solid var(--border); border-bottom: none; }
+/* Interface v0.20: the hide control sits on the heading's line, at its right, centred over a covering card's close button at
+   every width: the card's side margin from its edge, as the card lays out its close button, and --cover-inset for the
+   card's right border and its scrollbar where the system shows one (measured by the screen). Quiet until pointed at. */
+button.right-hide { position: absolute; z-index: var(--z-menu); top: calc(var(--right-card-top) + var(--border-width)); right: calc(var(--right-edge-gap) + var(--right-card-side) + var(--cover-inset)); width: var(--right-control-width); height: var(--peek-height); display: flex; align-items: center; justify-content: center; border: none; background: transparent; border-radius: var(--radius-sm); padding: 0; color: var(--text-muted); font-size: var(--text-md); }
+button.right-hide:hover, button.right-hide:focus-visible { background: var(--surface-2); color: var(--text); }
+/* Hidden, the strip keeps the panel's colour; Interface v0.20: it ends where the "talking with" card does, with round bottom corners */
+.side.right.hidden { padding: 0; overflow: hidden; background: var(--talk-bg); border: var(--border-width) solid var(--border); margin-bottom: var(--right-talk-foot); border-radius: var(--radius-panel); }
 button.right-handle { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); width: 100%; height: 100%; border: none; border-radius: 0; background: transparent; padding: var(--space-3) 0; color: var(--text-muted); font-size: var(--text-md); }
 button.right-handle:hover { background: var(--select-bg); }
 .right-handle-guest { line-height: 0; }
@@ -653,7 +665,7 @@ button.right-handle:hover { background: var(--select-bg); }
 @media (prefers-reduced-motion: reduce) {
   section.rules-section, section.rules-section.grows, .city-entry { animation: none; }
   .person.look { animation: fade-in var(--motion-card) ease-out; }
-  .covers { transition: none; }
+  .no-ear { transition: none; }
   .person.look.follows { animation-delay: initial; }
   .person.look.leaving { animation: fade-out var(--motion-card) ease-in forwards; }
   .reading { transition: none; }

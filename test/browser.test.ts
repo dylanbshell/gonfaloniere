@@ -820,14 +820,15 @@ test("the right panel (Interface v0.16): short of the top with rounded top corne
   await reopen();
   await page.until(`document.querySelector(".side.right .resize")`);
   const top = await page.eval<{ gap: number; radius: number; tokens: boolean }>(`(() => { const p = document.querySelector(".side.right"), l = document.querySelector(".layout").getBoundingClientRect(); return { gap: p.getBoundingClientRect().top - l.top, radius: parseFloat(getComputedStyle(p).borderTopLeftRadius), tokens: !!p.querySelector(".tokens") }; })()`);
-  assert.equal(top.gap, 48, `it stops 48px short of the top (Interface v0.19; ${top.gap}px)`);
+  assert.equal(top.gap, 12, `it stops 12px short of the top (Interface v0.20; ${top.gap}px)`);
   assert.ok(top.radius > 6, "rounded top corners");
   assert.equal(top.tokens, false, "no row of tokens on the talking-with card");
   // Your own card.
   await page.eval(`document.querySelector('.places button.token[data-guest="Francesco Pazzi"]').click()`);
   await page.until(`document.querySelector(".side.right .look.self:not(.leaving)")`);
-  // Interface v0.19: the accent edge round the sides and top, not along the bottom; the subtitle (the faction's line) once.
-  const own = await page.eval<{ label: string; tag: string; edge: boolean; faction: number }>(`(() => { const c = document.querySelector(".side.right .look.self"), cs = getComputedStyle(c); return { label: c.querySelector(".person-head .label").textContent, tag: c.querySelector(".you-tag").textContent, edge: cs.borderLeftWidth !== "0px" && cs.borderTopWidth !== "0px" && cs.borderRightWidth !== "0px" && cs.borderBottomWidth === "0px" && cs.borderTopColor === cs.borderLeftColor, faction: c.querySelectorAll(".card-subtitle").length }; })()`);
+  // Interface v0.20: once stopped, the accent edge all the way round (v0.19 left out the bottom); the subtitle (the faction's line) once.
+  await page.until(`document.querySelector(".side.right .look.self").getAnimations().length === 0`);
+  const own = await page.eval<{ label: string; tag: string; edge: boolean; faction: number }>(`(() => { const c = document.querySelector(".side.right .look.self"), cs = getComputedStyle(c); return { label: c.querySelector(".person-head .label").textContent, tag: c.querySelector(".you-tag").textContent, edge: cs.borderLeftWidth !== "0px" && cs.borderTopWidth !== "0px" && cs.borderRightWidth !== "0px" && cs.borderBottomWidth !== "0px" && cs.borderTopColor === cs.borderLeftColor && cs.borderBottomColor === cs.borderLeftColor, faction: c.querySelectorAll(".card-subtitle").length }; })()`);
   assert.deepEqual(own, { label: "This Is You", tag: "You", edge: true, faction: 1 });
   await page.shot("own-card");
   await page.key("Escape", 27);
@@ -1468,7 +1469,7 @@ test("More Below can't loop (Interface v0.19, Notes for the Build): at window he
 
 /** The right panel's measures, for Interface v0.19's checks. */
 const rightPanel = () =>
-  page.eval<{ panelTop: number; layoutTop: number; panel: { top: number; bottom: number; height: number; width: number; bg: string; radius: string; bottomRadius: string }; talk: { bottom: number; bg: string; radius: string; side: number }; box: number; label: string; body: string; head: number; look: number | null; portrait: number; nameBeside: boolean; transition: string }>(`(() => {
+  page.eval<{ panelTop: number; layoutTop: number; stageTop: number; bar: number; panel: { top: number; bottom: number; height: number; width: number; bg: string; radius: string; bottomRadius: string }; talk: { bottom: number; bg: string; radius: string; side: number; edge: number }; talkTop: number; box: number; label: string; body: string; head: number; look: number | null; lookBottom: number; lookRadius: string; lookEdge: number; portrait: number; nameBeside: boolean; nameRight: number; hide: { mid: number; top: number; bottom: number; left: number; close: number | null }; transition: string }>(`(() => {
     const p = document.querySelector(".side.right"), pr = p.getBoundingClientRect(), pc = getComputedStyle(p);
     const t = document.querySelector(".side.right .person.talk"), tr = t.getBoundingClientRect(), tc = getComputedStyle(t);
     const look = document.querySelector(".side.right .person.look:not(.leaving)");
@@ -1476,10 +1477,18 @@ const rightPanel = () =>
     const portrait = t.querySelector(".who .token, .who .portrait");
     const beside = t.querySelector(".person-head-name");
     const covers = document.querySelector(".side.right .covers");
+    const lr = look ? look.getBoundingClientRect() : null;
+    const hide = document.querySelector(".right-hide").getBoundingClientRect();
+    const close = look ? look.querySelector(".person-head .close")?.getBoundingClientRect() : null;
     return {
       panelTop: pr.top, layoutTop: document.querySelector(".layout").getBoundingClientRect().top,
+      stageTop: document.querySelector(".conv-head").getBoundingClientRect().top, bar: document.querySelector(".web-dock").getBoundingClientRect().top,
       panel: { top: pr.top, bottom: pr.bottom, height: pr.height, width: pr.width, bg: pc.backgroundColor, radius: pc.borderTopLeftRadius, bottomRadius: pc.borderBottomLeftRadius },
-      talk: { bottom: tr.bottom, bg: tc.backgroundColor, radius: tc.borderBottomLeftRadius, side: parseFloat(tc.paddingLeft) },
+      talk: { bottom: tr.bottom, bg: tc.backgroundColor, radius: tc.borderBottomLeftRadius, side: parseFloat(tc.paddingLeft), edge: innerWidth - tr.right },
+      talkTop: tr.top,
+      lookBottom: lr ? lr.bottom : 0, lookRadius: look ? getComputedStyle(look).borderBottomLeftRadius : "", lookEdge: lr ? innerWidth - lr.right : 0,
+      nameRight: beside ? beside.getBoundingClientRect().right : 0,
+      hide: { mid: hide.left + hide.width / 2, top: hide.top, bottom: hide.bottom, left: hide.left, close: close ? close.left + close.width / 2 : null },
       box: document.querySelector(".input").getBoundingClientRect().bottom,
       label: getComputedStyle(t.querySelector(".label")).fontSize,
       body: pc.fontSize,
@@ -1487,7 +1496,7 @@ const rightPanel = () =>
       look: look ? look.getBoundingClientRect().top : null,
       portrait: portrait ? portrait.getBoundingClientRect().bottom : 0,
       nameBeside: !!beside && getComputedStyle(beside).display !== "none" && beside.getBoundingClientRect().width > 0,
-      transition: covers ? getComputedStyle(covers).transitionProperty : "",
+      transition: covers ? getComputedStyle(covers).transitionDuration : "",
     };
   })()`);
 const rightWidth = async (px: number) => {
@@ -1499,7 +1508,7 @@ const lookAt = async (name: string) => {
   await page.until(`document.querySelector(${JSON.stringify(`.side.right .look[data-guest="${name}"]:not(.leaving)`)}) && document.querySelector(".side.right .look").getAnimations().length === 0`);
 };
 
-test("the right panel (Interface v0.19): 48px down, rounder, a size up; the talking-with card rounded all round, level with the message box, carrying the panel's colour; its cards' margins growing with the panel", { skip }, async () => {
+test("the right panel (Interface v0.20): 12px down, level with the stage bar; a size up; the talking-with card 12px in from the window's edge, rounded all round, ending 97px above the bar and carrying the panel's colour, as does the folded strip; its cards' margins growing with the panel", { skip }, async () => {
   await reopen();
   await page.until(`document.querySelector(".side.right .person.talk")`);
   try {
@@ -1507,13 +1516,14 @@ test("the right panel (Interface v0.19): 48px down, rounder, a size up; the talk
     await windowSize(1600, 900);
     await rightWidth(280);
     const narrow = await rightPanel();
-    assert.equal(Math.round(narrow.panelTop - narrow.layoutTop), 48, "48px below the window's top");
+    assert.equal(Math.round(narrow.panelTop - narrow.layoutTop), 12, "12px below the window's top");
+    assert.equal(Math.round(narrow.panelTop), Math.round(narrow.stageTop), "level with the stage bar");
     assert.equal(narrow.panel.radius, "28px", "its top corners");
-    assert.equal(narrow.panel.bottomRadius, "0px", "the panel itself rounded only at the top");
     assert.equal(narrow.panel.bg, "rgba(0, 0, 0, 0)", "the panel's colour moves onto the talking-with card");
     assert.notEqual(narrow.talk.bg, "rgba(0, 0, 0, 0)");
     assert.equal(narrow.talk.radius, "28px", "the talking-with card's bottom corners as round as its top ones");
-    assert.ok(Math.abs(narrow.talk.bottom - narrow.box) <= 1, `its bottom level with the message box's (${narrow.talk.bottom}, ${narrow.box})`);
+    assert.ok(Math.abs(narrow.bar - narrow.talk.bottom - 97) <= 1, `it ends 97px above the Web of Confidences' bar (${narrow.bar - narrow.talk.bottom})`);
+    assert.ok(Math.abs(narrow.talk.edge - 12) <= 1, `12px in from the window's right edge (${narrow.talk.edge})`);
     assert.deepEqual([narrow.label, narrow.body], ["12px", "17px"], "its text a size up: labels 12px, body 17px");
     assert.ok(Math.abs(narrow.talk.side - 24) <= 1, `24px side margins at its narrowest (${narrow.talk.side})`);
     await rightWidth(480);
@@ -1521,11 +1531,16 @@ test("the right panel (Interface v0.19): 48px down, rounder, a size up; the talk
     assert.ok(Math.abs(wide.talk.side - 40) <= 1, `40px at its widest (${wide.talk.side})`);
     // A 28px top margin above the heading.
     assert.ok(await page.eval<boolean>(`(() => { const t = document.querySelector(".side.right .person.talk"), l = t.querySelector(".person-head .label"); return Math.abs(l.getBoundingClientRect().top - t.getBoundingClientRect().top - 28 - (t.querySelector(".person-head").getBoundingClientRect().height - 28 - 8 - l.getBoundingClientRect().height) / 2) <= 2; })()`), "a 28px top margin");
-    await page.shot("right-v019-480");
-    // Hidden, the strip keeps the panel's colour.
+    await page.shot("right-v020-480");
+    // Hidden, the strip keeps the panel's colour, and ends where the cards do, with round bottom corners.
     await page.eval(`document.querySelector(".right-hide").click()`);
     await page.until(`document.querySelector(".side.right.hidden")`);
-    assert.equal(await page.eval<string>(`getComputedStyle(document.querySelector(".side.right.hidden")).backgroundColor`), narrow.talk.bg);
+    const strip = await page.eval<{ bg: string; bottom: number; radius: string; hide: boolean }>(`(() => { const s = document.querySelector(".side.right.hidden"), cs = getComputedStyle(s); return { bg: cs.backgroundColor, bottom: s.getBoundingClientRect().bottom, radius: cs.borderBottomLeftRadius, hide: !!document.querySelector(".right-hide") }; })()`);
+    assert.equal(strip.bg, narrow.talk.bg);
+    assert.ok(Math.abs(narrow.bar - strip.bottom - 97) <= 1, `the strip ends 97px above the bar too (${narrow.bar - strip.bottom})`);
+    assert.notEqual(strip.radius, "0px", "with round bottom corners");
+    assert.equal(strip.hide, false, "no hide control while folded");
+    await page.shot("right-v020-strip");
     await page.eval(`document.querySelector(".right-handle").click()`);
     await page.until(`document.querySelector(".side.right .person.talk")`);
   } finally {
@@ -1535,43 +1550,112 @@ test("the right panel (Interface v0.19): 48px down, rounder, a size up; the talk
   }
 });
 
-test("where the card that slides up stops (Interface v0.19): with no one at your ear, just under the heading at any width; with someone, under their portrait in a narrow panel (their name beside Talking With) and 40% down from 380px, gliding between", { skip }, async () => {
+/** The card that slides up, partway through its slide: its animation held at the middle; then it, and No one has your ear's slide, are finished. */
+const midSlide = (sel: string) =>
+  page.eval<{ bottom: number; radius: string; edge: string; name: string }>(`(() => {
+    const c = document.querySelector(${JSON.stringify(sel)}), a = c.getAnimations()[0];
+    a.pause();
+    a.currentTime = Number(a.effect.getComputedTiming().delay) + Number(a.effect.getComputedTiming().duration) / 2;
+    const cs = getComputedStyle(c), out = { bottom: c.getBoundingClientRect().bottom - parseFloat(getComputedStyle(c).transform.split(",")[5] ?? "0"), radius: cs.borderBottomLeftRadius, edge: cs.borderBottomWidth, name: a.animationName };
+    a.finish();
+    for (const n of document.querySelectorAll(".side.right .no-ear")) for (const t of n.getAnimations()) t.finish();
+    return out;
+  })()`);
+
+test("where the card that slides up stops (Interface v0.20): about 29px under the heading at every width, whether or not someone has your ear, ending level with the message box, rounded; while it slides, at the bar, square, with no accent line; No one has your ear centred, sliding up and down with it; the hide control on the heading's line, centred over the card's close button at every width, scrollbar allowed for; the name beside Talking With", { skip }, async () => {
   await reopen();
   await page.until(`document.querySelector(".side.right .person.talk")`);
   try {
     await windowSize(1600, 900);
-    // No one at the player's ear: about 14px under the heading, at any width.
     assert.ok(await page.eval<boolean>(`!!document.querySelector(".side.right .no-ear")`), "the fake game's first stretch: no one has his ear");
-    await lookAt("Lupo");
-    for (const px of [280, 420]) {
+    // No one has your ear: centred, 64px lower with no card up than with one.
+    const ear = () => page.eval<{ top: number; head: number; centre: number; mid: number; zIndex: string; opacity: string }>(`(() => { const t = document.querySelector(".side.right .person.talk"), n = t.querySelector(".no-ear"), r = n.getBoundingClientRect(), tr = t.getBoundingClientRect(), ln = document.createRange(); ln.selectNodeContents(n); const lr = ln.getBoundingClientRect(); return { top: r.top, head: t.querySelector(".person-head").getBoundingClientRect().bottom, centre: (lr.left + lr.right) / 2, mid: (tr.left + tr.right) / 2, zIndex: getComputedStyle(n).zIndex, opacity: getComputedStyle(n).opacity }; })()`);
+    await page.until(`document.querySelector(".side.right .no-ear").getAnimations().length === 0`);
+    const resting = await ear();
+    assert.ok(Math.abs(resting.centre - resting.mid) <= 2, `centred (${resting.centre}, ${resting.mid})`);
+    assert.ok(Math.abs(resting.top - resting.head - 64) <= 1, `with no card up, 64px under the heading (${resting.top - resting.head})`);
+    // The card comes: it slides up from the bar, square, and No one has your ear slides up with it. (The slides are held
+    // long here, so they're caught partway through however busy the machine; each check then finishes them.)
+    await page.eval(`document.documentElement.style.setProperty("--motion-card", "4000ms")`);
+    await page.eval(`document.querySelector('.places button.token[data-guest="Lupo"]').dispatchEvent(new MouseEvent("click", { bubbles: true }))`);
+    await page.until(`document.querySelector('.side.right .look[data-guest="Lupo"]')?.getAnimations().length`);
+    const bar = await page.eval<number>(`document.querySelector(".web-dock").getBoundingClientRect().top`);
+    assert.ok(await page.eval<boolean>(`document.querySelector(".side.right .no-ear").getAnimations().some((a) => a.transitionProperty === "transform")`), "No one has your ear slides up with it");
+    const rising = await midSlide(`.side.right .look[data-guest="Lupo"]`);
+    assert.equal(rising.name, "cover-up");
+    assert.ok(Math.abs(rising.bottom - bar) <= 1 && rising.radius === "0px", `while it slides up, its bottom at the bar, square (${rising.bottom}, ${bar}, ${rising.radius})`);
+    await page.until(`document.querySelector(".side.right .look:not(.leaving)").getAnimations().length === 0 && document.querySelector(".side.right .no-ear").getAnimations().length === 0`);
+    const up = await ear();
+    assert.ok(Math.abs(up.top - up.head) <= 1, `with a card up, right under the heading (${up.top - up.head})`);
+    assert.equal(up.opacity, "1", "at full strength");
+    assert.ok(Number(up.zIndex) > 0, "shown above the card");
+    // At every width: about 29px under the heading, level with the message box, rounded; the hide control centred over the close button.
+    for (const px of [280, 380, 480]) {
       await rightWidth(px);
       const m = await rightPanel();
-      assert.ok(m.look !== null && Math.abs(m.look - m.head - 14) <= 2, `${px}px, no one at his ear: 14px under the heading (${m.look! - m.head})`);
-      assert.match(m.transition, /top/, "it glides");
+      assert.ok(m.look !== null && Math.abs(m.look - m.head - 29) <= 1, `${px}px, no one at his ear: 29px under the heading (${m.look! - m.head})`);
+      assert.ok(Math.abs(m.lookBottom - m.box) <= 1 && Math.abs(m.bar - m.lookBottom - 12) <= 1, `${px}px: stopped, it ends level with the message box, 12px above the bar (${m.lookBottom}, ${m.box}, ${m.bar})`);
+      assert.equal(m.lookRadius, "28px", "rounded all round once stopped");
+      assert.ok(Math.abs(m.lookEdge - 12) <= 1, `12px in from the window's edge (${m.lookEdge})`);
+      assert.ok(m.hide.close !== null && Math.abs(m.hide.mid - m.hide.close) <= 1, `${px}px: the hide control centred over the close button (${m.hide.mid}, ${m.hide.close})`);
+      assert.ok(m.hide.top >= m.talkTop + 28 - 1 && m.hide.bottom <= m.head + 1, "on the heading's line");
+      assert.equal(m.transition, "0s", "no glide between stops: nothing on the frame transitions");
     }
-    await page.shot("right-stop-no-ear");
+    await page.shot("right-v020-stop-no-ear");
+    // The card goes: square at the bar from its first frame, and No one has your ear slides back down with it.
     await page.key("Escape", 27);
-    await page.until(`!document.querySelector(".side.right .look:not(.leaving)")`);
-    // Someone at the player's ear: a secret conversation with Giorgia.
+    await page.until(`document.querySelector(".side.right .look.leaving")?.getAnimations().length && document.querySelector(".side.right .no-ear").getAnimations().length`);
+    const first = await page.eval<{ radius: string; bottom: number }>(`(() => { const c = document.querySelector(".side.right .look.leaving"), a = c.getAnimations()[0]; a.pause(); a.currentTime = 0; return { radius: getComputedStyle(c).borderBottomLeftRadius, bottom: c.getBoundingClientRect().bottom }; })()`);
+    assert.ok(first.radius === "0px" && Math.abs(first.bottom - bar) <= 1, `going down, square at the bar from its first frame (${first.radius}, ${first.bottom})`);
+    const falling = await midSlide(`.side.right .look.leaving`);
+    assert.equal(falling.name, "cover-down");
+    assert.ok(Math.abs(falling.bottom - bar) <= 1 && falling.radius === "0px", "and all the way down");
+    await page.until(`!document.querySelector(".side.right .look") && document.querySelector(".side.right .no-ear").getAnimations().length === 0`);
+    const down = await ear();
+    assert.ok(Math.abs(down.top - down.head - 64) <= 1, `back down with the card (${down.top - down.head})`);
+    // Your own card: while it slides, no accent line along its bottom; stopped, the edge all the way round.
+    await page.eval(`document.querySelector('.places button.token[data-guest="Francesco Pazzi"]').dispatchEvent(new MouseEvent("click", { bubbles: true }))`);
+    await page.until(`document.querySelector(".side.right .look.self")?.getAnimations().length`);
+    assert.equal((await midSlide(`.side.right .look.self`)).edge, "0px", "your own card: no accent line along the bottom while it slides");
+    await page.until(`document.querySelector(".side.right .look.self").getAnimations().length === 0`);
+    assert.equal(await page.eval<string>(`getComputedStyle(document.querySelector(".side.right .look.self")).borderBottomWidth`), "2px", "stopped, its accent edge all the way round");
+    await page.eval(`document.documentElement.style.removeProperty("--motion-card")`);
+    // A short window: the card scrolls. With a scrollbar that takes room (as with "always show scroll bars"; headless
+    // Chrome's own overlay ones take none, so one is given it here), the hide control allows for it.
+    await windowSize(1600, 560);
+    await rightWidth(320);
+    const centred = `(() => { const c = document.querySelector(".side.right .look.self"), h = document.querySelector(".right-hide").getBoundingClientRect(), x = c.querySelector(".person-head .close").getBoundingClientRect(); return c.scrollHeight > c.clientHeight && Math.abs(h.left + h.width / 2 - x.left - x.width / 2) <= 1; })()`;
+    await page.until(centred, 5_000);
+    await page.eval(`(() => { const st = document.createElement("style"); st.id = "test-scrollbar"; st.textContent = ".side.right .person::-webkit-scrollbar { width: 15px; } .side.right .person::-webkit-scrollbar-thumb { background: gray; }"; document.head.append(st); })()`);
+    await page.until(`(() => { const c = document.querySelector(".side.right .look.self"); return c.offsetWidth - c.clientWidth - 4 === 15; })()`, 5_000);
+    await page.until(centred, 5_000);
+    await page.shot("right-v020-scrolling-card-scrollbar");
+    await page.eval(`document.getElementById("test-scrollbar").remove()`);
+    await page.key("Escape", 27);
+    await page.until(`!document.querySelector(".side.right .look")`);
+    await windowSize(1600, 900);
+    // Someone at the player's ear: the same stop, at every width, and their name beside Talking With, covered or not.
     await withStates(`(s) => ({ ...s, conversation: { kind: "colloquio", other: "Giorgia Pazzi" }, present: ["Giorgia Pazzi"] })`, async () => {
       await page.until(`document.querySelector('.side.right .person.talk[data-guest="Giorgia Pazzi"]')`);
+      assert.equal(await page.eval<string>(`document.querySelector(".side.right .person.talk .person-head-name")?.textContent ?? ""`), "Giorgia Pazzi", "uncovered, the name beside Talking With");
       await lookAt("Lupo");
-      await rightWidth(300);
-      const narrow = await rightPanel();
-      assert.ok(narrow.look !== null && narrow.look - narrow.portrait >= 0 && narrow.look - narrow.portrait <= 10, `a narrow panel: just under the portrait (${narrow.look! - narrow.portrait})`);
-      assert.equal(narrow.nameBeside, true, "the name shows beside Talking With");
-      await page.shot("right-stop-ear-narrow");
-      await rightWidth(420);
-      const wide = await rightPanel();
-      assert.ok(wide.look !== null && Math.abs(wide.look - (wide.panel.top + wide.panel.height * 0.4)) <= 2, `from 380px: 40% down (${(wide.look! - wide.panel.top) / wide.panel.height})`);
-      assert.equal(wide.nameBeside, false, "the name shows under the portrait, not beside the heading");
-      await page.shot("right-stop-ear-wide");
-      // Across the line, it glides: partway there a moment after the switch.
-      await page.eval(`document.querySelector(".layout").style.setProperty("--right-width", "300px")`);
-      const mid = await page.eval<number>(`new Promise((ok) => setTimeout(() => ok(document.querySelector(".side.right .person.look:not(.leaving)").getBoundingClientRect().top), 60))`);
-      assert.ok(mid > narrow.look! + 2 && mid < wide.look! - 2, `it glides between the two (${narrow.look}, ${mid}, ${wide.look})`);
+      for (const px of [280, 380, 480]) {
+        await rightWidth(px);
+        const m = await rightPanel();
+        assert.ok(m.look !== null && Math.abs(m.look - m.head - 29) <= 1, `${px}px, someone at his ear: the same stop (${m.look! - m.head})`);
+        assert.equal(m.nameBeside, true, `${px}px: the name beside Talking With`);
+        assert.ok(m.hide.close !== null && Math.abs(m.hide.mid - m.hide.close) <= 1, `${px}px: the hide control over the close button`);
+        assert.ok(m.nameRight <= m.hide.left, `${px}px: the name keeps clear of the hide control (${m.nameRight}, ${m.hide.left})`);
+      }
+      await page.shot("right-v020-stop-ear");
     });
+    // Reduced motion: the card fades, at its resting shape; No one has your ear doesn't slide.
+    await page.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
+    await lookAt("Lupo");
+    assert.equal(await page.eval<string>(`getComputedStyle(document.querySelector(".side.right .look")).animationName`), "fade-in");
+    assert.equal(await page.eval<string>(`getComputedStyle(document.querySelector(".side.right .no-ear")).transitionProperty`), "none");
   } finally {
+    await page.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] });
     await page.eval(`localStorage.removeItem("player-screen.right-width")`);
     await windowSize(VIEW.width, VIEW.height);
     await reopen();
@@ -3053,7 +3137,7 @@ test("reopening the right panel doesn't replay the card's slide (Interface v0.17
   const card = () => page.eval<{ guest: string; still: boolean; animation: string } | null>(`(() => { const c = document.querySelector(".person.look:not(.leaving)"); return c ? { guest: c.dataset.guest, still: c.classList.contains("still"), animation: getComputedStyle(c).animationName } : null; })()`);
   await pickGuest(other[0]!);
   await page.until(`document.querySelector(".person.look")`);
-  assert.deepEqual(await card(), { guest: other[0], still: false, animation: "slide-up" }, "selecting slides the card up");
+  assert.deepEqual(await card(), { guest: other[0], still: false, animation: "cover-up" }, "selecting slides the card up");
   await page.eval(`document.querySelector(".right-hide").click()`);
   await page.until(`document.querySelector(".layout.right-hidden")`);
   await page.eval(`document.querySelector(".right-handle").click()`);
@@ -3061,7 +3145,7 @@ test("reopening the right panel doesn't replay the card's slide (Interface v0.17
   assert.deepEqual(await card(), { guest: other[0], still: true, animation: "none" }, "reopened: the card is simply there");
   await pickGuest(other[1]!);
   await page.until(`document.querySelector(${JSON.stringify(`.person.look:not(.leaving)[data-guest="${other[1]}"]`)})`);
-  assert.deepEqual(await card(), { guest: other[1], still: false, animation: "slide-up" }, "a new selection slides up as always");
+  assert.deepEqual(await card(), { guest: other[1], still: false, animation: "cover-up" }, "a new selection slides up as always");
   await page.key("Escape", 27);
   await page.eval(`localStorage.removeItem("player-screen.right-hidden")`);
 });

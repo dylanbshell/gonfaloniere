@@ -3016,6 +3016,43 @@ function CoverCard({ over, v, me, leaving, follows, still, onGone, onWeb }: { ov
 }
 
 /**
+ * Interface v0.20: the hide control is centred over a covering card's close button. The card lays its close button out
+ * at its own side margin, inside its right border and any scrollbar the system shows; this hands the panel that inset
+ * (`--cover-inset`) for the top card (the covering one, or the "talking with" card when nothing covers it), measured
+ * after each render and as the card resizes, at most once a frame, and written only when it changes.
+ */
+function useCoverInset(aside: RefObject<HTMLElement | null>) {
+  const frame = useRef<ReturnType<typeof perFrame> | null>(null);
+  const seen = useRef<Element | null>(null);
+  const resize = useRef<ResizeObserver | null>(null);
+  useEffect(() => {
+    const measure = () => {
+      const el = aside.current;
+      if (!el) return;
+      const card = el.querySelector(".person.look:not(.leaving)") ?? el.querySelector(".person.talk");
+      if (!(card instanceof HTMLElement)) return;
+      if (seen.current !== card) {
+        resize.current?.disconnect();
+        if (typeof ResizeObserver !== "undefined") {
+          resize.current = new ResizeObserver(() => frame.current?.run());
+          resize.current.observe(card);
+        }
+        seen.current = card;
+      }
+      const inset = `${Math.max(0, card.offsetWidth - card.clientWidth - parseFloat(getComputedStyle(card).borderLeftWidth || "0"))}px`;
+      if (el.style.getPropertyValue("--cover-inset") !== inset) el.style.setProperty("--cover-inset", inset);
+    };
+    frame.current = perFrame(measure);
+    return () => {
+      frame.current?.cancel();
+      resize.current?.disconnect();
+      seen.current = null;
+    };
+  }, []);
+  useEffect(() => frame.current?.run());
+}
+
+/**
  * Right: whoever you're looking at (TD v0.44–v0.45). Two kinds of card, never confused: the live "Talking
  * with" card, in the conversation's tint, with a dot while that guest speaks and the group's other tokens;
  * and over it, a selected guest's plain raised "Looking at" card (or a lore entry), which slides up and
@@ -3037,17 +3074,19 @@ function Right({ me, v, onWeb, onHide, layout, reopened = false }: { me: string;
   const [there] = useState(() => (reopened && over ? overKey(over) : null));
   // Interface v0.19: the "talking with" card scrolls on its own, with More Below.
   const m = useMoreBelow();
-  // Interface v0.19: where the card that slides up stops goes by whether someone has the player's ear (`ear`), and by
-  // the panel's own width (a container query in app.css).
+  const aside = useRef<HTMLElement>(null);
+  useCoverInset(aside);
+  // Interface v0.20: the card that slides up stops in one place, whether or not someone has the player's ear (app.css).
   return (
-    <aside className={`side right${over ? " covered" : ""}${filled ? " ear" : ""}`} onClick={over ? deselectOnBackground(clear) : undefined}>
+    <aside ref={aside} className={`side right${over ? " covered" : ""}`} onClick={over ? deselectOnBackground(clear) : undefined}>
       <div className="resize" role="separator" aria-orientation="vertical" onPointerDown={drag} {...hint("resize", { focusable: true })} />
       {/* Interface v0.5: hides the panel to a thin strip with a handle, and the chat widens. */}
       <button className="right-hide" aria-label={w("screen.right.hideLabel")} onClick={onHide} {...hint("hideRight")}>
         {w("screen.right.hide")}
       </button>
       <section className="person talk" data-guest={talk ?? undefined} ref={m.ref}>
-        {/* Covered, the header stays in view and goes back to the conversation; uncovered, it's a label. */}
+        {/* Covered, the header stays in view and goes back to the conversation; uncovered, it's a label. Interface v0.20:
+            the name of whoever has the player's ear shows beside "Talking with" either way. */}
         {over ? (
           <button className="person-head" onClick={clear} {...hint("backToTalk")}>
             <span className="label">{w("screen.talkingTo")}</span>
@@ -3058,6 +3097,7 @@ function Right({ me, v, onWeb, onHide, layout, reopened = false }: { me: string;
           <div className="person-head" {...hint("talkingTo", { focusable: true })}>
             <span className="label">{w("screen.talkingTo")}</span>
             {talk && v.speaking === talk && <span className="speaking-dot" aria-label={w("screen.right.speakingNow")} />}
+            {talk && <span className="person-head-name">{talk}</span>}
           </div>
         )}
         {filled ? <PublicCard who={talk} v={v} selects /> : <p className="muted no-ear">{w("screen.right.noEar")}</p>}
