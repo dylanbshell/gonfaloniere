@@ -25,6 +25,7 @@
 **The modals** (Briefing, rules, the city, and the glossary; Screen Sizes):
 - **The side modals are larger,** up to **85% of the modal in focus** (80%), and shrink only to **75% (480px)**. Below that, **they keep their size and run off the screen's sides,** the modal in focus centred and their titles still showing toward the middle. **Paddles only below 1280px** (1408px in v0.19), now 75% of a modal's height (55%)
 - **A gentler paddle press:** a light accent tint and a thin ring, its words in the accent, under half a second (a full accent fill, a 4px ring and light words in v0.19)
+- **Every animation on the modals is slower,** about half again as long: the row's slide from one modal to the next, a card or entry swiping in, and a rules section opening take 480ms (300ms); the side modals' fades and hover 260ms (160ms). Elsewhere on the screen the timings are unchanged
 - **The side modal on the left shows where going back lands:** its last item (the briefing's last card, the last rule open, the last city entry), not its start; the one on the right still shows its start, where going forward lands
 
 **In the demo only:** the Fast-forward button moves to the bottom left.
@@ -1248,6 +1249,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | *(v0.20)* The / and @ menus lower, just covering the "Your turn" line; both navigable with the up and down arrow keys, which skip "Not available now" | They end 6px above the box; arrows light an entry, Return picks it | The input box |
 | *(v0.20)* A card that slid up should end, once stopped, level with the message box, 12px above the Web of Confidences' bar | 12px above the bar; the "talking with" card still 82px | Right |
 | *(v0.20)* While a card slides up or down, its bottom should reach the Web of Confidences' bar, unrounded, until it's off the screen or at its stop | Square and full height while moving; rounded and level once stopped | Right |
+| *(v0.20)* All the animations on the modals slower | 480ms for the slides, swipes and openings (300ms), 260ms for the fades and hover (160ms); the modals only | The modals |
 | *(v0.20)* Going back, the left side modals (the briefing, the rules, the city) showed their opening screens, not the last card, rule, or entry that going back lands on | The left one drawn at its last item; the right one at its start | The modals |
 | *(v0.20)* The animation on clicking a paddle less intense | A light accent tint and thin ring, its words in the accent, 450ms (a full fill, 650ms, before) | The modals |
 | *(v0.20)* The side modals should run off the sides of the screen before they shrink into paddles | Below 1408px they keep their size, cut off by the screen's edges; paddles below 960px; then shrinking less, running off sooner (1600px) and paddles sooner (1100px), the paddles taller; then larger (85%, down to 75%) and paddles sooner still (1280px) | The modals |
