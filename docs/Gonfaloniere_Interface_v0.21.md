@@ -10,6 +10,7 @@
 
 - **Names in the conversation the size of its lines** (Centre): who speaks, who they speak to ("(to …)"), and Il Notaio's label are the dialogue's size (17px; 13px before), in their own sans and colours
 - **The right panel's sizes each exactly one step up** (Right): "Known to all" and a city entry's text had gone up two steps (13px to 17px) while everything else went up one; they're **15px**, and the card's newer rows of the same kind (its description, "Their faction wins if", "In the city") match them. Names, subtitles, labels and buttons are unchanged
+- **"Earlier this stage" rows a step up** (Centre): each folded conversation's row, with its Show / Hide, is 15px (13px), a step below the lines; its heading stays a label. Nothing else in the conversation was smaller
 
 **Build:** v0.21's changes get a task of their own once this version is on `main` (Build State).
 
@@ -423,6 +424,7 @@ A single page in the style of a Slack chat. Placeholder portraits until Art & De
 - **Two floating cards** *(Dylan; v0.16)*: the stage bar at the top and the message box at the bottom sit as rounded cards over the conversation, each casting a shadow onto it. **The conversation fades out where it slides under them** (the top bar and Il Notaio's box), so a line dissolves rather than being cut off. How the cards and shadows look is Art & Design's (The Look)
 - **The conversation's members** sit under the stage bar, centred ("In the loggia with Giorgia and Lupo"; in a Colloquio, "In the study, in secret with Clarice"). **End conversation** sits on that line in a Colloquio, solid red *(v0.16)*
 - **Only the current conversation is open.** Earlier conversations in this stage collapse into **Earlier this stage**, one line each, opening in place. Earlier stages live in the bar
+  - **Its rows are 15px** *(Dylan; v0.21; 13px before)*, a step below the lines, with their Show / Hide; its heading stays a 12px label like the screen's others
 - **Selecting a guest** opens the collapsed sections they appear in, highlights their lines, and puts a dot on each past stage they appear in
 - **The stream:** lines, Il Notaio's notes in their own style, action lines, and lines addressed to the player marked "to you". A "…is speaking" indicator while a line is generated. **Lore links** for public lore entries, as before (Technical Design: the match is on the line's words only)
 - **Il Notaio's hint,** docked between the stream and the message box (Onboarding, below)
@@ -1259,6 +1261,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | *(v0.20)* The / and @ menus lower, just covering the "Your turn" line; both navigable with the up and down arrow keys, which skip "Not available now" | They end 6px above the box; arrows light an entry, Return picks it | The input box |
 | *(v0.20)* A card that slid up should end, once stopped, level with the message box, 12px above the Web of Confidences' bar | 12px above the bar; the "talking with" card still 82px | Right |
 | *(v0.20)* While a card slides up or down, its bottom should reach the Web of Confidences' bar, unrounded, until it's off the screen or at its stop | Square and full height while moving; rounded and level once stopped | Right |
+| *(v0.21)* Any other text in the conversation to bring up to match? | Only "Earlier this stage": its rows to 15px (a step below the lines), its heading left a label | Centre |
 | *(v0.21)* The right panel's sizes consistent with the originals (some text may have gone up more than the rest) | "Known to all" and a city entry's text had gone up two steps; now one (15px), and the card's description, faction line and city links match | Right |
 | *(v0.21)* All the characters' names in the conversation the size of their dialogue | 17px for who speaks, "(to …)", and Il Notaio's label (13px before) | Centre |
 | *(v0.20)* All the animations on the modals slower | 480ms for the slides, swipes and openings (300ms), 260ms for the fades and hover (160ms); then halfway back (390ms, 210ms), with the paddles slower still (hover 420ms, press 900ms); then the animations inside a modal back as they were, only moving between modals and the paddles slower | The modals |
