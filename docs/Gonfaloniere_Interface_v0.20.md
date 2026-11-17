@@ -1018,7 +1018,7 @@ How the screen looks (colour, type, texture, icons, and the values of every them
 - **Il Notaio's sizes:** his words 16px open and 13px minimized, his notes in step, his title about 87% of his open size, his Show / Hide 11px (Onboarding, His boxes)
 - **Corners:** the modals 30px, the right panel's top and its cards' 22px, the paddles 12px
 - **Blurs:** the screen behind an open modal (5px), the whole side modals (3.5px), the rules' buttons behind an open section (2.5px, dimmed 26%, 40% in dark mode), **that backdrop's fade at its top and bottom** (22px; v0.18)
-- **The side modals and paddles:** the same colour as the modal in focus; their hover ring and accent title; a clicked paddle's flash (accent fill and ring, light words)
+- **The side modals and paddles:** the same colour as the modal in focus; their hover ring and accent title; a clicked paddle's flash (a light accent tint and thin ring, accent words; v0.20)
 - **The modals' margins** (one scale for all), their body text (15px, line height 1.6), and **the scroll fades** (36px) where there's more to read
 - **The rules' numeral badges** (a small round badge, the numeral in a serif) and **the list marks** (an accent dot; quiet, bold numerals)
 - **More Below** at 10px; **the smallest labels** a pixel up from 1800px wide
