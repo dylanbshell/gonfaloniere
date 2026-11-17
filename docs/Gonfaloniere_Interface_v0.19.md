@@ -444,7 +444,7 @@ In the chat view, **one thing is selected at a time:** a guest or a lore topic. 
 
 ### Right: whoever you're looking at
 
-- **The panel stops short of the top, with rounded top corners** *(v0.16)*: **48px down** *(Dylan; v0.19; 12px before)*, while the stage bar stays where it was, and **28px corners** *(v0.19; 22px in v0.17)*, as are the cards that slide up over it
+- **The panel stops short of the top, with rounded top corners** *(v0.16)*: **48px down** *(Dylan; v0.19; 12px before)*, while the stage bar stays where it was, and **28px corners** *(v0.19; 22px in v0.17)*, as are the cards that slide up over it. **The "talking with" card's bottom corners are as round as its top ones** *(Dylan; v0.19)*; a card that slides up over it keeps its square bottom corners
 - **Its text is a size up** *(Dylan; v0.19)*: every size in the panel one step larger (its body 17px, its labels 12px), and **its cards' side margins grow with it,** from 24 to 40px, with **a deeper top margin** (28px)
 - **It grows and shrinks with the window** *(Dylan; v0.17)*, from 280 to 480px (Screen Sizes). **In a window under 1044px wide it starts folded** to its strip, so the conversation keeps room for the stage bar; it can still be opened
 - **Reopening the panel doesn't replay the card's slide** *(Dylan; v0.17)*: the card that was showing is simply there. A card slides up only when the selection changes
@@ -1205,6 +1205,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | The card that slides up shouldn't stop halfway when there's nothing worth seeing under it | Only when someone has your ear; otherwise just under the heading | Right |
 | The left panel's margins bigger, and everything in it a little bigger, growing and shrinking with the panel, icons included | Sized from the panel's width | Left; Screen Sizes |
 | The left panel scrolls a lot on a 1080p monitor; then, your portrait beside your name and role, with more room above and below; then, the empty places on one line; then, a little less room above you (then back), and the pinned top compressing in a shorter window, never overlapping; then, fully compressed, the errand stopped sliding under the buttons | Side by side, the pinned top about 70px shorter; the empty places folded into one line. It fits a 1920×960 window without scrolling. The top stays pinned down to 520px tall (640px before) | Left |
+| The "Talking with" card's bottom corners as round as its top ones; the cards that slide over it as they are | 28px all round; the sliding cards keep square bottoms | Right |
 | No blue line along the bottom of your own card | The accent edge on the sides and top only | Right |
 | A scroll fade under Il Notaio's title in the opening; then, it covered his first line before anything had moved | Done, coming in as the page scrolls | The Opening |
 | A click or a key press to move on to "Choose Your Family"; then, only the Continue button, not another click | Continue under the story, focused, so Enter or Space presses it | The Opening |
