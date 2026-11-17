@@ -8,7 +8,7 @@ import { Component, Fragment, createContext, useContext, useEffect, useLayoutEff
 import { connect, type Ev } from "./connection.ts";
 import { COMMAND, MENTION, canDo, canSpeak, isCommand, matchCommands, matchGuests, openMenu, withMention, type Trigger } from "./input.ts";
 import { FACTION_LINE, NO_SELECTION, proseBlocks, roman, appearsIn, briefingCards, chatGuest, cityList, commandMenu, curve, derive, earlierThisStage, errandCardAt, errandDeadline, errandLine, errandTask, factLink, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, noteGroups, ownPlace, payrollSize, placeHeading, playerBriefing, placeList, placeholderExample, preview, readingFor, recordUpTo, refusalWhy, roomOf, rulesLink, runFrom, summaryFor, playerRules, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, webLines, webNames, NODE_RADIUS, type Card, type FactLink, type Line, type GuardedReading, type LoreEntry, type Note, type NotaioItem, type Place, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
-import { allCommands, getInfo, guest, names, narrator, notaioHint, packValue, placeDescription, placeholderExamples, setInfo, stageDescription, tc, w, wt, type GlossEntry, type StartInfo } from "./words.ts";
+import { allCommands, cityGuests, factionWins, getInfo, guest, guestDescription, names, narrator, notaioHint, packValue, placeDescription, placeholderExamples, setInfo, stageDescription, tc, w, wt, type GlossEntry, type StartInfo } from "./words.ts";
 
 type Send = (m: unknown) => void;
 
@@ -2474,18 +2474,35 @@ function RightHandle({ onShow }: { onShow: () => void }) {
  * the subtitle (Interface v0.16): the subtitle already opens with the faction. On the "talking with" card the
  * portrait selects them (`selects`), as portraits do everywhere. The player's own card (`self`) carries a
  * small "You" tag under the name.
+ *
+ * Interface v0.19: fuller, all public, from the setting pack: a short description, "Their faction wins if" in the
+ * rules' words, "Known to all" as before, and "In the city", links to the public entries that concern them, each
+ * opening here with Back returning to the guest. A row whose words the pack lacks is left out. The portrait,
+ * name, and You tag stay put while the card scrolls; the subtitle and everything after slide under them.
  */
 function PublicCard({ who, v, selects, self }: { who: string; v: View; selects?: boolean; self?: boolean }) {
   const g = guest(who);
+  const s = useContext(SelContext);
+  const hint = useHint();
   const known = (v.sheet?.connections ?? []).filter((c) => !c.private && c.between.includes(who));
+  const description = guestDescription(who);
+  const wins = g ? factionWins(g.faction) : "";
+  const city = (v.sheet?.lore ?? []).filter((e) => cityGuests(e.id).includes(who));
   return (
     <>
       <div className="who column">
         {selects ? <PortraitButton name={who} large /> : <Portrait name={who} large />}
         <div className="name">{who}</div>
         {self && <div className="you-tag">{w("screen.right.youTag")}</div>}
-        <div className="muted">{g?.subtitle}</div>
       </div>
+      <div className="muted card-subtitle">{g?.subtitle}</div>
+      {description && <p className="card-description">{description}</p>}
+      {wins && (
+        <>
+          <div className="label">{w("screen.right.factionWins")}</div>
+          <p className="card-wins">{wins}</p>
+        </>
+      )}
       {known.length > 0 && (
         <>
           <div className="label">{w("screen.right.known")}</div>
@@ -2493,6 +2510,20 @@ function PublicCard({ who, v, selects, self }: { who: string; v: View; selects?:
             {known.map((c, i) => (
               <li key={i}>
                 <span className="muted">{w("screen.right.with", { name: c.between.find((x) => x !== who) ?? who })}</span> {c.line}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {city.length > 0 && (
+        <>
+          <div className="label">{w("screen.right.inCity")}</div>
+          <ul className="card-city">
+            {city.map((e) => (
+              <li key={e.id}>
+                <button className="lore-link" data-lore={e.id} onClick={() => s.lore(e)} {...hint("loreLink")}>
+                  {tc(e.title)}
+                </button>
               </li>
             ))}
           </ul>
@@ -2526,7 +2557,9 @@ function useCoverCards(over: Over | null) {
 /** One card over the "talking with" card: a selected guest's plain raised card, or a lore entry. */
 function CoverCard({ over, v, me, leaving, follows, still, onGone, onWeb }: { over: Over; v: View; me: string; leaving?: boolean; follows?: boolean; /** Already showing when the panel came back: no slide. */ still?: boolean; onGone?: () => void; onWeb: (guest: string | null) => void }) {
   const hint = useHint();
-  const { back, clear } = useContext(SelContext);
+  const { back, clear, guest: select } = useContext(SelContext);
+  // Interface v0.19: each card scrolls on its own, with More Below when it runs past the bottom.
+  const m = useMoreBelow();
   // Whether it came up behind another sliding down, fixed when it first shows, so its slide never restarts.
   const [behind] = useState(!!follows);
   const isGuest = typeof over === "string";
@@ -2534,6 +2567,7 @@ function CoverCard({ over, v, me, leaving, follows, still, onGone, onWeb }: { ov
   const self = isGuest && over === me;
   return (
     <section
+      ref={m.ref}
       className={`person look${self ? " self" : ""}${leaving ? " leaving" : ""}${behind && !leaving ? " follows" : ""}${still && !leaving ? " still" : ""}`}
       data-guest={isGuest ? over : undefined}
       aria-hidden={leaving || undefined}
@@ -2564,11 +2598,28 @@ function CoverCard({ over, v, me, leaving, follows, still, onGone, onWeb }: { ov
           </div>
         </>
       ) : (
+        // Interface v0.19: its title centred, staying put while the words slide under it; at its end, the guests it concerns, each selecting them.
         <div className="lore-entry" data-lore={over.id}>
           <h3>{tc(over.title)}</h3>
           <p>{over.text}</p>
+          {cityGuests(over.id).length > 0 && (
+            <>
+              <div className="label">{w("screen.right.concerns")}</div>
+              <ul className="lore-guests">
+                {cityGuests(over.id).map((n) => (
+                  <li key={n}>
+                    <button className="guest-chip" data-guest={n} onClick={() => select(n)} {...hint("select")}>
+                      <Portrait name={n} small />
+                      <span className="name">{n}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </div>
       )}
+      <MoreBelow m={m} />
     </section>
   );
 }
@@ -2593,14 +2644,18 @@ function Right({ me, v, onWeb, onHide, layout, reopened = false }: { me: string;
   const filled = !!talk && talk !== me;
   // The card showing as the panel comes back is simply there; one selected after that slides up as always.
   const [there] = useState(() => (reopened && over ? overKey(over) : null));
+  // Interface v0.19: the "talking with" card scrolls on its own, with More Below.
+  const m = useMoreBelow();
+  // Interface v0.19: where the card that slides up stops goes by whether someone has the player's ear (`ear`), and by
+  // the panel's own width (a container query in app.css).
   return (
-    <aside className={`side right${over ? " covered" : ""}`} onClick={over ? deselectOnBackground(clear) : undefined}>
+    <aside className={`side right${over ? " covered" : ""}${filled ? " ear" : ""}`} onClick={over ? deselectOnBackground(clear) : undefined}>
       <div className="resize" role="separator" aria-orientation="vertical" onPointerDown={drag} {...hint("resize", { focusable: true })} />
       {/* Interface v0.5: hides the panel to a thin strip with a handle, and the chat widens. */}
       <button className="right-hide" aria-label={w("screen.right.hideLabel")} onClick={onHide} {...hint("hideRight")}>
         {w("screen.right.hide")}
       </button>
-      <section className="person talk" data-guest={talk ?? undefined}>
+      <section className="person talk" data-guest={talk ?? undefined} ref={m.ref}>
         {/* Covered, the header stays in view and goes back to the conversation; uncovered, it's a label. */}
         {over ? (
           <button className="person-head" onClick={clear} {...hint("backToTalk")}>
@@ -2624,6 +2679,7 @@ function Right({ me, v, onWeb, onHide, layout, reopened = false }: { me: string;
             </button>
           </div>
         )}
+        <MoreBelow m={m} />
       </section>
       {(over || cards.leaving.length > 0) && (
         <div className="covers">

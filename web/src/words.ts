@@ -124,3 +124,24 @@ export function allCommands(): { action: string; name: string; usage: string; hi
     return e && typeof e.name === "string" && typeof e.usage === "string" ? [{ action, name: e.name, usage: e.usage, hint: typeof e.hint === "string" ? e.hint : "" }] : [];
   });
 }
+
+/**
+ * A guest's short public description (Interface v0.19; player.json's guests), for the right panel's cards and the
+ * opening's choice cards; "" if the pack has none, and the row is left out.
+ */
+export function guestDescription(name: string): string {
+  const d = (packValue("guests") as Record<string, { description?: unknown }> | undefined)?.[name]?.description;
+  return typeof d === "string" ? d : "";
+}
+
+/** "Their faction wins if" for a faction (Interface v0.19; player.json's factionWins); "" if the pack has none. */
+export function factionWins(faction: string): string {
+  const d = (packValue("factionWins") as Record<string, unknown> | undefined)?.[faction];
+  return typeof d === "string" ? d : "";
+}
+
+/** The guests a public city entry concerns (Interface v0.19; player.json's cityGuests), by its id; none if it isn't listed. */
+export function cityGuests(entry: string): string[] {
+  const d = (packValue("cityGuests") as Record<string, unknown> | undefined)?.[entry];
+  return Array.isArray(d) ? d.filter((x): x is string => typeof x === "string") : [];
+}

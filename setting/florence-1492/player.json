@@ -209,6 +209,37 @@
       }
     ]
   },
+  "guests": {
+    "_comment": "Interface v0.19, Right and The Opening: one short public description per guest, for the right panel's guest cards and the opening's choice cards. PLACEHOLDERS, written only from the public lore entries and public connections (Interface v0.19's placeholder approach), short where those say little; the real lines are Characters' (tracker). A guest without one shows no description.",
+    "Piero de' Medici": { "description": "Lorenzo's eldest son and heir, twenty-one, whom the city already calls \"the Unfortunate\": proud, handsome, and not his father. Friar Tommaso preaches against him and everything his family stands for." },
+    "Clarice Orsini": { "description": "The Medici's cousin, of the old Roman house of Orsini: the family's quickest wit and its most admired guest. Prince Emile is choosing a Florentine bride, and she is one of the two." },
+    "Raffaello de' Medici": { "description": "Piero's younger brother, a golden-haired cavalier, and better loved than the heir: popular with the soldiers he has ridden with and the taverns he drinks in." },
+    "Francesco Pazzi": { "description": "A boy when his elders fell in 1478, he now leads what remains of the Pazzi, with his sister Giorgia beside him. Lupo, the family's bodyguard, keeps him alive." },
+    "Giorgia Pazzi": { "description": "Francesco's sister, at his side as the Pazzi stand among the great houses again. Prince Emile is choosing a Florentine bride, and she is one of the two; Clarice Orsini is her rival." },
+    "Lupo": { "description": "The Pazzi family's bodyguard. Francesco is the man he keeps alive." },
+    "Friar Tommaso": { "description": "A follower of the prior of San Marco, grown louder since Lorenzo died. He leads the Dominicans at tonight's gathering, and preaches against the Medici." },
+    "Sister Beatrice": { "description": "The Dominicans' healer, one of Friar Tommaso's company at tonight's gathering." },
+    "Contessa Isabella": { "description": "A penitent widow, one of Friar Tommaso's company at tonight's gathering." },
+    "Jeanne d'Orléans": { "description": "France's ambassador, at an embassy that is busy and generous this spring, and the one arranging Prince Emile's marriage." },
+    "Emile de Valois": { "description": "The King of France's young cousin, sent to Florence this spring to choose a Florentine bride. Clarice Orsini and Giorgia Pazzi are the two he is choosing between." },
+    "Captain Armand LeNoir": { "description": "Captain of Prince Emile's guard, in Florence with the Prince." }
+  },
+  "factionWins": {
+    "_comment": "Interface v0.19, Right: \"Their faction wins if\" on a guest's card, by faction: the win condition in the player's rules' words (How to Win), and who may stand. PLACEHOLDERS for Mechanics to check, as it checked the player's rules text. A faction without one shows no line.",
+    "Medici": "A Medici is elected Gonfaloniere without having publicly repented, and France doesn't take the win: no one in the family is on France's payroll, or no member of the Embassy still lives. Only a Medici or a Pazzi may stand.",
+    "Pazzi": "A Pazzi is elected Gonfaloniere without having publicly repented, and France doesn't take the win: no one in the family is on France's payroll, or no member of the Embassy still lives. Only a Medici or a Pazzi may stand.",
+    "Dominicans": "The elected candidate, a Medici or a Pazzi, has publicly repented. The Dominicans don't stand themselves.",
+    "French Embassy": "Anyone in the winner's family is on France's payroll, as long as one member of the Embassy still lives, and the winner hasn't publicly repented. The Embassy doesn't stand itself."
+  },
+  "cityGuests": {
+    "_comment": "Interface v0.19, Right: which public city entries concern which guests, by entry id (lore/lore.json): a guest's card links to them under \"In the city\", and an entry's card ends with them under \"Guests it concerns\". PLACEHOLDERS from each entry's own public words; the real list is Lore's (tracker). None may point at a secret: no one is linked to San Frediano. An entry not listed concerns no one.",
+    "pub-lorenzo": ["Piero de' Medici", "Raffaello de' Medici"],
+    "pub-1478": ["Francesco Pazzi", "Giorgia Pazzi", "Piero de' Medici"],
+    "pub-pazzi": ["Francesco Pazzi", "Giorgia Pazzi"],
+    "pub-medici": ["Piero de' Medici", "Raffaello de' Medici", "Clarice Orsini"],
+    "pub-savonarola": ["Friar Tommaso"],
+    "pub-france": ["Emile de Valois", "Jeanne d'Orléans", "Captain Armand LeNoir"]
+  },
   "screen": {
     "_comment": "The player screen's labels (TD v0.39–v0.47, The screen).",
     "title": "Gonfaloniere",
@@ -533,7 +564,10 @@
       "show": "⇤",
       "showLabel": "Show the panel again",
       "lookingAtSelf": "This Is You",
-      "youTag": "You"
+      "youTag": "You",
+      "factionWins": "Their Faction Wins If",
+      "inCity": "In the City",
+      "concerns": "Guests It Concerns"
     },
     "notaioHint": {
       "title": "{notaio}, to You",

@@ -728,13 +728,14 @@ test("the right panel (Interface v0.16): short of the top with rounded top corne
   await reopen();
   await page.until(`document.querySelector(".side.right .resize")`);
   const top = await page.eval<{ gap: number; radius: number; tokens: boolean }>(`(() => { const p = document.querySelector(".side.right"), l = document.querySelector(".layout").getBoundingClientRect(); return { gap: p.getBoundingClientRect().top - l.top, radius: parseFloat(getComputedStyle(p).borderTopLeftRadius), tokens: !!p.querySelector(".tokens") }; })()`);
-  assert.ok(top.gap >= 8 && top.gap <= 24, `it stops a little short of the top (${top.gap}px)`);
+  assert.equal(top.gap, 48, `it stops 48px short of the top (Interface v0.19; ${top.gap}px)`);
   assert.ok(top.radius > 6, "rounded top corners");
   assert.equal(top.tokens, false, "no row of tokens on the talking-with card");
   // Your own card.
   await page.eval(`document.querySelector('.places button.token[data-guest="Francesco Pazzi"]').click()`);
   await page.until(`document.querySelector(".side.right .look.self:not(.leaving)")`);
-  const own = await page.eval<{ label: string; tag: string; edge: boolean; faction: number }>(`(() => { const c = document.querySelector(".side.right .look.self"); return { label: c.querySelector(".person-head .label").textContent, tag: c.querySelector(".you-tag").textContent, edge: getComputedStyle(c).boxShadow.includes("inset"), faction: c.querySelectorAll(".who .muted").length }; })()`);
+  // Interface v0.19: the accent edge round the sides and top, not along the bottom; the subtitle (the faction's line) once.
+  const own = await page.eval<{ label: string; tag: string; edge: boolean; faction: number }>(`(() => { const c = document.querySelector(".side.right .look.self"), cs = getComputedStyle(c); return { label: c.querySelector(".person-head .label").textContent, tag: c.querySelector(".you-tag").textContent, edge: cs.borderLeftWidth !== "0px" && cs.borderTopWidth !== "0px" && cs.borderRightWidth !== "0px" && cs.borderBottomWidth === "0px" && cs.borderTopColor === cs.borderLeftColor, faction: c.querySelectorAll(".card-subtitle").length }; })()`);
   assert.deepEqual(own, { label: "This Is You", tag: "You", edge: true, faction: 1 });
   await page.shot("own-card");
   await page.key("Escape", 27);
@@ -1357,6 +1358,159 @@ test("More Below can't loop (Interface v0.19, Notes for the Build): at window he
     }
   } finally {
     await windowSize(VIEW.width, VIEW.height);
+  }
+});
+
+// ---- CC-20261117-02 (#191, part 2): Interface v0.19's right panel ----------------------------------------------
+
+/** The right panel's measures, for Interface v0.19's checks. */
+const rightPanel = () =>
+  page.eval<{ panelTop: number; layoutTop: number; panel: { top: number; bottom: number; height: number; width: number; bg: string; radius: string; bottomRadius: string }; talk: { bottom: number; bg: string; radius: string; side: number }; box: number; label: string; body: string; head: number; look: number | null; portrait: number; nameBeside: boolean; transition: string }>(`(() => {
+    const p = document.querySelector(".side.right"), pr = p.getBoundingClientRect(), pc = getComputedStyle(p);
+    const t = document.querySelector(".side.right .person.talk"), tr = t.getBoundingClientRect(), tc = getComputedStyle(t);
+    const look = document.querySelector(".side.right .person.look:not(.leaving)");
+    const head = t.querySelector(".person-head").getBoundingClientRect();
+    const portrait = t.querySelector(".who .token, .who .portrait");
+    const beside = t.querySelector(".person-head-name");
+    const covers = document.querySelector(".side.right .covers");
+    return {
+      panelTop: pr.top, layoutTop: document.querySelector(".layout").getBoundingClientRect().top,
+      panel: { top: pr.top, bottom: pr.bottom, height: pr.height, width: pr.width, bg: pc.backgroundColor, radius: pc.borderTopLeftRadius, bottomRadius: pc.borderBottomLeftRadius },
+      talk: { bottom: tr.bottom, bg: tc.backgroundColor, radius: tc.borderBottomLeftRadius, side: parseFloat(tc.paddingLeft) },
+      box: document.querySelector(".input").getBoundingClientRect().bottom,
+      label: getComputedStyle(t.querySelector(".label")).fontSize,
+      body: pc.fontSize,
+      head: head.bottom,
+      look: look ? look.getBoundingClientRect().top : null,
+      portrait: portrait ? portrait.getBoundingClientRect().bottom : 0,
+      nameBeside: !!beside && getComputedStyle(beside).display !== "none" && beside.getBoundingClientRect().width > 0,
+      transition: covers ? getComputedStyle(covers).transitionProperty : "",
+    };
+  })()`);
+const rightWidth = async (px: number) => {
+  await page.eval(`document.querySelector(".layout").style.setProperty("--right-width", "${px}px")`);
+  await page.eval(`new Promise((ok) => setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(ok)), 400))`);
+};
+const lookAt = async (name: string) => {
+  await page.eval(`document.querySelector(${JSON.stringify(`.places button.token[data-guest="${name}"], .web .node[data-guest="${name}"]`)}).dispatchEvent(new MouseEvent("click", { bubbles: true }))`);
+  await page.until(`document.querySelector(${JSON.stringify(`.side.right .look[data-guest="${name}"]:not(.leaving)`)}) && document.querySelector(".side.right .look").getAnimations().length === 0`);
+};
+
+test("the right panel (Interface v0.19): 48px down, rounder, a size up; the talking-with card rounded all round, level with the message box, carrying the panel's colour; its cards' margins growing with the panel", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".side.right .person.talk")`);
+  try {
+    // A window with room for the panel at its widest.
+    await windowSize(1600, 900);
+    await rightWidth(280);
+    const narrow = await rightPanel();
+    assert.equal(Math.round(narrow.panelTop - narrow.layoutTop), 48, "48px below the window's top");
+    assert.equal(narrow.panel.radius, "28px", "its top corners");
+    assert.equal(narrow.panel.bottomRadius, "0px", "the panel itself rounded only at the top");
+    assert.equal(narrow.panel.bg, "rgba(0, 0, 0, 0)", "the panel's colour moves onto the talking-with card");
+    assert.notEqual(narrow.talk.bg, "rgba(0, 0, 0, 0)");
+    assert.equal(narrow.talk.radius, "28px", "the talking-with card's bottom corners as round as its top ones");
+    assert.ok(Math.abs(narrow.talk.bottom - narrow.box) <= 1, `its bottom level with the message box's (${narrow.talk.bottom}, ${narrow.box})`);
+    assert.deepEqual([narrow.label, narrow.body], ["12px", "17px"], "its text a size up: labels 12px, body 17px");
+    assert.ok(Math.abs(narrow.talk.side - 24) <= 1, `24px side margins at its narrowest (${narrow.talk.side})`);
+    await rightWidth(480);
+    const wide = await rightPanel();
+    assert.ok(Math.abs(wide.talk.side - 40) <= 1, `40px at its widest (${wide.talk.side})`);
+    // A 28px top margin above the heading.
+    assert.ok(await page.eval<boolean>(`(() => { const t = document.querySelector(".side.right .person.talk"), l = t.querySelector(".person-head .label"); return Math.abs(l.getBoundingClientRect().top - t.getBoundingClientRect().top - 28 - (t.querySelector(".person-head").getBoundingClientRect().height - 28 - 8 - l.getBoundingClientRect().height) / 2) <= 2; })()`), "a 28px top margin");
+    await page.shot("right-v019-480");
+    // Hidden, the strip keeps the panel's colour.
+    await page.eval(`document.querySelector(".right-hide").click()`);
+    await page.until(`document.querySelector(".side.right.hidden")`);
+    assert.equal(await page.eval<string>(`getComputedStyle(document.querySelector(".side.right.hidden")).backgroundColor`), narrow.talk.bg);
+    await page.eval(`document.querySelector(".right-handle").click()`);
+    await page.until(`document.querySelector(".side.right .person.talk")`);
+  } finally {
+    await page.eval(`localStorage.removeItem("player-screen.right-hidden"); localStorage.removeItem("player-screen.right-width")`);
+    await windowSize(VIEW.width, VIEW.height);
+    await reopen();
+  }
+});
+
+test("where the card that slides up stops (Interface v0.19): with no one at your ear, just under the heading at any width; with someone, under their portrait in a narrow panel (their name beside Talking With) and 40% down from 380px, gliding between", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".side.right .person.talk")`);
+  try {
+    await windowSize(1600, 900);
+    // No one at the player's ear: about 14px under the heading, at any width.
+    assert.ok(await page.eval<boolean>(`!!document.querySelector(".side.right .no-ear")`), "the fake game's first stretch: no one has his ear");
+    await lookAt("Lupo");
+    for (const px of [280, 420]) {
+      await rightWidth(px);
+      const m = await rightPanel();
+      assert.ok(m.look !== null && Math.abs(m.look - m.head - 14) <= 2, `${px}px, no one at his ear: 14px under the heading (${m.look! - m.head})`);
+      assert.match(m.transition, /top/, "it glides");
+    }
+    await page.shot("right-stop-no-ear");
+    await page.key("Escape", 27);
+    await page.until(`!document.querySelector(".side.right .look:not(.leaving)")`);
+    // Someone at the player's ear: a secret conversation with Giorgia.
+    await withStates(`(s) => ({ ...s, conversation: { kind: "colloquio", other: "Giorgia Pazzi" }, present: ["Giorgia Pazzi"] })`, async () => {
+      await page.until(`document.querySelector('.side.right .person.talk[data-guest="Giorgia Pazzi"]')`);
+      await lookAt("Lupo");
+      await rightWidth(300);
+      const narrow = await rightPanel();
+      assert.ok(narrow.look !== null && narrow.look - narrow.portrait >= 0 && narrow.look - narrow.portrait <= 10, `a narrow panel: just under the portrait (${narrow.look! - narrow.portrait})`);
+      assert.equal(narrow.nameBeside, true, "the name shows beside Talking With");
+      await page.shot("right-stop-ear-narrow");
+      await rightWidth(420);
+      const wide = await rightPanel();
+      assert.ok(wide.look !== null && Math.abs(wide.look - (wide.panel.top + wide.panel.height * 0.4)) <= 2, `from 380px: 40% down (${(wide.look! - wide.panel.top) / wide.panel.height})`);
+      assert.equal(wide.nameBeside, false, "the name shows under the portrait, not beside the heading");
+      await page.shot("right-stop-ear-wide");
+      // Across the line, it glides: partway there a moment after the switch.
+      await page.eval(`document.querySelector(".layout").style.setProperty("--right-width", "300px")`);
+      const mid = await page.eval<number>(`new Promise((ok) => setTimeout(() => ok(document.querySelector(".side.right .person.look:not(.leaving)").getBoundingClientRect().top), 60))`);
+      assert.ok(mid > narrow.look! + 2 && mid < wide.look! - 2, `it glides between the two (${narrow.look}, ${mid}, ${wide.look})`);
+    });
+  } finally {
+    await page.eval(`localStorage.removeItem("player-screen.right-width")`);
+    await windowSize(VIEW.width, VIEW.height);
+    await reopen();
+  }
+});
+
+test("the guest card (Interface v0.19): a description, Their faction wins if, Known to all, and In the city, all from the pack; its heading, portrait, and name stay put as it scrolls, with More Below; a city entry's centred title stays put, and its guests select them; Back returns to the guest", { skip }, async () => {
+  await reopen();
+  try {
+    await windowSize(VIEW.width, 600);
+    await lookAt("Francesco Pazzi");
+    const card = await page.eval<{ desc: string; labels: string[]; links: string[] }>(`(() => { const c = document.querySelector(".side.right .look:not(.leaving)"); return { desc: c.querySelector(".card-description")?.textContent ?? "", labels: [...c.querySelectorAll(".label")].map((l) => l.textContent), links: [...c.querySelectorAll(".card-city .lore-link")].map((b) => b.dataset.lore) }; })()`);
+    const pack = JSON.parse(readFileSync("setting/florence-1492/player.json", "utf8")) as { guests: Record<string, { description: string }>; screen: { right: Record<string, string> }; cityGuests: Record<string, string[]> };
+    assert.equal(card.desc, pack.guests["Francesco Pazzi"]!.description);
+    assert.deepEqual(card.labels.slice(1), [pack.screen.right.factionWins, pack.screen.right.known, pack.screen.right.inCity]);
+    assert.deepEqual(card.links, Object.entries(pack.cityGuests).filter(([k, v]) => !k.startsWith("_") && v.includes("Francesco Pazzi")).map(([k]) => k));
+    // Scrolling the card: the heading and the portrait block stay; the subtitle slides under them; More Below shows until the end.
+    const before = await page.eval<{ head: number; who: number; sub: number; more: boolean; scrolls: boolean }>(`(() => { const c = document.querySelector(".side.right .look:not(.leaving)"); return { head: c.querySelector(".person-head").getBoundingClientRect().top, who: c.querySelector(".who").getBoundingClientRect().top, sub: c.querySelector(".card-subtitle").getBoundingClientRect().top, more: !!c.querySelector(".more-below"), scrolls: c.scrollHeight > c.clientHeight }; })()`);
+    assert.ok(before.scrolls && before.more, "a long card scrolls on its own, with More Below");
+    await page.eval(`document.querySelector(".side.right .look:not(.leaving)").scrollTop = 120`);
+    await page.eval(`new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)))`);
+    const after = await page.eval<{ head: number; who: number; sub: number }>(`(() => { const c = document.querySelector(".side.right .look:not(.leaving)"); return { head: c.querySelector(".person-head").getBoundingClientRect().top, who: c.querySelector(".who").getBoundingClientRect().top, sub: c.querySelector(".card-subtitle").getBoundingClientRect().top }; })()`);
+    assert.deepEqual([after.head, after.who], [before.head, before.who], "the heading and the portrait, name, and You tag stay put");
+    assert.ok(after.sub < before.sub - 100, "the subtitle and the rest slide under them");
+    await page.shot("right-card-scrolled");
+    await page.eval(`(() => { const c = document.querySelector(".side.right .look:not(.leaving)"); c.scrollTop = c.scrollHeight; })()`);
+    await page.until(`!document.querySelector(".side.right .look:not(.leaving) .more-below")`);
+    // A city link opens the entry here; its title is centred and stays put; its guests select them; Back returns to the guest.
+    await page.eval(`document.querySelector('.side.right .look:not(.leaving) .card-city .lore-link[data-lore="pub-pazzi"]').click()`);
+    await page.until(`document.querySelector('.side.right .look:not(.leaving) .lore-entry[data-lore="pub-pazzi"]')`);
+    const entry = await page.eval<{ align: string; chips: string[] }>(`(() => { const e = document.querySelector(".side.right .look:not(.leaving) .lore-entry"); return { align: getComputedStyle(e.querySelector("h3")).textAlign, chips: [...e.querySelectorAll(".guest-chip")].map((c) => c.dataset.guest) }; })()`);
+    assert.deepEqual(entry, { align: "center", chips: pack.cityGuests["pub-pazzi"] });
+    await page.shot("right-city-entry");
+    await page.eval(`document.querySelector('.side.right .look:not(.leaving) [data-hint="back"]').click()`);
+    await page.until(`document.querySelector('.side.right .look[data-guest="Francesco Pazzi"]:not(.leaving)')`);
+    await page.eval(`document.querySelector('.side.right .look:not(.leaving) .card-city .lore-link[data-lore="pub-pazzi"]').click()`);
+    await page.until(`document.querySelector('.side.right .look:not(.leaving) .guest-chip[data-guest="Giorgia Pazzi"]')`);
+    await page.eval(`document.querySelector('.side.right .look:not(.leaving) .guest-chip[data-guest="Giorgia Pazzi"]').click()`);
+    await page.until(`document.querySelector('.side.right .look[data-guest="Giorgia Pazzi"]:not(.leaving)')`);
+  } finally {
+    await windowSize(VIEW.width, VIEW.height);
+    await page.key("Escape", 27);
   }
 });
 
@@ -2424,11 +2578,11 @@ test("Il Notaio's boxes behave alike (Interface v0.17): his words 16px open and 
   // The left panel's top: your portrait 84px, your name 18px, your role 15px.
   const me = await page.eval<number[]>(`(() => { const b = document.querySelector(".me-briefing"); return [b.querySelector(".portrait").getBoundingClientRect().width, parseFloat(getComputedStyle(b.querySelector(".name")).fontSize), parseFloat(getComputedStyle(b.querySelector(".role")).fontSize)]; })()`);
   assert.deepEqual(me, [84, 18, 15]);
-  // The right panel's top corners, and those of the card that slides up over it: 22px.
-  assert.equal(await page.eval<string>(`getComputedStyle(document.querySelector(".side.right")).borderTopLeftRadius`), "22px");
+  // The right panel's top corners, and those of the card that slides up over it: 28px since Interface v0.19.
+  assert.equal(await page.eval<string>(`getComputedStyle(document.querySelector(".side.right")).borderTopLeftRadius`), "28px");
   await page.eval(`document.querySelector(".places .token").click()`);
   await page.until(`document.querySelector(".person.look")`);
-  assert.equal(await page.eval<string>(`getComputedStyle(document.querySelector(".person.look")).borderTopRightRadius`), "22px");
+  assert.equal(await page.eval<string>(`getComputedStyle(document.querySelector(".person.look")).borderTopRightRadius`), "28px");
   await page.key("Escape", 27);
 });
 
@@ -2887,7 +3041,7 @@ test("long labels (Interface v0.17, Notes for the Build): with every short label
         if (!clips && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1) && cs.overflowY !== "auto") out.push(name + " overflows its own box: " + words);
         const p = el.closest(panels);
         const b = p ? p.getBoundingClientRect() : { left: 0, right: innerWidth, top: 0, bottom: innerHeight };
-        const scrolled = el.closest(".side.left, .stream, .notes, .record-scroll, .reading, .glossary-list, .city-list, .deck-card, .rules-buttons, .modal-overlay");
+        const scrolled = el.closest(".side.left, .person, .stream, .notes, .record-scroll, .reading, .glossary-list, .city-list, .deck-card, .rules-buttons, .modal-overlay");
         if (r.left < b.left - 1 || r.right > b.right + 1) out.push(name + " reaches outside its panel sideways: " + words);
         if (!scrolled && (r.top < b.top - 1 || r.bottom > b.bottom + 1)) out.push(name + " reaches outside its panel: " + words);
       }
