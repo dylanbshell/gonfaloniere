@@ -8,6 +8,7 @@
 
 *Nov 17. Dylan's further notes on the demo, after v0.19 merged. Detail in the sections named; the record is in Playtest Findings, Demo review, part 3.*
 
+- **The @ and / menus come down over the prompt's line, and the arrow keys move through them** (The input box): they end just above the box, covering "Your turn"; Up and Down skip the folded "Not available now" commands, and Return picks the lit entry
 - **The right panel's cards stand in from the window's edge** (Right): the "talking with" card and the cards that slide over it stand 12px in from the window's right edge, as the "talking with" card stands above the panel's foot
 - **The card that slides up stops in one place** (Right): about 14px under the heading (70px below the "talking with" card's top) at every width, whether or not someone has your ear; the 40% stop in a wide panel and the under-the-portrait stop in a narrow one are gone, and the name of whoever has your ear always shows beside "Talking with"
 - **The panel higher, its cards ending higher** (Right): it starts 12px from the top of the screen, level with the stage bar (48px before), and the "talking with" card and the folded strip end 82px above the Web of Confidences' bar (12px before, level with the message box)
@@ -443,6 +444,8 @@ The message box is a floating card *(v0.16)*. Its top line holds **the prompt** 
 - **What you type is in the guests' typeface** *(v0.17)*, since it's what your character will say
 - **Return to current stage grows taller** rather than spilling if its words run to a third line *(v0.17; a translation might)*
 - **The menus open and close with their character** (typing `@` or `/`; deleting it, Escape, or clicking away closes)
+- **The menus come down over the prompt's line** *(Dylan; v0.20)*: the `@` and `/` menus end just under it, 6px above the box, covering "Your turn" (and whatever the line says), rather than standing above the whole card
+- **The arrow keys move through either menu** *(Dylan; v0.20)*: Down lights the first entry, Up the last, and both wrap; Return picks the lit one (with nothing lit, Return sends as before). In the command menu they move through the commands open now only, **skipping the folded "Not available now" section** and anything in it. Pointing at an entry lights it too, so only one is ever lit. Typing or reopening the menu clears it
 - **The command menu** lists every command the character can ever use, available ones first (Commands, below)
 - **Generate** *(Dylan; v0.16)* writes a line in your character's voice, from your briefing and what you've heard, **into the box**, with the cursor at its end. **It replaces any draft** and never sends: nothing is said until you press Speak, so the line can be changed or thrown away. If someone has your ear, the line starts with @ them. While it works, the button reads "Generating…" and can't be pressed again. *The call is Technical Design's (tracker handoff): like Il Notaio's reading, it's the player screen's own call, and never reaches another guest's prompt*
 
@@ -1219,6 +1222,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | The left panel scrolls a lot on a 1080p monitor; then, your portrait beside your name and role, with more room above and below; then, the empty places on one line; then, a little less room above you (then back), and the pinned top compressing in a shorter window, never overlapping; then, fully compressed, the errand stopped sliding under the buttons | Side by side, the pinned top about 70px shorter; the empty places folded into one line. It fits a 1920×960 window without scrolling. The top stays pinned down to 520px tall (640px before) | Left |
 | The "Talking with" card's bottom corners as round as its top ones; the cards that slide over it as they are | 28px all round, its bottom level with the message box's; the sliding cards keep square bottoms | Right |
 | *(v0.20)* The "talking with" card and its covering cards in from the right edge, about as far as from the bottom | 12px in from the window's right edge | Right |
+| *(v0.20)* The / and @ menus lower, just covering the "Your turn" line; both navigable with the up and down arrow keys, which skip "Not available now" | They end 6px above the box; arrows light an entry, Return picks it | The input box |
 | *(v0.20)* A card that slid up should end, once stopped, level with the message box, 12px above the Web of Confidences' bar | 12px above the bar; the "talking with" card still 82px | Right |
 | *(v0.20)* While a card slides up or down, its bottom should reach the Web of Confidences' bar, unrounded, until it's off the screen or at its stop | Square and full height while moving; rounded and level once stopped | Right |
 | *(v0.20)* No different stops at different widths: the card that slides up should stay up at every width | About 14px under the heading everywhere; the name beside "Talking with" | Right |
