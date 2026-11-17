@@ -212,6 +212,11 @@
   --grow-from: 0.97;
   --swipe-distance: 24px;
   --motion-modal: 300ms;
+  /* Interface v0.20: moving between modals is slower, by about a third: the row's slide from one modal to the next, and the
+     side modals' hover; the paddles' hover slower still. Inside the modal in focus, --motion-modal as it was. */
+  --motion-row: 390ms;
+  --motion-side: 210ms;
+  --motion-paddle-hover: 420ms;
   /* The breathing highlight (a soft pulsing outline) on the way forward or back through the modals */
   --motion-breathe: 900ms;
   --breathe-ring: 4px;
@@ -389,21 +394,26 @@
   --radius-modal: 30px;
   /* The screen behind an open modal is dimmed and softly blurred */
   --blur-behind: 5px;
-  /* The side modals, in two sizes by the room beside the modal in focus. From --break-side-modals wide: the whole
-     previous and next modals, drawn still, scaled to fit the room (never more than 80% of the modal in focus) and evenly
-     blurred. Narrower: two paddles, as tall as the whole side modals were when they gave way, the title on end. The row
-     is never narrower than the modal and both paddles: below that the overlay scrolls sideways. */
-  --break-side-modals: 1408px;
-  --side-modal-most: 0.8;
+  /* The side modals, by the room the overlay leaves beside the modal in focus (Interface v0.20). From --break-side-modals
+     wide: the whole previous and next modals, drawn still and evenly blurred, scaled to fit the room, never more than 85%
+     of the modal in focus and never less than 75% (480px): below that size (a 1736px overlay) they keep it and run off
+     the screen's sides, the modal in focus centred. Narrower: two paddles, as tall as the whole side modals were when they
+     gave way, the title on end. The row is never narrower than the modal and both paddles: below that the overlay
+     scrolls sideways. (The break itself is in app.css's container query, which can't read a token.) */
+  --break-side-modals: 1280px;
+  --side-modal-most: 0.85;
+  --side-modal-least: 0.75;
   --side-modal-room: calc((100cqw - var(--modal-edge) * 2 - var(--modal-width) - var(--modal-row-gap) * 2) / 2);
-  --side-modal-scale: min(var(--side-modal-most), tan(atan2(var(--side-modal-room), var(--modal-width))));
+  --side-modal-scale: max(var(--side-modal-least), min(var(--side-modal-most), tan(atan2(var(--side-modal-room), var(--modal-width)))));
   --blur-side: 3.5px;
   --paddle-width: 40px;
-  --paddle-height: calc(var(--deck-height) * 0.55);
+  --paddle-height: calc(var(--deck-height) * 0.75);
   --modal-row-min: calc(var(--modal-width) + (var(--paddle-width) + var(--modal-row-gap)) * 2);
-  /* A hovered side modal or paddle: a thin ring in the accent; a clicked paddle flashes for about two-thirds of a second */
+  /* A hovered side modal or paddle: a thin ring in the accent. Interface v0.20: a clicked paddle flashes gently, a light
+     tint of the accent and a thin ring, its words in the accent, fading over 900ms */
   --side-ring: 2px;
-  --motion-paddle-flash: 660ms;
+  --motion-paddle-flash: 900ms;
+  --paddle-flash-bg: color-mix(in srgb, var(--accent) 16%, var(--surface));
   /* Inside every modal: one number scales the margins round the header, the tabs, the content, and the footer; the
      reading text sits further in still. */
   --modal-pad: 28px;

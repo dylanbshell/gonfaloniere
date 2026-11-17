@@ -1197,7 +1197,7 @@ function ModalRow({ deck, sheet, state, places, onPlaces, onDeck, onClose }: { d
   const [flash, setFlash] = useState<"left" | "right" | null>(null);
   useEffect(() => {
     if (!flash) return;
-    const t = setTimeout(() => setFlash(null), themeMs("--motion-paddle-flash", 660));
+    const t = setTimeout(() => setFlash(null), themeMs("--motion-paddle-flash", 900));
     return () => clearTimeout(t);
   }, [flash]);
   // In a window narrower than the modal and both paddles, the overlay scrolls sideways: it opens centred on the modal in focus.
@@ -1262,28 +1262,37 @@ function ModalRow({ deck, sheet, state, places, onPlaces, onDeck, onClose }: { d
   const litPrev = way === "back" && !!steps.prev?.chain;
   const closeFills = (way === "forward" && !steps.next) || (way === "back" && !steps.prev && deck === DECKS[0]);
   const noSteps = { prev: null, next: null };
-  /** A modal's contents: the one in focus at its place, or a neighbour drawn still at its start. */
-  const body = (d: DeckName, still: boolean) =>
-    d === "briefing" ? (
-      <BriefingDeck cards={cards} place={still ? 0 : card} onPlace={(n) => turn({ briefing: n }, n < card ? "back" : "forward")} steps={still ? noSteps : steps} way={still ? "forward" : way} still={still} />
+  /**
+   * A modal's contents: the one in focus at its place, or a neighbour drawn still where clicking it lands. Interface v0.20:
+   * the one on the right at its start (`still` "start"), the one on the left at its last item (`still` "end"): the
+   * briefing's last card, the last rule open, the last city entry.
+   */
+  const body = (d: DeckName, still: false | "start" | "end") => {
+    const stillAt = still ? { ...NO_PLACES, ...(still === "end" ? end(d) : start(d)) } : null;
+    return d === "briefing" ? (
+      <BriefingDeck cards={cards} place={stillAt ? stillAt.briefing : card} onPlace={(n) => turn({ briefing: n }, n < card ? "back" : "forward")} steps={still ? noSteps : steps} way={still ? "forward" : way} still={!!still} />
     ) : d === "rules" ? (
-      <RulesSections cards={rules} open={still ? null : rule} onOpen={(n) => turn({ rules: n }, n === null || (rule !== null && n < rule) ? "back" : "forward")} steps={still ? noSteps : steps} way={still ? "forward" : way} still={still} />
+      <RulesSections cards={rules} open={stillAt ? stillAt.rules : rule} onOpen={(n) => turn({ rules: n }, n === null || (rule !== null && n < rule) ? "back" : "forward")} steps={still ? noSteps : steps} way={still ? "forward" : way} still={!!still} />
     ) : d === "city" ? (
-      <CityList lore={lore} open={still || topic < 0 ? null : places.city} onOpen={(id) => turn({ city: id }, id === null ? "back" : "forward")} steps={still ? noSteps : steps} way={still ? "forward" : way} still={still} />
+      <CityList lore={lore} open={stillAt ? stillAt.city : topic < 0 ? null : places.city} onOpen={(id) => turn({ city: id }, id === null ? "back" : "forward")} steps={still ? noSteps : steps} way={still ? "forward" : way} still={!!still} />
     ) : (
-      <Glossary search={still ? "" : places.glossary} onSearch={(q) => onPlaces({ ...places, glossary: q })} rules={rules} onRules={(n) => move("rules", "back", { rules: n })} steps={still ? noSteps : steps} way={still ? "forward" : way} still={still} prevBreathes={!still && !walked} />
+      <Glossary search={still ? "" : places.glossary} onSearch={(q) => onPlaces({ ...places, glossary: q })} rules={rules} onRules={(n) => move("rules", "back", { rules: n })} steps={still ? noSteps : steps} way={still ? "forward" : way} still={!!still} prevBreathes={!still && !walked} />
     );
+  };
   /**
    * A side modal (Interface v0.17), in two sizes by the room the row has beside the modal in focus (a container
-   * query picks one): the whole neighbour, drawn as itself at its start, still, scaled to fit and evenly
+   * query picks one): the whole neighbour, drawn as itself where clicking it lands (Interface v0.20: the one on the
+   * left at its last item, the one on the right at its start), still, scaled to fit and evenly
    * blurred, its title flat in its header toward the middle at full size; or a paddle, the title on end with
    * an arrow below. Clicking either moves to that modal; the one the player is heading for is ringed.
    */
   const side = (d: DeckName | undefined, at: "left" | "right") => {
     if (!d) return <div className={`modal-side ${at} empty`} aria-hidden="true" />;
+    // Interface v0.20: each drawn where clicking it lands: going back, the modal before opens at its last item, as "Back to …" does.
     const go = () => {
       setFlash(at);
-      move(d, at === "left" ? "back" : "forward");
+      if (at === "left") move(d, "back", end(d));
+      else move(d, "forward");
     };
     return (
       <div
@@ -1309,7 +1318,7 @@ function ModalRow({ deck, sheet, state, places, onPlaces, onDeck, onClose }: { d
                 <h2>{title(d)}</h2>
                 <span />
               </header>
-              {body(d, true)}
+              {body(d, at === "left" ? "end" : "start")}
             </div>
           </div>
           <div className="side-title">{title(d)}</div>

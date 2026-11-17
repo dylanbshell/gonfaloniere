@@ -2263,7 +2263,7 @@ const HINTS_OFF = async (off: boolean) => {
   if (on === off) await page.eval(`document.querySelector('[data-hint="switch"]').click()`);
 };
 
-test("four modals in a row (Interface v0.16; v0.17): the title centred, Close at the right; in a narrower window two paddles, the title on end with an arrow; clicking one moves to that modal at its beginning, and flashes; nothing before the first or after the last; Escape closes", { skip }, async () => {
+test("four modals in a row (Interface v0.16; v0.17; v0.20): the title centred, Close at the right; in a narrower window two paddles, 75% of a modal's height, the title on end with an arrow, their hover easing in over 420ms; clicking the right one moves to that modal at its beginning, the left one to its last item, and flashes gently over 900ms; the row slides in 390ms, a card inside in 300ms as before; nothing before the first or after the last; Escape closes", { skip }, async () => {
   await reopen();
   await page.until(`!document.querySelector('[data-hint="glossary"]').disabled`);
   const clickAt = async (sel: string) => {
@@ -2288,9 +2288,11 @@ test("four modals in a row (Interface v0.16; v0.17): the title centred, Close at
   assert.ok(r.inView && r.centred && r.closeRight, "the modal centred, its title centred, Close at the right");
   // Interface v0.17: 640px wide with 30px corners, clear of the Web of Confidences' bar, the screen behind softly blurred.
   assert.deepEqual([r.width, r.corner, r.clearOfBar, r.blur], [640, "30px", true, "blur(5px)"]);
-  // In this window (1200px) the side modal is a paddle: 40px wide, 55% of the modal's height, the modal's colour, the title on end, an arrow below.
+  // In this window (1200px) the side modal is a paddle: 40px wide, 75% of the modal's height (Interface v0.20; 55% before), the modal's colour, the title on end, an arrow below.
   assert.deepEqual(r.paddles.map((p) => [p.title, p.arrow, p.width, p.colour, p.corner, p.mode, p.whole]), [["The Rules", "›", 40, true, "12px", "vertical-rl", false]]);
-  assert.ok(Math.abs(r.paddles[0]!.tall - 0.55) < 0.01, `as tall as the whole side modals were when they gave way (${r.paddles[0]!.tall})`);
+  assert.ok(Math.abs(r.paddles[0]!.tall - 0.75) < 0.01, `as tall as the whole side modals were when they gave way (${r.paddles[0]!.tall})`);
+  // Interface v0.20: the paddles' hover ring and colours ease in over 420ms, slower than the rest of the modals.
+  assert.deepEqual(await page.eval<string[]>(`[".modal-side.right", ".modal-side.right .paddle", ".modal-side.right .paddle-title"].map((q) => getComputedStyle(document.querySelector(q)).transitionDuration)`), ["0.42s", "0.42s, 0.42s", "0.42s"]);
   // The right paddle's title reads bottom to top, so both face the middle.
   assert.notEqual(await page.eval<string>(`getComputedStyle(document.querySelector(".modal-side.right .paddle-title")).transform`), "none");
   await page.shot("modal-paddle-briefing");
@@ -2309,8 +2311,16 @@ test("four modals in a row (Interface v0.16; v0.17): the title centred, Close at
     await page.until(`document.querySelector(".modal.deck").getAnimations().length === 0`);
     await clickAt(".modal-side.right");
     await page.until(`document.querySelector(".modal.deck-${want}")`);
-    if (right) assert.equal(await page.eval<boolean>(`document.querySelector(".modal-side.right").classList.contains("flash")`), true, `${want}: the clicked paddle flashes`);
-    // Once the modal has arrived and the flash has gone (about two-thirds of a second, then its colour settling).
+    if (right) {
+      assert.equal(await page.eval<boolean>(`document.querySelector(".modal-side.right").classList.contains("flash")`), true, `${want}: the clicked paddle flashes`);
+      // Interface v0.20: gently, a light tint of the accent and a thin ring, its words in the accent, fading over 900ms; the row slides in 390ms.
+      const flash = await page.eval<{ name: string; ms: number; bg: string; words: string; ring: string; row: string }>(`(() => { const p = document.querySelector(".modal-side.right .paddle"), a = p.getAnimations().find((x) => x.animationName === "paddle-flash"); a.pause(); a.currentTime = 0; const out = { name: a.animationName, ms: Number(a.effect.getComputedTiming().duration), bg: getComputedStyle(p).backgroundColor, words: getComputedStyle(p.querySelector(".paddle-title")).color, ring: getComputedStyle(p).boxShadow, row: getComputedStyle(document.querySelector(".modal.deck")).animationDuration }; a.play(); return out; })()`);
+      assert.deepEqual([flash.name, flash.ms, flash.row], ["paddle-flash", 900, "0.39s"], want);
+      assert.notEqual(flash.bg, accent, "a light tint, not a full accent fill");
+      assert.notEqual(flash.bg, await page.eval<string>(`getComputedStyle(document.querySelector(".modal.deck")).backgroundColor`), "tinted");
+      assert.ok(flash.ring.includes(accent) && flash.ring.endsWith("0px 0px 0px 2px"), `a thin accent ring (${flash.ring})`);
+    }
+    // Once the modal has arrived and the flash has gone.
     await page.until(`document.querySelector(".modal.deck").getAnimations().length === 0 && !document.querySelector(".modal-side.flash") && [...document.querySelectorAll(".paddle")].every((p) => p.getAnimations().length === 0)`);
     r = await row();
     assert.deepEqual([r.open, r.left, r.right], [want, left, right], want);
@@ -2321,7 +2331,7 @@ test("four modals in a row (Interface v0.16; v0.17): the title centred, Close at
   }
   // Nothing to the glossary's right: no neighbour there to move to.
   assert.equal(await page.eval<boolean>(`document.querySelector(".modal-side.right").matches(".empty:not([role])")`), true, "nothing right of the glossary");
-  // Back along: left to the briefing, which starts from its beginning again (Interface v0.16).
+  // Back along: left to the briefing. Interface v0.20: going back, each opens at its last item, where its side modal showed it.
   for (const want of ["city", "rules", "briefing"]) {
     // Once the row has stopped sliding (the open one passes over its neighbour as it comes in).
     await page.until(`document.querySelector(".modal.deck").getAnimations().length === 0`);
@@ -2329,23 +2339,27 @@ test("four modals in a row (Interface v0.16; v0.17): the title centred, Close at
     await page.until(`document.querySelector(".modal.deck-${want}")`);
     assert.equal(await page.eval<boolean>(`document.querySelector(".modal.deck").classList.contains("from-left")`), true, `${want}: it comes in from the left`);
   }
-  assert.equal(await page.eval<boolean>(`document.querySelectorAll(".modal.deck .tab")[0].classList.contains("on")`), true, "every modal starts from its beginning when you move to it");
+  assert.equal(await page.eval<boolean>(`[...document.querySelectorAll(".modal.deck .tab")].at(-1).classList.contains("on")`), true, "going back, the briefing opens at its last card");
+  await page.until(`document.querySelector(".modal.deck").getAnimations().length === 0`);
+  await page.key("ArrowLeft", 37);
+  await page.until(`document.querySelectorAll(".modal.deck .tab").length > 1 && [...document.querySelectorAll(".modal.deck .tab")].at(-2).classList.contains("on")`);
+  assert.equal(await page.eval<string>(`getComputedStyle(document.querySelector(".modal.deck .deck-card")).animationDuration`), "0.3s", "inside the modal in focus, a card still swipes in over 300ms");
   assert.equal(await page.eval<boolean>(`document.querySelector(".modal-side.left").matches(".empty:not([role])")`), true, "nothing left of the briefing");
   await page.key("Escape", 27);
   await page.until(`!document.querySelector(".overlay")`);
 });
 
-test("the side modals' two sizes (Interface v0.17), by the room beside the modal in focus: from 1408px the whole previous and next modals, drawn still at their start, scaled to fit and never more than 80% of the modal in focus, evenly blurred, their titles flat at full size toward the middle; narrower, paddles; below the row's least width the overlay scrolls sideways; in a short window the margins come in", { skip }, async () => {
+test("the side modals by the overlay's own width (Interface v0.17; v0.20): from 1736px the whole previous and next modals, drawn still where clicking them lands (the left at its last item, the right at its start), scaled to fit between 75% and 85% of the modal in focus, evenly blurred, their titles flat at full size toward the middle; from 1280px, at 75%, running off the screen's sides with the modal in focus centred and nothing to scroll; narrower, paddles; below the row's least width the overlay scrolls sideways; in a short window the margins come in", { skip }, async () => {
   await reopen();
   await page.until(`!document.querySelector('[data-hint="rules"]').disabled`);
   const sides = () =>
-    page.eval<{ modal: { w: number; h: number; top: number; bottom: number; mid: number }; sides: { deck: string; at: string; whole: boolean; paddle: boolean; w: number; h: number; scale: number; blur: string; colour: boolean; corner: string; inert: boolean; title: string; titleSize: number; titleToward: number; titleHidden: boolean; start: string; ring: boolean }[]; bar: number; scrolls: boolean }>(`(() => {
+    page.eval<{ modal: { w: number; h: number; top: number; bottom: number; mid: number }; sides: { deck: string; at: string; whole: boolean; paddle: boolean; w: number; h: number; left: number; right: number; scale: number; blur: string; colour: boolean; corner: string; inert: boolean; title: string; titleSize: number; titleToward: number; titleLeft: number; titleRight: number; titleHidden: boolean; start: string; ring: boolean; moving: number }[]; bar: number; scrolls: boolean }>(`(() => {
       const m = document.querySelector(".modal.deck"), b = m.getBoundingClientRect(), h2 = parseFloat(getComputedStyle(m.querySelector("header h2")).fontSize);
       return { modal: { w: b.width, h: b.height, top: b.top, bottom: b.bottom, mid: b.left + b.width / 2 }, bar: document.querySelector(".web-bar").getBoundingClientRect().top, scrolls: (() => { const o = document.querySelector(".modal-overlay"); return o.scrollWidth > o.clientWidth + 1; })(),
         sides: [...document.querySelectorAll(".modal-side:not(.empty)")].map((s) => { const r = s.getBoundingClientRect(), whole = s.querySelector(".side-whole"), scaled = s.querySelector(".side-scaled"), still = s.querySelector(".still-modal"), t = s.querySelector(".side-title"), tr = t.getBoundingClientRect(), left = s.classList.contains("left");
-          return { deck: s.dataset.deck, at: left ? "left" : "right", whole: getComputedStyle(whole).display !== "none", paddle: getComputedStyle(s.querySelector(".paddle")).display !== "none", w: r.width, h: r.height, scale: scaled.getBoundingClientRect().width / 640, blur: getComputedStyle(scaled).filter, colour: getComputedStyle(whole).backgroundColor === getComputedStyle(m).backgroundColor, corner: getComputedStyle(s).borderTopLeftRadius, inert: whole.inert && whole.getAttribute("aria-hidden") === "true",
+          return { deck: s.dataset.deck, at: left ? "left" : "right", whole: getComputedStyle(whole).display !== "none", paddle: getComputedStyle(s.querySelector(".paddle")).display !== "none", w: r.width, h: r.height, left: r.left, right: r.right, titleLeft: tr.left, titleRight: tr.right, moving: still.getAnimations({ subtree: true }).length, scale: scaled.getBoundingClientRect().width / 640, blur: getComputedStyle(scaled).filter, colour: getComputedStyle(whole).backgroundColor === getComputedStyle(m).backgroundColor, corner: getComputedStyle(s).borderTopLeftRadius, inert: whole.inert && whole.getAttribute("aria-hidden") === "true",
             title: t.textContent, titleSize: parseFloat(getComputedStyle(t).fontSize) / h2, titleToward: left ? r.right - tr.right : tr.left - r.left, titleHidden: getComputedStyle(still.querySelector("header h2")).visibility === "hidden",
-            start: still.dataset.deck === "briefing" ? "tab:" + [...still.querySelectorAll(".tab")].findIndex((x) => x.classList.contains("on")) : still.dataset.deck === "rules" ? "buttons:" + still.querySelectorAll("button.rules-section").length + ":" + !!still.querySelector("section.rules-section.open") : still.dataset.deck === "city" ? "list:" + !!still.querySelector(".city-list") : "search:" + still.querySelector(".glossary-search").value,
+            start: still.dataset.deck === "briefing" ? "tab:" + [...still.querySelectorAll(".tab")].findIndex((x) => x.classList.contains("on")) : still.dataset.deck === "rules" ? "buttons:" + still.querySelectorAll("button.rules-section").length + ":" + (still.querySelector("section.rules-section.open")?.dataset.section ?? "none") : still.dataset.deck === "city" ? (still.querySelector(".city-list") ? "list:true" : "entry:" + still.querySelector(".city-entry")?.dataset.lore) : "search:" + still.querySelector(".glossary-search").value,
             ring: getComputedStyle(s).boxShadow !== "none" }; }) };
     })()`);
   try {
@@ -2358,51 +2372,100 @@ test("the side modals' two sizes (Interface v0.17), by the room beside the modal
     await page.until(`!document.querySelector(".overlay")`);
     await page.eval(`document.querySelector('[data-hint="rules"]').click()`);
     await page.until(`document.querySelector(".modal.deck-rules")`);
-    for (const [width, height] of [[1440, 900], [1920, 1080], [1408, 900]] as const) {
+    const briefingCards = await page.eval<number>(`document.querySelectorAll(".modal-side.left .still-modal .tab").length`);
+    assert.ok(briefingCards >= 5);
+    // Interface v0.20, three ranges by the overlay's own width. From 1736px, whole, scaled to fit their room, between 75%
+    // and 85% of the modal in focus.
+    for (const [width, height] of [[2100, 1080], [1920, 1080], [1800, 1000], [1736, 900]] as const) {
       await windowSize(width, height);
       const s = await sides();
       const where = `${width}×${height}`;
       assert.deepEqual(s.sides.map((x) => [x.deck, x.at, x.whole, x.paddle]), [["briefing", "left", true, false], ["city", "right", true, false]], `${where}: the whole previous and next modals`);
       const edge = Math.min(64, Math.max(24, width * 0.03));
-      const scale = Math.min(0.8, (width - edge * 2 - 640 - 32) / 2 / 640);
+      const scale = Math.max(0.75, Math.min(0.85, (width - edge * 2 - 640 - 32) / 2 / 640));
       for (const x of s.sides) {
-        assert.ok(Math.abs(x.scale - scale) < 0.005 && x.scale <= 0.8001, `${where} ${x.deck}: scaled to fit its room, never more than 80% of the modal in focus (${x.scale} for ${scale})`);
+        assert.ok(Math.abs(x.scale - scale) < 0.005 && x.scale <= 0.8501 && x.scale >= 0.7499, `${where} ${x.deck}: scaled to fit its room, between 75% and 85% of the modal in focus (${x.scale} for ${scale})`);
         assert.ok(Math.abs(x.w - 640 * scale) < 1.5 && Math.abs(x.h - s.modal.h * scale) < 1.5, `${where} ${x.deck}: its size (${x.w}×${x.h})`);
         assert.deepEqual([x.blur, x.colour, x.corner, x.inert], ["blur(3.5px)", true, "30px", true], `${where} ${x.deck}: evenly blurred, the modal's colour, 30px corners, still`);
         assert.ok(Math.abs(x.titleSize - 1) < 0.01 && x.titleHidden, `${where} ${x.deck}: its title at the focused modal's title size, not shrunk with the rest`);
         assert.ok(x.titleToward < x.w / 2 && x.titleToward >= 0, `${where} ${x.deck}: toward the modal in focus (${x.titleToward})`);
+        assert.ok(x.left >= -0.5 && x.right <= width + 0.5, `${where} ${x.deck}: whole on the screen (${x.left}, ${x.right})`);
       }
-      // Each drawn as itself at its start: the briefing's first card, not the third it was left on; the city's list.
-      assert.deepEqual(s.sides.map((x) => [x.title, x.start]), [["Your Briefing", "tab:0"], ["The City", "list:true"]], where);
+      // Each drawn where clicking it lands: the briefing on the left at its last card, not the third it was left on; the city on the right at its list.
+      assert.deepEqual(s.sides.map((x) => [x.title, x.start]), [["Your Briefing", `tab:${briefingCards - 1}`], ["The City", "list:true"]], where);
       assert.equal(s.scrolls, false, `${where}: the row fits`);
       assert.ok(s.modal.bottom <= s.bar, `${where}: clear of the Web of Confidences' bar`);
       await page.shot(`modal-sides-whole-${width}`);
     }
+    // Below 1736px they keep that size (75%, 480px) and run off the screen's sides, the modal in focus centred, their
+    // titles still showing toward the middle, with nothing to scroll sideways; down to 1280px, about 300px of each showing.
+    for (const width of [1735, 1600, 1440, 1280]) {
+      await windowSize(width, 900);
+      const s = await sides();
+      assert.ok(Math.abs(s.modal.mid - width / 2) <= 1, `${width}px: the modal in focus centred (${s.modal.mid})`);
+      assert.equal(s.scrolls, false, `${width}px: nothing scrolls sideways`);
+      const [left, right] = s.sides;
+      assert.ok(left!.whole && right!.whole && Math.abs(left!.w - 480) < 1 && Math.abs(right!.w - 480) < 1, `${width}px: whole, at 480px (${left!.w}, ${right!.w})`);
+      // The row (the modal, the two side modals, and the gaps) is 1632px wide, centred: it uses up the margins at the
+      // screen's edges first, and below 1632px the edges cut the side modals off.
+      assert.ok(Math.abs(left!.left - (width - 1632) / 2) <= 1 && Math.abs(right!.right - (width + 1632) / 2) <= 1, `${width}px: the row centred at its full width (${left!.left}, ${right!.right})`);
+      if (width < 1632) assert.ok(left!.left < 0 && right!.right > width, `${width}px: running off the screen's sides`);
+      for (const x of [left!, right!]) assert.ok(x.titleLeft >= 0 && x.titleRight <= width, `${width}px ${x.deck}: its title in view, toward the middle (${x.titleLeft}–${x.titleRight})`);
+      const showing = [left!.right, width - right!.left];
+      if (width === 1280) assert.ok(showing.every((x) => Math.abs(x - 304) <= 2), `1280px: about 300px of each showing (${showing})`);
+      await page.shot(`modal-sides-run-off-${width}`);
+    }
+    // They go by the overlay's own width, not the window's: the same 1600px window with the overlay made 1279px wide shows paddles.
+    await windowSize(1600, 900);
+    await page.eval(`document.querySelector(".modal-overlay").style.right = "321px"`);
+    await page.until(`getComputedStyle(document.querySelector(".modal-side.left .paddle")).display !== "none"`);
+    await page.eval(`document.querySelector(".modal-overlay").style.right = ""`);
+    await page.until(`getComputedStyle(document.querySelector(".modal-side.left .paddle")).display === "none"`);
     // Keys go to the modal in focus only: an arrow key doesn't turn the still briefing's card.
-    await page.key("ArrowRight", 39);
+    await page.key("ArrowLeft", 37);
     await new Promise((r) => setTimeout(r, 150));
-    assert.equal((await sides()).sides[0]!.start, "tab:0");
+    assert.equal((await sides()).sides[0]!.start, `tab:${briefingCards - 1}`);
     // Where it's the way the player is heading, it has the accent ring: on the last rule, the city.
     await page.eval(`[...document.querySelectorAll(".modal.deck button.rules-section")].at(-1).click()`);
     await page.until(`document.querySelector(".modal.deck section.rules-section.open")`);
     let s = await sides();
     assert.deepEqual(s.sides.map((x) => x.ring), [false, true], "the next modal is ringed");
-    assert.equal(s.sides[0]!.start, "tab:0");
+    assert.equal(s.sides[0]!.start, `tab:${briefingCards - 1}`);
     await page.shot("modal-sides-whole-heading");
     await page.key("Escape", 27);
-    // The glossary's still copy has an empty search; the rules' its buttons with no section open.
+    // The glossary's still copy, on the right, has an empty search; the rules', on the left, its last section open over its
+    // buttons; and nothing inside a side modal moves as it's drawn.
     await page.eval(`document.querySelector(".modal-side.right").click()`);
     await page.until(`document.querySelector(".modal.deck-city")`);
     s = await sides();
-    assert.deepEqual(s.sides.map((x) => [x.deck, x.start]), [["rules", `buttons:10:false`], ["glossary", "search:"]]);
-    await page.eval(`document.querySelector(".modal-side.left").click()`);
-    await page.until(`document.querySelector(".modal.deck-rules")`);
-    // A pixel narrower: paddles.
-    await windowSize(1407, 900);
+    assert.deepEqual(s.sides.map((x) => [x.deck, x.start]), [["rules", `buttons:10:9`], ["glossary", "search:"]]);
+    assert.deepEqual(s.sides.map((x) => x.moving), [0, 0], "no entrance animations inside them");
+    await page.shot("modal-sides-left-last-rule");
+    const lastRow = await page.eval<string>(`[...document.querySelectorAll(".modal.deck-city .city-row")].at(-1).dataset.lore`);
+    // On the glossary, the city on the left at its last entry; clicking it goes back there.
+    await page.until(`document.querySelector(".modal.deck").getAnimations().length === 0`);
+    await page.eval(`document.querySelector(".modal-side.right").click()`);
+    await page.until(`document.querySelector(".modal.deck-glossary")`);
     s = await sides();
-    assert.deepEqual(s.sides.map((x) => [x.whole, x.paddle, x.w, x.corner]), [[false, true, 40, "12px"], [false, true, 40, "12px"]], "paddles under 1408px");
-    assert.ok(Math.abs(s.sides[0]!.h / s.modal.h - 0.55) < 0.01);
-    await page.shot("modal-sides-paddles-1407");
+    const lastTopic = s.sides[0]!.start.replace(/^entry:/, "");
+    assert.ok(s.sides[0]!.deck === "city" && s.sides[0]!.start.startsWith("entry:") && lastTopic !== "undefined", `the city at an entry (${s.sides[0]!.start})`);
+    assert.equal(lastTopic, lastRow, "its last entry");
+    assert.equal(s.sides[0]!.moving, 0);
+    await page.until(`document.querySelector(".modal.deck").getAnimations().length === 0`);
+    await page.eval(`document.querySelector(".modal-side.left").click()`);
+    await page.until(`document.querySelector(".modal.deck-city .city-entry")?.dataset.lore === ${JSON.stringify(lastTopic)}`);
+    // Going back again, to the rules at its last section; then back to the rules' buttons, between the briefing and the city.
+    await page.until(`document.querySelector(".modal.deck").getAnimations().length === 0`);
+    await page.eval(`document.querySelector(".modal-side.left").click()`);
+    await page.until(`document.querySelector(".modal.deck-rules section.rules-section.open")?.dataset.section === "9"`);
+    await page.key("Escape", 27);
+    await page.until(`document.querySelector(".modal.deck-rules") && !document.querySelector(".modal.deck-rules section.rules-section.open")`);
+    // A pixel narrower: paddles, 75% of a modal's height.
+    await windowSize(1279, 900);
+    s = await sides();
+    assert.deepEqual(s.sides.map((x) => [x.whole, x.paddle, x.w, x.corner]), [[false, true, 40, "12px"], [false, true, 40, "12px"]], "paddles under 1280px");
+    assert.ok(Math.abs(s.sides[0]!.h / s.modal.h - 0.75) < 0.01);
+    await page.shot("modal-sides-paddles-1279");
     await windowSize(1024, 700);
     s = await sides();
     assert.ok(s.sides.every((x) => x.paddle && !x.whole) && !s.scrolls, "1024×700: paddles, and the row fits");

@@ -685,10 +685,12 @@ button.right-handle:hover { background: var(--select-bg); }
    below the modal and both paddles, and in a window narrower than that the overlay scrolls sideways. What's inside answers
    to the overlay's own width (a container query), not the window's. */
 .modal-overlay { container-type: inline-size; container-name: modals; justify-content: flex-start; align-items: center; padding: var(--modal-margin-y) 0 calc(var(--web-bar-height) + var(--modal-margin-y)); overflow-x: auto; overflow-y: hidden; -webkit-backdrop-filter: blur(var(--blur-behind)); backdrop-filter: blur(var(--blur-behind)); }
-.modal-row { flex: none; box-sizing: content-box; display: flex; align-items: center; justify-content: center; gap: var(--modal-row-gap); width: calc(100% - var(--modal-edge) * 2); min-width: var(--modal-row-min); max-height: 100%; margin: 0 auto; padding: 0 var(--modal-edge); }
+/* Interface v0.20: side modals too large for the room run off the screen's sides, the modal in focus centred; the row clips
+   them at its own edges (the screen's), so nothing scrolls sideways for them */
+.modal-row { flex: none; box-sizing: content-box; display: flex; align-items: center; justify-content: center; gap: var(--modal-row-gap); width: calc(100% - var(--modal-edge) * 2); min-width: var(--modal-row-min); max-height: 100%; margin: 0 auto; padding: 0 var(--modal-edge); overflow-x: clip; }
 /* The modal in focus comes first in the page; its neighbours are placed on either side of it */
 .modal-row > .modal { order: 1; flex: none; width: var(--modal-width); height: var(--deck-height); max-height: none; }
-.modal-side { flex: none; position: relative; width: var(--paddle-width); height: var(--paddle-height); border-radius: var(--radius-lg); cursor: pointer; }
+.modal-side { flex: none; position: relative; width: var(--paddle-width); height: var(--paddle-height); border-radius: var(--radius-lg); cursor: pointer; transition: box-shadow var(--motion-paddle-hover) ease-out; }
 .modal-side.left { order: 0; }
 .modal-side.right { order: 2; }
 .modal-side.empty { cursor: default; }
@@ -699,18 +701,24 @@ button.right-handle:hover { background: var(--select-bg); }
    title on end in the middle (top to bottom on the left, bottom to top on the right, so both read facing the middle) and
    an arrow below. A title too long for its paddle ends in an ellipsis before the arrow. */
 .side-whole { display: none; }
-.paddle { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); width: 100%; height: 100%; padding: var(--space-3) 0; background: var(--surface); border-radius: var(--radius-lg); color: var(--text-muted); overflow: hidden; transition: background var(--motion-fast) ease-out, color var(--motion-fast) ease-out; }
-.paddle-title { flex: 0 1 auto; min-height: 0; writing-mode: vertical-rl; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: var(--text-md); font-weight: var(--weight-bold); color: var(--text); }
+/* Interface v0.20: the paddles' hover ring and colours ease in over --motion-paddle-hover, slower than the rest of the modals */
+.paddle { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); width: 100%; height: 100%; padding: var(--space-3) 0; background: var(--surface); border-radius: var(--radius-lg); color: var(--text-muted); overflow: hidden; transition: background var(--motion-paddle-hover) ease-out, color var(--motion-paddle-hover) ease-out; }
+.paddle-title { flex: 0 1 auto; min-height: 0; writing-mode: vertical-rl; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: var(--text-md); font-weight: var(--weight-bold); color: var(--text); transition: color var(--motion-paddle-hover) ease-out; }
 .modal-side.right .paddle-title { transform: rotate(180deg); }
 .paddle-arrow { flex: none; font-size: var(--text-lg); line-height: 1; }
-/* A clicked paddle flashes: it fills with the accent and rings, and its words turn light */
-.modal-side.flash .paddle { background: var(--accent); color: var(--accent-text); box-shadow: 0 0 0 var(--breathe-ring) var(--breathe-colour); }
-.modal-side.flash .paddle-title { color: var(--accent-text); }
-/* Wide: the whole previous and next modals, each drawn as itself at its start, still, scaled to fit the room beside the
-   modal in focus (never more than --side-modal-most of it), evenly blurred, and the same colour. Its title lies flat in
-   its header, toward the modal in focus, at the focused modal's title size: it doesn't shrink with the rest. */
-@container modals (min-width: 1408px) {
-  .modal-side { width: calc(var(--modal-width) * var(--side-modal-scale)); height: calc(var(--deck-height) * var(--side-modal-scale)); border-radius: var(--radius-modal); }
+/* Interface v0.20: a clicked paddle flashes gently: a light tint of the accent and a thin ring, its words in the accent,
+   fading over --motion-paddle-flash (a full accent fill and light words in v0.19) */
+.modal-side.flash .paddle { animation: paddle-flash var(--motion-paddle-flash) ease-out; }
+.modal-side.flash .paddle-title { animation: paddle-flash-words var(--motion-paddle-flash) ease-out; }
+@keyframes paddle-flash { from { background: var(--paddle-flash-bg); color: var(--accent); box-shadow: 0 0 0 var(--side-ring) var(--accent); } }
+@keyframes paddle-flash-words { from { color: var(--accent); } }
+/* Wide: the whole previous and next modals, each drawn as itself where clicking it lands (the one on the right at its
+   start, the one on the left at its last item, Interface v0.20), still, scaled to fit the room beside the modal in focus
+   (between --side-modal-least and --side-modal-most of it; at the least they run off the screen's sides), evenly blurred,
+   and the same colour. Its title lies flat in its header, toward the modal in focus, at the focused modal's title size: it
+   doesn't shrink with the rest. Their hover, the modals' own pace (--motion-side). Nothing inside them moves. */
+@container modals (min-width: 1280px) {
+  .modal-side { width: calc(var(--modal-width) * var(--side-modal-scale)); height: calc(var(--deck-height) * var(--side-modal-scale)); border-radius: var(--radius-modal); transition-duration: var(--motion-side); }
   .paddle { display: none; }
   .side-whole { display: block; position: absolute; inset: 0; overflow: hidden; border-radius: var(--radius-modal); background: var(--surface); }
   .side-scaled { width: var(--modal-width); height: var(--deck-height); transform: scale(var(--side-modal-scale)); transform-origin: top left; filter: blur(var(--blur-side)); }
@@ -719,15 +727,18 @@ button.right-handle:hover { background: var(--select-bg); }
   .side-title { position: absolute; top: calc(var(--modal-pad-header) * var(--side-modal-scale)); max-width: calc(100% - var(--space-5) * 2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-lg); font-weight: var(--weight-bold); line-height: 1.2; }
   .modal-side.left .side-title { right: var(--space-5); }
   .modal-side.right .side-title { left: var(--space-5); }
+  .side-title { transition: color var(--motion-side) ease-out; }
 }
+/* Interface v0.20: the side modals stay still, wherever they're drawn: no entrance animation inside them */
+.modal-side .side-scaled .still-modal * { animation: none; }
 /* Hovering either lights its title in the accent and traces it with a thin ring: only where there is hover, so a tap can't leave one stuck */
 @media (hover: hover) {
   .modal-side:not(.empty):not(.lit):hover { box-shadow: 0 0 0 var(--side-ring) var(--accent); }
   .modal-side:hover .side-title, .modal-side:hover .paddle-title { color: var(--accent); }
-  .modal-side.flash:hover .paddle-title { color: var(--accent-text); }
 }
-.modal.from-right { animation: row-from-right var(--motion-modal) ease-out; }
-.modal.from-left { animation: row-from-left var(--motion-modal) ease-out; }
+/* Interface v0.20: the row's slide from one modal to the next, a third slower (--motion-row); inside the modal in focus, as it was */
+.modal.from-right { animation: row-from-right var(--motion-row) ease-out; }
+.modal.from-left { animation: row-from-left var(--motion-row) ease-out; }
 @keyframes row-from-right { from { transform: translateX(var(--modal-slide)); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes row-from-left { from { transform: translateX(calc(var(--modal-slide) * -1)); opacity: 0; } to { transform: none; opacity: 1; } }
 
@@ -746,7 +757,7 @@ button.glossary-rules { margin-left: var(--space-2); }
 
 @media (prefers-reduced-motion: reduce) {
   .modal.from-right, .modal.from-left { animation: none; }
-  .paddle { transition: none; }
+  .paddle, .paddle-title, .modal-side, .side-title { transition: none; }
 }
 
 /* Interface v0.7; v0.19, the opening: Il Notaio's name at the top, glossed, kept there while he writes with the story sliding
