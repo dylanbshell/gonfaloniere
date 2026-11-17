@@ -86,14 +86,15 @@ button.fact:hover .fact-label, button.fact:focus-visible .fact-label, button.lin
 .centre { display: flex; flex-direction: column; min-width: 0; height: calc(var(--screen-height) - var(--web-bar-height)); }
 /* Interface v0.16: the stage bar and the message box are floating cards, rounded, each casting a shadow onto
    the conversation, which fades out where it slides under them */
-.conv-head { position: relative; z-index: var(--z-float); min-height: var(--head-height); margin: var(--float-gap) var(--float-gap) 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-float); box-shadow: var(--shadow-float-down); background: var(--surface); display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
+/* Interface v0.19: its side margins grow beyond the reading column's width, a share of the extra room on each side */
+.conv-head { position: relative; z-index: var(--z-float); min-height: var(--head-height); margin: var(--float-gap) max(var(--float-gap), calc((100% - var(--reading-width)) * var(--stage-card-share))) 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-float); box-shadow: var(--shadow-float-down); background: var(--surface); display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
 /* Interface v0.17: one reading column. The conversation's lines, Il Notaio's hint, the message box, and his summary of a past
    stage share one centred column, at most --reading-width wide, so a line stays a comfortable length and the four line up. */
 .stream { flex: 1; overflow-y: auto; padding: var(--stream-fade) max(var(--float-gap), calc((100% - var(--reading-width)) / 2)); display: flex; flex-direction: column; gap: var(--space-2); -webkit-mask-image: var(--stream-mask); mask-image: var(--stream-mask); }
 /* While Il Notaio's summary is open over a past stage, the dialogue behind it fades: the content, not a tint over it */
 .stream.behind > * { opacity: var(--behind-opacity); }
 .stream > * { transition: opacity var(--motion-slow) ease-out; }
-.ln { padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); }
+.ln { padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); font-size: var(--text-line); line-height: var(--line-height-line); }
 /* A space stands between the speaker's name, "to …", and the words, so a copied line keeps them apart */
 .ln .sp { font-weight: var(--weight-bold); font-size: var(--text-sm); margin-right: var(--space-1); }
 .ln .to { color: var(--text-muted); font-size: var(--text-sm); margin-right: var(--space-1); }
@@ -106,7 +107,7 @@ button.fact:hover .fact-label, button.fact:focus-visible .fact-label, button.lin
 .ln.to-you { background: var(--to-you-bg); }
 /* His lines in the chat are upright: the typeface sets him apart */
 .ln.notaio { background: var(--notaio-bg); color: var(--notaio); }
-.ln.action { color: var(--text-muted); font-size: var(--text-sm); }
+.ln.action { color: var(--text-muted); font-size: var(--text-sm); line-height: var(--line-height); }
 .ln.private { border: var(--border-width) dashed var(--border); }
 /* Earlier this stage: one line per earlier conversation in the current stage, opening in place */
 .earlier { border-bottom: var(--border-width) solid var(--border); padding-bottom: var(--space-3); margin-bottom: var(--space-2); display: flex; flex-direction: column; gap: var(--space-1); }
@@ -369,6 +370,9 @@ button.note-fold { font-size: var(--text-xs); padding: 0 var(--space-1); }
 .more-below { position: sticky; bottom: 0; display: block; margin: var(--space-3) auto 0; font-size: var(--text-more); background: var(--surface); box-shadow: var(--shadow-raised); border-radius: var(--radius-round); }
 .notice.status { margin: 0; }
 .panel-error { margin: var(--space-2) 0; }
+/* Interface v0.19, Notes for the Build: a failed panel says what failed, small, under the notice, with Try Again */
+.panel-error-detail { margin-top: var(--space-1); font-size: var(--text-xs); font-family: var(--font-mono); overflow-wrap: anywhere; opacity: var(--closed-opacity); }
+button.panel-retry { margin-top: var(--space-2); }
 
 /* The Web of Secrets' key and Il Notaio's reading (TD v0.44) */
 /* Interface v0.16: the key sits over the drawing's top-left corner, and grows and shrinks with the window, keeping its proportions (its sizes are in ems of its own text size) */
@@ -429,17 +433,21 @@ button.key-secret { align-items: flex-start; }
 .conv-where { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: var(--space-1); }
 .phase { font-weight: var(--weight-bold); min-height: var(--stage-bar-height); display: flex; align-items: center; justify-content: center; }
 /* Interface v0.17: the bar stretches with the window up to its limit, centred in its card */
-.stage-bar-wrap { position: relative; width: 100%; max-width: var(--stage-bar-max); margin: 0 auto; }
+/* Interface v0.19: the bar is its own container, so its circles and the open stage's name are sized from its width */
+.stage-bar-wrap { position: relative; width: 100%; max-width: var(--stage-bar-max); margin: 0 auto; container-type: inline-size; container-name: stagebar; }
 .stage-bar { display: flex; align-items: center; list-style: none; margin: 0; padding: 0 var(--stage-bar-inset); min-height: var(--stage-bar-height); }
 .stage-bar .mark { position: relative; display: flex; align-items: center; flex: none; min-width: 0; }
-.stage-bar .mark + .mark { flex: 1 1 auto; }
+.stage-bar .mark + .mark { flex: 1 0 auto; }
+/* Interface v0.19: only the open stage's oval gives way when the bar is short of room (its name ending in "…"); the
+   circles and the lines between them never shrink, so no stage is cut off */
+.stage-bar .mark.now { flex-shrink: 1; }
 .stage-bar .mark + .mark::before { content: ""; flex: 1 0 var(--stage-stroke-min); height: var(--stage-stroke); background: var(--track); }
 .stage { position: relative; flex: none; display: inline-flex; align-items: center; justify-content: center; min-width: var(--stage-size); height: var(--stage-size); padding: 0; border: var(--stage-stroke) solid var(--track); border-radius: var(--radius-round); background: var(--surface); color: var(--text-muted); font-size: var(--text-xs); white-space: nowrap; }
 .mark.past .stage { background: var(--track); color: var(--text); }
 .mark.now .stage { flex: 0 1 auto; min-width: var(--stage-size); overflow: hidden; padding: 0 var(--space-2); border-color: var(--accent); background: var(--accent); color: var(--accent-text); }
 .mark.next .stage { cursor: default; }
 .mark.open .stage { box-shadow: 0 0 0 var(--mark-ring) var(--select-bg), 0 0 0 calc(var(--mark-ring) * 2) var(--accent); }
-.stage-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: var(--text-sm); font-weight: var(--weight-bold); }
+.stage-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: var(--stage-name-size); font-weight: var(--weight-bold); }
 /* The tooltip under the row: the hovered stage's name, its description, and its explanation; a light card, like a hover about the world */
 .stage-tip { position: absolute; z-index: var(--z-menu); top: 100%; margin-top: var(--space-1); width: max-content; max-width: var(--stage-tip-width); transform: translateX(-50%); background: var(--world-bg); color: var(--world-text); border: var(--border-width) solid var(--world-border); border-radius: var(--radius-md); box-shadow: var(--shadow-world); padding: var(--space-2) var(--space-3); font-size: var(--text-sm); pointer-events: none; }
 .stage-tip.measuring { visibility: hidden; left: 50%; }

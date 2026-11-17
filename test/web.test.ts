@@ -1651,7 +1651,8 @@ test("Interface v0.16's words: secret conversations, payments from France, the W
   assert.doesNotMatch(JSON.stringify(NOTAIO.hints), /private word|withdrawn|draw someone aside/);
   // The explanations: the doc's table; `nextMove` and `generate` wait with their features (#177, items 4 and 4b).
   const hints = Object.keys(s.hints).filter((k) => !k.startsWith("_"));
-  assert.equal(hints.length, 92);
+  // Interface v0.19 adds panelRetry (a failed panel's Try Again).
+  assert.equal(hints.length, 93);
   assert.equal(s.hints.webSide, "What you heard and saw, and your notes. Click to open or close.", "new in Interface v0.17");
   for (const k of ["factLink", "lookingAtSelf"]) assert.ok(hints.includes(k), k);
   for (const k of ["nextMove", "generate"]) assert.ok(!hints.includes(k), k);
@@ -2203,7 +2204,7 @@ test("Screen Sizes (Interface v0.17): every limit is a theme token; the reading 
     ["--right-max", "480px"],
     ["--centre-least", "540px"],
     ["--reading-width", "820px"],
-    ["--stage-bar-max", "900px"],
+    ["--stage-bar-max", "1280px"],
     ["--stream-min-height", "200px"],
     ["--input-lines-max", "9"],
     ["--input-lines-min", "3"],
@@ -2227,7 +2228,7 @@ test("Screen Sizes (Interface v0.17): every limit is a theme token; the reading 
   assert.match(css, new RegExp(`\\n\\.input \\{[^}]*margin: 0 ${column} var\\(--float-gap\\);`));
   assert.match(css, new RegExp(`\\.notaio-hint \\{[^}]*margin: 0 ${column} var\\(--space-2\\);`));
   assert.match(css, new RegExp(`\\.reading\\.past-summary \\{[^}]*left: ${column}; right: ${column};`), "his summary, as wide as the message box below it");
-  assert.match(css, /\.stage-bar-wrap \{[^}]*max-width: var\(--stage-bar-max\); margin: 0 auto; \}/);
+  assert.match(css, /\.stage-bar-wrap \{[^}]*max-width: var\(--stage-bar-max\); margin: 0 auto;/);
   assert.match(css, /\.layout \{[^}]*grid-template-columns: var\(--side-width\) minmax\(var\(--centre-min\), 1fr\) minmax\(var\(--right-min\), var\(--right-width\)\);/);
   // The web's own width decides what's inside it (a container query), not the window's.
   assert.match(css, /\.web \{[^}]*container-type: inline-size; container-name: web; \}/);
@@ -2292,4 +2293,27 @@ test("inside the modals (Interface v0.17–v0.18): numerals, real lists, and eve
   // Short screens: under 760px tall the modals' margins come in; they keep clear of the Web of Confidences' bar.
   assert.match(theme, /@media \(max-height: 759px\) \{\s*:root \{\s*--modal-margin-y: 8px;/);
   assert.match(theme, /--deck-height: min\(var\(--modal-full-height\), calc\(var\(--screen-height\) - var\(--web-bar-height\) - var\(--modal-margin-y\) \* 2\)\);/);
+});
+
+// ---- CC-20261117-01 (#191, part 1): Interface v0.19's build notes and the centre ----------------------------------
+
+test("Interface v0.19's build notes and centre, as tokens and code: resize work once a frame, More Below that can't loop, a failed panel's error and Try Again, the stage bar sized from its own width, 17px lines", () => {
+  const theme = readFileSync("web/theme.css", "utf8");
+  const css = noComments(readFileSync("web/src/app.css", "utf8"));
+  const code = noComments(readFileSync("web/src/App.tsx", "utf8"));
+  for (const t of ["--stage-bar-max: 1280px;", "--stage-card-share: 0.15;", "--text-line: 1.0625rem;", "--line-height-line: 1.55;", "--more-below-on: 16px;", "--more-below-off: 2px;"]) assert.ok(theme.includes(t), t);
+  // The circles and the open stage's name go by the bar's own width (cqw, in its own container), not the window's.
+  assert.match(theme, /--stage-size: clamp\([^;]*cqw[^;]*\);/);
+  assert.match(theme, /--stage-name-size: clamp\([^;]*cqw[^;]*\);/);
+  assert.doesNotMatch(theme.match(/--stage-[\w-]+: [^;]*;/g)!.join(" "), /vw/, "nothing in the bar goes by the window's width");
+  assert.match(css, /\.stage-bar-wrap \{[^}]*container-type: inline-size; container-name: stagebar; \}/);
+  assert.match(css, /\.conv-head \{[^}]*margin: var\(--float-gap\) max\(var\(--float-gap\), calc\(\(100% - var\(--reading-width\)\) \* var\(--stage-card-share\)\)\) 0;/);
+  assert.match(css, /\.ln \{[^}]*font-size: var\(--text-line\); line-height: var\(--line-height-line\); \}/);
+  // Resize and scroll work goes through perFrame; nothing listens to a resize directly.
+  assert.doesNotMatch(code, /addEventListener\("resize", (?!\w+\.run)/, "every resize handler runs once a frame");
+  assert.doesNotMatch(code, /new ResizeObserver\((?!\w+\.run|\(\) =>)/, "every resize observer runs once a frame");
+  for (const t of ["--more-below-on", "--more-below-off"]) assert.ok(code.includes(`themeMs("${t}"`), t);
+  // A failed panel: the notice, the error under it, and Try Again, in the pack's words.
+  assert.equal(PLAYER.screen.panelRetry, "Try Again");
+  assert.ok(PLAYER.screen.hints.panelRetry.length > 10);
 });

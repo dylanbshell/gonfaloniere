@@ -423,6 +423,7 @@
       "portrait": "{name}. Click to select them.",
       "myBriefing": "Your briefing",
       "more": "There's more below. Click or scroll.",
+      "panelRetry": "Start this part of the screen again.",
       "key": "Each kind of tie has its own colour and line.",
       "keyType": "Highlight every line of this kind. Click again to clear.",
       "reading": "Il Notaio's summary of what you've heard and seen of them, stage by stage. Click to tuck it away or bring it back.",
@@ -575,6 +576,7 @@
     },
     "more": "More Below",
     "panelError": "This part of the screen ran into a problem and stopped. The rest still works; reloading the page may bring it back.",
+    "panelRetry": "Try Again",
     "reading": {
       "title": "{notaio}'s Reading",
       "waiting": "Il Notaio is considering…",
