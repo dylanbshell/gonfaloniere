@@ -65,6 +65,9 @@
   --font-numeral: var(--font-guest);
   --numeral-size: 26px;
   --line-height: 1.45;
+  /* Interface v0.19: everyone's lines in the conversation, Il Notaio's included, 17px with a little more room between lines */
+  --text-line: 1.0625rem;
+  --line-height-line: 1.55;
   --tracking-label: 0.06em;
   --weight-normal: 400;
   --weight-bold: 600;
@@ -194,6 +197,10 @@
   /* A past stage: Il Notaio's summary opens a fifth of the way down, and the dialogue behind it fades */
   --summary-top: 20%;
   --behind-opacity: 0.35;
+  /* Interface v0.19, Notes for the Build: More Below comes on only with clearly more than its own room left, and goes off at
+     this, so showing it can't turn it off again */
+  --more-below-on: 16px;
+  --more-below-off: 2px;
   /* Il Notaio's hint: the flash when he says something new */
   --motion-flash: 900ms;
   --hint-flash-ring: 2px;
@@ -246,12 +253,17 @@
   /* Interface v0.16: a step bar that stretches with the window. The circles grow a little with it, the lines
      share out the room (never shorter than the minimum), and the side inset is small, so eleven stages fit
      without scrolling from a 1100-pixel window up. The tooltip under the row waits a moment before the first. */
-  --stage-size: clamp(18px, 1.7vw, 26px);
+  /* Interface v0.19: sized from the bar's own width (a container), not the window's, so every stage fits however wide the
+     side panels are; the open stage's name too, 11 to 13px */
+  --stage-size: clamp(18px, calc(18px + (100cqw - 700px) * 0.016), 26px);
+  --stage-name-size: clamp(0.6875rem, 1.3cqw, 0.8125rem);
   --stage-stroke: 2px;
   --stage-stroke-min: 6px;
-  --stage-bar-inset: clamp(0px, calc((100vw - 1100px) * 0.08), 40px);
-  /* Interface v0.17: the bar stretches with the window up to this, centred in its card */
-  --stage-bar-max: 900px;
+  --stage-bar-inset: clamp(0px, calc((100cqw - 800px) * 0.08), 40px);
+  /* Interface v0.17; v0.19: the bar stretches with the window up to this, centred in its card; the card's side margins grow
+     beyond the reading column's width, by this share of the extra room on each side */
+  --stage-bar-max: 1280px;
+  --stage-card-share: 0.15;
   --stage-tip-width: 260px;
   --stage-tip-delay: 350ms;
   --stage-bar-height: 30px;

@@ -48,30 +48,60 @@ export function App() {
 // there's no room (the right panel, Il Notaio's hint, the web's key) come back on their own when there is,
 // unless the player has folded or opened them, which takes them over. The limits are theme tokens.
 
-/** The window's width, kept up to date; null on the server. */
+/**
+ * Work done on a resize or a scroll, at most once a frame (Interface v0.19, Notes for the Build: the demo jittered
+ * while resizing in Safari until it did). `run` asks for it; however often it's asked within a frame, it runs once,
+ * at the next frame. Without frames (on the server), it runs at once.
+ */
+export function perFrame(fn: () => void): { run: () => void; cancel: () => void } {
+  let id = 0;
+  if (typeof requestAnimationFrame === "undefined") return { run: fn, cancel: () => {} };
+  return {
+    run: () => {
+      if (id) return;
+      id = requestAnimationFrame(() => {
+        id = 0;
+        fn();
+      });
+    },
+    cancel: () => {
+      if (id) cancelAnimationFrame(id);
+      id = 0;
+    },
+  };
+}
+
+/** The window's width, kept up to date (once a frame while it's resized); null on the server. */
 function useWindowWidth(): number | null {
   const [width, setWidth] = useState<number | null>(() => (typeof window === "undefined" ? null : window.innerWidth));
   useEffect(() => {
-    const on = () => setWidth(window.innerWidth);
-    on();
-    window.addEventListener("resize", on);
-    return () => window.removeEventListener("resize", on);
+    const on = perFrame(() => setWidth(window.innerWidth));
+    setWidth(window.innerWidth);
+    window.addEventListener("resize", on.run);
+    return () => {
+      window.removeEventListener("resize", on.run);
+      on.cancel();
+    };
   }, []);
   return width;
 }
 
-/** An element's own width, kept up to date as its space changes; null until it's laid out (and on the server). */
+/** An element's own width, kept up to date as its space changes (once a frame); null until it's laid out (and on the server). */
 function useOwnWidth(ref: RefObject<Element | null>): number | null {
   const [width, setWidth] = useState<number | null>(null);
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const on = () => setWidth(el.getBoundingClientRect().width);
-    on();
+    const measure = () => setWidth(el.getBoundingClientRect().width);
+    measure();
     if (typeof ResizeObserver === "undefined") return;
-    const watch = new ResizeObserver(on);
+    const on = perFrame(measure);
+    const watch = new ResizeObserver(on.run);
     watch.observe(el);
-    return () => watch.disconnect();
+    return () => {
+      watch.disconnect();
+      on.cancel();
+    };
   }, []);
   return width;
 }
@@ -179,12 +209,14 @@ function HintLayer({ children }: { children: ReactNode }) {
     };
     const watch = new MutationObserver(check);
     watch.observe(document.body, { childList: true, subtree: true, attributes: true });
-    document.addEventListener("scroll", check, true);
-    window.addEventListener("resize", check);
+    const moved = perFrame(check);
+    document.addEventListener("scroll", moved.run, true);
+    window.addEventListener("resize", moved.run);
     return () => {
       watch.disconnect();
-      document.removeEventListener("scroll", check, true);
-      window.removeEventListener("resize", check);
+      document.removeEventListener("scroll", moved.run, true);
+      window.removeEventListener("resize", moved.run);
+      moved.cancel();
     };
   }, [tip]);
   // Interface v0.17: on a touchscreen, which has no hover, a long press shows a thing's explanation without
@@ -304,10 +336,10 @@ function Fault({ panel }: { panel: string }) {
   return null;
 }
 
-class Boundary extends Component<{ panel: string; fallback?: (notice: ReactNode) => ReactNode; children: ReactNode }, { failed: boolean }> {
-  override state = { failed: false };
-  static getDerivedStateFromError() {
-    return { failed: true };
+class Boundary extends Component<{ panel: string; fallback?: (notice: ReactNode) => ReactNode; children: ReactNode }, { failed: boolean; error: string }> {
+  override state = { failed: false, error: "" };
+  static getDerivedStateFromError(e: unknown) {
+    return { failed: true, error: e instanceof Error ? e.message : String(e) };
   }
   override componentDidCatch(e: unknown) {
     console.error(`The ${this.props.panel} panel failed:`, e);
@@ -320,13 +352,27 @@ class Boundary extends Component<{ panel: string; fallback?: (notice: ReactNode)
           {this.props.children}
         </>
       );
+    // Interface v0.19, Notes for the Build: a failed panel says what failed, small, under the notice, with Try Again,
+    // which starts the panel again.
     const notice = (
       <div className="notice danger panel-error" role="alert" data-panel-error={this.props.panel}>
-        {w("screen.panelError")}
+        <div>{w("screen.panelError")}</div>
+        <div className="panel-error-detail">{this.state.error}</div>
+        <PanelRetry onRetry={() => this.setState({ failed: false, error: "" })} />
       </div>
     );
     return this.props.fallback ? this.props.fallback(notice) : notice;
   }
+}
+
+/** A failed panel's Try Again: starts it again. */
+function PanelRetry({ onRetry }: { onRetry: () => void }) {
+  const hint = useHint();
+  return (
+    <button className="secondary small panel-retry" onClick={onRetry} {...hint("panelRetry")}>
+      {w("screen.panelRetry")}
+    </button>
+  );
 }
 
 /** A failed deck or web viewer: the notice in a window that still closes. */
@@ -1493,25 +1539,41 @@ function useMoreBelow() {
   const [el, setEl] = useState<HTMLElement | null>(null);
   const [more, setMore] = useState(false);
   const [above, setAbove] = useState(false);
-  const check = () => {
+  /**
+   * Interface v0.19, Notes for the Build: it can't loop. Showing More Below changes what's left to scroll, so a check
+   * that flipped at one line could turn it on and off without end. It comes on only with clearly more than its own
+   * room left (--more-below-on) and goes off once no more than --more-below-off is left past it; and the check runs a
+   * frame after the render, at most once a frame.
+   */
+  const check = useRef(() => {});
+  /** The element the last check was for: a new one (an open entry in place of the list) starts from nothing shown. */
+  const checked = useRef<HTMLElement | null>(null);
+  check.current = () => {
     if (!el) return;
+    const fresh = checked.current !== el;
+    checked.current = el;
     // Not counting the hint's own room at the end: once only that is left below, there's nothing more to see.
     const hint = el.querySelector<HTMLElement>(":scope > .more-below");
     const own = hint ? hint.offsetHeight + parseFloat(getComputedStyle(hint).marginTop) : 0;
-    setMore(el.scrollTop + el.clientHeight < el.scrollHeight - own - 2);
-    setAbove(el.scrollTop > 2);
+    const left = el.scrollHeight - own - (el.scrollTop + el.clientHeight);
+    setMore((was) => (was && !fresh ? left > themeMs("--more-below-off", 2) : left > themeMs("--more-below-on", 16)));
+    setAbove(el.scrollTop > themeMs("--more-below-off", 2));
   };
-  // After every render (new content), on scrolling, and whenever its space changes.
-  useLayoutEffect(check);
+  const later = useMemo(() => perFrame(() => check.current()), []);
+  useEffect(() => later.cancel, []);
+  // A frame after every render (new content), on scrolling, and whenever its space changes.
+  useLayoutEffect(() => later.run());
+  // A new element is checked at once, before it's drawn, so it never shows the last one's More Below.
+  useLayoutEffect(() => check.current(), [el]);
   useEffect(() => {
     if (!el) return;
-    el.addEventListener("scroll", check);
-    window.addEventListener("resize", check);
-    const watch = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(check);
+    el.addEventListener("scroll", later.run);
+    window.addEventListener("resize", later.run);
+    const watch = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(later.run);
     watch?.observe(el);
     return () => {
-      el.removeEventListener("scroll", check);
-      window.removeEventListener("resize", check);
+      el.removeEventListener("scroll", later.run);
+      window.removeEventListener("resize", later.run);
       watch?.disconnect();
     };
   }, [el]);
@@ -2234,9 +2296,13 @@ function NotaioHint({ me, v, refused = null, room }: { me: string; v: View; refu
     };
     check();
     if (typeof ResizeObserver === "undefined") return;
-    const watch = new ResizeObserver(check);
+    const on = perFrame(check);
+    const watch = new ResizeObserver(on.run);
     watch.observe(el);
-    return () => watch.disconnect();
+    return () => {
+      watch.disconnect();
+      on.cancel();
+    };
   }, [open]);
   // His usual line is the moment's; a refusal is his to explain here, so it isn't a moment of its own.
   const m = hintMoment(v.refusal ? { ...v, refusal: null } : v, me);
@@ -2690,10 +2756,14 @@ function WebDock({
     };
     fit();
     if (typeof ResizeObserver === "undefined" || !map.current) return;
-    const watch = new ResizeObserver(fit);
+    const on = perFrame(fit);
+    const watch = new ResizeObserver(on.run);
     watch.observe(map.current);
     if (keyBox.current) watch.observe(keyBox.current);
-    return () => watch.disconnect();
+    return () => {
+      watch.disconnect();
+      on.cancel();
+    };
   }, [frame, aside, open, keyOpen, info.roster.length]);
   /** One note: clicking it selects its guest or pair (Interface v0.16); a free note selects no one. */
   const NoteItem = ({ n }: { n: Note }) => (
@@ -3077,21 +3147,27 @@ function useGrowingBox(area: RefObject<HTMLTextAreaElement | null>, measure: Ref
       if (!Number.isFinite(line) || line <= 0) return;
       const edges = parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
       const around = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) + edges;
+      const fewest = themeMs("--input-lines-min", 3);
       const short = Math.floor((window.innerHeight * themeMs("--input-short-share", 0.2)) / line);
-      const lines = Math.min(themeMs("--input-lines-max", 9), Math.max(themeMs("--input-lines-min", 3), short));
-      const least = (measure.current?.scrollHeight ?? 0) + edges;
+      const lines = Math.min(themeMs("--input-lines-max", 9), Math.max(fewest, short));
+      // Interface v0.19: three lines at least, whatever the example's length, with the example at the top.
+      const least = Math.max((measure.current?.scrollHeight ?? 0) + edges, line * fewest + around);
       // The text's own height: the box is shrunk first, so a deleted line gives its room back.
       const top = el.scrollTop;
+      const was = el.style.height;
       el.style.height = "0px";
       const need = el.scrollHeight + edges;
-      const height = Math.max(least, Math.min(need, line * lines + around));
-      el.style.height = `${Math.ceil(height)}px`;
+      const height = `${Math.ceil(Math.max(least, Math.min(need, line * lines + around)))}px`;
+      // Interface v0.19, Notes for the Build: the style is written only when it changes.
+      el.style.height = height === was ? was : height;
       el.scrollTop = top;
-      el.dataset.lines = String(Math.round((height - around) / line));
+      const shown = String(Math.round((parseFloat(height) - around) / line));
+      if (el.dataset.lines !== shown) el.dataset.lines = shown;
     };
     fit();
-    window.addEventListener("resize", fit);
-    // The column's width changes how the words wrap (the right panel folding, a drag): fit again.
+    // On a resize, once a frame. The column's width changes how the words wrap (the right panel folding, a drag): fit again.
+    const later = perFrame(fit);
+    window.addEventListener("resize", later.run);
     let width = el.getBoundingClientRect().width;
     const watch =
       typeof ResizeObserver === "undefined"
@@ -3100,12 +3176,13 @@ function useGrowingBox(area: RefObject<HTMLTextAreaElement | null>, measure: Ref
             const now = el.getBoundingClientRect().width;
             if (Math.abs(now - width) < 1) return;
             width = now;
-            fit();
+            later.run();
           });
     watch?.observe(el);
     return () => {
-      window.removeEventListener("resize", fit);
+      window.removeEventListener("resize", later.run);
       watch?.disconnect();
+      later.cancel();
     };
   }, [text, placeholder, shown]);
 }

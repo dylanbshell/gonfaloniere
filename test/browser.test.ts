@@ -322,8 +322,15 @@ test("one panel's failure stays in its panel: the rest of the screen keeps worki
     await reopen(`?fault=${panel}`);
     await page.until(`document.querySelector('[data-panel-error="${panel}"]')`);
     for (const [other, sel] of Object.entries(parts)) if (other !== panel) assert.ok(await page.eval<boolean>(`!!document.querySelector(${JSON.stringify(sel)})`), `with the ${panel} failed, the ${other} still shows`);
+    // Interface v0.19, Notes for the Build: it says what failed, small, under the notice, with Try Again.
+    const said = await page.eval<{ detail: string; retry: boolean }>(`(() => { const e = document.querySelector('[data-panel-error="${panel}"]'); return { detail: e.querySelector(".panel-error-detail")?.textContent ?? "", retry: !!e.querySelector("button.panel-retry") }; })()`);
+    assert.match(said.detail, new RegExp(`a test fault in the ${panel} panel`));
+    assert.ok(said.retry, "Try Again");
     await page.shot(`fault-${panel}`);
   }
+  // Try Again starts the panel again: here it fails again, since the fault is in the address, and says so.
+  await page.eval(`document.querySelector('[data-panel-error="right"] .panel-retry').click()`);
+  await page.until(`document.querySelector('[data-panel-error="right"] .panel-error-detail')`);
   // The Web of Secrets fails in its own bar at the bottom, and the rest keeps working.
   await reopen(`?fault=web`);
   await page.until(`document.querySelector('.web-dock [data-panel-error="web"]')`);
@@ -1263,6 +1270,93 @@ test("the stage bar fits eleven stages without scrolling from a 1100-pixel windo
     });
   } finally {
     await page.send("Emulation.setDeviceMetricsOverride", { ...VIEW, deviceScaleFactor: 1, mobile: false });
+  }
+});
+
+// ---- CC-20261117-01 (#191, part 1): Interface v0.19's build notes and the centre ---------------------------------
+
+test("the stage bar sized from its own width (Interface v0.19): no stage cut off from 900 to 1920px wide, with the right panel from 280 to 480px; the bar up to 1280px, its card's margins growing beyond the reading column", { skip }, async () => {
+  const full = `(e) => { if (e.type === "state") { if (e.sheet) e.sheet.track = ${JSON.stringify(ELEVEN)}; if (e.state) e.state.phaseLabel = ${JSON.stringify(ELEVEN[4])}; } return e; }`;
+  const measure = () =>
+    page.eval<{ marks: number; inside: boolean; apart: boolean; whole: boolean; bar: number; card: number; centre: number; margin: number; circle: number }>(`(() => {
+      const ol = document.querySelector(".stage-bar"), cardEl = document.querySelector(".conv-head"), card = cardEl.getBoundingClientRect(), wrap = document.querySelector(".stage-bar-wrap").getBoundingClientRect();
+      const stages = [...ol.querySelectorAll(".mark .stage")].map((x) => x.getBoundingClientRect());
+      const name = ol.querySelector(".mark.now .stage-name");
+      return {
+        marks: stages.length,
+        inside: stages.every((b) => b.left >= wrap.left - 0.5 && b.right <= wrap.right + 0.5 && b.left >= card.left && b.right <= card.right) && ol.scrollWidth <= ol.clientWidth,
+        apart: stages.every((b, i) => i === 0 || b.left >= stages[i - 1].right + 4),
+        whole: name.scrollWidth <= name.clientWidth,
+        bar: wrap.width,
+        card: card.width,
+        centre: document.querySelector(".centre").getBoundingClientRect().width,
+        margin: parseFloat(getComputedStyle(cardEl).marginLeft),
+        circle: stages[0].width,
+      };
+    })()`);
+  try {
+    await withEvents(full, async () => {
+      await page.until(`document.querySelectorAll(".stage-bar .mark").length === 11`);
+      for (const width of [900, 1044, 1280, 1440, 1600, 1920])
+        for (const right of [280, 380, 480]) {
+          // The right panel open at this width, as the player might drag it (in a narrow window it gives way to the conversation).
+          await windowSize(width, 900);
+          if (await page.eval<boolean>(`!!document.querySelector(".right-handle")`)) await page.eval(`document.querySelector(".right-handle").click()`);
+          await page.eval(`document.querySelector(".layout").style.setProperty("--right-width", "${right}px")`);
+          await page.eval(`new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)))`);
+          const m = await measure();
+          const where = `${width}px wide, the right panel ${right}px`;
+          assert.equal(m.marks, 11, where);
+          assert.ok(m.inside, `${where}: every stage inside the bar and its card`);
+          assert.ok(m.apart, `${where}: a line between each pair`);
+          // Where the bar has the room, the open stage's name shows whole.
+          if (m.bar >= 560) assert.ok(m.whole, `${where}: the open stage's name whole (the bar ${m.bar}px)`);
+          assert.ok(m.bar <= 1280, `${where}: at most 1280px (${m.bar})`);
+          // The card's side margins: the float gap, or 15% of the room beyond the reading column, whichever is more.
+          assert.ok(Math.abs(m.margin - Math.max(12, (m.centre - 820) * 0.15)) <= 1, `${where}: the card's margin (${m.margin} in ${m.centre})`);
+          if (width === 1920 && right === 280) await page.shot("stage-bar-1920-right-280");
+          if (width === 1044 && right === 480) await page.shot("stage-bar-1044-right-480");
+        }
+      // The circles go by the bar's width, not the window's: a wider right panel at the same window makes them no larger.
+      await windowSize(1920, 900);
+      await page.eval(`document.querySelector(".layout").style.setProperty("--right-width", "280px")`);
+      await page.eval(`new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)))`);
+      const narrowPanel = await measure();
+      await page.eval(`document.querySelector(".layout").style.setProperty("--right-width", "480px")`);
+      await page.eval(`new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)))`);
+      const widePanel = await measure();
+      assert.ok(widePanel.bar <= narrowPanel.bar && widePanel.circle <= narrowPanel.circle, `the circles follow the bar (${narrowPanel.circle} at ${narrowPanel.bar}px, ${widePanel.circle} at ${widePanel.bar}px)`);
+    });
+  } finally {
+    await page.eval(`(() => { localStorage.removeItem("player-screen.right-hidden"); localStorage.removeItem("player-screen.right-width"); })()`);
+    await windowSize(VIEW.width, VIEW.height);
+    await reopen();
+  }
+});
+
+test("the conversation's lines read larger (Interface v0.19): everyone's words 17px, Il Notaio's with them, with a little more room between lines", { skip }, async () => {
+  await page.until(`document.querySelector(".ln.speech .tx") && document.querySelector(".ln.notaio .tx")`);
+  const sizes = await page.eval<{ speech: string; notaio: string; line: string }>(`(() => { const s = getComputedStyle(document.querySelector(".ln.speech .tx")), n = getComputedStyle(document.querySelector(".ln.notaio .tx")); return { speech: s.fontSize, notaio: n.fontSize, line: (parseFloat(s.lineHeight) / parseFloat(s.fontSize)).toFixed(2) }; })()`);
+  assert.deepEqual(sizes, { speech: "17px", notaio: "17px", line: "1.55" });
+});
+
+test("More Below can't loop (Interface v0.19, Notes for the Build): at window heights from 480 to 1000px the left panel settles, its hint neither flickering nor failing the panel", { skip }, async () => {
+  try {
+    for (let height = 480; height <= 1000; height += 40) {
+      await windowSize(VIEW.width, height);
+      // Settled: then watch the hint for a while; it mustn't come and go by itself.
+      await new Promise((r) => setTimeout(r, 150));
+      const flips = await page.eval<number>(`new Promise((ok) => { const col = document.querySelector(".side.left"); let n = 0; const watch = new MutationObserver((ms) => { for (const m of ms) for (const x of [...m.addedNodes, ...m.removedNodes]) if (x.classList?.contains("more-below")) n++; }); watch.observe(col, { childList: true, subtree: true }); setTimeout(() => { watch.disconnect(); ok(n); }, 400); })`);
+      assert.equal(flips, 0, `${height}px tall: More Below holds still`);
+      assert.equal(await page.eval<boolean>(`!!document.querySelector('[data-panel-error="left"]')`), false, `${height}px tall: the left panel works`);
+      // Scrolled to just short of the end, by a pixel at a time, it still holds.
+      await page.eval(`(() => { const c = document.querySelector(".side.left"); c.scrollTop = c.scrollHeight - c.clientHeight - 3; })()`);
+      await new Promise((r) => setTimeout(r, 100));
+      assert.equal(await page.eval<boolean>(`!!document.querySelector('[data-panel-error="left"]')`), false);
+      await page.eval(`document.querySelector(".side.left").scrollTop = 0`);
+    }
+  } finally {
+    await windowSize(VIEW.width, VIEW.height);
   }
 });
 
@@ -2273,9 +2367,10 @@ test("three typefaces, served with the page (Interface v0.17): the guests' words
   for (const [i, f] of ["Source Serif 4", "EB Garamond"].entries()) assert.ok(Math.abs(xh[i + 1]! / xh[0]! - 1) < 1 / 12, `${f}: x-height ${xh[i + 1]} against the sans's ${xh[0]}`);
   // Sizes are in rem: a reader's own font-size setting scales the text, not only the browser's zoom.
   const sizes = () => page.eval<number[]>(`[".side.left .fact", ".ln.speech .tx", ".notaio-hint .hint-text", ".side.left .label"].map((s) => parseFloat(getComputedStyle(document.querySelector(s)).fontSize))`);
-  assert.deepEqual(await sizes(), [13, 15, 16, 11]);
+  // (The conversation's lines 17px since Interface v0.19.)
+  assert.deepEqual(await sizes(), [13, 17, 16, 11]);
   await page.eval(`document.documentElement.style.fontSize = "20px"`);
-  assert.deepEqual(await sizes(), [16.25, 18.75, 20, 13.75], "a quarter larger with the reader's size a quarter larger");
+  assert.deepEqual(await sizes(), [16.25, 21.25, 20, 13.75], "a quarter larger with the reader's size a quarter larger");
   await page.eval(`document.documentElement.style.fontSize = ""`);
   await page.shot("typefaces");
   // The smallest labels are a pixel larger from an 1800-pixel window up.
@@ -2382,7 +2477,7 @@ async function windowSize(width: number, height: number): Promise<void> {
   await new Promise((r) => setTimeout(r, 150));
 }
 
-test("Screen Sizes (Interface v0.17) at 1024×700, 1440×900, and 1920×1080: the side panels within their ranges, the conversation at least 540px, one centred reading column of at most 820px shared by the lines, Il Notaio's hint, and the message box, the stage bar within 900px, and nothing pushed off the page", { skip }, async () => {
+test("Screen Sizes (Interface v0.17) at 1024×700, 1440×900, and 1920×1080: the side panels within their ranges, the conversation at least 540px, one centred reading column of at most 820px shared by the lines, Il Notaio's hint, and the message box, the stage bar within 1280px (Interface v0.19), and nothing pushed off the page", { skip }, async () => {
   await page.eval(`localStorage.removeItem("player-screen.right-hidden"); localStorage.removeItem("player-screen.right-width")`);
   await reopen();
   await page.until(`document.querySelector(".notaio-hint .hint-text") && document.querySelector(".ln.speech")`);
@@ -2411,8 +2506,8 @@ test("Screen Sizes (Interface v0.17) at 1024×700, 1440×900, and 1920×1080: th
       assert.ok(m.box[1] - m.box[0] <= 820, `${where}: at most 820px (${m.box[1] - m.box[0]})`);
       if (m.centre > 820 + 24) assert.equal(m.box[1] - m.box[0], 820, `${where}: the full 820px where there's room`);
       assert.ok(Math.abs((m.box[0] + m.box[1]) / 2 - m.mid) <= 1, `${where}: centred in the conversation`);
-      // The stage bar: at most 900px, centred in its card.
-      assert.ok(m.bar[1] - m.bar[0] <= 900, `${where}: the stage bar (${m.bar[1] - m.bar[0]})`);
+      // The stage bar: at most 1280px (Interface v0.19), centred in its card.
+      assert.ok(m.bar[1] - m.bar[0] <= 1280, `${where}: the stage bar (${m.bar[1] - m.bar[0]})`);
       assert.ok(Math.abs((m.bar[0] + m.bar[1]) / 2 - (m.card[0] + m.card[1]) / 2) <= 1, `${where}: centred`);
       assert.equal(m.scroll, false, `${where}: nothing pushed off the page`);
       await page.shot(`sizes-${width}x${height}`);
@@ -2459,6 +2554,9 @@ test("the message box grows with what's typed (Interface v0.17): a line at a tim
     const empty = await box();
     // Empty, it shows its placeholder whole: both of its lines, clear of the @ and / buttons under them.
     assert.ok(empty.height >= empty.least - 1, `never shorter than its placeholder (${empty.height} for ${empty.least})`);
+    // Interface v0.19: three lines tall at least, with the example at the top.
+    assert.ok(empty.lines >= 3, `three lines at least (${empty.lines})`);
+    assert.ok(await page.eval<boolean>(`(() => { const t = document.querySelector(".input textarea:not(.measure)"); return parseFloat(getComputedStyle(t).paddingTop) < parseFloat(getComputedStyle(t).lineHeight); })()`), "the example starts at the top");
     assert.equal(empty.scrolls, false, "no scrollbar on the empty box");
     const clear = await page.eval<boolean>(`(() => { const t = document.querySelector(".input textarea:not(.measure)").getBoundingClientRect(), i = document.querySelector(".field-icons").getBoundingClientRect(), m = document.querySelector(".input textarea.measure"), cs = getComputedStyle(m); return t.bottom - parseFloat(cs.paddingBottom) <= i.top + 6; })()`);
     assert.ok(clear, "the placeholder's lines end above @ and /");
