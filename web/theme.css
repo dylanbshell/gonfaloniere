@@ -90,6 +90,42 @@
   /* Layout */
   /* Interface v0.17, Screen Sizes: the left panel grows and shrinks with the window, about a quarter of it, from 284 to 332px */
   --side-width: clamp(284px, 25vw, 332px);
+  /* Interface v0.19, the left panel: everything in it is sized from its width. One unit is the panel's width over 300
+     (about a pixel); its margins, portraits, and tokens are a number of units, and its text the larger of a number of
+     units and the screen's own size in rem, so a reader's own font-size setting still counts. */
+  --lu: calc(var(--side-width) / 300);
+  --left-pad: calc(24 * var(--lu));
+  --left-text-xs: max(var(--text-xs), calc(12 * var(--lu)));
+  --left-text-sm: max(var(--text-sm), calc(14 * var(--lu)));
+  --left-text-md: max(var(--text-md), calc(16 * var(--lu)));
+  --left-text-lg: max(var(--text-lg), calc(19.5 * var(--lu)));
+  --left-portrait: calc(64 * var(--lu));
+  --left-portrait-gap: calc(16 * var(--lu));
+  --left-token: calc(31 * var(--lu));
+  /* The pinned top (you, your sheet, the four buttons) closes up in a shorter window: each of its gaps goes along a straight
+     line from full size in a 1000px-tall window to its least (a third) at 700px, as min + --vroom × k. Only gaps change. */
+  --vroom: max(0px, min(300px, 100vh - 700px));
+  --left-gap-head: calc(var(--space-1) + var(--vroom) * 0.02);
+  --left-gap-above-me: calc(44 * var(--lu) / 3 + var(--vroom) * 0.0978);
+  --left-gap-below-me: calc(24 * var(--lu) / 3 + var(--vroom) * 0.0533);
+  --left-gap-facts: calc(16 * var(--lu) / 3 + var(--vroom) * 0.0356);
+  --left-gap-buttons: calc(24 * var(--lu) / 3 + var(--vroom) * 0.0533);
+  --left-gap-under: calc(16 * var(--lu) / 3 + var(--vroom) * 0.0356);
+  /* The rhythm below the top, a fixed distance from the last occupied place to the empty places' line, and the fade
+     where the errand and the places slide under the buttons; the top stays put (sticky) except in a very short window */
+  --left-facts-gap: var(--space-1);
+  --left-midnight-top: var(--space-1);
+  --left-sheet-bottom: 0px;
+  --left-buttons-gap: var(--space-2);
+  --left-errand-top: var(--space-4);
+  --left-errand-pad-y: var(--space-3);
+  --left-errand-pad-x: var(--space-3);
+  --left-places-top: var(--space-4);
+  --left-places-below: var(--space-2);
+  --left-place-gap: var(--space-1);
+  --left-empty-gap: calc(28 * var(--lu));
+  --left-top-fade: var(--space-3);
+  --left-pin: sticky;
   /* The conversation's column is never narrower than this (so the stage bar fits), short of pushing the page sideways;
      its reading column (the lines, Il Notaio's boxes, the message box) is at most this wide, centred */
   --centre-least: 540px;
@@ -105,10 +141,11 @@
   /* Where things fold themselves (the screen reads these; a player's own fold or open takes over). The right panel starts
      folded in a window narrower than the left panel, the conversation's least width, and its own least (284 + 540 + 220);
      the web's key folds when the drawing's space is narrower than it is in a 1200-pixel window; the web's side column
-     folds to a strip when the web is narrower than 840px; under 760px wide, a note stands in for the screen */
+     folds to a strip when the web is narrower than 1100px (Interface v0.19; 840px before); under 760px wide, a note stands
+     in for the screen */
   --break-right-fold: 1044px;
   --break-web-key: 864px;
-  --break-web-side: 840px;
+  --break-web-side: 1100px;
   --break-phone: 760px;
   /* The phone note's page */
   --narrow-width: 420px;
@@ -139,6 +176,8 @@
   --web-margin-left: clamp(56px, 5cqw, 120px);
   --web-margin-side: clamp(32px, 3.5cqw, 80px);
   --web-draw-max: 820px;
+  /* Interface v0.19: everything in the web stops at this width, centred */
+  --web-max: 1600px;
   /* The key, scaling with the window: it shrinks a little in a small one (to 0.8 times), and grows no larger than its
      size at a 1440-pixel window; its own sizes in ems */
   --key-text: clamp(0.65rem, 0.903vw, 0.8125rem);
@@ -459,6 +498,32 @@
   --faction-3: #3a5a8c;
   --faction-4: #8c3a5a;
   --faction-5: #5a5a5a;
+}
+
+/* Interface v0.19, the left panel under 1240px tall: a tighter rhythm (the facts and the midnight line closer, the buttons
+   22 units under it with a 6px gap, the errand and the places closer, and smaller tokens) */
+@media (max-height: 1239px) {
+  :root {
+    --left-gap-facts: var(--space-3);
+    --left-facts-gap: 2px;
+    --left-midnight-top: var(--space-2);
+    --left-sheet-bottom: var(--space-2);
+    --left-gap-buttons: calc(22 * var(--lu) / 3 + var(--vroom) * 0.0489);
+    --left-buttons-gap: 6px;
+    --left-errand-top: var(--space-3);
+    --left-errand-pad-y: var(--space-2);
+    --left-places-top: calc(30 * var(--lu));
+    --left-places-below: var(--space-1);
+    --left-place-gap: 2px;
+    --left-token: calc(28 * var(--lu));
+  }
+}
+
+/* Interface v0.19: in a window under 520px tall the top would leave no room below it, so the whole panel scrolls */
+@media (max-height: 519px) {
+  :root {
+    --left-pin: static;
+  }
 }
 
 /* Interface v0.17, Screen Sizes: short screens. In a window under 760px tall, the modals' top and bottom margins come in. */

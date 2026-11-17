@@ -419,12 +419,17 @@ test("the places (Interface v0.9): all eight in the pack's order, empty ones fad
   const rows = await page.eval<{ name: string; heading: string; empty: boolean; own: boolean; opacity: number; tokens: number }[]>(`[...document.querySelectorAll(".places .place")].map((r) => ({ name: r.dataset.place, heading: r.querySelector(".place-name").textContent, empty: r.classList.contains("empty"), own: r.classList.contains("own"), opacity: Number(getComputedStyle(r).opacity), tokens: r.querySelectorAll(".token").length }))`);
   assert.equal(pack.length, 8);
   assert.deepEqual(rows.map((r) => r.name), pack, "all eight, in the pack's order");
-  assert.deepEqual(rows.map((r) => r.heading), pack.map((n) => n[0]!.toUpperCase() + n.slice(1)), "headings capitalize only the first letter");
+  // Interface v0.19: an occupied place's heading capitalizes only the first letter; the empty ones are on one faded line,
+  // "Empty: …", in the pack's words and order, after the occupied ones.
+  assert.deepEqual(rows.map((r) => r.heading), pack.map((n, i) => (rows[i]!.empty ? n : n[0]!.toUpperCase() + n.slice(1))), "headings capitalize only the first letter");
   assert.ok(rows.some((r) => r.empty), "some places are empty");
-  for (const r of rows) {
-    assert.equal(r.empty, r.tokens === 0, `${r.name}: empty means no one there`);
-    assert.ok(r.empty ? r.opacity < 1 : r.opacity === 1, `${r.name}: an empty place is faded, an occupied one isn't`);
-  }
+  for (const r of rows) assert.equal(r.empty, r.tokens === 0, `${r.name}: empty means no one there`);
+  const line = await page.eval<{ text: string; opacity: number; names: string[]; after: boolean; gap: number }>(`(() => { const l = document.querySelector(".places-empty"), rows = [...document.querySelectorAll(".places > li.place")], last = rows[rows.length - 1]; return { text: l.textContent, opacity: Number(getComputedStyle(l).opacity), names: [...l.querySelectorAll(".place.empty")].map((p) => p.dataset.place), after: rows.every((r) => r.compareDocumentPosition(l) & Node.DOCUMENT_POSITION_FOLLOWING), gap: l.getBoundingClientRect().top - last.getBoundingClientRect().bottom }; })()`);
+  assert.equal(line.text, `Empty: ${rows.filter((r) => r.empty).map((r) => r.name).join(", ")}`);
+  assert.ok(line.opacity < 1, "faded");
+  assert.ok(line.after, "after the occupied places");
+  assert.ok(Math.abs(line.gap - 28) <= 2, `28 panel units under the last occupied place (${line.gap})`);
+  for (const r of rows.filter((x) => !x.empty)) assert.equal(r.opacity, 1, `${r.name}: an occupied place isn't faded`);
   assert.equal(rows.filter((r) => r.own).length, 1, "your own place is marked");
   assert.equal(await page.eval<boolean>(`!!document.querySelector('.place.own .token[data-guest="Francesco Pazzi"]')`), true, "with you in it");
   // Interface v0.16: "You are here" on its own line, under the place's name.
@@ -550,14 +555,17 @@ test("the left panel (Interface v0.16): the switches centred at the top; You are
     const who = left.querySelector(".me-briefing");
     const n = who.querySelector(".name").getBoundingClientRect();
     const wb = who.getBoundingClientRect();
-    return { first: left.firstElementChild.className, centred: Math.abs(mid - (hb.left + hb.width / 2)) < 2, you: who.querySelector(".name").textContent, role: who.querySelector(".role").textContent, label: [...left.querySelectorAll(".label")].some((l) => l.textContent === "You"), nameCentred: Math.abs(n.left + n.width / 2 - (wb.left + wb.width / 2)) < 2 };
+    return { first: left.firstElementChild.className + (left.firstElementChild.firstElementChild.className === "side-head" ? "" : " (no side-head first)"), centred: Math.abs(mid - (hb.left + hb.width / 2)) < 2, you: who.querySelector(".name").textContent, role: who.querySelector(".role").textContent, label: [...left.querySelectorAll(".label")].some((l) => l.textContent === "You"), nameCentred: Math.abs(n.left + n.width / 2 - (wb.left + wb.width / 2)) < 2 };
   })()`);
-  assert.equal(top.first, "side-head");
+  // Interface v0.19: the pinned top holds the switches, you, your sheet, and the four buttons.
+  assert.equal(top.first, "left-top");
   assert.equal(top.centred, true, "Show me around and the switch, centred");
   assert.equal(top.you, "You are Francesco Pazzi");
   assert.ok(top.role.length > 5, "a role line (the public subtitle, for now)");
   assert.equal(top.label, false, "no You label");
-  assert.equal(top.nameCentred, true);
+  // Interface v0.19: beside the portrait, not under it.
+  assert.equal(top.nameCentred, false);
+  assert.ok(await page.eval<boolean>(`(() => { const b = document.querySelector(".me-briefing"), p = b.querySelector(".portrait").getBoundingClientRect(), n = b.querySelector(".name").getBoundingClientRect(), r = b.querySelector(".role").getBoundingClientRect(); return n.left >= p.right && r.left >= p.right && r.top >= n.bottom - 1 && n.top < p.bottom && r.bottom > p.top; })()`), "the name over the role, beside the portrait");
   // Each line of the sheet opens the rules section behind its glossary word.
   const pack = JSON.parse(readFileSync("setting/florence-1492/player.json", "utf8")) as { screen: { factLinks: Record<string, string> }; glossary: { entries: { term: string; rules?: string[] }[] } };
   for (const fact of ["purse", "pensions", "withdrawals", "midnight"]) {
@@ -826,12 +834,13 @@ test("the Web of Confidences (Interface v0.16): the top layer, sliding over 600 
   // Interface v0.17: with margins round it (56 to 120px from the screen's left edge, 32 to 80px from the side column),
   // and never larger than 820px across.
   const fit = () =>
-    page.eval<{ under: number; inside: boolean; centred: number; fills: number; across: number; left: number; right: number; key: number; keyOpen: boolean; side: number; frame: number }>(`(() => {
+    page.eval<{ under: number; inside: boolean; centred: number; across_centred: number; fills: number; across: number; left: number; right: number; key: number; keyOpen: boolean; side: number; frame: number; body: [number, number] }>(`(() => {
       const map = document.querySelector(".web-map").getBoundingClientRect(), k = document.querySelector(".web-key").getBoundingClientRect(), svg = document.querySelector(".web-diagram").getBoundingClientRect();
       const boxes = [...document.querySelectorAll(".web-diagram .node circle, .web-diagram .node-name, .web-diagram .faction-label")].map((x) => x.getBoundingClientRect());
       const l = Math.min(...boxes.map((b) => b.left)), r = Math.max(...boxes.map((b) => b.right)), t = Math.min(...boxes.map((b) => b.top)), bt = Math.max(...boxes.map((b) => b.bottom));
       const cs = getComputedStyle(document.querySelector(".web-map")), room = Math.min(820, map.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight));
-      return { under: boxes.filter((b) => b.left < k.right && b.top < k.bottom).length, inside: l >= map.left - 1 && r <= map.right + 1 && t >= map.top - 1 && bt <= map.bottom + 1, centred: Math.abs((t + bt) / 2 - (map.top + map.height / 2)), fills: Math.max((r - l) / room, (bt - t) / map.height), across: r - l, left: l - map.left, right: map.right - r, key: parseFloat(getComputedStyle(document.querySelector(".web-key")).fontSize), keyOpen: !!document.querySelector(".web-key ul"), side: document.querySelector(".web-side").getBoundingClientRect().width, frame: svg.width };
+      const pl = parseFloat(cs.paddingLeft), pr = parseFloat(cs.paddingRight), body = document.querySelector(".web-body").getBoundingClientRect();
+      return { across_centred: Math.abs((l + r) / 2 - (map.left + pl + map.right - pr) / 2), body: [Math.round(body.left), Math.round(innerWidth - body.right)], under: boxes.filter((b) => b.left < k.right && b.top < k.bottom).length, inside: l >= map.left - 1 && r <= map.right + 1 && t >= map.top - 1 && bt <= map.bottom + 1, centred: Math.abs((t + bt) / 2 - (map.top + map.height / 2)), fills: Math.max((r - l) / room, (bt - t) / map.height), across: r - l, left: l - map.left, right: map.right - r, key: parseFloat(getComputedStyle(document.querySelector(".web-key")).fontSize), keyOpen: !!document.querySelector(".web-key ul"), side: document.querySelector(".web-side").getBoundingClientRect().width, frame: svg.width };
     })()`);
   const resize = async (width: number, height = width > 1500 ? 1100 : VIEW.height) => {
     await page.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
@@ -849,7 +858,15 @@ test("the Web of Confidences (Interface v0.16): the top layer, sliding over 600 
       assert.ok(f.fills > 0.9, `${width}: fitted to its space (${f.fills})`);
       assert.ok(f.frame <= 820.5 && f.across <= 821, `${width}: never larger than 820px across (${f.across})`);
       assert.ok(f.left >= 55 && f.right >= 31, `${width}: clear of the screen's left edge and of the side column (${f.left}, ${f.right})`);
-      assert.ok(Math.abs(f.side - Math.min(480, Math.max(280, 0.28 * width))) < 1.5, `${width}: the side column is about 28% of the web, from 280 to 480px (${f.side})`);
+      // Interface v0.19: under 1100px wide the side column folds to its strip.
+      if (width <= 1100) assert.equal(f.side, 0, `${width}: the side column folded`);
+      else assert.ok(Math.abs(f.side - Math.min(480, Math.max(280, 0.28 * width))) < 1.5, `${width}: the side column is about 28% of the web, from 280 to 480px (${f.side})`);
+      // Interface v0.19: the drawing centres in the room between the key and the side column, or across the whole width with the key folded.
+      // (Within a few pixels: the faction names reach a little further on one side than the other.)
+      assert.ok(f.across_centred < 8, `${width}: centred in its room (${f.across_centred})`);
+      // Interface v0.19: everything in the web stops at 1600px, centred.
+      const margin = Math.max(0, (width - 1600) / 2);
+      assert.ok(Math.abs(f.body[0] - margin) <= 1 && Math.abs(f.body[1] - margin) <= 1, `${width}: the web's contents at most 1600px, centred (${f.body})`);
       await page.shot(`web-${width}`);
     }
     // The key shrinks a little in a small window, and grows no larger than its size at a 1440-pixel window.
@@ -857,7 +874,9 @@ test("the Web of Confidences (Interface v0.16): the top layer, sliding over 600 
     assert.ok(Math.abs(sizes[1100]!.key / sizes[1440]!.key - 0.8) < 0.03, `smaller in a small window (${sizes[1100]!.key})`);
     assert.equal(sizes[2100]!.key, sizes[1440]!.key, "no larger in a large one");
     // Below 1200px wide the key folds itself away so it doesn't cover the drawing, and comes back above that.
-    assert.deepEqual([sizes[1100]!.keyOpen, sizes[1440]!.keyOpen, sizes[2100]!.keyOpen], [false, true, true], "folded by itself at 1100, back by itself above 1200");
+    // (It goes by the drawing's own space: at 1100px, since Interface v0.19, the side column has folded to its strip, which
+    // leaves room for the key again.)
+    assert.deepEqual([sizes[1100]!.keyOpen, sizes[1440]!.keyOpen, sizes[2100]!.keyOpen], [true, true, true], "open where the drawing has room");
     await resize(1199);
     assert.equal((await fit()).keyOpen, false);
     await resize(1201);
@@ -872,9 +891,9 @@ test("the Web of Confidences (Interface v0.16): the top layer, sliding over 600 
     await resize(1100);
     assert.equal((await fit()).keyOpen, true, "the player opened it: it stays open in a small window");
     assert.equal((await fit()).under, 0, "and the drawing still stands clear of it");
-    // In a window under 840px wide the side column folds to a strip with a handle along the web's right edge, so the
-    // web keeps at least 560px; the handle opens the column over the web.
-    await resize(839);
+    // In a window under 1100px wide (Interface v0.19; 840px before) the side column folds to a strip with a handle along the
+    // web's right edge, so the web keeps its room; the handle opens the column over the web.
+    await resize(1099);
     const strip = () => page.eval<{ handle: number; label: string; aria: string; side: boolean; map: number; over: boolean; expanded: string }>(`(() => { const h = document.querySelector(".web-side-handle"), sd = document.querySelector(".web-side"), m = document.querySelector(".web-map").getBoundingClientRect(), r = sd.getBoundingClientRect(); return { handle: h.getBoundingClientRect().width, label: h.textContent, aria: h.getAttribute("aria-label"), side: r.width > 0, map: m.width, over: r.width > 0 && r.left < m.right - 1, expanded: h.getAttribute("aria-expanded") }; })()`);
     let st = await strip();
     assert.deepEqual([st.side, st.label, st.aria, st.expanded], [false, "What You Heard and Saw · Notes", "Show what you heard and saw, and your notes", "false"]);
@@ -889,7 +908,7 @@ test("the Web of Confidences (Interface v0.16): the top layer, sliding over 600 
     await page.eval(`document.querySelector(".web-side-handle").click()`);
     await page.until(`!document.querySelector(".web-body.side-open")`);
     // Above the limit the column is beside the web again, with no handle.
-    await resize(841);
+    await resize(1101);
     assert.deepEqual(await page.eval<[boolean, boolean]>(`[document.querySelector(".web-side-handle").getBoundingClientRect().width > 0, document.querySelector(".web-side").getBoundingClientRect().width >= 280]`), [false, true]);
   } finally {
     await page.send("Emulation.setDeviceMetricsOverride", { ...VIEW, deviceScaleFactor: 1, mobile: false });
@@ -1511,6 +1530,60 @@ test("the guest card (Interface v0.19): a description, Their faction wins if, Kn
   } finally {
     await windowSize(VIEW.width, VIEW.height);
     await page.key("Escape", 27);
+  }
+});
+
+// ---- CC-20261117-03 (#191, part 3): Interface v0.19's left panel ------------------------------------------------
+
+const leftMeasure = () =>
+  page.eval<{ width: number; pad: number; top: number; pinned: string; scrolls: boolean; nameLines: number; portrait: number; token: number; scrollbar: string; text: number }>(`(() => {
+    const l = document.querySelector(".side.left"), t = document.querySelector(".left-top"), n = document.querySelector(".me-name"), cs = getComputedStyle(l);
+    const lh = parseFloat(getComputedStyle(n).lineHeight) || parseFloat(getComputedStyle(n).fontSize) * 1.2;
+    return { width: l.getBoundingClientRect().width, pad: parseFloat(cs.paddingLeft), top: t.getBoundingClientRect().height, pinned: getComputedStyle(t).position, scrolls: l.scrollHeight > l.clientHeight + 1, nameLines: Math.round(n.getBoundingClientRect().height / lh), portrait: document.querySelector(".me-briefing .portrait").getBoundingClientRect().width, token: document.querySelector(".places .token .portrait").getBoundingClientRect().width, scrollbar: cs.scrollbarWidth, text: parseFloat(getComputedStyle(document.querySelector(".side.left .fact")).fontSize) };
+  })()`);
+
+test("the left panel (Interface v0.19): sized from its own width; you beside your portrait, your name whole; the top stays put while the errand and the places slide under it, closing up in a shorter window; it fits a 1920×960 window", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".side.left .errand") && document.querySelector(".places .token")`);
+  try {
+    const at: Record<string, Awaited<ReturnType<typeof leftMeasure>>> = {};
+    for (const [w, h] of [[1024, 700], [1200, 760], [1920, 960], [1920, 1080], [1440, 600], [1440, 500]] as const) {
+      await windowSize(w, h);
+      at[`${w}x${h}`] = await leftMeasure();
+    }
+    // Everything from the panel's width: one unit is a 300th of it.
+    for (const m of Object.values(at)) {
+      const u = m.width / 300;
+      assert.ok(Math.abs(m.pad - 24 * u) < 0.6, `margins 24 units (${m.pad} in ${m.width})`);
+      assert.ok(Math.abs(m.portrait - 64 * u) < 0.6, `the portrait 64 units (${m.portrait})`);
+      assert.ok(Math.abs(m.text - Math.max(13, 14 * u)) < 0.3, `the sheet's words 14 units (${m.text})`);
+      assert.equal(m.nameLines, 1, "your name on one line");
+      assert.equal(m.scrollbar, "thin");
+    }
+    assert.ok(at["1024x700"]!.width < at["1920x1080"]!.width && at["1024x700"]!.portrait < at["1920x1080"]!.portrait, "it grows with the panel");
+    // Tokens: 31 units, 28 in a window under 1240px tall.
+    assert.ok(Math.abs(at["1920x1080"]!.token - (28 * at["1920x1080"]!.width) / 300) < 0.6, `tokens 28 units under 1240px tall (${at["1920x1080"]!.token})`);
+    // The pinned top closes up in a shorter window: only its gaps; at 960px tall about 394px, at 760px about 338px.
+    assert.ok(Math.abs(at["1920x960"]!.top - 394) <= 16, `the pinned top at 1920×960 (${at["1920x960"]!.top})`);
+    assert.ok(Math.abs(at["1200x760"]!.top - 338 * (at["1200x760"]!.width / 332)) <= 20, `the pinned top at 760px tall (${at["1200x760"]!.top})`);
+    assert.ok(at["1920x1080"]!.top > at["1920x960"]!.top, "fuller in a taller window");
+    // It fits a 1920×960 window without scrolling.
+    assert.equal(at["1920x960"]!.scrolls, false, "a 1920×960 window: no scrolling");
+    // Sticky from the start, down to 520px tall; in a window under that, the whole panel scrolls.
+    assert.equal(at["1440x600"]!.pinned, "sticky");
+    assert.equal(at["1440x500"]!.pinned, "static");
+    await windowSize(1440, 600);
+    const before = await page.eval<{ top: number; errand: number }>(`({ top: document.querySelector(".left-top").getBoundingClientRect().top, errand: document.querySelector(".side.left .errand").getBoundingClientRect().top })`);
+    await page.eval(`document.querySelector(".side.left").scrollTop = 60`);
+    await page.eval(`new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)))`);
+    const after = await page.eval<{ top: number; errand: number; under: boolean }>(`(() => { const t = document.querySelector(".left-top").getBoundingClientRect(), e = document.querySelector(".side.left .errand").getBoundingClientRect(); return { top: t.top, errand: e.top, under: e.top < t.bottom }; })()`);
+    assert.equal(after.top, before.top, "the top stays put");
+    assert.ok(after.errand < before.errand - 50 && after.under, "the errand slides under the buttons");
+    await page.shot("left-v019-scrolled");
+    await windowSize(1920, 960);
+    await page.shot("left-v019-1920x960");
+  } finally {
+    await windowSize(VIEW.width, VIEW.height);
   }
 });
 
@@ -2521,17 +2594,19 @@ test("three typefaces, served with the page (Interface v0.17): the guests' words
   for (const [i, f] of ["Source Serif 4", "EB Garamond"].entries()) assert.ok(Math.abs(xh[i + 1]! / xh[0]! - 1) < 1 / 12, `${f}: x-height ${xh[i + 1]} against the sans's ${xh[0]}`);
   // Sizes are in rem: a reader's own font-size setting scales the text, not only the browser's zoom.
   const sizes = () => page.eval<number[]>(`[".side.left .fact", ".ln.speech .tx", ".notaio-hint .hint-text", ".side.left .label"].map((s) => parseFloat(getComputedStyle(document.querySelector(s)).fontSize))`);
-  // (The conversation's lines 17px since Interface v0.19.)
-  assert.deepEqual(await sizes(), [13, 17, 16, 11]);
+  // (The conversation's lines 17px since Interface v0.19; the left panel's words in its own units, 14 and 12 in a 300px
+  // panel, or the screen's own sizes in rem, whichever is larger.)
+  assert.deepEqual(await sizes(), [14, 17, 16, 12]);
   await page.eval(`document.documentElement.style.fontSize = "20px"`);
   assert.deepEqual(await sizes(), [16.25, 21.25, 20, 13.75], "a quarter larger with the reader's size a quarter larger");
   await page.eval(`document.documentElement.style.fontSize = ""`);
   await page.shot("typefaces");
   // The smallest labels are a pixel larger from an 1800-pixel window up.
   await page.send("Emulation.setDeviceMetricsOverride", { width: 1920, height: 1080, deviceScaleFactor: 1, mobile: false });
-  assert.deepEqual(await page.eval<number[]>(`[".side.left .label", ".notaio-hint .notaio-toggle", ".side.left .fact"].map((s) => parseFloat(getComputedStyle(document.querySelector(s)).fontSize))`), [12, 12, 13]);
+  // (The left panel's grow with the panel instead, from Interface v0.19: 12 and 14 units of a 332px panel.)
+  assert.deepEqual((await page.eval<number[]>(`[".side.left .label", ".notaio-hint .notaio-toggle", ".side.left .fact"].map((s) => parseFloat(getComputedStyle(document.querySelector(s)).fontSize))`)).map((x) => Math.round(x * 10) / 10), [13.3, 12, 15.5]);
   await page.send("Emulation.setDeviceMetricsOverride", { ...VIEW, deviceScaleFactor: 1, mobile: false });
-  assert.equal(await page.eval<number>(`parseFloat(getComputedStyle(document.querySelector(".side.left .label")).fontSize)`), 11);
+  assert.equal(await page.eval<number>(`parseFloat(getComputedStyle(document.querySelector(".notaio-hint .notaio-toggle")).fontSize)`), 11);
 });
 
 test("Il Notaio's boxes behave alike (Interface v0.17): his words 16px open and 13px minimized, the title 14px either way, Show / Hide at its right in the small label size; your portrait, name, and role a size up; the right panel's rounder corners", { skip }, async () => {
@@ -2575,9 +2650,9 @@ test("Il Notaio's boxes behave alike (Interface v0.17): his words 16px open and 
   assert.deepEqual(await summary(), ["minimized", 13, 14, "Show", 11]);
   await page.eval(`document.querySelector('[data-hint="return"]').click()`);
   await page.until(`!document.querySelector(".past-stage")`);
-  // The left panel's top: your portrait 84px, your name 18px, your role 15px.
+  // The left panel's top: your portrait 64 panel units, your name 19.5, your role 14 (Interface v0.19; a 300px panel here).
   const me = await page.eval<number[]>(`(() => { const b = document.querySelector(".me-briefing"); return [b.querySelector(".portrait").getBoundingClientRect().width, parseFloat(getComputedStyle(b.querySelector(".name")).fontSize), parseFloat(getComputedStyle(b.querySelector(".role")).fontSize)]; })()`);
-  assert.deepEqual(me, [84, 18, 15]);
+  assert.deepEqual(me, [64, 19.5, 14]);
   // The right panel's top corners, and those of the card that slides up over it: 28px since Interface v0.19.
   assert.equal(await page.eval<string>(`getComputedStyle(document.querySelector(".side.right")).borderTopLeftRadius`), "28px");
   await page.eval(`document.querySelector(".places .token").click()`);

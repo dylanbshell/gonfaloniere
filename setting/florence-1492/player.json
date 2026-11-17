@@ -639,8 +639,10 @@
     "withYou": "With You",
     "withYouPrivately": "In a Secret Conversation with You",
     "places": {
-      "_comment": "Interface v0.9, Left: The places, from the player's state's `places` (TD v0.49). Every place in setting.json's order; a row's heading is the place's name with its first letter capitalized. `yours` marks the player's own place, `private` names the closed-door mark on a place holding a Colloquio, and `quiet` stands in for the list outside a conversation (midnight, the ballot). `descriptions`: Lore's one-line description of each place (Lore v0.8, The Palazzo), shown on hovering its name, keyed by the place's name exactly as setting.json gives it.",
+      "_comment": "Interface v0.9, Left: The places, from the player's state's `places` (TD v0.49). Every place in setting.json's order; a row's heading is the place's name with its first letter capitalized. `yours` marks the player's own place, `private` names the closed-door mark on a place holding a Colloquio, and `quiet` stands in for the list outside a conversation (midnight, the ballot). `empty` (Interface v0.19) heads the one faded line the empty places fold into, after the occupied ones, joined by `emptySep`. `descriptions`: Lore's one-line description of each place (Lore v0.8, The Palazzo), shown on hovering its name, keyed by the place's name exactly as setting.json gives it.",
       "title": "The Places",
+      "empty": "Empty:",
+      "emptySep": ", ",
       "yours": "You are here",
       "private": "Secret conversation: behind a closed door",
       "quiet": "Each guest chooses alone now.",
