@@ -3764,6 +3764,33 @@ function InputBox({
   const commandList = t?.kind === "commands" ? matchCommands(commands.open, t.query) : [];
   const closedList = t?.kind === "commands" ? matchCommands(commands.closed.map((c) => ({ ...c, name: c.command.name })), t.query) : [];
   const menuOpen = guestList.length > 0 || commandList.length > 0 || closedList.length > 0;
+  /**
+   * Interface v0.20: the arrow keys move through the open menu, one lit entry at a time. Down lights the first, Up the
+   * last, and they stop at the ends. In the command menu they go through the commands open now only, never into "Not
+   * available now". Return picks the lit entry; pointing lights one too. The lit entry belongs to the menu as it is
+   * now: typing, or opening the menu again, clears it.
+   */
+  const menuKey = menuOpen && t ? `${t.kind}:${forced}:${text}` : null;
+  const [lit, setLit] = useState<{ key: string; at: number } | null>(null);
+  const litAt = lit && lit.key === menuKey ? lit.at : null;
+  const pickGuest = (p: string) => {
+    change(text.replace(/@([^@\n]*)$/, `${MENTION}${p} `));
+    focus();
+  };
+  const pickCommand = (c: { name: string }) => {
+    change(`${c.name} `);
+    focus();
+  };
+  const entries: (() => void)[] = guestList.length > 0 ? guestList.map((p) => () => pickGuest(p)) : commandList.map((c) => () => pickCommand(c));
+  const light = (at: number) => menuKey && litAt !== at && setLit({ key: menuKey, at });
+  const step = (down: boolean) => {
+    const last = entries.length - 1;
+    light(litAt === null ? (down ? 0 : last) : Math.max(0, Math.min(last, litAt + (down ? 1 : -1))));
+  };
+  // The lit entry scrolls into view.
+  useEffect(() => {
+    if (litAt !== null) box.current?.querySelector(".dropdown .lit")?.scrollIntoView({ block: "nearest" });
+  }, [litAt, menuKey]);
   // Clicking away closes either menu, until its character is typed again.
   useEffect(() => {
     if (!menuOpen) return;
@@ -3774,6 +3801,7 @@ function InputBox({
     return () => document.removeEventListener("mousedown", away);
   });
   const dismiss = () => {
+    setLit(null);
     setForced(false);
     setDismissed(openMenu(text, null));
   };
@@ -3784,7 +3812,11 @@ function InputBox({
       setHanded(null);
     }
     if (!isCommand(next)) setDoLit(false);
-    if (next !== text) onType();
+    if (next !== text) {
+      onType();
+      // Typing, or opening a menu again, clears the lit entry (Interface v0.20).
+      setLit(null);
+    }
     setText(next);
     setForced(false);
     // Deleting a menu's character forgets that it was dismissed, so typing it again opens it.
@@ -3843,62 +3875,52 @@ function InputBox({
         <div className={`prompt${req ? " waiting" : ""}`}>{prompt}</div>
         <span className={`count${!command && text.length > info.max ? " over" : ""}`}>{command ? "" : w("screen.input.count", { count: text.length, max: info.max })}</span>
       </div>
-      {guestList.length > 0 && (
-        <ul className="dropdown" data-menu="guests">
-          {guestList.map((p) => (
-            <li key={p}>
-              <button
-                onClick={() => {
-                  change(text.replace(/@([^@\n]*)$/, `${MENTION}${p} `));
-                  focus();
-                }}
-              >
-                <Portrait name={p} />
-                <Name name={p} plain />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      {(commandList.length > 0 || closedList.length > 0) && (
-        <ul className="dropdown menu" data-menu="commands">
-          {commandList.map((c) => (
-            <li key={c.name}>
-              <button
-                data-command={c.action}
-                onClick={() => {
-                  change(`${c.name} `);
-                  focus();
-                }}
-              >
-                <span className="cmd">{c.usage}</span>
-                <span className="muted">{c.hint}</span>
-              </button>
-            </li>
-          ))}
-          {/* The rest wait in a folded section, greyed, each with its reason in place of its hint. With nothing
-              open now, the section opens by itself. Clicking one does nothing. */}
-          {closedList.length > 0 && (
-            <li className="menu-closed">
-              <button className="menu-more" aria-expanded={!folded} onClick={() => (setShowClosed(folded), focus())}>
-                {w("screen.commandWhy.more", { n: closedList.length })}
-              </button>
-              {!folded && (
-                <ul>
-                  {closedList.map((c) => (
-                    <li key={c.name} className="cmd-closed" data-command={c.command.action} data-why={c.why} aria-disabled="true">
-                      <span className="cmd">{c.command.usage}</span>
-                      <span className="why">{c.reason ?? w(`screen.commandWhy.${c.why}`, { amount: payrollSize(v) ?? "" })}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          )}
-        </ul>
-      )}
       <div className="row">
         <div className="field">
+          {/* Interface v0.20: the menus come down over the prompt's line, ending just above the box, as wide as it and lined up with it. */}
+          {guestList.length > 0 && (
+            <ul className="dropdown" data-menu="guests">
+              {guestList.map((p, i) => (
+                <li key={p}>
+                  <button className={i === litAt ? "lit" : undefined} onClick={() => pickGuest(p)} onMouseMove={(e) => (e.movementX || e.movementY) && light(i)}>
+                    <Portrait name={p} />
+                    <Name name={p} plain />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {(commandList.length > 0 || closedList.length > 0) && (
+            <ul className="dropdown menu" data-menu="commands">
+              {commandList.map((c, i) => (
+                <li key={c.name}>
+                  <button data-command={c.action} className={i === litAt ? "lit" : undefined} onClick={() => pickCommand(c)} onMouseMove={(e) => (e.movementX || e.movementY) && light(i)}>
+                    <span className="cmd">{c.usage}</span>
+                    <span className="muted">{c.hint}</span>
+                  </button>
+                </li>
+              ))}
+              {/* The rest wait in a folded section, greyed, each with its reason in place of its hint. With nothing
+                  open now, the section opens by itself. Clicking one does nothing. */}
+              {closedList.length > 0 && (
+                <li className="menu-closed">
+                  <button className="menu-more" aria-expanded={!folded} onClick={() => (setShowClosed(folded), focus())}>
+                    {w("screen.commandWhy.more", { n: closedList.length })}
+                  </button>
+                  {!folded && (
+                    <ul>
+                      {closedList.map((c) => (
+                        <li key={c.name} className="cmd-closed" data-command={c.command.action} data-why={c.why} aria-disabled="true">
+                          <span className="cmd">{c.command.usage}</span>
+                          <span className="why">{c.reason ?? w(`screen.commandWhy.${c.why}`, { amount: payrollSize(v) ?? "" })}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              )}
+            </ul>
+          )}
           <textarea
             ref={area}
             className={text ? undefined : "empty"}
@@ -3909,9 +3931,13 @@ function InputBox({
               if (e.key === "Escape" && menuOpen) {
                 e.preventDefault();
                 dismiss();
+              } else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && menuOpen && entries.length > 0) {
+                e.preventDefault();
+                step(e.key === "ArrowDown");
               } else if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                if (past) onReturn();
+                if (litAt !== null && entries[litAt]) entries[litAt]!();
+                else if (past) onReturn();
                 else submit();
               }
             }}

@@ -3405,3 +3405,136 @@ test("long labels (Interface v0.17, Notes for the Build): with every short label
     await reopen();
   }
 });
+
+// ---- CC-20261117-07 (#200, part 2): Interface v0.20's @ and / menus -----------------------------------------------
+
+/** The open menu against the message box: where it ends and how wide it is; its entries, and which is lit. */
+const menuAgainstBox = (kind: string) =>
+  page.eval<{ gap: number; left: number; right: number; width: number; boxWidth: number; promptCovered: boolean; entries: string[]; lit: number[]; top: number; bottom: number; rows: number[]; rowGaps: number[]; portraits: number[]; closedRoom: number | null }>(`(() => {
+    const m = document.querySelector('[data-menu="${kind}"]'), r = m.getBoundingClientRect(), f = document.querySelector(".input .field textarea:not(.measure)").getBoundingClientRect(), p = document.querySelector(".prompt").getBoundingClientRect();
+    const b = [...m.querySelectorAll(":scope > li > button:not(.menu-more)")], br = b.map((x) => x.getBoundingClientRect()), border = parseFloat(getComputedStyle(m).borderTopWidth);
+    const closed = m.querySelector(".menu-closed");
+    return { gap: f.top - r.bottom, left: r.left - f.left, right: r.right - f.right, width: r.width, boxWidth: f.width, promptCovered: r.top <= p.top && r.bottom >= p.bottom,
+      entries: b.map((x) => x.dataset.command ?? x.lastElementChild.textContent), lit: b.flatMap((x, i) => (x.classList.contains("lit") ? [i] : [])),
+      top: br[0].top - r.top - border, bottom: r.bottom - br.at(-1).bottom - border, rows: br.map((x) => x.height), rowGaps: br.slice(1).map((x, i) => x.top - br[i].bottom),
+      portraits: [...m.querySelectorAll(".portrait")].map((x) => x.getBoundingClientRect().width), closedRoom: closed ? closed.getBoundingClientRect().top - br.at(-1).bottom : null };
+  })()`);
+const clearBox = () => page.eval(`(() => { const t = document.querySelector(".input textarea"); t.focus(); t.select(); document.execCommand("delete"); })()`);
+const arrow = (down: boolean) => page.key(down ? "ArrowDown" : "ArrowUp", down ? 40 : 38);
+
+test("the @ and / menus (Interface v0.20): down over the prompt's line, ending 6px above the box, as wide as it and lined up with it at every width; the @ menu's small portraits and spaced rows; the arrow keys light the first or the last, stop at the ends, skip Not available now, and Return picks; pointing lights one too; typing clears it; in a narrow box the prompt keeps its line", { skip }, async () => {
+  // Three guests at hand, whatever the fake game has come to by now.
+  await withStates(`(s) => ({ ...s, present: ["Giorgia Pazzi", "Captain Armand LeNoir", "Lupo"] })`, async () => {
+    await page.until(`document.querySelector(".input textarea") && document.querySelector(".prompt")?.textContent`);
+    try {
+      for (const [width, rightPx] of [[1600, 480], [1200, 280], [1044, 280]] as const) {
+        await windowSize(width, 900);
+        await rightWidth(rightPx);
+        for (const [kind, char] of [["guests", "@"], ["commands", "/"]] as const) {
+          await clearBox();
+          await page.type(char);
+          await page.until(`document.querySelector('[data-menu="${kind}"]')`);
+          const m = await menuAgainstBox(kind);
+          assert.ok(Math.abs(m.gap - 6) <= 0.5, `${width}px, ${kind}: it ends 6px above the box (${m.gap})`);
+          assert.ok(Math.abs(m.left) <= 0.5 && Math.abs(m.right) <= 0.5 && Math.abs(m.width - m.boxWidth) <= 0.5, `${width}px, ${kind}: as wide as the box and lined up with it (${m.left}, ${m.right}, ${m.width}, ${m.boxWidth})`);
+          assert.ok(m.promptCovered, `${width}px, ${kind}: it comes down over the prompt's line`);
+        }
+        await page.shot(`menus-v020-${width}`);
+      }
+      await windowSize(1600, 900);
+      // The @ menu: 28px portraits, rows 42px tall with 2px between, 10px above the first and below the last.
+      await clearBox();
+      await page.type("@");
+      await page.until(`document.querySelector('[data-menu="guests"]')`);
+      const guests = await menuAgainstBox("guests");
+      assert.equal(guests.entries.length, 3, "three guests to move through");
+      assert.ok(guests.portraits.every((x) => x === 28), `28px portraits (${guests.portraits})`);
+      assert.ok(guests.rows.every((x) => Math.abs(x - 42) <= 0.5) && guests.rowGaps.every((x) => Math.abs(x - 2) <= 0.5), `rows 42px tall, 2px apart (${guests.rows}; ${guests.rowGaps})`);
+      assert.ok(Math.abs(guests.top - 10) <= 0.5 && Math.abs(guests.bottom - 10) <= 0.5, `10px above the first and below the last (${guests.top}, ${guests.bottom})`);
+      // Down lights the first, and stops at the last; Up goes back and stops at the first. Nothing wraps round.
+      assert.deepEqual(guests.lit, [], "nothing lit as it opens");
+      const n = guests.entries.length;
+      const lit = async (kind: string) => (await menuAgainstBox(kind)).lit;
+      await arrow(true);
+      assert.deepEqual(await lit("guests"), [0], "Down lights the first");
+      for (let i = 0; i < n + 1; i++) await arrow(true);
+      assert.deepEqual(await lit("guests"), [n - 1], "and stops at the last");
+      for (let i = 0; i < n + 1; i++) await arrow(false);
+      assert.deepEqual(await lit("guests"), [0], "Up stops at the first");
+      // Pointing lights an entry, so only one is ever lit.
+      const at = await page.eval<{ x: number; y: number }>(`(() => { const r = document.querySelectorAll('[data-menu="guests"] > li > button')[1].getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+      await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: at.x - 20, y: at.y });
+      await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: at.x, y: at.y });
+      await page.until(`document.querySelectorAll('[data-menu="guests"] .lit').length === 1 && document.querySelectorAll('[data-menu="guests"] > li > button')[1].classList.contains("lit")`);
+      await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 5, y: 5 });
+      // Return picks the lit guest.
+      await page.key("Enter", 13);
+      assert.equal(await page.eval<string>(`document.querySelector(".input textarea").value`), `@${guests.entries[1]} `);
+      assert.equal(await page.eval<boolean>(`!document.querySelector(".dropdown")`), true, "and the menu closes");
+      // Up on a fresh menu lights the last.
+      await clearBox();
+      await page.type("@");
+      await page.until(`document.querySelector('[data-menu="guests"]')`);
+      await arrow(false);
+      assert.deepEqual(await lit("guests"), [n - 1], "Up lights the last");
+      // Typing clears it; reopening starts with nothing lit.
+      await page.type(guests.entries[0]!.slice(0, 1));
+      await page.until(`document.querySelector('[data-menu="guests"]')`);
+      assert.deepEqual(await lit("guests"), [], "typing clears it");
+      await page.key("Escape", 27);
+      await clearBox();
+      // The command menu: 10px above its first command, and more room over the divider of Not available now.
+      await page.type("/");
+      await page.until(`document.querySelector('[data-menu="commands"] .menu-more')`);
+      const commands = await menuAgainstBox("commands");
+      const open = commands.entries.length;
+      assert.ok(open >= 2, `two commands open now or more (${commands.entries})`);
+      assert.ok(Math.abs(commands.top - 10) <= 0.5, `10px above the first command (${commands.top})`);
+      assert.ok(Math.abs(commands.closedRoom! - 12) <= 0.5, `8px more between the last command open now and the divider (${commands.closedRoom})`);
+      // Up lights the last command open now, never one under Not available now, folded or opened.
+      await arrow(false);
+      assert.deepEqual(await lit("commands"), [open - 1], "Up: the last command open now");
+      await arrow(true);
+      assert.deepEqual(await lit("commands"), [open - 1], "Down stops there, skipping Not available now");
+      await page.eval(`document.querySelector('[data-menu="commands"] .menu-more').click()`);
+      await page.until(`document.querySelector('[data-menu="commands"] .cmd-closed')`);
+      await arrow(true);
+      assert.deepEqual(await lit("commands"), [open - 1], "with the section open, still skipped");
+      assert.equal(await page.eval<number>(`document.querySelectorAll('[data-menu="commands"] .cmd-closed.lit, [data-menu="commands"] .menu-more.lit').length`), 0);
+      await page.shot("menus-v020-commands-lit");
+      for (let i = 0; i < open + 1; i++) await arrow(false);
+      assert.deepEqual(await lit("commands"), [0], "Up stops at the first");
+      // Return picks the lit command.
+      const first = await page.eval<string>(`document.querySelector('[data-menu="commands"] > li > button[data-command]').dataset.command`);
+      await page.key("Enter", 13);
+      assert.match(await page.eval<string>(`document.querySelector(".input textarea").value`), new RegExp(`^/${first} $`), "Return picks the lit command");
+      // In a narrow box the prompt keeps its line whole, and the count drops below it, still at the right.
+      // (The box emptied, so the count shows, and made just wide enough for the prompt alone.)
+      await clearBox();
+      await page.until(`document.querySelector(".count").textContent.length > 0`);
+      await page.eval(`(() => { const p = document.querySelector(".prompt"), r = document.createRange(); r.selectNodeContents(p); const i = document.querySelector(".input"), cs = getComputedStyle(i); i.style.width = r.getBoundingClientRect().width + parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + 8 + "px"; })()`);
+      await page.eval(`new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)))`);
+      const line = await page.eval<{ promptLines: number; countBelow: boolean; countRight: number }>(`(() => { const p = document.querySelector(".prompt"), r = document.createRange(); r.selectNodeContents(p); const c = document.querySelector(".count").getBoundingClientRect(), l = document.querySelector(".prompt-line").getBoundingClientRect(); return { promptLines: r.getClientRects().length, countBelow: c.top >= p.getBoundingClientRect().bottom - 1, countRight: l.right - c.right }; })()`);
+      assert.equal(line.promptLines, 1, "the prompt keeps its line whole");
+      assert.ok(line.countBelow && Math.abs(line.countRight) <= 0.5, `what stands at its right drops below it, still at the right (${JSON.stringify(line)})`);
+      await page.shot("prompt-line-narrow");
+      await page.eval(`document.querySelector(".input").style.width = ""`);
+      // With nothing lit, Return sends as before: a held line goes out.
+      await clearBox();
+      await page.type("@");
+      await page.until(`document.querySelector('[data-menu="guests"]')`);
+      await page.type(`${guests.entries[0]} hello`);
+      await page.until(`!document.querySelector(".dropdown")`);
+      await page.eval(`(() => { window.__sent = []; const send = WebSocket.prototype.send; if (!WebSocket.prototype.__wrapped) { WebSocket.prototype.send = function (d) { (window.__sent ??= []).push(JSON.parse(d)); return send.call(this, d); }; WebSocket.prototype.__wrapped = true; } })()`);
+      await page.type("@");
+      await page.until(`document.querySelector('[data-menu="guests"]')`);
+      await page.key("Backspace", 8);
+      await page.until(`!document.querySelector(".dropdown")`);
+      await page.key("Enter", 13);
+      await page.until(`(window.__sent ?? []).some((m) => m.type === "say")`);
+    } finally {
+      await page.eval(`localStorage.removeItem("player-screen.right-width")`);
+      await windowSize(VIEW.width, VIEW.height);
+    }
+  });
+});

@@ -2465,3 +2465,25 @@ test("the left panel and the Web of Confidences (Interface v0.19), as tokens: th
   assert.match(css, /\.web-body \{[^}]*max-width: var\(--web-max\); margin: 0 auto; \}/);
   assert.equal(PLAYER.screen.places.empty, "Empty:");
 });
+
+// ---- CC-20261117-07 (#200, part 2): Interface v0.20's @ and / menus -----------------------------------------------
+
+test("the @ and / menus (Interface v0.20), as tokens: in the box's own field, ending 6px above it and as wide as it; the @ menu's small portraits and spaced rows; 10px above the first entry; more room over Not available now; a lit entry; the prompt's line wrapping what's at its right below it", async () => {
+  const theme = readFileSync("web/theme.css", "utf8");
+  for (const t of ["--menu-gap: 6px;", "--menu-pad-top: 10px;", "--menu-row-height: 42px;", "--menu-row-gap: 2px;", "--menu-portrait: 28px;", "--menu-closed-room: 8px;"]) assert.ok(theme.includes(t), t);
+  const css = noComments(readFileSync("web/src/app.css", "utf8"));
+  assert.match(css, /\.dropdown \{[^}]*position: absolute; bottom: calc\(100% \+ var\(--menu-gap\)\); left: 0; right: 0;[^}]*padding: var\(--menu-pad-top\) var\(--space-1\) var\(--space-1\);/);
+  assert.doesNotMatch(css.match(/\.dropdown \{[^}]*\}/)![0], /min-width/, "as wide as the box, not a width of its own");
+  assert.match(css, /\.dropdown button\.lit \{ background: var\(--select-bg\); \}/);
+  assert.match(css, /\.dropdown\[data-menu="guests"\] \{[^}]*gap: var\(--menu-row-gap\); padding-bottom: var\(--menu-pad-top\); \}/);
+  assert.match(css, /\.dropdown\[data-menu="guests"\] button \{ height: var\(--menu-row-height\);/);
+  assert.match(css, /\.dropdown\[data-menu="guests"\] \.portrait \{ width: var\(--menu-portrait\); height: var\(--menu-portrait\);/);
+  assert.match(css, /\.menu-closed \{[^}]*margin-top: calc\(var\(--space-1\) \+ var\(--menu-closed-room\)\);/);
+  assert.match(css, /\.prompt-line \{ display: flex; flex-wrap: wrap;/);
+  assert.match(css, /\.count \{ margin-left: auto;/);
+  // The menus are drawn in the box's field, before the box itself.
+  const { at } = await playedLog();
+  const v = derive(at["speak:capannello"]!);
+  const h = game({ v });
+  assert.match(h, /<div class="field">(?:<!-- -->)?<textarea/, "no menu open, nothing in the field before the box");
+});
