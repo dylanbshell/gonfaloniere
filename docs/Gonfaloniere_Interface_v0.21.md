@@ -1,8 +1,16 @@
 # Gonfaloniere
 ## Interface & Experience — Working Document
-### Version 0.20
+### Version 0.21
 
 ---
+
+## Changes in v0.21
+
+*Nov 17. Dylan's further notes on the demo, after v0.20 merged. Detail in the sections named; the record is in Playtest Findings (the rows marked v0.21).*
+
+- **Names in the conversation the size of its lines** (Centre): who speaks, who they speak to ("(to …)"), and Il Notaio's label are the dialogue's size (17px; 13px before), in their own sans and colours
+
+**Build:** v0.21's changes get a task of their own once this version is on `main` (Build State).
 
 ## Changes in v0.20
 
@@ -410,6 +418,7 @@ A single page in the style of a Slack chat. Placeholder portraits until Art & De
 - **One reading column** *(Dylan; v0.17)*: the conversation's lines, Il Notaio's hint, the message box, and his summary of a past stage share one centred column, at most 820px wide, so on a wide screen a line stays a comfortable length and the four line up (Screen Sizes)
 - **Typefaces** *(Dylan; v0.17)*: the guests' words in a book serif, Il Notaio's in a Renaissance one, the screen's own in its sans (The Look). His lines in the chat are upright, not italic: the typeface sets him apart, and its italic is the harder read
 - **The lines read larger** *(Dylan; v0.19)*: everyone's words in the conversation, Il Notaio's included, are 17px (they were 15px), with a little more space between lines. What you type stays the box's size
+- **The names are the lines' size** *(Dylan; v0.21)*: who speaks, who they speak to ("(to …)"), and Il Notaio's label are 17px like the words (they were 13px), still in the sans, bold for the speaker and grey for "to"
 - **Two floating cards** *(Dylan; v0.16)*: the stage bar at the top and the message box at the bottom sit as rounded cards over the conversation, each casting a shadow onto it. **The conversation fades out where it slides under them** (the top bar and Il Notaio's box), so a line dissolves rather than being cut off. How the cards and shadows look is Art & Design's (The Look)
 - **The conversation's members** sit under the stage bar, centred ("In the loggia with Giorgia and Lupo"; in a Colloquio, "In the study, in secret with Clarice"). **End conversation** sits on that line in a Colloquio, solid red *(v0.16)*
 - **Only the current conversation is open.** Earlier conversations in this stage collapse into **Earlier this stage**, one line each, opening in place. Earlier stages live in the bar
@@ -1045,7 +1054,7 @@ How the screen looks (colour, type, texture, icons, and the values of every them
 **New in v0.19, for Art & Design to give values** (the demo's values are placeholders, Dylan's choices where noted):
 - **The right panel:** 48px below the window's top; **28px corners** on the panel and its cards; **its text a step up** (12, 15, 17, and 21px in the demo); **its cards' margins** (24 to 40px at the sides, 28px at the top); **the fade** under a card's heading or portrait block (20px); its More Below on the card's own colour
 - **The guest card's new rows:** the description, the faction line, and "In the city" links; **the city entry's** centred title (21px) and its guests' small portrait-and-name chips
-- **The conversation's lines** at 17px (line height 1.55), Il Notaio's with them
+- **The conversation's lines** at 17px (line height 1.55), Il Notaio's with them; **the names with them** (who speaks, "(to …)", Il Notaio's label), in the sans *(v0.21)*
 - **The choice's title in Il Notaio's typeface** (semibold; the demo's EB Garamond 600)
 - **The opening's Skip** at the normal button size, and its margin from the corner (24 to 64px)
 - **The opening's two sizes** (620px and 18px; from 1400px wide, 800px and 22px, with Il Notaio's name 24 to 30px and its gloss 13 to 16px) and **the choice's** sizes from the window's width (its title, cards, portraits, and text), and the fades: above it when it's docked, and under Il Notaio's title while the story is written; **Continue's** pulse and its shadow when docked
@@ -1249,6 +1258,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | *(v0.20)* The / and @ menus lower, just covering the "Your turn" line; both navigable with the up and down arrow keys, which skip "Not available now" | They end 6px above the box; arrows light an entry, Return picks it | The input box |
 | *(v0.20)* A card that slid up should end, once stopped, level with the message box, 12px above the Web of Confidences' bar | 12px above the bar; the "talking with" card still 82px | Right |
 | *(v0.20)* While a card slides up or down, its bottom should reach the Web of Confidences' bar, unrounded, until it's off the screen or at its stop | Square and full height while moving; rounded and level once stopped | Right |
+| *(v0.21)* All the characters' names in the conversation the size of their dialogue | 17px for who speaks, "(to …)", and Il Notaio's label (13px before) | Centre |
 | *(v0.20)* All the animations on the modals slower | 480ms for the slides, swipes and openings (300ms), 260ms for the fades and hover (160ms); then halfway back (390ms, 210ms), with the paddles slower still (hover 420ms, press 900ms); then the animations inside a modal back as they were, only moving between modals and the paddles slower | The modals |
 | *(v0.20)* Going back, the left side modals (the briefing, the rules, the city) showed their opening screens, not the last card, rule, or entry that going back lands on | The left one drawn at its last item; the right one at its start | The modals |
 | *(v0.20)* The animation on clicking a paddle less intense | A light accent tint and thin ring, its words in the accent, 450ms (a full fill, 650ms, before) | The modals |
