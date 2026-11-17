@@ -1649,7 +1649,9 @@ test("the left panel (Interface v0.19): sized from its own width; you beside you
     assert.ok(Math.abs(at["1920x1080"]!.token - (28 * at["1920x1080"]!.width) / 300) < 0.6, `tokens 28 units under 1240px tall (${at["1920x1080"]!.token})`);
     // The pinned top closes up in a shorter window: only its gaps; at 960px tall about 394px, at 760px about 338px.
     assert.ok(Math.abs(at["1920x960"]!.top - 394) <= 16, `the pinned top at 1920×960 (${at["1920x960"]!.top})`);
-    assert.ok(Math.abs(at["1200x760"]!.top - 338 * (at["1200x760"]!.width / 332)) <= 20, `the pinned top at 760px tall (${at["1200x760"]!.top})`);
+    // (Its height also goes by the sheet's lines, which change as the fake game runs; hence a range.)
+    assert.ok(at["1200x760"]!.top >= 290 && at["1200x760"]!.top <= 360, `the pinned top at 760px tall, near the doc's 338px (${at["1200x760"]!.top})`);
+    assert.ok(at["1200x760"]!.top < at["1920x960"]!.top, "smaller in a shorter window");
     assert.ok(at["1920x1080"]!.top > at["1920x960"]!.top, "fuller in a taller window");
     // It fits a 1920×960 window without scrolling.
     assert.equal(at["1920x960"]!.scrolls, false, "a 1920×960 window: no scrolling");
@@ -2820,7 +2822,8 @@ test("Screen Sizes (Interface v0.17) at 1024×700, 1440×900, and 1920×1080: th
   const measure = () =>
     page.eval<{ left: number; right: number; folded: boolean; centre: number; lines: [number, number]; hint: [number, number]; box: [number, number]; mid: number; bar: [number, number]; card: [number, number]; scroll: boolean }>(`(() => {
       const r = (q) => document.querySelector(q).getBoundingClientRect(), e = (b) => [Math.round(b.left), Math.round(b.right)];
-      const c = r(".centre"), line = r(".stream .ln");
+      // A line of the current conversation (one folded under Earlier this stage sits further in).
+      const c = r(".centre"), line = r(".stream > .ln");
       return { left: r(".side.left").width, right: r(".side.right").width, folded: !!document.querySelector(".layout.right-hidden"), centre: c.width, lines: e(line), hint: e(r(".notaio-hint")), box: e(r(".input")), mid: Math.round((c.left + c.right) / 2), bar: e(r(".stage-bar-wrap")), card: e(r(".conv-head")), scroll: document.documentElement.scrollWidth > innerWidth || document.documentElement.scrollHeight > innerHeight };
     })()`);
   const clamp = (lo: number, x: number, hi: number) => Math.min(hi, Math.max(lo, x));
