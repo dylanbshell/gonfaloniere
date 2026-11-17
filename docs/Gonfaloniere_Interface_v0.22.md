@@ -1,8 +1,16 @@
 # Gonfaloniere
 ## Interface & Experience — Working Document
-### Version 0.21
+### Version 0.22
 
 ---
+
+## Changes in v0.22
+
+*Nov 17. Dylan's further notes on the demo, after v0.21 merged. Detail in the sections named; the record is in Playtest Findings (the rows marked v0.22).*
+
+- **A subtler paddle press** (Briefing, rules, the city, and the glossary): its flash fades over 550ms (900ms)
+
+**Build:** v0.22's changes get a task of their own once this version is on `main` (Build State).
 
 ## Changes in v0.21
 
@@ -537,7 +545,7 @@ Each opens as a modal over the screen. **Four modals in a row:** Your briefing, 
   - **Wide** (1280px and up; 1408px in v0.19): **the whole previous and next modals,** each drawn as itself where clicking it lands: **the one on the right at its start** (the briefing's first card, the rules' buttons, the city's list, an empty glossary search), **the one on the left at its last item,** since going back returns there (the briefing's last card, the last rule open, the last city entry) *(Dylan; v0.20; both at their start in v0.19)*, still, and scaled to fit the room, **never more than 85% of the modal in focus** *(Dylan; v0.20; 80% in v0.19)*, so noticeably but only modestly smaller. Each is evenly blurred, and the same colour as the modal in focus. **Its title lies flat in its header, toward the modal in focus, at the focused modal's title size** (it doesn't shrink with the rest). Where it's the way you're heading, it has the accent ring
   - **They shrink only to 75% of the modal in focus (480px), then run off the screen's sides** *(Dylan; v0.20)*: below 1736px each keeps that size, the modal in focus stays centred, and the screen's edges cut the side modals off, their titles still showing toward the middle. Only below 1280px, with about 300px of each still showing, do they give way to paddles. (Tried first: stopping at 1408px's size with paddles below 960px, then at 65% from 1600px with paddles below 1100px; Dylan wanted them larger, running off sooner, and giving way sooner)
   - **Narrower (under 1280px): two paddles,** 40px wide and as tall as the whole side modals were when they gave way (75% of a modal's height; 55% in v0.19), the same colour as the modal, with **the title on end** in the middle (top to bottom on the left, bottom to top on the right, so both read facing the middle) and an arrow below. A title too long for its paddle ends in "…" before the arrow. Square-ish corners (12px)
-  - **Hovering** either lights its title in the accent and traces it with a thin accent ring (hover devices only). **A click on a paddle flashes** it, gently *(Dylan; v0.20; a full accent fill, a 4px ring and light words for about two-thirds of a second in v0.19)*: a light tint of the accent and a thin ring, its words in the accent, fading over 900ms; its hover eases in over 420ms, slower than the rest of the modals. The modal arriving moves as it always has
+  - **Hovering** either lights its title in the accent and traces it with a thin accent ring (hover devices only). **A click on a paddle flashes** it, gently *(Dylan; v0.20; a full accent fill, a 4px ring and light words for about two-thirds of a second in v0.19)*: a light tint of the accent and a thin ring, its words in the accent, fading over 550ms *(v0.22; 900ms in v0.20, for something subtler)*; its hover eases in over 420ms, slower than the rest of the modals. The modal arriving moves as it always has
   - Where there's no modal before or after (the briefing, the glossary), nothing is drawn
   - *Tried and dropped:* a middle size (a fading slice with its title and summary), titles on end on the whole modals, darkening, and a blur graded from the outer edge in (it read as uneven)
 - **Room** *(v0.17)*: wider margins at the screen's edges (3% of the window, 24 to 64px). **The row never shrinks below the modal and both paddles;** in a window narrower than that, the overlay scrolls sideways, opening centred on the modal in focus. Behind the row, the screen is dimmed and **softly blurred**
@@ -1271,6 +1279,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | *(v0.20)* The / and @ menus lower, just covering the "Your turn" line; both navigable with the up and down arrow keys, which skip "Not available now" | They end 6px above the box; arrows light an entry, Return picks it | The input box |
 | *(v0.20)* A card that slid up should end, once stopped, level with the message box, 12px above the Web of Confidences' bar | 12px above the bar; the "talking with" card still 82px | Right |
 | *(v0.20)* While a card slides up or down, its bottom should reach the Web of Confidences' bar, unrounded, until it's off the screen or at its stop | Square and full height while moving; rounded and level once stopped | Right |
+| *(v0.22)* A shorter fade on a clicked paddle, to look more subtle | 550ms (900ms) | The modals |
 | *(v0.21)* The bar's ▲ and the guests shown on it more spaced out | ▲ 16px from the title; 16px either side of the dot; portraits 8px apart | The Web of Confidences |
 | *(v0.21)* The "Web of Confidences" title more spaced out | Its letters 0.08em apart, then in capitals and 0.16em apart, then regular weight (semi-bold before), on the bar, open or closed | The Web of Confidences |
 | *(v0.21)* "What You Heard and Saw" and "Notes" titles bigger | 15px (12px before), a little more room | The Web of Confidences |
