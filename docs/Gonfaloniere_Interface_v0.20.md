@@ -9,6 +9,7 @@
 *Nov 17. Dylan's further notes on the demo, after v0.19 merged. Detail in the sections named; the record is in Playtest Findings, Demo review, part 3.*
 
 - **The right panel's cards stand in from the window's edge** (Right): the "talking with" card and the cards that slide over it stand 12px in from the window's right edge, as the "talking with" card stands above the panel's foot
+- **The panel higher, its cards ending higher** (Right): it starts 12px from the top of the screen, level with the stage bar (48px before), and the "talking with" card, the cards that slide over it, and the folded strip all end 82px above the Web of Confidences' bar (12px before, level with the message box)
 - **The cards that slide over it match it at the bottom** (Right): they end where it does, level with the message box, with the same round corners (28px); your own card's accent edge now goes all the way round. **Folded to its strip,** the panel ends there too, with round bottom corners
 
 **Build:** **#191** builds v0.19; v0.20's changes get a task of their own once this version is on `main` (Build State).
@@ -453,7 +454,7 @@ In the chat view, **one thing is selected at a time:** a guest or a lore topic. 
 
 ### Right: whoever you're looking at
 
-- **The panel stops short of the top, with rounded top corners** *(v0.16)*: **48px down** *(Dylan; v0.19; 12px before)*, while the stage bar stays where it was, and **28px corners** *(v0.19; 22px in v0.17)*, as are the cards that slide up over it. **The "talking with" card's bottom corners are as round as its top ones, and its bottom is level with the message box's** *(Dylan; v0.19)*; **it and the cards that slide over it stand the same space (12px) in from the window's right edge** *(Dylan; v0.20)*; **a card that slides up over it ends where it does, with the same round bottom corners** *(Dylan; v0.20; square, down to the panel's foot, in v0.19)*
+- **The panel stops short of the top, with rounded top corners** *(v0.16)*: **12px down, level with the stage bar** *(Dylan; v0.20; 48px in v0.19, 12px before that)*, and **28px corners** *(v0.19; 22px in v0.17)*, as are the cards that slide up over it. **The "talking with" card's bottom corners are as round as its top ones, and it ends 82px above the Web of Confidences' bar** *(Dylan; v0.20; level with the message box in v0.19)*; **it and the cards that slide over it stand the same space (12px) in from the window's right edge** *(Dylan; v0.20)*; **a card that slides up over it ends where it does, with the same round bottom corners** *(Dylan; v0.20; square, down to the panel's foot, in v0.19)*
 - **Its text is a size up** *(Dylan; v0.19)*: every size in the panel one step larger (its body 17px, its labels 12px), and **its cards' side margins grow with it,** from 24 to 40px, with **a deeper top margin** (28px)
 - **It grows and shrinks with the window** *(Dylan; v0.17)*, from 280 to 480px (Screen Sizes). **In a window under 1044px wide it starts folded** to its strip, so the conversation keeps room for the stage bar; it can still be opened
 - **Reopening the panel doesn't replay the card's slide** *(Dylan; v0.17)*: the card that was showing is simply there. A card slides up only when the selection changes
@@ -467,7 +468,7 @@ In the chat view, **one thing is selected at a time:** a guest or a lore topic. 
   - **The same width as the card under it** (a narrower card was tried and dropped)
 - **Headings that stay put** *(Dylan; v0.19)*: when a card scrolls, **its heading stays** ("Talking with", "Looking at", "This is you", "The city"), and **so does a guest's portrait, name, and You tag;** the subtitle and everything after slide under them, fading as they go, with a space above the subtitle so it starts clear of the fade. **On a city entry, its title stays** and the words slide under it. Each card scrolls by itself (the panel's hide control stays in its corner), and **More Below** shows when a card runs past the bottom, as on the left
 - **Resizable, and hideable by dragging** *(v0.16)*: a drag handle on the left edge sets the width, remembered in the browser. **Dragging well past the narrowest hides the panel,** as its hide control does; while the drag is past that point, the panel fades to show what letting go will do. Letting go anywhere, even off the window, finishes the drag
-- **Can be hidden** to a thin strip with a handle *(v0.5)*, which shows the selected guest's portrait; **the strip ends level with the message box, with round bottom corners** *(Dylan; v0.20)*
+- **Can be hidden** to a thin strip with a handle *(v0.5)*, which shows the selected guest's portrait; **the strip ends where the cards do, with round bottom corners** *(Dylan; v0.20)*
 - **What it shows is public and fixed** *(fuller since v0.19, Dylan)*, in order:
   - **Portrait, name, and subtitle**
   - **A short description:** two or three sentences, public only. *(Characters' to write, tracker; the demo's are placeholders drawn only from the public lore entries and connections, and stay short where those say little)*
@@ -573,7 +574,7 @@ The screen is laid out for **a laptop, a desktop, or a tablet held sideways.** W
 | Part | Size |
 |---|---|
 | Left panel | Grows with the window, 284 to 332px (about a quarter of the window); its margins, text, portraits, and tokens grow with it |
-| Right panel ("Talking With") | Grows with the window, 280 to 480px; starts folded under 1044px wide; 48px below the window's top. Its cards' side margins 24 to 40px; with someone at your ear, the card that slides up stops at 40% from 380px wide, under their portrait below that; with no one, under the heading |
+| Right panel ("Talking With") | Grows with the window, 280 to 480px; starts folded under 1044px wide; 12px below the window's top, its cards ending 82px above the Web of Confidences' bar. Its cards' side margins 24 to 40px; with someone at your ear, the card that slides up stops at 40% from 380px wide, under their portrait below that; with no one, under the heading |
 | The conversation's column | At least 540px wide, so the stage bar fits; its reading column (the lines, Il Notaio's boxes, the message box) at most 820px, centred |
 | The stage bar | At most 1280px, centred; its card's side margins grow beyond the reading column's width; its circles sized from its own width |
 | The conversation's height | At least 200px; Il Notaio's hint folds itself first |
@@ -1216,6 +1217,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | The left panel scrolls a lot on a 1080p monitor; then, your portrait beside your name and role, with more room above and below; then, the empty places on one line; then, a little less room above you (then back), and the pinned top compressing in a shorter window, never overlapping; then, fully compressed, the errand stopped sliding under the buttons | Side by side, the pinned top about 70px shorter; the empty places folded into one line. It fits a 1920×960 window without scrolling. The top stays pinned down to 520px tall (640px before) | Left |
 | The "Talking with" card's bottom corners as round as its top ones; the cards that slide over it as they are | 28px all round, its bottom level with the message box's; the sliding cards keep square bottoms | Right |
 | *(v0.20)* The "talking with" card and its covering cards in from the right edge, about as far as from the bottom | 12px in from the window's right edge | Right |
+| *(v0.20)* The "talking with" card 12px from the top of the screen and 82px above the Web of Confidences' bar | Panel 12px down; the cards and strip end 82px above the bar | Right |
 | *(v0.20)* The covering cards' bottom corners to match the "talking with" card's; then the same for the folded strip | They end level with it, 28px corners; your own card's edge all round; the strip too | Right |
 | No blue line along the bottom of your own card | The accent edge on the sides and top only | Right |
 | A scroll fade under Il Notaio's title in the opening; then, it covered his first line before anything had moved | Done, coming in as the page scrolls | The Opening |
