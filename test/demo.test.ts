@@ -71,13 +71,16 @@ test("the build-time data round-trips through JSON unchanged", () => {
   assert.ok(Object.keys(data.briefings).length >= data.choices.length);
 });
 
-test("the page plays from a static file server: the opening skipped, the character chosen, the tour skipped, then the stage bar, the message box, and the evening's first lines, and Il Notaio's reading, with no console errors", { skip }, async () => {
+test("the page plays from a static file server: the opening skipped, Continue, the character chosen, the tour skipped, then the stage bar, the message box, and the evening's first lines, and Il Notaio's reading, with no console errors", { skip }, async () => {
   const { page } = browser!;
   const { port } = server!.address() as AddressInfo;
   await page.send("Page.navigate", { url: `http://127.0.0.1:${port}/?delay=0` });
   await page.until(`document.querySelector(".opening-skip")`);
   await page.eval(`document.querySelector(".opening-skip").click()`);
-  await page.until(`document.querySelector('.start-card[data-guest="${ME}"] button')`);
+  // Interface v0.19: only Continue moves on to the choice, which glides up and arrives.
+  await page.until(`document.querySelector(".opening-continue")`);
+  await page.eval(`document.querySelector(".opening-continue").click()`);
+  await page.until(`document.querySelector('.opening-choice.arrived .start-card[data-guest="${ME}"] button')`);
   await page.eval(`document.querySelector('.start-card[data-guest="${ME}"] button').click()`);
   // The game is in the page: the screen has its sheet, and the tour holds the first line (TD v0.51).
   await page.until(`document.querySelector(".input textarea") && !document.querySelector('[data-hint="briefing"]').disabled`);

@@ -30,8 +30,16 @@ let base = "";
 let startTip: string | null = null;
 let tipAfterStart: string | null = null;
 /** The opening as it was written, before the game started (Interface v0.7), and the tour's first step after the choice. */
-type Story = { paras: { state: string; text: string; full: string }[]; choice: boolean; gloss: string | null; name: string | null; phrases: string[]; heading: string | null; locked: string[]; footInView: boolean };
-const opening: Partial<Record<"beforeWriting" | "writing" | "afterClick" | "end" | "skipped" | "reduced", Story>> & { headTop?: number } = {};
+type Story = { paras: string[]; choice: boolean; gloss: string | null; name: string | null; underline: string; heading: string | null; locked: string[]; more: boolean; cont: boolean; focused: boolean; lastBottom: number; ghostBottom: number | null; scrollY: number; end: number };
+const opening: Partial<Record<"beforeWriting" | "writing" | "waiting" | "afterClick" | "afterSecond" | "end" | "atChoice" | "skipped" | "reduced", Story>> & {
+  head?: { top: number; fade: string; tip: boolean };
+  docked?: { atEnd: number; up: number; below: number };
+  rising?: number;
+  glideMs?: number;
+  choiceAt?: { mid: number; story: number; head: number; opacity: number; sticky: string; font: string; weight: string; scrollY: number; end: number };
+  stops?: { y0: number; nudged: number; settled: number; atStory: { y: number; fold: number; title: number; desc: number; story: number; choiceTop: number }; back: { y: number; fold: number } };
+  reducedFade?: number;
+} = {};
 let tourAtStart: string | null = null;
 /** TD v0.51, the tour's hold: what the screen had while the tour ran, and what came once it was skipped. */
 const held: { lines?: number; places?: number; errand?: boolean; sent?: string[]; linesAfter?: number; breathes?: boolean; filled?: boolean; breathesAfterClick?: boolean } = {};
@@ -50,48 +58,124 @@ before(async () => {
   page = await Page.open(targets.find((t) => t.type === "page")!.webSocketDebuggerUrl);
   await page.send("Emulation.setDeviceMetricsOverride", { ...VIEW, deviceScaleFactor: 1, mobile: false });
   await page.send("Runtime.enable");
-  // The opening (Interface v0.7): what it shows as Il Notaio writes, a click, Skip, and reduced motion; then the
-  // choice, and the tour that follows it. Seen here, before the game starts, and checked in the tests below.
-  const story = `({ paras: [...document.querySelectorAll(".opening-para")].map((p) => ({ state: p.dataset.state, text: p.textContent, full: p.dataset.full ?? p.textContent })), choice: !!document.querySelector(".opening-choice .start-card"), gloss: document.querySelector(".opening-gloss")?.textContent ?? null, name: document.querySelector(".opening-name")?.textContent ?? null, phrases: [...document.querySelectorAll(".opening-phrase")].map((x) => x.textContent), heading: document.querySelector(".opening-choice h2")?.textContent ?? null, locked: [...document.querySelectorAll(".start-card.locked")].map((c) => c.dataset.guest + ": " + c.querySelector(".locked-label").textContent + (c.querySelector("button") ? " (a button)" : "")), footInView: (() => { const f = document.querySelector(".opening-foot")?.getBoundingClientRect(); return !!f && f.top <= innerHeight + 2; })() })`;
+  // The opening (Interface v0.7; v0.19): what it shows as Il Notaio writes, the clicks, More, Continue, the glide on to
+  // the choice, the choice's two stops, Skip, and reduced motion; then the choice, and the tour that follows it. Seen
+  // here, before the game starts, and checked in the tests below.
+  const story = `(() => {
+    const vis = (e) => !!e && getComputedStyle(e).visibility === "visible" && e.getBoundingClientRect().height > 0;
+    const bar = document.querySelector(".opening-continue-bar"), more = document.querySelector(".opening-more"), ghost = document.querySelector(".opening-ghost");
+    const paras = [...document.querySelectorAll(".opening-para")];
+    const last = paras.at(-1)?.getBoundingClientRect();
+    return {
+      paras: paras.map((p) => p.textContent),
+      choice: !!document.querySelector(".opening-choice .start-card"),
+      gloss: document.querySelector(".opening-gloss")?.textContent ?? null,
+      name: document.querySelector(".opening-name")?.textContent ?? null,
+      underline: getComputedStyle(document.querySelector(".opening-name .narrator-name")).textDecorationLine,
+      heading: document.querySelector(".opening-choice .choice-title")?.textContent ?? null,
+      locked: [...document.querySelectorAll(".start-card.locked")].map((c) => c.dataset.guest + ": " + c.querySelector(".locked-label").textContent + (c.querySelector("button") ? " (a button)" : "")),
+      more: vis(more),
+      cont: vis(bar),
+      focused: document.activeElement?.classList.contains("opening-continue") ?? false,
+      lastBottom: last ? last.bottom : 0,
+      ghostBottom: ghost ? ghost.getBoundingClientRect().bottom : null,
+      scrollY: scrollY,
+      end: Math.max(0, document.documentElement.scrollHeight - innerHeight),
+    };
+  })()`;
   await page.send("Page.navigate", { url });
   await page.until(`document.querySelector(".opening .opening-name")`);
-  opening.beforeWriting = await page.eval(story);
-  await page.until(`(() => { const p = document.querySelector('.opening-para[data-state="writing"]'); return p && p.textContent.length > 0 && p.textContent.length < p.dataset.full.length; })()`, 10_000);
-  opening.writing = await page.eval(story);
+  opening.beforeWriting = await page.eval<Story>(story);
+  // His title close to the top; its fade not yet there, before anything has moved.
+  opening.head = await page.eval<{ top: number; fade: string; tip: boolean }>(`(() => { const h = document.querySelector(".opening-head"); return { top: h.querySelector(".opening-name").getBoundingClientRect().top - h.getBoundingClientRect().top, fade: getComputedStyle(h, "::after").opacity, tip: false }; })()`);
+  // A paragraph at a time, each whole; nothing new past the bottom of the screen: when the next wouldn't fit, it waits,
+  // and More comes at the foot of the screen.
+  // (Generous waits: he writes at reading pace, and a loaded machine slows his timers.)
+  await page.until(`document.querySelectorAll(".opening-para").length >= 1`, 30_000);
+  opening.writing = await page.eval<Story>(story);
   await page.shot("opening-writing");
-  const head = await page.eval<{ top: number }>(`({ top: document.querySelector(".opening-head").getBoundingClientRect().top })`);
-  opening.headTop = head.top;
+  await page.until(`document.querySelector(".opening-more")`, 90_000);
+  opening.waiting = await page.eval<Story>(story);
+  await page.shot("opening-more");
+  // Hovering anything shows no explanation (Interface v0.19).
+  for (const sel of [".opening-skip", ".opening-more", ".opening-name"]) {
+    const at = await page.eval<{ x: number; y: number }>(`(() => { const r = document.querySelector("${sel}").getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+    await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
+    await new Promise((r) => setTimeout(r, 450));
+    if (await page.eval<boolean>(`!!document.querySelector(".tip")`)) opening.head!.tip = true;
+  }
+  // The first click: the next paragraph at once. The second: the whole story, with Continue held unseen and More in its place.
   await page.eval(`document.querySelector(".opening-story").click()`);
-  opening.afterClick = await page.eval(story);
-  // The rest, a click finishing each paragraph as he writes it (#148's six take over a minute by pen). Only
-  // mid-paragraph: a click in the pause between paragraphs would start the pause again.
-  await page.until(`(() => { const p = document.querySelector('.opening-para[data-state="writing"]'); if (p && p.textContent.length < p.dataset.full.length) document.querySelector(".opening-story").click(); return document.querySelector(".opening-choice .start-card"); })()`, 20_000);
-  // The page follows the text down (a smooth scroll), bringing the choice into view.
-  await page.until(`document.querySelector(".opening-foot").getBoundingClientRect().top <= innerHeight + 2`, 5_000);
-  opening.end = await page.eval(story);
-  await page.eval(`document.querySelector(".opening-choice").scrollIntoView({ block: "end" })`);
+  opening.afterClick = await page.eval<Story>(story);
+  await page.eval(`document.querySelector(".opening-story").click()`);
+  opening.afterSecond = await page.eval<Story>(story);
+  // The third: a glide to the page's end, where Continue comes, without moving, and takes the focus.
+  await page.eval(`document.querySelector(".opening-story").click()`);
+  await page.until(`getComputedStyle(document.querySelector(".opening-continue-bar")).visibility === "visible"`, 5_000);
+  await page.until(`document.activeElement?.classList.contains("opening-continue")`, 2_000);
+  opening.end = await page.eval<Story>(story);
+  const atEnd = await page.eval<number>(`document.querySelector(".opening-continue").getBoundingClientRect().top`);
+  // Scrolled back up to reread, Continue stays docked at the screen's foot, just where it was.
+  await page.eval(`window.scrollTo(0, scrollY - 300)`);
+  await page.eval(`new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)))`);
+  opening.docked = { atEnd, up: await page.eval<number>(`document.querySelector(".opening-continue").getBoundingClientRect().top`), below: await page.eval<number>(`innerHeight - document.querySelector(".opening-continue").getBoundingClientRect().bottom`) };
+  await page.shot("opening-continue-docked");
+  // Continue, pressed from there: the page glides on until his story is off the top and the choice is in the middle of the screen.
+  const pressed = Date.now();
+  // (Enter as a keyboard types it, with its text, so the focused button is pressed.)
+  await page.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, text: "\r" });
+  await page.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+  await page.until(`document.querySelector(".opening-choice.rising")`, 2_000);
+  opening.rising = await page.eval<number>(`Number(getComputedStyle(document.querySelector(".opening-choice .choice-title")).opacity)`);
+  await page.until(`document.querySelector(".opening-choice.arrived")`, 6_000);
+  opening.glideMs = Date.now() - pressed;
+  await new Promise((r) => setTimeout(r, 1500));
+  opening.choiceAt = await page.eval<NonNullable<typeof opening.choiceAt>>(`(() => { const c = document.querySelector(".opening-choice").getBoundingClientRect(), s = document.querySelector(".opening-story").getBoundingClientRect(), h = document.querySelector(".opening-head").getBoundingClientRect(); return { mid: (c.top + c.bottom) / 2 - innerHeight / 2, story: s.bottom, head: h.bottom, opacity: Number(getComputedStyle(document.querySelector(".opening-choice .choice-title")).opacity), sticky: getComputedStyle(document.querySelector(".opening-choice")).position, font: getComputedStyle(document.querySelector(".choice-title")).fontFamily, weight: getComputedStyle(document.querySelector(".choice-title")).fontWeight, scrollY, end: Math.max(0, document.documentElement.scrollHeight - innerHeight) }; })()`);
+  opening.atChoice = await page.eval<Story>(story);
   await page.shot("opening-choice");
-  // Again from the start: Skip writes it all out at once.
+  // The two stops. A wheel up from the choice meets resistance: the page goes 85% as far, and settles back.
+  const wheel = async (deltaY: number) => {
+    await page.send("Input.dispatchMouseEvent", { type: "mouseWheel", x: VIEW.width / 2, y: VIEW.height / 2, deltaX: 0, deltaY });
+    await page.eval(`new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)))`);
+  };
+  const y0 = await page.eval<number>(`scrollY`);
+  await wheel(-40);
+  const nudged = y0 - (await page.eval<number>(`scrollY`));
+  await new Promise((r) => setTimeout(r, 1600));
+  const settled = await page.eval<number>(`scrollY`);
+  // Past the decisive point, it breaks free and carries on to the story's end, where the docked choice has shrunk all the way.
+  await wheel(-300);
+  await new Promise((r) => setTimeout(r, 2600));
+  const atStory = await page.eval<{ y: number; fold: number; title: number; desc: number; story: number; choiceTop: number }>(`(() => { const c = document.querySelector(".opening-choice"); return { y: scrollY, fold: Number(c.style.getPropertyValue("--fold")), title: Number(getComputedStyle(c.querySelector(".choice-title")).opacity), desc: c.querySelector(".choice-desc").getBoundingClientRect().height, story: document.querySelector(".opening-story").getBoundingClientRect().bottom, choiceTop: c.getBoundingClientRect().top }; })()`);
+  await page.shot("opening-story-end");
+  // And down again, past the point, back to the choice.
+  await wheel(300);
+  await new Promise((r) => setTimeout(r, 2600));
+  const back = await page.eval<{ y: number; fold: number }>(`({ y: scrollY, fold: Number(document.querySelector(".opening-choice").style.getPropertyValue("--fold")) })`);
+  opening.stops = { y0, nudged, settled, atStory, back };
+  // Again from the start: Skip writes everything out at once, with Continue.
   await page.send("Page.reload");
   await page.until(`document.querySelector(".opening-skip")`);
   await page.eval(`document.querySelector(".opening-skip").click()`);
-  opening.skipped = await page.eval(story);
-  // With reduced motion set, each paragraph appears whole.
+  opening.skipped = await page.eval<Story>(story);
+  // With reduced motion set, each paragraph appears whole, with no fade, and the glides jump.
   await page.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
   await page.send("Page.reload");
   await page.until(`document.querySelector(".opening-para")`, 10_000);
-  opening.reduced = await page.eval(story);
-  await page.until(`document.querySelector(".opening-choice .start-card button")`, 20_000);
+  opening.reduced = await page.eval<Story>(story);
+  opening.reducedFade = await page.eval<number>(`document.querySelector(".opening-para").getAnimations().length`);
+  await page.eval(`document.querySelector(".opening-skip").click()`);
+  await page.until(`document.querySelector(".opening-continue")`);
+  await page.eval(`document.querySelector(".opening-continue").click()`);
+  await page.until(`document.querySelector(".opening-choice.arrived .start-card button")`, 5_000);
   await page.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] });
-  // Choose the card as a player would: hover (its explanation shows), then click. The game
+  // Choose the card as a player would: hover (no explanation on the opening, Interface v0.19), then click. The game
   // starts and waits for the player, with the sheet (the decks) in hand.
-  // The story runs past the window now (#148), so scroll down to the card first, as a player would.
-  const b = await page.eval<{ x: number; y: number }>(`(() => { const e = document.querySelector(".start-card button"); e.scrollIntoView({ block: "center" }); const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+  const b = await page.eval<{ x: number; y: number }>(`(() => { const e = document.querySelector(".start-card button"); const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
   await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...b });
-  await page.until(`document.querySelector(".tip:not(.measuring)")`);
-  startTip = await page.eval<string>(`document.querySelector(".tip").textContent`);
-  // A click that doesn't move focus to the button, as in Safari and Firefox on a Mac (Chrome's focus would
-  // hide the explanation by a blur when the button is disabled, so headless Chrome alone never saw this).
+  await new Promise((r) => setTimeout(r, 450));
+  startTip = await page.eval<string | null>(`document.querySelector(".tip")?.textContent ?? null`);
+  // A click that doesn't move focus to the button, as in Safari and Firefox on a Mac.
   await page.eval(`document.querySelector(".start-card button").click()`);
   await page.until(`document.querySelector(".input textarea") && !document.querySelector('[data-hint="briefing"]').disabled`);
   tipAfterStart = await page.eval<string | null>(`document.querySelector(".tip")?.textContent ?? null`);
@@ -252,8 +336,8 @@ test("a note written in the Web of Secrets stays with the game across a refresh"
 // ---- CC-20261113-01 (#88) --------------------------------------------------------------------------------
 
 test("the start button's explanation closes once the game starts", { skip }, () => {
-  assert.ok(startTip && startTip.length > 10, "hovering the start button showed its explanation");
-  assert.notEqual(tipAfterStart, startTip, "and it went when the button did");
+  // Interface v0.19: no hover explanations on the opening, so the start button shows none, and none is left on the game screen.
+  assert.equal(startTip, null, "no explanation on the opening");
   assert.equal(tipAfterStart, null, "no explanation is left on the game screen");
 });
 
@@ -2439,37 +2523,60 @@ test("a glossary word in the chat: a faint dotted underline, its definition on h
 
 const NOTAIO_WORDS = JSON.parse(readFileSync("setting/florence-1492/notaio.json", "utf8")) as { name: { gloss: string; hover: string }; opening: { paragraphs: string[] }; tour: { steps: Record<string, string> } };
 
-test("the opening (Interface v0.16): his name and its gloss before he writes, a phrase at a time, the page following the text, a click finishing the paragraph, Skip writing it all, reduced motion writing it whole, then the choice", { skip }, () => {
+test("the opening (Interface v0.19): his name glossed, close to the top, a paragraph at a time, nothing past the screen's bottom, More; the first click a paragraph, the second everything, the third the page's end, where Continue comes, docked; Continue glides on to the choice, which fades in, centred, with his story off the top; two stops with resistance between; Skip; reduced motion; no explanations", { skip }, () => {
   const paras = NOTAIO_WORDS.opening.paragraphs;
   const o = opening as Required<typeof opening>;
   assert.equal(o.beforeWriting.name, "Il Notaio", "his name heads the page");
   assert.equal(o.beforeWriting.gloss, NOTAIO_WORDS.name.gloss, "with its gloss beneath it");
+  assert.equal(o.beforeWriting.underline, "none", "no dotted underline on his name here");
   assert.deepEqual(o.beforeWriting.paras, [], "before he writes");
   assert.equal(o.beforeWriting.choice, false);
-  // Writing: part of the first paragraph, as by pen; the name kept at the top.
-  const w = o.writing.paras.at(-1)!;
-  assert.equal(w.state, "writing");
-  assert.ok(w.text.length > 0 && w.text.length < w.full.length && w.full.startsWith(w.text), `part of the paragraph: "${w.text}"`);
-  // A phrase at a time, split at commas and sentence ends: what's written so far is whole phrases.
-  assert.ok(o.writing.phrases.length > 0 && o.writing.phrases.join("") === w.text, "whole phrases");
-  for (const x of o.writing.phrases) assert.match(x, /[,;:.!?]["”’)]*\s*$/, `a phrase ends at a comma or a sentence end: "${x}"`);
-  assert.equal(o.writing.gloss, NOTAIO_WORDS.name.gloss, "the gloss stays while he writes");
-  assert.ok(o.headTop >= 0 && o.headTop < 5, "his name at the top");
-  // A click finishes the paragraph being written.
-  assert.equal(o.afterClick.paras.at(-1)!.text, paras[0], "a click finishes it");
-  assert.equal(o.afterClick.choice, false, "the choice waits for the end");
-  // At the end: every paragraph, kept on the page, and the choice.
-  assert.deepEqual(o.end.paras.map((p) => p.text), paras, "earlier paragraphs stay on the page");
-  assert.equal(o.end.choice, true);
-  assert.ok(o.end.footInView, "the page follows the text down as it grows");
-  // The choice: "Choose your family"; the full game's other playable character greyed out after the playable one, with no button.
-  assert.equal(o.end.heading, "Choose Your Family");
-  assert.deepEqual(o.end.locked, ["Piero de' Medici: In the Full Game"]);
-  // Skip: everything at once, and the choice.
-  assert.deepEqual(o.skipped.paras.map((p) => [p.state, p.text]), paras.map((p) => ["done", p]), "Skip writes everything out");
-  assert.equal(o.skipped.choice, true);
-  // Reduced motion: the first paragraph seen is already whole.
-  assert.equal(o.reduced.paras[0]!.text, paras[0], "with reduced motion, it appears whole");
+  assert.ok(Math.abs(o.head.top - 14) <= 1, `14px above his title (${o.head.top})`);
+  assert.equal(o.head.fade, "0", "the fade under the title waits until the page scrolls");
+  assert.equal(o.head.tip, false, "nothing on the opening shows an explanation");
+  // A paragraph at a time, each whole.
+  assert.deepEqual(o.writing.paras, paras.slice(0, o.writing.paras.length), "whole paragraphs");
+  // The first screen full: the next paragraph waits rather than appear past the bottom, and More comes.
+  assert.ok(o.waiting.paras.length < paras.length && o.waiting.more, `a paragraph waits, with More (${o.waiting.paras.length} in)`);
+  assert.ok(o.waiting.lastBottom <= VIEW.height, `nothing written past the screen's bottom (${JSON.stringify({ ...o.waiting, paras: o.waiting.paras.length })})`);
+  assert.ok(o.waiting.ghostBottom! > VIEW.height - 16, "the next wouldn't fit");
+  // The clicks.
+  assert.equal(o.afterClick.paras.length, o.waiting.paras.length + 1, "the first click: the next paragraph at once");
+  assert.deepEqual(o.afterSecond.paras, paras, "the second: the whole story");
+  assert.deepEqual([o.afterSecond.cont, o.afterSecond.more], [false, true], "Continue held unseen, More in its place");
+  assert.ok(o.end.cont && o.end.focused, "the third glides to the page's end, where Continue comes and takes the focus");
+  assert.ok(o.end.scrollY >= o.end.end - 2, "at the page's end");
+  assert.equal(o.end.more, false);
+  // Docked: scrolled back up, Continue stays exactly where it was, 44 to 80px up from the window's foot.
+  assert.ok(Math.abs(o.docked.up - o.docked.atEnd) <= 1, `Continue doesn't move (${o.docked.atEnd}, ${o.docked.up})`);
+  assert.ok(o.docked.below >= 44 && o.docked.below <= 81, `44 to 80px up (${o.docked.below})`);
+  // Continue: the choice rises unseen, then sits in the middle of the screen with his story and title off the top, and fades in.
+  assert.equal(o.rising, 0, "unseen as it rises");
+  assert.ok(o.glideMs >= 1500 && o.glideMs < 4500, `a slow glide (${o.glideMs}ms)`);
+  assert.ok(Math.abs(o.choiceAt.mid) <= 2, `centred (${o.choiceAt.mid})`);
+  assert.ok(o.choiceAt.story <= 1 && o.choiceAt.head <= 1, "his title and story off the top");
+  assert.equal(o.choiceAt.opacity, 1, "faded in");
+  assert.equal(o.choiceAt.sticky, "sticky", "docked once it has arrived");
+  assert.match(o.choiceAt.font, /EB Garamond/, "its title in Il Notaio's typeface");
+  assert.equal(o.choiceAt.weight, "600");
+  assert.ok(o.choiceAt.scrollY >= o.choiceAt.end - 2, "the choice at rest is the page's end");
+  assert.equal(o.atChoice.heading, "Choose your family…");
+  assert.deepEqual(o.atChoice.locked, ["Piero de' Medici: In the Full Game"], "the full game's other playable character greyed out, with no button");
+  // The two stops: resistance (85% at the stop), settling back; past the point, carried to the story's end, fully shrunk,
+  // his last line clear above the choice; and back again.
+  const s = o.stops;
+  assert.ok(Math.abs(s.nudged - 34) <= 2, `a wheel up from the choice gives 85% (${s.nudged} of 40)`);
+  assert.ok(Math.abs(s.settled - s.y0) <= 2, `let go short of the point, it settles back (${s.settled}, ${s.y0})`);
+  assert.ok(s.atStory.y < s.y0 - VIEW.height / 2, `carried up to the story's end (${s.atStory.y})`);
+  assert.ok(s.atStory.fold >= 0.98 && s.atStory.title <= 0.02 && s.atStory.desc <= 1, `the choice fully shrunk there, its title and descriptions folded away (${JSON.stringify(s.atStory)})`);
+  assert.ok(s.atStory.story <= s.atStory.choiceTop, "his last line clear above the choice");
+  assert.ok(Math.abs(s.back.y - s.y0) <= 2 && s.back.fold === 0, `and carried back down to the choice (${s.back.y})`);
+  // Skip: everything at once, with Continue.
+  assert.deepEqual(o.skipped.paras, paras, "Skip writes everything out");
+  assert.equal(o.skipped.cont, true);
+  // Reduced motion: the first paragraph seen is already whole, and doesn't fade.
+  assert.equal(o.reduced.paras[0], paras[0], "with reduced motion, it appears whole");
+  assert.equal(o.reducedFade, 0);
 });
 
 test("the tour after the choice, once: steps in order, each spotlit with its card; a click moves on, Back goes back; Skip tour; it ends on Your briefing, which opens; Show me around runs it again", { skip }, async () => {

@@ -429,7 +429,6 @@
       "midnight": "Choose your act for midnight. No one sees it.",
       "confirm": "Lock in your choice. You can't change it.",
       "close": "Close this and go back to the conversation.",
-      "play": "Play the evening as this guest.",
       "wait": "Wait for room in a group, or pair up with the next guest who has nowhere to go.",
       "city": "What everyone in Florence knows, grouped by subject.",
       "web": "Who's connected, what you've heard and seen, and your notes. Click to open or close.",
@@ -488,7 +487,6 @@
       "tourAgain": "Take the tour again.",
       "tourBack": "Back to the part before.",
       "tourSkip": "End the tour. Show me around starts it again.",
-      "openingSkip": "Show the whole story at once.",
       "pastSummary": "Il Notaio's summary of this stage, with the guests' own words. Click to tuck it away or bring it back.",
       "readingNote": "Something everyone knew at the start. Click to read it in The city.",
       "factLink": "Click for the rules on this.",
@@ -680,9 +678,11 @@
       }
     },
     "opening": {
-      "_comment": "Interface v0.7, The Opening's controls and the choice at its end. Il Notaio's story itself is notaio.json's opening.",
+      "_comment": "Interface v0.7, The Opening's controls and the choice at its end. Il Notaio's story itself is notaio.json's opening. Interface v0.19: `choose` is a sentence in his voice, trailing off, so it isn't title-cased; `continue` moves on to the choice once the story is written; `more` shows the rest of the story and takes the reader to its end. The opening has no hover explanations.",
       "skip": "Skip",
-      "choose": "Choose Your Family",
+      "continue": "Continue",
+      "more": "More",
+      "choose": "Choose your family\u2026",
       "play": "Play as {name}",
       "starting": "The guests are arriving…",
       "fullGameOnly": "In the Full Game"

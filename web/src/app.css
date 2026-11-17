@@ -728,25 +728,65 @@ button.glossary-rules { margin-left: var(--space-2); }
   .paddle { transition: none; }
 }
 
-/* Interface v0.7, the opening: Il Notaio's name at the top, glossed and kept there while he writes; the story
-   below it, a paragraph at a time; Skip in the corner; the choice at the end */
-.opening { min-height: var(--screen-height); max-width: var(--opening-width); margin: 0 auto; padding: 0 var(--space-4) var(--space-6); }
-.opening-head { position: sticky; top: 0; z-index: var(--z-menu); background: var(--bg); padding: var(--space-6) 0 var(--space-4); text-align: center; }
-.opening-name { margin: 0; }
-.opening-gloss { font-size: var(--text-sm); font-style: italic; color: var(--text-muted); }
-.opening-story { font-size: var(--text-lg); }
-.opening-para { white-space: pre-wrap; margin: 0 0 var(--space-4); }
-/* Interface v0.16: he writes a phrase at a time, each fading in */
-.opening-phrase { animation: fade-in var(--opening-fade) ease-out; }
-.opening-foot { height: var(--space-6); }
+/* Interface v0.7; v0.19, the opening: Il Notaio's name at the top, glossed, kept there while he writes with the story sliding
+   under it; the story a paragraph at a time, in a column of two sizes; Skip in the corner; Continue at the foot; the choice,
+   wider, in the middle of the screen. Only gaps and the room below the story are set by the screen. */
+.opening { min-height: var(--screen-height); padding: 0 var(--space-4) var(--space-6); }
+/* No room below the story once it's written: Continue's bar, then the choice's own room, end the page */
+.opening.written { padding-bottom: 0; }
+.opening > .opening-head, .opening > .opening-story, .opening > .opening-room, .opening > .opening-continue-bar { max-width: var(--opening-width); margin-left: auto; margin-right: auto; }
+.opening-head { position: sticky; top: 0; z-index: var(--z-menu); background: var(--bg); padding: var(--opening-head-top) 0 var(--opening-head-below); text-align: center; }
+.opening-head::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: var(--opening-head-fade); background: linear-gradient(to bottom, var(--bg), transparent); opacity: var(--head-fade); pointer-events: none; }
+/* Once the story is written, the title isn't pinned */
+.opening.written .opening-head { position: static; }
+.opening.written .opening-head::after { display: none; }
+.opening-name { margin: 0; font-size: var(--opening-name-size); }
+.opening-gloss { font-size: var(--opening-gloss-size); font-style: italic; color: var(--text-muted); }
+.opening-story { position: relative; font-size: var(--opening-text); line-height: var(--opening-line); }
+.opening-para, .opening-ghost { white-space: pre-wrap; margin: 0 0 var(--space-4); }
+/* A paragraph fades in whole */
+.opening-para.fresh { animation: fade-in var(--opening-fade) ease-out; }
+/* The next paragraph, unseen, where it would go */
+.opening-ghost { position: absolute; left: 0; right: 0; top: calc(100% + var(--space-4)); visibility: hidden; pointer-events: none; }
 /* The full game's other playable character, greyed out after the playable one */
 .start-card.locked { opacity: var(--opacity-disabled); }
-.locked-label { font-size: var(--text-sm); color: var(--text-muted); font-style: italic; }
-button.opening-skip { position: fixed; right: var(--space-4); bottom: var(--space-4); }
-.opening-choice { animation: fade-in var(--motion-slow) ease-out; }
-.opening-choice h2 { margin-top: var(--space-5); }
-/* Interface v0.11: Il Notaio's name, glossed on hover wherever it shows */
+.locked-label { font-size: var(--choice-text-size); color: var(--text-muted); font-style: italic; text-align: center; }
+/* Skip: a normal-size button, set in from the corner */
+button.opening-skip { position: fixed; right: var(--opening-skip-inset); bottom: var(--opening-skip-inset); font-size: var(--text-md); padding: var(--space-2) var(--space-5); }
+/* Continue: under the story, docked at the screen's foot when the reader scrolls back up, with a clear drop shadow and nothing
+   behind it; held unseen (taking its room) until it comes, then fading in; breathing like the screen's other ways on */
+.opening-continue-bar { position: sticky; bottom: 0; z-index: var(--z-menu); padding: var(--space-6) 0 var(--opening-continue-below); text-align: center; pointer-events: none; visibility: hidden; }
+.opening-continue-bar.shown { visibility: visible; }
+button.opening-continue { pointer-events: auto; font-size: var(--text-md); padding: var(--space-2) var(--space-6); box-shadow: var(--shadow-continue); }
+.opening-continue-bar.shown button.opening-continue { animation: fade-in var(--opening-continue-fade) ease-out, continue-breathe var(--motion-breathe) ease-in-out var(--opening-continue-fade) infinite alternate; }
+@keyframes continue-breathe { from { box-shadow: var(--shadow-continue), 0 0 0 0 var(--breathe-colour); } to { box-shadow: var(--shadow-continue), 0 0 0 var(--breathe-ring) var(--breathe-colour); } }
+/* More: fixed at the screen's foot, level with Continue, solid, floating over the text */
+button.opening-more { position: fixed; z-index: var(--z-menu); left: 50%; bottom: var(--opening-continue-below); transform: translateX(-50%); background: var(--surface); border: var(--border-width) solid var(--border); box-shadow: var(--shadow-continue); font-size: var(--text-md); padding: var(--space-2) var(--space-6); }
+/* The choice: one more line of the story's space above the room that centres it */
+.opening-choice-above { margin-top: calc(var(--opening-text) * var(--opening-line)); }
+.opening-choice { --fold: 0; position: relative; z-index: var(--z-menu); width: var(--choice-width); margin: 0 auto; padding: calc(var(--choice-pad-y) * (1 - var(--fold) * 2 / 3)) 0; background: var(--bg); text-align: center; }
+/* Docked once it has arrived (not while it rises with the page): at the screen's foot when the reader scrolls back up, the
+   story sliding under it behind a fade, shrinking toward the bottom as the story returns */
+.opening-choice.docked { position: sticky; bottom: 0; transform: scale(calc(1 - var(--fold) * (1 - var(--choice-least)))); transform-origin: bottom center; }
+.opening-choice.docked::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: var(--choice-dock-fade); background: linear-gradient(to bottom, transparent, var(--bg)); pointer-events: none; }
+/* Its title in Il Notaio's typeface, semibold: the last words of his opening. It fades and folds away at the smallest size. */
+.choice-title { margin: 0 0 calc(var(--choice-title-gap) * (1 - var(--fold))); max-height: calc(var(--choice-title-max) * (1 - var(--fold))); overflow: hidden; font-family: var(--font-notaio); font-weight: var(--weight-semibold); font-size: var(--choice-title-size); line-height: 1.2; opacity: calc(1 - var(--fold)); }
+.choice-cards { justify-content: center; margin: 0; gap: var(--choice-pad); }
+.opening-choice .start-card { width: var(--choice-card-width); min-height: calc(var(--choice-card-height) * (1 - var(--fold) / 3)); padding: var(--choice-pad); gap: calc(var(--space-3) * (1 - var(--fold) / 2)); justify-content: space-between; }
+.opening-choice .start-card .portrait.large { width: var(--choice-portrait); height: var(--choice-portrait); font-size: var(--choice-name-size); }
+.opening-choice .start-card .name { font-size: var(--choice-name-size); }
+.opening-choice .start-card .subtitle { font-size: var(--choice-text-size); }
+.opening-choice .start-card button { font-size: var(--choice-button-size); padding: var(--space-2) var(--space-4); }
+/* Each card's short description, which fades and folds away as the docked choice shrinks */
+.choice-desc { margin: 0; max-height: calc(var(--choice-desc-max) * (1 - var(--fold))); overflow: hidden; opacity: calc(1 - var(--fold)); font-size: var(--choice-text-size); }
+/* It rises unseen, and fades in once it has stopped in the middle of the screen: an animation, not a transition, since the
+   title's and descriptions' opacity also follows the scroll once docked */
+.opening-choice.rising .choice-title, .opening-choice.rising .choice-cards { opacity: 0; }
+.opening-choice.arrived .choice-title, .opening-choice.arrived .choice-cards { animation: choice-in var(--choice-fade) ease-out; }
+@keyframes choice-in { from { opacity: 0; } }
+/* Interface v0.11: Il Notaio's name, glossed on hover wherever it shows; on the opening, plain (its gloss is under it) */
 .narrator-name { text-decoration: underline dotted var(--gloss-underline); text-underline-offset: var(--space-1); cursor: help; }
+.narrator-name.plain { text-decoration: none; cursor: inherit; }
 
 /* Interface v0.8, the tour: one part spotlit, the rest dimmed, and a card in Il Notaio's voice like his hint */
 .tour { position: fixed; inset: 0; z-index: var(--z-tour); cursor: pointer; }
@@ -759,7 +799,7 @@ button.opening-skip { position: fixed; right: var(--space-4); bottom: var(--spac
 .tour-controls { display: flex; justify-content: space-between; gap: var(--space-2); }
 @media (prefers-reduced-motion: reduce) {
   .tour-spot { transition: none; }
-  .opening-phrase { animation: none; }
+  .opening-para.fresh, .opening-continue-bar.shown button.opening-continue, .opening-choice.arrived .choice-title, .opening-choice.arrived .choice-cards { animation: none; }
 }
 
 /* Interface v0.17, Screen Sizes: phones are left out for now. Under the phone limit a note stands in for the screen, which
