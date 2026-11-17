@@ -1510,25 +1510,41 @@ test("the four modals in a row: the open one between its neighbours, nothing bef
     const page = game({ v: withLore(v), deck, places: { briefing: 2, rules: 3, city: "L1", glossary: "payroll" } });
     return page.slice(page.indexOf(`class="still-modal deck" data-deck="${d}"`), page.indexOf('class="side-title"', page.indexOf(`class="still-modal deck" data-deck="${d}"`)));
   };
-  // Each at its start, wherever it was left: the briefing's first card, the rules' buttons, the city's list, an empty glossary search.
-  assert.match(still("briefing", "rules"), /<button class="tab on" aria-current="true"[^>]*>Who You Are<\/button>/);
-  assert.doesNotMatch(still("rules", "city"), /<section class="rules-section open/);
-  assert.equal((still("rules", "city").match(/<button class="rules-section"/g) ?? []).length, 10);
-  assert.match(still("city", "rules"), /class="city-list fades"/);
+  // Each where clicking it lands, wherever it was left (Interface v0.20). On the right, at its start: the rules' buttons,
+  // the city's list, an empty glossary search. On the left, at its last item: the briefing's last card, the last rule open
+  // over its buttons, the city's last entry.
+  const tabs = [...still("briefing", "rules").matchAll(/<button class="tab( on)?"/g)].map((m) => !!m[1]);
+  assert.ok(tabs.length >= 5 && tabs.at(-1) && tabs.filter(Boolean).length === 1, "the briefing on the left: its last card");
+  assert.match(still("rules", "city"), /<section class="rules-section open[^"]*" data-section="9"/, "the rules on the left: the last rule open");
+  assert.equal((still("rules", "city").match(/<button class="rules-section"/g) ?? []).length, 10, "over its buttons");
+  const lastTopic = cityList(LORE).flatMap((g) => g.entries).at(-1)!.id;
+  assert.match(still("city", "glossary"), new RegExp(`<section class="city-entry[^"]*" data-lore="${lastTopic}"`), "the city on the left: its last entry");
+  assert.doesNotMatch(still("rules", "briefing"), /<section class="rules-section open/, "the rules on the right: its buttons");
+  assert.match(still("city", "rules"), /class="city-list fades"/, "the city on the right: its list");
   assert.doesNotMatch(still("city", "rules"), /class="city-entry/);
   assert.match(still("glossary", "city"), /<input class="glossary-search" type="search" readOnly="" placeholder="Search the glossary"[^>]*value=""/);
-  for (const [d, deck] of [["briefing", "rules"], ["rules", "city"], ["city", "rules"], ["glossary", "city"]] as const) assert.doesNotMatch(still(d, deck), /more-below|class="[^"]*breathe/, `${d}: no More Below, nothing breathing`);
+  for (const [d, deck] of [["briefing", "rules"], ["rules", "city"], ["city", "glossary"], ["rules", "briefing"], ["city", "rules"], ["glossary", "city"]] as const) assert.doesNotMatch(still(d, deck), /more-below|class="[^"]*breathe/, `${d}: no More Below, nothing breathing`);
   // The four buttons, in the row's order.
   const left = h.slice(h.indexOf('class="buttons decks"'), h.indexOf('class="errand"'));
   assert.deepEqual([...left.matchAll(/data-hint="(\w+)"/g)].map((m) => m[1]), ["briefing", "rules", "city", "glossary"]);
   const css = readFileSync("web/src/app.css", "utf8");
   const theme = readFileSync("web/theme.css", "utf8");
-  // The two sizes are a container query on the overlay's own width; the whole one is scaled to its room, never more than 80% of the modal in focus, and evenly blurred.
+  // The sizes are a container query on the overlay's own width; the whole one is scaled to its room, between 75% and 85% of the modal in focus (Interface v0.20), and evenly blurred; at 75% the row clips them at the screen's edges.
   assert.match(css, /\.modal-overlay \{ container-type: inline-size; container-name: modals;/);
-  assert.match(css, /@container modals \(min-width: 1408px\) \{\s*\.modal-side \{ width: calc\(var\(--modal-width\) \* var\(--side-modal-scale\)\); height: calc\(var\(--deck-height\) \* var\(--side-modal-scale\)\);/);
+  assert.match(css, /@container modals \(min-width: 1280px\) \{\s*\.modal-side \{ width: calc\(var\(--modal-width\) \* var\(--side-modal-scale\)\); height: calc\(var\(--deck-height\) \* var\(--side-modal-scale\)\);/);
+  assert.match(css, /\.modal-row \{[^}]*overflow-x: clip; \}/);
+  assert.match(theme, /--side-modal-scale: max\(var\(--side-modal-least\), min\(var\(--side-modal-most\), tan\(atan2\(var\(--side-modal-room\), var\(--modal-width\)\)\)\)\);/);
+  assert.match(css, /\.modal-side \.side-scaled \.still-modal \* \{ animation: none; \}/, "nothing inside a side modal moves");
   assert.match(css, /\.side-scaled \{[^}]*transform: scale\(var\(--side-modal-scale\)\);[^}]*filter: blur\(var\(--blur-side\)\); \}/);
-  for (const t of ["--break-side-modals: 1408px", "--side-modal-most: 0.8", "--blur-side: 3.5px", "--blur-behind: 5px", "--paddle-width: 40px", "--paddle-height: calc(var(--deck-height) * 0.55)", "--radius-modal: 30px", "--modal-edge: clamp(24px, 3cqw, 64px)", "--motion-paddle-flash: 660ms", "--modal-row-min: calc(var(--modal-width) + (var(--paddle-width) + var(--modal-row-gap)) * 2)"]) assert.ok(theme.includes(`${t};`), t);
-  assert.match(css, /\.modal-side\.flash \.paddle \{ background: var\(--accent\); color: var\(--accent-text\);/);
+  for (const t of ["--break-side-modals: 1280px", "--side-modal-most: 0.85", "--side-modal-least: 0.75", "--blur-side: 3.5px", "--blur-behind: 5px", "--paddle-width: 40px", "--paddle-height: calc(var(--deck-height) * 0.75)", "--radius-modal: 30px", "--modal-edge: clamp(24px, 3cqw, 64px)", "--motion-paddle-flash: 900ms", "--motion-paddle-hover: 420ms", "--motion-side: 210ms", "--motion-row: 390ms", "--modal-row-min: calc(var(--modal-width) + (var(--paddle-width) + var(--modal-row-gap)) * 2)"]) assert.ok(theme.includes(`${t};`), t);
+  // Interface v0.20: a gentle flash, a light accent tint and a thin ring, its words in the accent, fading over 900ms.
+  assert.match(css, /\.modal-side\.flash \.paddle \{ animation: paddle-flash var\(--motion-paddle-flash\) ease-out; \}/);
+  assert.match(css, /@keyframes paddle-flash \{ from \{ background: var\(--paddle-flash-bg\); color: var\(--accent\); box-shadow: 0 0 0 var\(--side-ring\) var\(--accent\); \} \}/);
+  assert.match(theme, /--paddle-flash-bg: color-mix\(in srgb, var\(--accent\) 16%, var\(--surface\)\);/);
+  // The paddles' hover over 420ms; the whole side modals' over 210ms.
+  assert.match(css, /\.modal-side \{[^}]*transition: box-shadow var\(--motion-paddle-hover\) ease-out; \}/);
+  assert.match(css, /\.paddle \{[^}]*transition: background var\(--motion-paddle-hover\) ease-out, color var\(--motion-paddle-hover\) ease-out; \}/);
+  assert.match(css, /@container modals \(min-width: 1280px\) \{\s*\.modal-side \{[^}]*transition-duration: var\(--motion-side\); \}/);
   // The hover's ring and accent title show only where there is hover, so a tap can't leave one stuck.
   assert.match(css, /@media \(hover: hover\) \{\s*\.modal-side:not\(\.empty\):not\(\.lit\):hover \{ box-shadow: 0 0 0 var\(--side-ring\) var\(--accent\); \}/);
   assert.match(css, /\.modal-overlay \{[^}]*backdrop-filter: blur\(var\(--blur-behind\)\); \}/, "the screen behind is softly blurred");
@@ -1968,7 +1984,10 @@ test("the modals' chained footers (Interface v0.16): Previous and Next worded fo
   const css = readFileSync("web/src/app.css", "utf8");
   assert.match(css, /\.deck-card \{[^}]*animation: swipe-in var\(--motion-modal\)/);
   assert.match(css, /\.deck-card\.from-left, \.city-entry\.from-left, section\.rules-section\.from-left \{ animation-name: swipe-in-left; \}/, "going back, cards slide in from the left");
-  assert.match(css, /\.modal\.from-left \{ animation: row-from-left var\(--motion-modal\)/);
+  // Interface v0.20: the row's slide a third slower (390ms); inside the modal in focus, as it was (300ms).
+  assert.match(css, /\.modal\.from-left \{ animation: row-from-left var\(--motion-row\)/);
+  assert.match(css, /section\.rules-section\.grows \{ animation: grow var\(--motion-modal\)/);
+  assert.match(css, /\.city-entry \{[^}]*animation: swipe-in var\(--motion-modal\)/);
   assert.match(css, /\.breathe \{ animation: breathe var\(--motion-breathe\)/);
   assert.match(css, /prefers-reduced-motion: reduce\) \{\s*\.deck-card \{ animation: none; \}\s*\.breathe \{ animation: none;/);
   // The rules: the buttons stay in view, and a section opens as a card over them.
