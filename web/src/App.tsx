@@ -7,7 +7,7 @@
 import { Component, Fragment, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { connect, type Ev } from "./connection.ts";
 import { COMMAND, MENTION, canDo, canSpeak, isCommand, matchCommands, matchGuests, openMenu, withMention, type Trigger } from "./input.ts";
-import { FACTION_LINE, NO_SELECTION, paragraphPause, proseBlocks, roman, appearsIn, briefingCards, chatGuest, cityList, commandMenu, curve, derive, earlierThisStage, errandCardAt, errandDeadline, errandLine, errandTask, factLink, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, noteGroups, ownPlace, payrollSize, placeHeading, playerBriefing, placeList, placeholderExample, preview, readingFor, recordUpTo, refusalWhy, roomOf, rulesLink, runFrom, summaryFor, playerRules, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, webLines, webNames, NODE_RADIUS, type Card, type FactLink, type Line, type GuardedReading, type LoreEntry, type Note, type NotaioItem, type Place, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
+import { FACTION_LINE, NAME_LINE, NO_SELECTION, paragraphPause, proseBlocks, roman, appearsIn, briefingCards, chatGuest, cityList, commandMenu, curve, derive, earlierThisStage, errandCardAt, errandDeadline, errandLine, errandTask, factLink, factionArcs, heardAndSaw, glossaryList, hintMoment, lineParts, midnightLine, noteGroups, ownPlace, payrollSize, placeHeading, playerBriefing, placeList, placeholderExample, preview, readingFor, recordUpTo, refusalWhy, roomOf, rulesLink, runFrom, summaryFor, playerRules, rulesCards, rulesSectionFor, sameGuests, selectBack, selectInChat, selectInWeb, selectLore, stageRuns, stagesWith, talkingWith, trackMarks, webLayout, webLines, webNames, NODE_RADIUS, type Card, type FactLink, type Line, type GuardedReading, type LoreEntry, type Note, type NotaioItem, type Place, type Request, type Run, type Segment, type SharedSelection, type Sheet, type State, type View } from "./model.ts";
 import { allCommands, cityGuests, factionWins, getInfo, guest, guestDescription, names, narrator, notaioHint, packValue, placeDescription, placeholderExamples, setInfo, stageDescription, tc, w, wt, type GlossEntry, type StartInfo } from "./words.ts";
 
 type Send = (m: unknown) => void;
@@ -3197,9 +3197,10 @@ function WebDock({
   // replaces the older; selecting a selected guest drops them.
   const selection = useContext(SelContext);
   const { picked, pick } = selection;
-  const at = webLayout(info.roster, info.factions ?? []);
-  const nameAt = webNames(info.roster, info.factions ?? []);
-  const arcs = factionArcs(info.roster, info.factions ?? []);
+  // Interface v0.21: the ring in the setting pack's order, or the roster's.
+  const at = webLayout(info.roster, info.factions ?? [], info.ring ?? []);
+  const nameAt = webNames(info.roster, info.factions ?? [], info.ring ?? []);
+  const arcs = factionArcs(info.roster, info.factions ?? [], info.ring ?? []);
   useReadingRequest(me, v, picked, open, send);
   const types = info.relationshipTypes ?? [];
   // Interface v0.16: one line per pair and type; the halo marks only the player's secret ties.
@@ -3339,14 +3340,20 @@ function WebDock({
                       </g>
                     );
                   })}
-                  {/* The names last, so no line or circle crosses them, each on a halo of the panel's colour: under
-                      their circles, moved outward where two neighbours crowd (Interface v0.16). */}
+                  {/* The names last, so no line or circle crosses them, each on a halo of the panel's colour, centred under
+                      their circles; Interface v0.21: the four nearest twelve and six o'clock, and any long name, on two lines. */}
                   <g className="labels">
                     {info.roster.map((r) => {
                       const p = nameAt.get(r.name)!;
                       return (
-                        <text key={r.name} className={`node-name${r.name === me ? " me" : ""}`} x={p.x} y={p.y}>
-                          {r.name}
+                        <text key={r.name} className={`node-name${r.name === me ? " me" : ""}`} data-name={r.name} x={p.x} y={p.y}>
+                          {p.lines.length === 1
+                            ? r.name
+                            : p.lines.map((l, i) => (
+                                <tspan key={i} x={p.x} dy={i ? NAME_LINE : 0}>
+                                  {l}
+                                </tspan>
+                              ))}
                         </text>
                       );
                     })}

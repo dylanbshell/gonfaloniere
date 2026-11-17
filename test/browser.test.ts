@@ -3601,3 +3601,138 @@ test("the @ and / menus (Interface v0.20): down over the prompt's line, ending 6
     }
   });
 });
+
+// ---- CC-20261117-09 (#205): Interface v0.21 -----------------------------------------------------------------------
+
+/** A computed style's size, family, weight, and colour, or null if nothing matches. */
+const looks = (sels: Record<string, string>) =>
+  page.eval<Record<string, { size: string; family: string; weight: string; color: string } | null>>(`(() => {
+    const out = {};
+    for (const [k, q] of Object.entries(${JSON.stringify(sels)})) {
+      const e = document.querySelector(q);
+      const c = e && getComputedStyle(e);
+      out[k] = c ? { size: c.fontSize, family: c.fontFamily, weight: c.fontWeight, color: c.color } : null;
+    }
+    return out;
+  })()`);
+
+test("Interface v0.21's text sizes: the names in the conversation 17px like its words, in the sans, bold for the speaker and grey for to; Earlier this stage's rows and their Show / Hide 15px under a label; the right panel's card details and a city entry's text 15px", { skip }, async () => {
+  await reopen();
+  await page.until(`document.querySelector(".stream .ln.speech:not(.mine) .sp") && document.querySelector(".stream .ln.notaio .sp")`);
+  const sans = await page.eval<string>(`getComputedStyle(document.querySelector(".side.left .fact")).fontFamily`);
+  const names = await looks({ speaker: ".stream .ln.speech:not(.mine) .sp", notaio: ".stream .ln.notaio .sp", words: ".stream .ln.speech .tx" });
+  assert.equal(names.words!.size, "17px");
+  for (const k of ["speaker", "notaio"]) {
+    assert.equal(names[k]!.size, "17px", `${k}: the size of the words`);
+    assert.equal(names[k]!.family, sans, `${k}: still in the sans`);
+  }
+  assert.equal(names.speaker!.weight, "600", "the speaker in bold");
+  // "(to …)" and Earlier this stage, whatever the shared game has reached by now: after the screen has the game's log,
+  // two more lines in this stage, copies of the last guest line: one in a conversation of its own, then one back in the
+  // current conversation, addressed to the player. This stage then has an earlier conversation, and the last line a "to".
+  await page.send("Page.enable");
+  const { identifier } = await page.send<{ identifier: string }>("Page.addScriptToEvaluateOnNewDocument", {
+    source: `(() => { const W = window.WebSocket; window.__evs = []; window.WebSocket = class extends W { constructor(...a) { super(...a); window.__ws = this; } set onmessage(f) { super.onmessage = (m) => { window.__evs.push(JSON.parse(m.data)); f(m); }; } get onmessage() { return super.onmessage; } }; })()`,
+  });
+  try {
+    await reopen();
+    await page.until(`window.__evs.some((e) => e.type === "line" && !e.you) && document.querySelector(".stream .ln.speech:not(.mine)")`);
+    // The log has all arrived once nothing new has come for a moment.
+    await page.eval(`new Promise((ok) => { let n = -1; const t = setInterval(() => { if (window.__evs.length === n) { clearInterval(t); ok(); } n = window.__evs.length; }, 250); })`);
+    await page.eval(`(() => {
+      const last = [...window.__evs].reverse().find((e) => e.type === "line" && !e.you), seq = Math.max(...window.__evs.map((e) => e.seq ?? 0));
+      const send = (e) => window.__ws.onmessage({ data: JSON.stringify(e) });
+      send({ ...last, seq: seq + 1, id: "v021-earlier", conversation: "v021-earlier" });
+      send({ ...last, seq: seq + 2, id: "v021-to", addressee: "Francesco Pazzi" });
+    })()`);
+    await page.until(`document.querySelector(".stream .earlier .earlier-line") && document.querySelector('.stream .ln.speech[data-line="v021-to"] .to')`);
+    // The theme's muted colour and its label size, as they come out in the conversation.
+    const [muted, label] = await page.eval<[string, string]>(`(() => { const s = document.createElement("span"); s.style.color = "var(--text-muted)"; s.style.fontSize = "var(--text-xs)"; document.querySelector(".stream").append(s); const c = getComputedStyle(s); const out = [c.color, c.fontSize]; s.remove(); return out; })()`);
+    const to = await looks({ to: '.stream .ln.speech[data-line="v021-to"] .to', row: ".stream .earlier-line", show: ".stream .earlier-line .muted", heading: ".stream .earlier > .label" });
+    assert.equal(to.to!.size, "17px", "to …: the size of the words");
+    assert.equal(to.to!.family, sans);
+    assert.equal(to.to!.color, muted, "to …: grey");
+    assert.deepEqual([to.row!.size, to.show!.size], ["15px", "15px"], "Earlier this stage's rows, with their Show / Hide, 15px");
+    assert.equal(to.heading!.size, label, "its heading stays a label, the screen's label size");
+    await page.shot("v021-names-earlier");
+  } finally {
+    await page.send("Page.removeScriptToEvaluateOnNewDocument", { identifier });
+    await reopen();
+  }
+  // The right panel: the card's description, Their faction wins if, Known to all, and In the city at its small size, 15px;
+  // its labels and body as they were.
+  try {
+    await lookAt("Francesco Pazzi");
+    const card = ".side.right .look:not(.leaving)";
+    const right = await looks({ description: `${card} .card-description`, wins: `${card} .card-wins`, known: `${card} .known`, city: `${card} .card-city .lore-link`, label: `${card} .person-head .label`, body: ".side.right" });
+    for (const k of ["description", "wins", "known", "city"]) assert.equal(right[k]?.size, "15px", `${k}: 15px`);
+    assert.deepEqual([right.label!.size, right.body!.size], ["12px", "17px"], "labels and the body unchanged");
+    await page.eval(`document.querySelector('${card} .card-city .lore-link').click()`);
+    await page.until(`document.querySelector('${card} .lore-entry p')`);
+    assert.equal((await looks({ entry: `${card} .lore-entry p` })).entry!.size, "15px", "a city entry's text 15px");
+    await page.shot("v021-right-entry");
+  } finally {
+    await page.key("Escape", 27);
+    await page.until(`!document.querySelector(".side.right .look:not(.leaving)")`);
+  }
+});
+
+test("the Web of Confidences (Interface v0.21): the ring in the setting pack's order; every name centred under its circle, the four nearest twelve and six o'clock and any over 18 characters on two lines; the side column's titles 15px with more room; the bar's title in capitals, spaced, regular weight, with more room round the ▲ and the dot", { skip }, async () => {
+  await reopen();
+  const ring = (JSON.parse(readFileSync("setting/florence-1492/setting.json", "utf8")) as { ring: string[] }).ring;
+  try {
+    await webUp();
+    const drawn = await page.eval<{ name: string; x: number; y: number; bottom: number; text: { mid: number; top: number; left: number; right: number; bottom: number }; lines: { text: string; mid: number; top: number }[] }[]>(`[...document.querySelectorAll(".web .node")].map((g) => {
+      const c = g.querySelector("circle").getBoundingClientRect(), t = document.querySelector('.web .node-name[data-name="' + CSS.escape(g.dataset.guest) + '"]'), b = t.getBoundingClientRect();
+      return { name: g.dataset.guest, x: c.left + c.width / 2, y: c.top + c.height / 2, bottom: c.bottom, text: { mid: b.left + b.width / 2, top: b.top, left: b.left, right: b.right, bottom: b.bottom }, lines: [...t.querySelectorAll("tspan")].map((s) => { const r = s.getBoundingClientRect(); return { text: s.textContent, mid: r.left + r.width / 2, top: r.top }; }) };
+    })`);
+    // The ring's order, read like a clock from half past nine: the pack's.
+    const cx = drawn.reduce((a, d) => a + d.x, 0) / drawn.length, cy = drawn.reduce((a, d) => a + d.y, 0) / drawn.length;
+    const hour = (d: { x: number; y: number }) => ((Math.atan2(d.y - cy, d.x - cx) * 6) / Math.PI + 3 + 12) % 12;
+    const order = [...drawn].sort((a, b) => ((hour(a) - 9.5 + 12) % 12) - ((hour(b) - 9.5 + 12) % 12));
+    assert.deepEqual(order.map((d) => d.name), ring, "clockwise from half past nine, in the setting pack's order");
+    order.forEach((d, i) => assert.ok(Math.abs(hour(d) - ((9.5 + i) % 12)) < 0.05, `${d.name} at ${(9.5 + i) % 12} o'clock`));
+    // Every name centred under its circle; two lines for the four nearest twelve and six o'clock and any over 18 characters.
+    const two = ring.filter((n, i) => [2, 3, 8, 9].includes(i) || n.length > 18);
+    assert.deepEqual(two, ["Raffaello de' Medici", "Piero de' Medici", "Francesco Pazzi", "Sister Beatrice", "Captain Armand LeNoir"]);
+    for (const d of drawn) {
+      assert.ok(Math.abs(d.text.mid - d.x) <= 1, `${d.name}: centred under its circle (${(d.text.mid - d.x).toFixed(2)}px off)`);
+      assert.ok(d.text.top >= d.bottom - 0.5, `${d.name}: under its circle`);
+      if (two.includes(d.name)) {
+        const [first, ...rest] = d.name.split(" ");
+        assert.deepEqual(d.lines.map((l) => l.text), [first, rest.join(" ")], `${d.name}: broken after its first word`);
+        assert.ok(d.lines.every((l) => Math.abs(l.mid - d.x) <= 1), `${d.name}: both lines centred under the circle`);
+        assert.ok(d.lines[1]!.top > d.lines[0]!.top, `${d.name}: one line over the other`);
+      } else assert.deepEqual(d.lines, [], `${d.name}: one line`);
+    }
+    // The pairs at the top and the bottom stay clear of each other.
+    const at = (n: string) => drawn.find((d) => d.name === n)!.text;
+    for (const [l, r] of [[ring[2]!, ring[3]!], [ring[9]!, ring[8]!]]) assert.ok(at(l).right < at(r).left, `${l} and ${r} clear of each other`);
+    // The side column's two titles, 15px, with a little more room.
+    const tabs = await page.eval<{ size: string; pad: string }[]>(`[...document.querySelectorAll(".web-side > .tabs button.tab")].map((b) => { const c = getComputedStyle(b); return { size: c.fontSize, pad: c.paddingTop + " " + c.paddingLeft }; })`);
+    assert.equal(tabs.length, 2);
+    for (const t of tabs) assert.deepEqual(t, { size: "15px", pad: "6px 12px" });
+    await page.shot("v021-web");
+    // The bar, with two guests selected in the web: the title in capitals, spaced 0.16em, regular weight; the ▲ 16px from
+    // it, the selected guests 16px either side of the dot, their portraits 8px apart.
+    await pickNode(ring[2]!);
+    await pickNode(ring[3]!);
+    await page.until(`document.querySelectorAll(".web-bar-portraits .portrait").length === 2`);
+    const bar = await page.eval<{ transform: string; spacing: number; size: number; weight: string; text: string; arrow: number; dotLeft: number; dotRight: number; portraits: number; between: number }>(`(() => {
+      const q = (s) => document.querySelector(s), r = (s) => q(s).getBoundingClientRect(), t = getComputedStyle(q(".web-bar-title")), p = [...document.querySelectorAll(".web-bar-portraits .portrait")].map((e) => e.getBoundingClientRect());
+      return { transform: t.textTransform, spacing: parseFloat(t.letterSpacing), size: parseFloat(t.fontSize), weight: t.fontWeight, text: q(".web-bar-title").textContent, arrow: r(".web-bar-title").left - r(".web-bar-arrow").right, dotLeft: r(".web-bar-dot").left - r(".web-bar-title").right, dotRight: r(".web-bar-portraits").left - r(".web-bar-dot").right, portraits: p[1].left - p[0].right, between: r(".web-bar-sel").left - r(".web-bar-portraits").right };
+    })()`);
+    const words = JSON.parse(readFileSync("setting/florence-1492/player.json", "utf8")) as { screen: { web: { title: string } } };
+    assert.equal(bar.text, words.screen.web.title, "the pack's words unchanged: capitals by CSS");
+    assert.equal(bar.transform, "uppercase");
+    assert.ok(Math.abs(bar.spacing - 0.16 * bar.size) < 0.05, `letters 0.16em apart (${bar.spacing}px at ${bar.size}px)`);
+    assert.equal(bar.weight, "400", "regular weight");
+    for (const [k, want] of [["arrow", 16], ["dotLeft", 16], ["dotRight", 16], ["portraits", 8]] as const) assert.ok(Math.abs(bar[k] - want) <= 0.5, `${k}: ${want}px (${bar[k]})`);
+    assert.ok(Math.abs(bar.between - 8) <= 0.5, `the names 8px from the portraits, as before (${bar.between})`);
+    await page.shot("v021-web-bar");
+  } finally {
+    for (const n of await webPicked()) await pickNode(n);
+    await page.until(`!document.querySelector(".web-bar-sel")`);
+    await webDown();
+  }
+});

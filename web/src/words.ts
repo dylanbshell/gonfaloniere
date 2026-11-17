@@ -26,6 +26,8 @@ export interface StartInfo {
     tour?: { steps: Record<string, string> };
   };
   factions: string[];
+  /** Interface v0.21: the web's ring order from the setting pack, clockwise from half past nine; empty or absent, the roster's order. */
+  ring?: string[];
   /** TD v0.44: the six relationship types, in relationships.json's order, with their labels, for the web's key. */
   relationshipTypes?: { type: string; label: string; covers: string }[];
   max: number;

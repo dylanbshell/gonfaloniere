@@ -897,19 +897,28 @@ export function refusalWhy(v: View, all: Command[]): { command: Command; why: Ex
 /** The ring's centre and radius, in the diagram's own units (0–100 each way). */
 const CENTRE = 50;
 const RING = 38;
-/** A guest's circle, and where their name sits under it, in the diagram's units. */
+/** A guest's circle, and where their name sits under it, in the diagram's units; a name on two lines, this far apart. */
 export const NODE_RADIUS = 4.2;
 export const NAME_DROP = 7.6;
-/** A name's rough width for each character, for moving crowded names apart without measuring text. */
-const NAME_CHAR = 1.2;
+export const NAME_LINE = 2.8;
+/** Interface v0.21: a name longer than this breaks onto two lines wherever it sits. */
+const LONG_NAME = 18;
 /** The faction arcs sit outside the guests and their names; each faction's name outside the middle of its arc. */
 const ARC_RADIUS = 48;
 const LABEL_RADIUS = 53;
 /** The gap between two factions' arcs, as a share of one guest's slice of the ring. */
 const ARC_GAP = 0.18;
 
-/** The guests in ring order: each faction together, in the setting's faction order. */
-function ringOrder<R extends { name: string; faction: string }>(roster: R[], factions: readonly string[]): R[] {
+/**
+ * The guests in ring order (Interface v0.21): the setting pack's order (`ring`, roster names), then any guest it
+ * leaves out in roster order. Without one, the roster's order, each faction together in the setting's faction order
+ * (as before v0.21). The code holds no names.
+ */
+function ringOrder<R extends { name: string; faction: string }>(roster: R[], factions: readonly string[], ring: readonly string[] = []): R[] {
+  if (ring.length) {
+    const listed = ring.map((n) => roster.find((r) => r.name === n)).filter((r): r is R => !!r);
+    return [...new Set([...listed, ...roster])];
+  }
   // An unknown faction (or no factions list at all: an older server's start information) sorts after the known ones, in roster order.
   const place = (f: string) => (factions.indexOf(f) + factions.length + 1) % (factions.length + 1);
   return [...roster].sort((a, b) => place(a.faction) - place(b.faction));
@@ -925,12 +934,12 @@ const onCircle = (t: number, r: number) => ({ x: CENTRE + r * Math.cos(t), y: CE
 const round = (x: number) => Math.round(x * 100) / 100;
 
 /**
- * Where each guest sits in the web: around a ring, each faction together in its own part, in the
- * setting's faction order (Interface v0.5, laid out like the board's Web of Secrets). Coordinates are in
- * the diagram's own units (0–100 each way).
+ * Where each guest sits in the web: around a ring (Interface v0.5, laid out like the board's Web of Secrets), in the
+ * setting pack's ring order (Interface v0.21), or each faction together in the setting's faction order. Coordinates
+ * are in the diagram's own units (0–100 each way).
  */
-export function webLayout(roster: { name: string; faction: string }[], factions: readonly string[] = []): Map<string, { x: number; y: number }> {
-  const order = ringOrder(roster, factions);
+export function webLayout(roster: { name: string; faction: string }[], factions: readonly string[] = [], ring: readonly string[] = []): Map<string, { x: number; y: number }> {
+  const order = ringOrder(roster, factions, ring);
   const at = new Map<string, { x: number; y: number }>();
   order.forEach((g, i) => at.set(g.name, onCircle(angle(i, order.length), RING)));
   return at;
@@ -957,14 +966,16 @@ export function wrapName(name: string): string[] {
  * factions, the first at 11:00, the second at 1:00, the third at 5:00, the fourth at 7:00. The rule is by roster
  * order, not names; with any other number of factions, each name sits outside the middle of its arc. A long
  * name wraps onto two lines (`lines`). `d` is the arc's SVG path; `anchor` is the name's text-anchor, so it
- * reads away from the ring. Factions with no guest on the web are left out.
+ * reads away from the ring. Factions with no guest on the web are left out. The set hours count the ring's runs of
+ * one faction, so a ring order that splits a faction falls back to the middles.
  */
-export function factionArcs(roster: { name: string; faction: string; colour?: string }[], factions: readonly string[] = []): { faction: string; lines: string[]; colour: string | undefined; d: string; x: number; y: number; anchor: "start" | "middle" | "end" }[] {
-  const order = ringOrder(roster, factions);
+export function factionArcs(roster: { name: string; faction: string; colour?: string }[], factions: readonly string[] = [], ring: readonly string[] = []): { faction: string; lines: string[]; colour: string | undefined; d: string; x: number; y: number; anchor: "start" | "middle" | "end" }[] {
+  const order = ringOrder(roster, factions, ring);
   const n = order.length;
   if (!n) return [];
   const half = Math.PI / n;
-  const four = new Set(order.map((g) => g.faction)).size === FACTION_HOURS.length;
+  const runs = order.filter((g, i) => i === 0 || g.faction !== order[i - 1]!.faction).length;
+  const four = new Set(order.map((g) => g.faction)).size === FACTION_HOURS.length && runs === FACTION_HOURS.length;
   const out: { faction: string; lines: string[]; colour: string | undefined; d: string; x: number; y: number; anchor: "start" | "middle" | "end" }[] = [];
   for (let i = 0; i < n; ) {
     let j = i;
@@ -988,43 +999,28 @@ export function factionArcs(roster: { name: string; faction: string; colour?: st
 }
 
 /**
- * Where each guest's name sits (Interface v0.16): under their circle. Where two guests sit side by side at
- * the top or bottom of the ring, their names would run into each other, so each moves outward, as far as it
- * can without reaching the next guest's circle. Widths are estimated from the name's length.
+ * Where each guest's name sits (Interface v0.16; v0.21): centred under their circle. Interface v0.21: the four names
+ * nearest twelve and six o'clock (the pair at the top and the pair at the bottom) break after their first word onto two
+ * lines, both under the circle, so each pair stays clear of each other; so does any name over 18 characters, wherever
+ * it sits. A one-word name stays on one line. By place and length, never by name.
  */
-export function webNames(roster: { name: string; faction: string }[], factions: readonly string[] = []): Map<string, { x: number; y: number }> {
-  const order = ringOrder(roster, factions);
+export function webNames(roster: { name: string; faction: string }[], factions: readonly string[] = [], ring: readonly string[] = []): Map<string, { x: number; y: number; lines: string[] }> {
+  const order = ringOrder(roster, factions, ring);
   const n = order.length;
-  const at = order.map((_, i) => onCircle(angle(i, n), RING));
-  const out = new Map<string, { x: number; y: number }>();
-  order.forEach((g, i) => out.set(g.name, { x: round(at[i]!.x), y: round(at[i]!.y + NAME_DROP) }));
-  if (n < 4) return out;
-  const width = (i: number) => order[i]!.name.length * NAME_CHAR;
-  /** Moves guest `i`'s name away from its neighbour `beside`, toward its other neighbour `outer`, stopping short of that one's circle. */
-  const apart = (i: number, beside: number, outer: number) => {
-    const p = at[i]!;
-    const w = width(i);
-    const dir = p.x < at[beside]!.x ? -1 : 1;
-    // The name's inner end at its own circle's inner edge.
-    let x = p.x + dir * Math.max(0, w / 2 - NODE_RADIUS);
-    const o = at[outer]!;
-    // The outer neighbour's circle, if the name's line runs through its height.
-    if (Math.abs(p.y + NAME_DROP - o.y) < NODE_RADIUS + 2) {
-      const edge = o.x - dir * (NODE_RADIUS + 1);
-      x = dir < 0 ? Math.max(x, edge + w / 2) : Math.min(x, edge - w / 2);
-    }
-    // Never inward of its own circle.
-    x = dir < 0 ? Math.min(x, p.x) : Math.max(x, p.x);
-    out.set(order[i]!.name, { x: round(x), y: round(p.y + NAME_DROP) });
+  // How far each place is round the ring from an hour, in radians either way.
+  const from = (i: number, t: number) => {
+    const d = Math.abs((((angle(i, n) - t) % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI) - Math.PI);
+    return Math.round(d * 1e6);
   };
-  for (let i = 0; i < n; i++) {
-    const j = (i + 1) % n;
-    const [a, b] = [at[i]!, at[j]!];
-    // Side by side: at the same height, and closer than their two names are wide.
-    if (Math.abs(a.y - b.y) > 1 || Math.abs(a.x - b.x) > (width(i) + width(j)) / 2 + 1) continue;
-    apart(i, j, (i - 1 + n) % n);
-    apart(j, i, (j + 1) % n);
-  }
+  const nearest = (t: number) => order.map((_, i) => i).sort((a, b) => from(a, t) - from(b, t) || a - b).slice(0, 2);
+  const ends = new Set([...nearest(atHour(12)), ...nearest(atHour(6))]);
+  const out = new Map<string, { x: number; y: number; lines: string[] }>();
+  order.forEach((g, i) => {
+    const p = onCircle(angle(i, n), RING);
+    const words = g.name.trim().split(/\s+/);
+    const lines = words.length > 1 && (ends.has(i) || g.name.length > LONG_NAME) ? [words[0]!, words.slice(1).join(" ")] : [g.name];
+    out.set(g.name, { x: round(p.x), y: round(p.y + NAME_DROP), lines });
+  });
   return out;
 }
 

@@ -161,6 +161,21 @@
     }
   ],
   "_roster_comment": "Characters' roster: the exact spellings models must use; aliases for matching names in model output; the public subtitle from each briefing (Characters v0.10). `roles`: \"two kills\" is Mechanics' Murder Round special case (two Kill orders that guards and watchers can't stop, and no guard or watch). `earlier`: a name the character had before a Characters version renamed them (Characters v0.15: Fra Tommaso became Friar Tommaso, #136); a game on an earlier Characters version hears the old name wherever code writes the roster into a prompt, so it replays as it ran. The old name stays an alias.",
+  "ring": [
+    "Clarice Orsini",
+    "Raffaello de' Medici",
+    "Piero de' Medici",
+    "Francesco Pazzi",
+    "Giorgia Pazzi",
+    "Lupo",
+    "Friar Tommaso",
+    "Contessa Isabella",
+    "Sister Beatrice",
+    "Captain Armand LeNoir",
+    "Emile de Valois",
+    "Jeanne d'Orléans"
+  ],
+  "_ring_comment": "Interface v0.21, The Web of Confidences: the order of the web's ring, clockwise from its start at half past nine, one guest to a place. Guests it leaves out follow in roster order; a pack without it uses the roster's order. Florence's puts the two family heads together at the top, each with a sibling beside him, and runs the Dominicans and the French Embassy leader first from the top of their side.",
   "places": [
     "the great hall",
     "the window bay",

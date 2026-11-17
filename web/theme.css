@@ -68,6 +68,10 @@
   /* Interface v0.19: everyone's lines in the conversation, Il Notaio's included, 17px with a little more room between lines */
   --text-line: 1.0625rem;
   --line-height-line: 1.55;
+  /* Interface v0.21: the names in the conversation (who speaks, "(to …)", and Il Notaio's label) the size of its lines,
+     still in the sans; "Earlier this stage"'s rows, with their Show / Hide, a step below them (its heading stays a label) */
+  --text-line-name: 1.0625rem;
+  --text-earlier: 0.9375rem;
   --tracking-label: 0.06em;
   --weight-normal: 400;
   --weight-bold: 600;
@@ -175,6 +179,17 @@
   --tip-width: 280px;
   --web-height: 90vh;
   --web-bar-height: 44px;
+  /* Interface v0.21, the Web of Confidences' bar: its title in capitals, spaced out, in the regular weight; the ▲ this far
+     from it, the selected guests this far either side of the dot, and their small portraits this far apart */
+  --web-bar-title-tracking: 0.16em;
+  --web-bar-title-weight: var(--weight-normal);
+  --web-bar-arrow-gap: 16px;
+  --web-bar-dot-gap: 16px;
+  --web-bar-portrait-gap: 8px;
+  /* Interface v0.21: the side column's two titles (What You Heard and Saw, Notes) at 15px, with a little more room */
+  --text-web-tab: 0.9375rem;
+  --web-tab-pad-y: 6px;
+  --web-tab-pad-x: 12px;
   /* Interface v0.16; v0.17: the web's side column grows and shrinks with the web, about 28% of its width, from 280 to 480px;
      folded, it's a strip with a handle, and opens over the web at its least width */
   --web-side-width: clamp(280px, 28cqw, 480px);

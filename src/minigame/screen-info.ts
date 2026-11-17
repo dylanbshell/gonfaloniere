@@ -66,6 +66,8 @@ export function screenInfo(cards: CharacterName[], briefings: Partial<Record<Cha
     max: MESSAGE_MAX,
     // The web's arcs, in the setting's faction order.
     factions: pack.factions.map((f) => f.name),
+    // Interface v0.21: the web's ring order, clockwise from half past nine; empty in a pack without one (the roster's order).
+    ring: pack.ring ?? [],
     // The Web of Secrets' key (TD v0.44): the six relationship types, with their labels.
     relationshipTypes: relationshipTypes().map((type) => ({ type, ...relationships().types[type]! })),
     // Portraits and name tooltips: the public subtitle and faction, never anything the replay viewer shows.
