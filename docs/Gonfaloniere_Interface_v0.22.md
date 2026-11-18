@@ -9,6 +9,7 @@
 *Nov 17. Dylan's further notes on the demo, after v0.21 merged. Detail in the sections named; the record is in Playtest Findings (the rows marked v0.22).*
 
 - **A subtler paddle press** (Briefing, rules, the city, and the glossary): its flash fades over 550ms (900ms)
+- **Il Notaio's hint only as tall as its text** (Il Notaio): no two-line minimum, so a one-line hint is 24px shorter
 - **Gentler scrolling in the screen's scrolling places** (Scrolling, new): 80% of the system's distance per wheel step or swipe, eased, in the conversation, the side panels, the modals, Il Notaio's boxes, What You Heard and Saw, Notes, the message box, and the menus; the opening and the page itself as the system scrolls
 - **The web's bar spaced out further** (The Web of Confidences): its title's letters 0.34em apart (0.16em), the ▲ 32px from it (16px), 32px either side of the dot (16px), the guests' portraits 16px apart (8px)
 - **Sending a line fades and slides** (The input box): what you typed fades out of the box, and your line slides up from under the box into the conversation
@@ -771,6 +772,7 @@ How a new player learns the game without a tutorial up front.
 - **Larger while open:** his words at 16px open, 13px minimized (never smaller than today's); his small lore notes grow in step (11px to about 13px). The size changes in one step as the box opens or closes, never animated, so the lines rewrap once
 - **The title is sized from his open words** (about 87% of them, about 14px) and stays that size open or minimized
 - **Show / Hide** at the right of the title, in the small label size (11px), saying what a click will do
+- **His hint is only as tall as what he has to say** *(Dylan; v0.22)*: one line of text, one line of box (61px with its title); it no longer keeps room for two lines (85px)
 
 **Il Notaio for the player in v1** (Mechanics, Il Notaio — Player-Facing Duties; not needed for the milestone):
 - **Questions:** the player can @-mention Il Notaio to ask about the rules or the game, as a private aside. *The call is Technical Design's*
@@ -1294,6 +1296,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | *(v0.20)* The / and @ menus lower, just covering the "Your turn" line; both navigable with the up and down arrow keys, which skip "Not available now" | They end 6px above the box; arrows light an entry, Return picks it | The input box |
 | *(v0.20)* A card that slid up should end, once stopped, level with the message box, 12px above the Web of Confidences' bar | 12px above the bar; the "talking with" card still 82px | Right |
 | *(v0.20)* While a card slides up or down, its bottom should reach the Web of Confidences' bar, unrounded, until it's off the screen or at its stop | Square and full height while moving; rounded and level once stopped | Right |
+| *(v0.22)* Il Notaio's box above the message box only as tall as his text at the time | No two-line minimum (85px to 61px for one line) | Il Notaio |
 | *(v0.22)* Reduce scroll sensitivity (in the chat, the side panels, the modals, Il Notaio's boxes, What You Heard and Saw, Notes, the message box, the menus) | 80% of the system's distance, eased; the opening and page left alone (Claude advised against taking over scrolling in general; Dylan scoped it to these places) | Scrolling |
 | *(v0.22)* Everything adjusted on the web's bar spaced out even more | Letters 0.24em, then 0.34em; ▲ 24px, then 32px; either side of the dot the same; portraits 12px, then 16px apart | The Web of Confidences |
 | *(v0.22)* On sending, a subtle fade-out, then the line slides up from under the chat box to its place | The typed text fades (about 240ms); the line slides up (about 520ms) when it arrives | The input box |
