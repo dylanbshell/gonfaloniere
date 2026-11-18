@@ -9,12 +9,13 @@
 *Nov 17. Dylan's further notes on the demo, after v0.21 merged. Detail in the sections named; the record is in Playtest Findings (the rows marked v0.22).*
 
 - **A subtler paddle press** (Briefing, rules, the city, and the glossary): its flash fades over 550ms (900ms)
+- **Il Notaio's titles pinned** (Il Notaio): his reading's and past-stage summary's titles stay at the top as his words scroll away under them through a fade
 - **Il Notaio's boxes only as tall as their text** (Il Notaio): his hint drops its two-line minimum (a one-line hint is 24px shorter) and stops at five lines; his reading and his past-stage summary sit centred in a room 15% in from the top and the foot, growing with their text until they fill it, then scroll; minimizing glides them down to the foot
 - **Gentler scrolling in the screen's scrolling places** (Scrolling, new): 80% of the system's distance per wheel step or swipe, eased, in the conversation, the side panels, the modals, Il Notaio's boxes, What You Heard and Saw, Notes, the message box, and the menus; the opening and the page itself as the system scrolls
 - **The web's bar spaced out further** (The Web of Confidences): its title's letters 0.34em apart (0.16em), the ▲ 32px from it (16px), 32px either side of the dot (16px), the guests' portraits 16px apart (8px)
 - **Sending a line fades and slides** (The input box): what you typed fades out of the box, and your line slides up from under the box into the conversation
 - **The line under the stage bar tucks away as you scroll down** (Centre): the stage card closes up around the bar, and comes back as you scroll up or reach the top; by your own scrolling, not the conversation following new lines
-- **What you type is the dialogue's size, and the box is shorter** (The input box): 17px with the lines' spacing (15px); the example alone, without "Speak as your character would…"; the box two lines tall at least (three), 87px in place of 99px
+- **What you type is the dialogue's size, and the box is shorter** (The input box): 17px with the lines' spacing (15px); the example alone, without "Speak as your character would…", and a little smaller (15px); the box one line tall at least (three), 72px in place of 99px
 
 **Build:** v0.22's changes get a task of their own once this version is on `main` (Build State).
 
@@ -501,7 +502,8 @@ The message box is a floating card *(v0.16)*. Its top line holds **the prompt** 
 - **The character count** ("0/500") sits at the right end of the same line, over the buttons
 - **The placeholder carries the example** *(v0.5; v0.16)*, at the top of the box: **just the example,** *"@Giorgia Pazzi My family never forgets, and rarely forgives", or "/borrow"* *(Dylan; v0.22; "Speak as your character would…" on a line above it is gone, so the box can be shorter)*. All four rotating examples follow that shape, with a comma before "or". They use only commands allowed right now
 - **No scrollbar on the empty box;** it comes back once there's text to scroll *(v0.16)*
-- **The box is two lines tall** *(Dylan; v0.22; three in v0.19)*, whatever the example's length: when the example takes one line, a blank line follows it; a longer one fills the two or more. (Four lines, with a blank line above the example, then three, came first.)
+- **The box is only as tall as its example, one line at least** *(Dylan; v0.22; three lines in v0.19)*, with no blank line under it; a longer example takes the lines it needs. (Four lines, with a blank line above the example, then three, then two, came first.)
+- **The example is a little smaller than what you type** *(Dylan; v0.22)*: 15px (line spacing 1.5) to the typing's 17px, so it reads as a hint, not a line
 - **What you type is the dialogue's size** *(Dylan; v0.22)*: 17px with the lines' spacing (1.55), in the dialogue's typeface as before (15px before), so the box previews the line it becomes
 - **The box grows with what's typed** *(Dylan; v0.17)*, a line at a time, **up to nine lines**, then scrolls. It's never shorter than its placeholder. In a short window it stops at about a fifth of the window's height (three lines at least), so it can't crowd out the conversation. Editing in the middle of the text leaves the cursor where it is
 - **Sending a line** *(Dylan; v0.22)*: what you typed fades softly out of the box (about a quarter of a second, drifting up a few pixels; the example stays hidden until it's gone), and when your line joins the conversation it **slides up from under the message box to its place** (about half a second, easing to rest). With reduced motion it simply fades and appears. Your line arrives when the game takes it, so in a busy moment the slide can come a beat after the fade
@@ -654,7 +656,7 @@ The screen is laid out for **a laptop, a desktop, or a tablet held sideways.** W
 | The conversation's column | At least 540px wide, so the stage bar fits; its reading column (the lines, Il Notaio's boxes, the message box) at most 820px, centred |
 | The stage bar | At most 1280px, centred; its card's side margins grow beyond the reading column's width; its circles sized from its own width |
 | The conversation's height | At least 200px; Il Notaio's hint folds itself first |
-| The message box | Two lines at least *(v0.22; three before)*; grows to nine, or about a fifth of the window's height in a short window (three lines at least) |
+| The message box | One line at least *(v0.22; three before)*; grows to nine, or about a fifth of the window's height in a short window (three lines at least) |
 | The opening | 620px column, 18px text; from 1400px wide, 800px and 22px (18px text in a window under 760px tall), with Il Notaio's name and its gloss growing in step (24 to 30px, 13 to 16px). The choice up to 1240px wide (90% of the window), sized from the window's width |
 | The modals | 640px wide, 30px corners; their row never narrower than the modal and two paddles, scrolling sideways below that |
 | The side modals | Whole modals from 1280px wide, up to 85% of the modal in focus, shrinking to 75% (480px) by 1736px; from 1280 to 1735px, that size, running off the screen's sides; paddles below 1280px, 75% of a modal's height |
@@ -773,6 +775,7 @@ How a new player learns the game without a tutorial up front.
 - **Larger while open:** his words at 16px open, 13px minimized (never smaller than today's); his small lore notes grow in step (11px to about 13px). The size changes in one step as the box opens or closes, never animated, so the lines rewrap once
 - **The title is sized from his open words** (about 87% of them, about 14px) and stays that size open or minimized
 - **Show / Hide** at the right of the title, in the small label size (11px), saying what a click will do
+- **The title stays pinned to the top of his reading and his past-stage summary** *(Dylan; v0.22)*, his words scrolling away under it through a short fade (14px)
 - **Every box is only as tall as what he has to say** *(Dylan; v0.22)*, up to a limit, then it scrolls:
   - **His hint:** one line of text, one line of box (61px with its title; it kept room for two lines, 85px); **at most five lines**
   - **His reading and his past-stage summary,** open: **centred in their column, in a room 15% in from the top and 15% in from the foot** (in the conversation and the web's side column alike, never over the peeking strip; they used to fill from 20% or 14% down to the foot, and 25% down to the foot was tried), growing both ways with their text (they always filled their room before, however little they said). **Once they fill it, they scroll,** so something above always shows. **Minimizing glides them down to their place at the foot** (about a third of a second), and opening glides them back up; with reduced motion they move at once. (Sitting on the foot and growing upward was tried first)
@@ -1299,6 +1302,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | *(v0.20)* The / and @ menus lower, just covering the "Your turn" line; both navigable with the up and down arrow keys, which skip "Not available now" | They end 6px above the box; arrows light an entry, Return picks it | The input box |
 | *(v0.20)* A card that slid up should end, once stopped, level with the message box, 12px above the Web of Confidences' bar | 12px above the bar; the "talking with" card still 82px | Right |
 | *(v0.20)* While a card slides up or down, its bottom should reach the Web of Confidences' bar, unrounded, until it's off the screen or at its stop | Square and full height while moving; rounded and level once stopped | Right |
+| *(v0.22)* Il Notaio's titles always pinned to the top of his summary boxes, with a fade under them; the example text a little smaller, and the box able to shrink to one line | Titles sticky, 14px fade; the example 15px; one line at least (72px) | Il Notaio; The input box |
 | *(v0.22)* Il Notaio's box above the message box only as tall as his text at the time | No two-line minimum (85px to 61px for one line); then the same for all his boxes, each with a limit (the hint five lines; the reading and summary where they used to start); then the reading and summary centred in that room until they fill it; the room an even 25% down for both (20% and 14%), then 15% in from the top and the foot; minimizing glides them back to the foot | Il Notaio |
 | *(v0.22)* Reduce scroll sensitivity (in the chat, the side panels, the modals, Il Notaio's boxes, What You Heard and Saw, Notes, the message box, the menus) | 80% of the system's distance, eased; the opening and page left alone (Claude advised against taking over scrolling in general; Dylan scoped it to these places) | Scrolling |
 | *(v0.22)* Everything adjusted on the web's bar spaced out even more | Letters 0.24em, then 0.34em; ▲ 24px, then 32px; either side of the dot the same; portraits 12px, then 16px apart | The Web of Confidences |
