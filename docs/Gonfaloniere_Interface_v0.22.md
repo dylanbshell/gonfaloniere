@@ -9,6 +9,7 @@
 *Nov 17. Dylan's further notes on the demo, after v0.21 merged. Detail in the sections named; the record is in Playtest Findings (the rows marked v0.22).*
 
 - **A subtler paddle press** (Briefing, rules, the city, and the glossary): its flash fades over 550ms (900ms)
+- **The line under the stage bar tucks away as you scroll down** (Centre): the stage card closes up around the bar, and comes back as you scroll up or reach the top; by your own scrolling, not the conversation following new lines
 - **What you type is the dialogue's size, and the box is shorter** (The input box): 17px with the lines' spacing (15px); the example alone, without "Speak as your character would…"; the box two lines tall at least (three), 87px in place of 99px
 
 **Build:** v0.22's changes get a task of their own once this version is on `main` (Build State).
@@ -387,6 +388,7 @@ The demo is built by patching the screen and adding scripts to the page, which i
 - **The side modals' sizes** *(v0.20)*: three ranges: shrinking (up to 85% of the modal, down to 75%), then fixed at 75% and running off the screen's sides with the modal in focus centred, then paddles. The demo goes by window width (1736px and 1280px); in the build, as Notes for the Build says above, go by the overlay's own width
 - **The web's ring order** *(v0.21)*: a list in the setting pack (with the roster and factions), clockwise from the ring's start; the code holds no names. Guests the list leaves out follow in roster order
 - **The web's two-line names** *(v0.21)*: a name breaks after its first word into two lines (SVG `tspan`s), centred under its circle, when it's one of the four nearest twelve and six o'clock or over 18 characters. The web's text is sized in the drawing's own units, so the spacing holds at every size; the demo's script that moved the top and bottom names outward goes
+- **The members line tucking away** *(v0.22)*: goes by the reader's scrolling intent (wheel direction, touch direction, the scrolling keys outside the message box, dragging the scrollbar), not by `scroll` events alone, since the conversation scrolls itself as it follows new lines. Reaching the top always shows it. The demo does this with a small script in `tools/demo/entry.ts` and a `tucked` class on the stage card; the build belongs in the conversation component
 - **More Below can't loop** *(v0.19)*: once the left panel's top was pinned, the demo's left panel kept failing for Dylan (not reproduced in Chrome; likely Safari, at some window heights). The likely cause: showing More Below changes what's left to scroll, so a check after every render could turn it on and off without end until React gave up. The fix: it comes on only with clearly more than its own room left (16px) and goes off at 2px, and the check runs a frame after the render. **A failed panel says what failed** in the demo (the error, small, under the notice, and a Try Again button); worth keeping in the build
 
 ---
@@ -442,6 +444,7 @@ A single page in the style of a Slack chat. Placeholder portraits until Art & De
 - **The names are the lines' size** *(Dylan; v0.21)*: who speaks, who they speak to ("(to …)"), and Il Notaio's label are 17px like the words (they were 13px), still in the sans, bold for the speaker and grey for "to"
 - **Two floating cards** *(Dylan; v0.16)*: the stage bar at the top and the message box at the bottom sit as rounded cards over the conversation, each casting a shadow onto it. **The conversation fades out where it slides under them** (the top bar and Il Notaio's box), so a line dissolves rather than being cut off. How the cards and shadows look is Art & Design's (The Look)
 - **The conversation's members** sit under the stage bar, centred ("In the loggia with Giorgia and Lupo"; in a Colloquio, "In the study, in secret with Clarice"). **End conversation** sits on that line in a Colloquio, solid red *(v0.16)*
+  - **It tucks away as you scroll down** *(Dylan; v0.22)*: scrolling the conversation down hides the members line (and its End) and the stage card closes up around the stage bar (about 26px), giving the lines the room; scrolling up brings it back, and so does reaching the top. **It goes by which way you scroll** (wheel, touch, the keys, dragging the scrollbar), never by the conversation following new lines in. It slides; with reduced motion it fades. End conversation stays in the message box's actions throughout
 - **Only the current conversation is open.** Earlier conversations in this stage collapse into **Earlier this stage**, one line each, opening in place. Earlier stages live in the bar
   - **Its rows are 15px** *(Dylan; v0.21; 13px before)*, a step below the lines, with their Show / Hide; its heading stays a 12px label like the screen's others
 - **Selecting a guest** opens the collapsed sections they appear in, highlights their lines, and puts a dot on each past stage they appear in
@@ -1281,6 +1284,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | *(v0.20)* The / and @ menus lower, just covering the "Your turn" line; both navigable with the up and down arrow keys, which skip "Not available now" | They end 6px above the box; arrows light an entry, Return picks it | The input box |
 | *(v0.20)* A card that slid up should end, once stopped, level with the message box, 12px above the Web of Confidences' bar | 12px above the bar; the "talking with" card still 82px | Right |
 | *(v0.20)* While a card slides up or down, its bottom should reach the Web of Confidences' bar, unrounded, until it's off the screen or at its stop | Square and full height while moving; rounded and level once stopped | Right |
+| *(v0.22)* Hide the text under the stage bar and shorten its card when scrolling down; back when scrolling up | The members line tucks away and the card closes up (26px); by the direction of your own scrolling | Centre |
 | *(v0.22)* What you type the size of the dialogue; drop "Speak as your character would" so the box is shorter | 17px; the example alone; two lines at least (the box 12px shorter) | The input box |
 | *(v0.22)* A shorter fade on a clicked paddle, to look more subtle | 550ms (900ms) | The modals |
 | *(v0.21)* The bar's ▲ and the guests shown on it more spaced out | ▲ 16px from the title; 16px either side of the dot; portraits 8px apart | The Web of Confidences |
