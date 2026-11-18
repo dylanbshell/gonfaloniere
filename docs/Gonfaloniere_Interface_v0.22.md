@@ -18,8 +18,10 @@
 - **What you type is the dialogue's size, and the box is shorter** (The input box): 17px with the lines' spacing (15px); the example alone, without "Speak as your character would…", and a little smaller (15px); the box one line tall at least (three), 72px in place of 99px
 - **More room under Il Notaio's titles** (Il Notaio): 12px between his reading's or summary's title and his first line (4px); his hint's text 4px further from its title
 - **Fades for his hint and the web's side column** (Il Notaio; The Web of Confidences): his hint's words fade 28px under its title and at its foot while they scroll; What You Heard and Saw and Notes fade 20px under their tabs once scrolled
-- **One type scale** (Type sizes, new): 12, 13, 15, 17, 20, 24, 30px and up, every text snapped to it; nothing read or clicked under 12px; one size per role. What You Heard and Saw and the glossary's definitions up to 15px, Il Notaio's open boxes to 17px
+- **One type scale** (Type sizes, new): 12, 13, 15, 17, 20, 24, 30px and up, every text snapped to it; nothing read or clicked under 12px; one size per role. What You Heard and Saw and the glossary's definitions up to 15px, Il Notaio's open boxes to 17px; one heading size, 20px semibold (guest card names, modal titles, your own name)
 - **Hiding Il Notaio's hint slides him behind the message box** (Il Notaio): whole, leaving a 14px strip of purple showing (no title, no Show) that brings him back; never showing below the message box
+
+**In the demo only:** Fast-forward sits down in the bottom-left corner of the Web of Confidences' bar, clear of the left panel's More Below (it covered it in a 900px-tall window).
 - **Il Notaio in his purple** (Centre; The Opening): his lines in the conversation take his boxes' purple text on a lighter purple ground with a purple rule down their left edge (pale green and green-grey before), set apart from his boxes, which keep the full purple and a darker border, so a line under a box doesn't look like part of it; and all of his opening (his name, its gloss, the story, "Choose your family…") takes his titles' purple
 - **More Below in his summaries, and a fade under his title only once his words scroll under it** (Il Notaio): while there's more below, a More Below button floats over his faded last words, as in the modals, above a deeper plain band (44px); at the end the margin is 18px
 - **Wider margins and a fade at the foot in his summaries** (Il Notaio): his open reading and past-stage summaries have 28px margins at the sides and 18px at the top (12px and 8px); they keep a plain bottom margin (18px; 44px while there's more below), and while there's more below, his words fade out over 28px just above it, as they do under the title
@@ -681,7 +683,7 @@ Every control and panel has a short explanation on hover or focus, **in plain, s
 | **13px** | Small print: the members line, the key's types, "Your next move", the count, the glossary's secondary lines, every More Below on a card or in his boxes |
 | **15px** | The screen's text and buttons: the briefing, rules and city, the glossary's terms and definitions, What You Heard and Saw, the guest cards, every tab, the stage's name |
 | **17px** | Reading: the conversation's lines and names, what you type, Il Notaio's words in his boxes |
-| **20px** | Headings *(proposed, not yet applied: guest card names, modal titles, "You are…")* |
+| **20px** | Headings, semibold: a guest's name on their card (17px before), the modals' and paddles' titles (18px), your own name at the top of the left panel (about 21.6px; it scales with the panel, around 20px). Headings inside a modal (a rules section, a city entry) a step down, 17px (18px) |
 | **24px; 30px and up** | Display: the opening |
 
 - **Nothing read or clicked under 12px:** More Below on the cards was 10px; "Your next move", the count, and the glossary's secondary lines were 11px
@@ -1377,8 +1379,9 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | *(v0.22)* Do the bottom fades match the top? (They didn't: 14px under the title, 40px at the foot) | Both 28px | Il Notaio |
 | *(v0.22)* 28px fades in his hint; 20px fades under the web's tabs (What You Heard and Saw, Notes) | As suggested: the scrolling places that had none (the menus left alone) | Il Notaio; The Web of Confidences |
 | *(v0.22)* Tell his lines in the chats apart from his summaries over them, so one scrolling under the other isn't confusing | The lines lighter with a purple rule down their left edge; the boxes' border a little darker | Centre |
-| *(v0.22)* Catalog all the font sizes and suggest changes; then apply the scale, the labels, the minimum size, the related text and the near-duplicates (1–5), and show an example of one heading size (6) | About twenty sizes against the theme's five; snapped to 12, 13, 15, 17, 20, 24, 30+; the heading size shown as an example, not applied | Type sizes |
+| *(v0.22)* Catalog all the font sizes and suggest changes; then apply the scale, the labels, the minimum size, the related text and the near-duplicates (1–5), and show an example of one heading size (6) | About twenty sizes against the theme's five; snapped to 12, 13, 15, 17, 20, 24, 30+; the heading size shown as an example, then applied | Type sizes |
 | *(v0.22)* Hiding Il Notaio in the chat slides him under the message box, a little purple peeking out, no title or Show; his box's bottom never in the gap above the web's bar | A 14px strip; clicking it shows him; clipped 16px inside the message box | Il Notaio |
+| *(v0.22)* Apply the one heading size; move the demo's Fast-forward further down into the corner | 20px semibold; Fast-forward in the corner of the web's bar | Type sizes |
 | *(v0.22)* His hint's side margins back as they were | 12px (28px for a while) | Il Notaio |
 | *(v0.22)* More Below buttons in his boxes; a bigger bottom margin while there's a fade; the top fade not over his first lines | More Below in a 44px band at the foot while there's more; the title's fade only once scrolled | Il Notaio |
 | *(v0.22)* The rings' breathing reads as blinking, and two selected rings are out of step: breathe together, or too subtly to notice | One breath for the whole web, 4.8s, the width only (2 to 2.55 times the line), no fading | The Web of Confidences |
