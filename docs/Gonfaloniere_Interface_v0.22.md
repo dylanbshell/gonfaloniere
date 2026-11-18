@@ -20,8 +20,6 @@
 - **Fades for his hint and the web's side column** (Il Notaio; The Web of Confidences): his hint's words fade 28px under its title and at its foot while they scroll; What You Heard and Saw and Notes fade 20px under their tabs once scrolled
 - **One type scale** (Type sizes, new): 12, 13, 15, 17, 20, 24, 30px and up, every text snapped to it; nothing read or clicked under 12px; one size per role. What You Heard and Saw and the glossary's definitions up to 15px, Il Notaio's open boxes to 17px; one heading size, 20px semibold (guest card names, modal titles, your own name)
 - **Hiding Il Notaio's hint slides him behind the message box** (Il Notaio): whole, leaving a 14px strip of purple showing (no title, no Show) that brings him back; never showing below the message box
-
-**In the demo only:** Fast-forward sits down in the bottom-left corner of the Web of Confidences' bar, clear of the left panel's More Below (it covered it in a 900px-tall window).
 - **Il Notaio in his purple** (Centre; The Opening): his lines in the conversation take his boxes' purple text on a lighter purple ground with a purple rule down their left edge (pale green and green-grey before), set apart from his boxes, which keep the full purple and a darker border, so a line under a box doesn't look like part of it; and all of his opening (his name, its gloss, the story, "Choose your family…") takes his titles' purple
 - **More Below in his summaries, and a fade under his title only once his words scroll under it** (Il Notaio): while there's more below, a More Below button floats over his faded last words, as in the modals, above a deeper plain band (44px); at the end the margin is 18px
 - **Wider margins and a fade at the foot in his summaries** (Il Notaio): his open reading and past-stage summaries have 28px margins at the sides and 18px at the top (12px and 8px); they keep a plain bottom margin (18px; 44px while there's more below), and while there's more below, his words fade out over 28px just above it, as they do under the title
@@ -30,6 +28,8 @@
 - **Selected guests' rings breathe** (The Web of Confidences): slowly thickening and thinning, all together (3.6 seconds a breath), the ring's width only, and only a little, never its strength; none with reduced motion
 - **Clicking a line selects its pair and its type** (The Web of Confidences): both guests, and the line's type in the key, with Secret too when it's a secret tie; clicking it again clears. **Secret now pairs with any type** in the key (secret romances, say), and whatever can't go with the key's choice fades (a type with no secret ties while Secret is on; Secret while the chosen type has none); clicking a faded one swaps the choice
 - **The places have their own small drawn marks** (Left; The Look): a line drawing per place, from the setting pack, wherever a place is named on the screen except in what's said: the places list (the empty ones' line too), the line under the stage bar, the past stages and their summaries
+
+**In the demo only:** Fast-forward sits down in the bottom-left corner of the Web of Confidences' bar, clear of the left panel's More Below (it covered it in a 900px-tall window).
 
 **Build:** v0.22's changes get a task of their own once this version is on `main` (Build State).
 
