@@ -9,6 +9,7 @@
 *Nov 17. Dylan's further notes on the demo, after v0.21 merged. Detail in the sections named; the record is in Playtest Findings (the rows marked v0.22).*
 
 - **A subtler paddle press** (Briefing, rules, the city, and the glossary): its flash fades over 550ms (900ms)
+- **What you type is the dialogue's size, and the box is shorter** (The input box): 17px with the lines' spacing (15px); the example alone, without "Speak as your character would…"; the box two lines tall at least (three), 87px in place of 99px
 
 **Build:** v0.22's changes get a task of their own once this version is on `main` (Build State).
 
@@ -488,9 +489,10 @@ The message box is a floating card *(v0.16)*. Its top line holds **the prompt** 
 - **The prompt** *(v0.16)*, in the accent, says what the moment asks, in plain words: "Your turn: speak or pass." / "Giorgia spoke to you. Answer or pass." / "Lupo ended the conversation. Say a last word or pass." / "Your words will be said at the next pause." (The Player's Words)
 - **Your next move** *(Dylan; v0.16)*, small and grey, at the right of the prompt's line, **its right edge lined up with the message box's:** "Your next move: in 3 turns", then "in 1 turn", "this turn" (in the accent, bold), or "next round" once this round's has passed. If it falls while you're in a secret conversation: "this turn, but you're aside". **When the prompt and it don't both fit on the line** (a narrow box), **the prompt keeps its line whole and this one drops below it,** still at the right *(Dylan; v0.20; the prompt was crushed to a word a line, under this one)*. **Clicking it opens the rules on moving** (the section behind the glossary's Move entry), and its explanation says how windows work. The engine sends when the player's window comes in the turn order (Technical Design handoff)
 - **The character count** ("0/500") sits at the right end of the same line, over the buttons
-- **The placeholder carries the example** *(v0.5; v0.16)*, at the top of the box, now on two lines: *Speak as your character would…* then *"@Giorgia Pazzi My family never forgets, and rarely forgives", or "/borrow"*. All four rotating examples follow that shape, with a comma before "or". They use only commands allowed right now
+- **The placeholder carries the example** *(v0.5; v0.16)*, at the top of the box: **just the example,** *"@Giorgia Pazzi My family never forgets, and rarely forgives", or "/borrow"* *(Dylan; v0.22; "Speak as your character would…" on a line above it is gone, so the box can be shorter)*. All four rotating examples follow that shape, with a comma before "or". They use only commands allowed right now
 - **No scrollbar on the empty box;** it comes back once there's text to scroll *(v0.16)*
-- **The box is three lines tall** *(Dylan; v0.19)*, whatever the example's length: when the example takes two lines, a blank line follows it; a longer one fills the three. (Four lines, with a blank line above the example, was tried first.)
+- **The box is two lines tall** *(Dylan; v0.22; three in v0.19)*, whatever the example's length: when the example takes one line, a blank line follows it; a longer one fills the two or more. (Four lines, with a blank line above the example, then three, came first.)
+- **What you type is the dialogue's size** *(Dylan; v0.22)*: 17px with the lines' spacing (1.55), in the dialogue's typeface as before (15px before), so the box previews the line it becomes
 - **The box grows with what's typed** *(Dylan; v0.17)*, a line at a time, **up to nine lines**, then scrolls. It's never shorter than its placeholder. In a short window it stops at about a fifth of the window's height (three lines at least), so it can't crowd out the conversation. Editing in the middle of the text leaves the cursor where it is
 - **What you type is in the guests' typeface** *(v0.17)*, since it's what your character will say
 - **Return to current stage grows taller** rather than spilling if its words run to a third line *(v0.17; a translation might)*
@@ -637,7 +639,7 @@ The screen is laid out for **a laptop, a desktop, or a tablet held sideways.** W
 | The conversation's column | At least 540px wide, so the stage bar fits; its reading column (the lines, Il Notaio's boxes, the message box) at most 820px, centred |
 | The stage bar | At most 1280px, centred; its card's side margins grow beyond the reading column's width; its circles sized from its own width |
 | The conversation's height | At least 200px; Il Notaio's hint folds itself first |
-| The message box | Three lines at least; grows to nine, or about a fifth of the window's height in a short window (three lines at least) |
+| The message box | Two lines at least *(v0.22; three before)*; grows to nine, or about a fifth of the window's height in a short window (three lines at least) |
 | The opening | 620px column, 18px text; from 1400px wide, 800px and 22px (18px text in a window under 760px tall), with Il Notaio's name and its gloss growing in step (24 to 30px, 13 to 16px). The choice up to 1240px wide (90% of the window), sized from the window's width |
 | The modals | 640px wide, 30px corners; their row never narrower than the modal and two paddles, scrolling sideways below that |
 | The side modals | Whole modals from 1280px wide, up to 85% of the modal in focus, shrinking to 75% (480px) by 1736px; from 1280 to 1735px, that size, running off the screen's sides; paddles below 1280px, 75% of a modal's height |
@@ -815,7 +817,7 @@ The setting pack's strings v0.16 changes or adds. Keys that exist keep their nam
 | `used` | You've spoken your piece this turn. | You've already spoken this turn. |
 | `held` | Your words will be spoken at the next pause. | Your words will be said at the next pause. |
 | `closed` | A choice is waiting above. | Make your choice above. |
-| `examples` | Speak as your character would… "@{guest} …" or "{command}…" | The same lines with a line break after the ellipsis and a comma before "or". The borrow example becomes "@{guest} My family never forgets, and rarely forgives", or "{command}" |
+| `examples` | Speak as your character would… "@{guest} …" or "{command}…" | **Just the example** *(v0.22)*, with no "Speak as your character would…", and a comma before "or". The borrow example becomes "@{guest} My family never forgets, and rarely forgives", or "{command}" |
 
 **Il Notaio's hints** (`notaio.json` › `hints`), plain:
 
@@ -1279,6 +1281,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | *(v0.20)* The / and @ menus lower, just covering the "Your turn" line; both navigable with the up and down arrow keys, which skip "Not available now" | They end 6px above the box; arrows light an entry, Return picks it | The input box |
 | *(v0.20)* A card that slid up should end, once stopped, level with the message box, 12px above the Web of Confidences' bar | 12px above the bar; the "talking with" card still 82px | Right |
 | *(v0.20)* While a card slides up or down, its bottom should reach the Web of Confidences' bar, unrounded, until it's off the screen or at its stop | Square and full height while moving; rounded and level once stopped | Right |
+| *(v0.22)* What you type the size of the dialogue; drop "Speak as your character would" so the box is shorter | 17px; the example alone; two lines at least (the box 12px shorter) | The input box |
 | *(v0.22)* A shorter fade on a clicked paddle, to look more subtle | 550ms (900ms) | The modals |
 | *(v0.21)* The bar's ▲ and the guests shown on it more spaced out | ▲ 16px from the title; 16px either side of the dot; portraits 8px apart | The Web of Confidences |
 | *(v0.21)* The "Web of Confidences" title more spaced out | Its letters 0.08em apart, then in capitals and 0.16em apart, then regular weight (semi-bold before), on the bar, open or closed | The Web of Confidences |
