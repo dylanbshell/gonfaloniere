@@ -72,6 +72,7 @@
 - **The hidden right panel a paddle** (Right): 40px, 12px in from the edge, the paddles' corners, colour and edge; what it holds on end, the guest's portrait above and the paddles' arrow below; it answers the pointer and the press as they do
 - **Return to Current Stage rounder** (Corners): 20px; **alone in the message box, no longer huge**: the same corners and 64px height, as wide as its words, centred
 - **The family cards' Play buttons rounder** (Corners): 16px; **the paddles' titles less bold** (The modals; Right): medium, the hidden panel's too
+- **The decision cards in the screen's language** (Decision Cards): soft-fill choices that answer the pointer and press, the one "on" for the chosen one, the guest picker the same with the thin chevron, Confirm the main button
 - **No guest's card twice in the right panel** (Right): picking the guest you're talking with leaves their "talking with" card, with nothing over it
 - **The four buttons the smaller gap under your sheet** (Left): while it's tucked or peeking (6px), sliding to the larger gap when it's clicked to stay out
 - **Every button's corners rounder, alike** (Corners, new): one radius, 12px, for every button on the screen (8px, and 4px for the small icon buttons, before); pills stay pills, text-like buttons square, the @ and / menus' rows as they were
@@ -906,6 +907,13 @@ The screen is laid out for **a laptop, a desktop, or a tablet held sideways.** W
 
 ## Decision Cards
 
+**In the screen's language** *(Dylan, Nov 19: "consistent with the rest of the project, including how the buttons function")*: where you go, who to sit with, and midnight's acts alike.
+- **Their choices are soft fills like the screen's other buttons,** with no outline (they were outlined boxes), 12px corners, and the buttons' answer to the pointer and the press; **the chosen one wears the one "on"**: a tint of the accent with its words in it (it was a pale blue with a blue outline)
+- **Their guest pickers** ("Choose a Guest", the act and the guest at midnight) are the same soft fill at the choices' height (48px), 15px, with **the thin chevron under "You are"** in place of the filled triangle, and the buttons' shade under the pointer. The list that opens is the system's own menu, as on a Mac
+- **Confirm is the screen's main button** at Speak's size (32px, 106px wide at least), waiting at half strength until it can be pressed
+- The same keyboard ring as everywhere (2px blue, 3px out), the arrow pointer over them, not the hand
+
+
 When the game waits for one of the player's choices, **a card takes the message box's place** at the bottom of the conversation, in the same floating card *(Dylan; v0.16)*, rather than appearing at the end of the stream. If a card runs tall (midnight's can), it scrolls within that space. *What each card offers, and when the game pauses, are Technical Design's and Mechanics'; this is how the cards present it.*
 
 - **Movement window:** stay, move toward a guest, or **start a secret conversation** with a guest. Three choice tiles with a guest picker below
@@ -1656,6 +1664,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | *(v0.22)* Your Briefing's tabs bigger still | 20px, the next step of the scale (the web's stay 17px); three rows now, level with the title's size | Type sizes |
 | *(v0.22)* The web bar's arrow to match the one under "You are" | The same thin chevron, faint at rest, up or down with the web | Buttons |
 | *(v0.22)* The web's white selection ring the colour of the button highlights | The screen's blue (light `#3A5A8C`, dark `#8FB0E6`), in place of the web's ink | The Web of Confidences |
+| *(v0.22)* The decision card (where do you go) consistent with the rest, buttons included | Soft-fill choices with the buttons' hover and press, the accent tint for the chosen one; the guest picker the same fill and height, the thin chevron; Confirm as Speak | Decision Cards |
 | *(v0.22)* His hint's side margins back as they were | 12px (28px for a while) | Il Notaio |
 | *(v0.22)* More Below buttons in his boxes; a bigger bottom margin while there's a fade; the top fade not over his first lines | More Below in a 44px band at the foot while there's more; the title's fade only once scrolled | Il Notaio |
 | *(v0.22)* The rings' breathing reads as blinking, and two selected rings are out of step: breathe together, or too subtly to notice | One breath for the whole web, 4.8s, the width only (2 to 2.55 times the line), no fading | The Web of Confidences |
