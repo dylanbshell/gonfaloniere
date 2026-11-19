@@ -77,6 +77,7 @@
 - **A picked portrait's blue ring plain to see** (The Screen): a page-coloured gap, then a 2px ring, as in the web
 - **The seat card chooses, then confirms** (Decision Cards): no choice goes on a single click; **a choice that needs a guest is the guest menu itself**, reading on into the guest once picked
 - **Your own card marked by a blue edge round the whole card, not a ring round your portrait** (Right)
+- **In the opening, scrolling back up to the story's top brings Il Notaio's name and cloud back** (The Opening)
 - **No guest's card twice in the right panel** (Right): picking the guest you're talking with leaves their "talking with" card, with nothing over it
 - **The four buttons the smaller gap under your sheet** (Left): while it's tucked or peeking (6px), sliding to the larger gap when it's clicked to stay out
 - **Every button's corners rounder, alike** (Corners, new): one radius, 12px, for every button on the screen (8px, and 4px for the small icon buttons, before); pills stay pills, text-like buttons square, the @ and / menus' rows as they were
@@ -963,6 +964,8 @@ When the game waits for one of the player's choices, **a card takes the message 
 
 ## The Opening *(Dylan, Nov 13; v0.7; v0.16)*
 
+**His name and cloud come back at the top** *(Dylan, Nov 19)*: once the families' choice has come up, his name and its cloud had gone for good; now, scrolling back up to the top of his story brings them back where they stood while he wrote, sliding in as their place comes into view and away again as you scroll down. *Build:* the demo's script marks the opening (`data-top`) while their place is in view; the finished opening's title takes the same width, margin and cloud as the writing one's
+
 Il Notaio introduces himself before the player meets anyone.
 - **His name floats on an island** *(Dylan; v0.22, marked on a whiteboard)*: a soft white glow round his name and its gloss, **solid at its heart, its fade a touch see-through** (99% of its strength, Dylan; solid, then 86%, 94% and 98% at its heart, each still too see-through), reaching 46px below his gloss, with the story starting 30px under it *(Dylan tried it reaching further down, 84px, with the story 62px under, and went back)* and fading out gradually over a wide, eased edge, with no ring or line to see; it floats a little way below the window's top (54px), so the whole glow is on the screen, and **the story starts clear of it** (30px under his gloss; his glow's foot lay over the first line before, Dylan), and his story scrolls past under and around it (no band across the column), fading away at the window's top edge. **At the very end of his story, the island floats up and away** (within 8px of the page's foot; 140px at first was too soon) (and back if you scroll up again); it's gone for the choice of family. **More is see-through glass** (45%, a 10px blur). *(A large island behind the whole story was tried, and taken away; so was a pill with a 14px fade, whose edge still showed)*
 - **His name heads the page, glossed:** "Il Notaio", with *Italian for "the notary"* beneath it (v0.11)
@@ -1683,6 +1686,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | *(v0.22)* Start a Secret Conversation as the menu itself, reading "Start a Secret Conversation with" and the guest once picked | Done on both cards (and Move Toward on the move card); the separate field gone; tested on a real seat card | Decision Cards |
 | *(v0.22)* Keep the secret conversation's guest after switching to Wait for a Seat | Kept on the tile; one click re-chooses it with that guest, a second opens the list; tested on a real card | Decision Cards |
 | *(v0.22)* The demo changed so the Move Toward card can be seen | The fake guests don't call you aside before your first movement window; it comes after about four passes | Changes in v0.22 (demo) |
+| *(v0.22)* After going down to the choice, scrolling back up to the story's top: Il Notaio and his cloud back at the top | Back as they were while he wrote, while their place is in view | The Opening |
 | *(v0.22)* His hint's side margins back as they were | 12px (28px for a while) | Il Notaio |
 | *(v0.22)* More Below buttons in his boxes; a bigger bottom margin while there's a fade; the top fade not over his first lines | More Below in a 44px band at the foot while there's more; the title's fade only once scrolled | Il Notaio |
 | *(v0.22)* The rings' breathing reads as blinking, and two selected rings are out of step: breathe together, or too subtly to notice | One breath for the whole web, 4.8s, the width only (2 to 2.55 times the line), no fading | The Web of Confidences |
