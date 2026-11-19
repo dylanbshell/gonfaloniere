@@ -62,6 +62,10 @@
 - **Every button answers the pointer, one way** (Buttons, new): a faint shade under the pointer, a deeper one pressed; the corner ✕s and the tabs darken their words instead
 - **End conversation quiet until you mean it** (Buttons): the soft fill, red under the pointer, a deeper red pressed; the stage bar's corners in the chat bar's proportion
 - **The @ and / menus the text box's corners** (Corners): 14px, their rows 10px
+- **Everything clickable answers the pointer in one language** (Buttons): his Hide and Show, the key's Hide, the web's bar, its guests and lines, the places' portraits (which spread apart again), names and places in the text, the stage dots, the key's rows, the city's guests, the side modals and paddles
+- **Every corner ✕ 20px in from its box's corner** (Buttons): the modals', the Looking At card's, a rule card's; the panel's hide control over the card's still
+- **Your Briefing's and the web's tabs 17px** (Type sizes); **Save Note the same as Speak** (Buttons); **More Info's shade roomier**
+- **The Talking With card's outline whole, the resize line only along the card** (Right)
 - **No guest's card twice in the right panel** (Right): picking the guest you're talking with leaves their "talking with" card, with nothing over it
 - **The four buttons the smaller gap under your sheet** (Left): while it's tucked or peeking (6px), sliding to the larger gap when it's clicked to stay out
 - **Every button's corners rounder, alike** (Corners, new): one radius, 12px, for every button on the screen (8px, and 4px for the small icon buttons, before); pills stay pills, text-like buttons square, the @ and / menus' rows as they were
@@ -641,6 +645,8 @@ In the chat view, **one thing is selected at a time:** a guest or a lore topic. 
 - **A city entry** opens here, with a way back: **its title centred** and a size up *(Dylan; v0.19)*, its text, and **"Guests it concerns":** a small portrait and name for each, selecting them
 - **"Open in the Web of Confidences"** on a filled card *(v0.6–v0.7)*
 
+**The Talking With card's outline is a true border** *(Dylan, Nov 19)*: drawn as a shadow inside the card at first, its pinned heading covered it along the top. **The resize handle's highlight** (the panel's left edge) is now a thin rounded line along the card's straight edge only (3px, the accent at half strength, more while dragging), not a band down to the screen's foot.
+
 **On trial: colour by what the card is** *(Dylan, Nov 19, "just to see what it looks like")*: **the Talking With card in the page's own colour** (`--bg`, the right panel with it), **outlined** (a 1px line in the border colour) rather than tinted blue; **the Looking At card tinted with its guest's faction** (your own card with yours): a wash of the faction's colour into the card's paper (14%; 20% in dark mode), under its usual 87% glass. **A city entry, or anything else that slides up, takes one colour for all:** a violet at the factions' depth (OKLCH 0.5, chroma 0.1, hue 310), Il Notaio's purple family, since the city is his notes (the screen's blue was tried first and sat too near the French indigo). With reduced transparency the card goes to its solid paper, untinted. *Build:* the card carries its guest's colour (`--family`, from the guest's `colour`, as the family cards do)
 
 ### Briefing, rules, the city, and the glossary *(v0.5–v0.7; v0.16; v0.17)*
@@ -749,7 +755,7 @@ Every control and panel has a short explanation on hover or focus, **in plain, s
 | **12px** | Small capital labels, all of them: the panels' (Talking With, Your Errand, The Places), the key's heading, the city's groups, Hide and Show; Il Notaio's titles a step up, 13px |
 | **13px** | Small print: the members line, the key's types, "Your next move", the count, the glossary's secondary lines, every More Below on a card or in his boxes |
 | **15px** | The screen's text and buttons: What You Heard and Saw, the guest cards, every tab, the stage's name |
-| **17px** | Reading: the conversation's lines and names, what you type, Il Notaio's words in his boxes; **the modals' words, serif and sans alike** *(Dylan, Nov 19)*: Your Briefing and The City's entries in the serif, a rule card's words and the Glossary's terms and definitions in the sans (15px before, which still read smaller than the serif beside it), at 26px lines |
+| **17px** | Reading: the conversation's lines and names, what you type, Il Notaio's words in his boxes; **Your Briefing's and the web's underlined tabs** *(Dylan, Nov 19; 15px before)*; **the modals' words, serif and sans alike** *(Dylan, Nov 19)*: Your Briefing and The City's entries in the serif, a rule card's words and the Glossary's terms and definitions in the sans (15px before, which still read smaller than the serif beside it), at 26px lines |
 | **20px** | Headings, semibold: a guest's name on their card (17px before), the modals' and paddles' titles (18px), your own name at the top of the left panel (about 21.6px; it scales with the panel, around 20px). Headings inside a modal (a rules section, a city entry) a step down, 17px (18px) |
 | **24px; 30px and up** | Display: the opening |
 
@@ -769,6 +775,21 @@ Every control and panel has a short explanation on hover or focus, **in plain, s
 **Every button answers the pointer, the same way everywhere:** under the pointer it takes a faint shade over whatever it is (6% black over light, 8% white over dark): a solid button, a soft fill, plain words or a More Below on glass alike; **pressed, a deeper one** (12%; 15% white). The shade sits over the button's own colour rather than replacing it, so one rule serves every kind. Hover is only for a pointer that can hover (`(hover: hover)`), so a touch screen never shows a stuck hover; the press shows everywhere. **Apart:** the corner ✕s and the small icon buttons darken their mark under the pointer and fade a little pressed; the tabs darken their words; the @ and / menus' rows light as before; the names and links in the text keep their own; the paddles have their own (The modals).
 
 *Is it good design?* Yes: on a computer, a change under the pointer says "this can be clicked" before you commit, and a pressed state confirms the click landed; macOS shows both on its toolbar and borderless buttons, and every control shows a press. Kept faint, so the screen doesn't flicker as the pointer crosses it, and one step deeper for the press, rather than a second kind of change.
+
+**The same answer, carried to everything else that can be clicked** *(Dylan, Nov 19; "make sure it's consistent across the project")*, where a shade over a box doesn't fit, in the same spirit, quick (150ms in, a slight spring of 260ms out):
+- **Words that toggle** (Il Notaio's Hide and Show, on his box, his reading and his summaries; the key's Hide the Key): grey to the text's own colour (his purple text on his)
+- **The web's bar:** its title darkens, and its arrow nudges 2px the way the web would go (up when it's down, down when it's up); pressed, the title fades a little
+- **The web's guests:** the circle and its initials swell (to 112%), and sink (94%) pressed; **its lines:** the one under the pointer takes the chosen line's weight
+- **The places' portraits:** the group spreads apart under the pointer again (4px between them; the review pass's tighter overlap had stopped it), and the one pointed at swells, as in the web; the same for portraits anywhere they're buttons
+- **Names and places in the text, anywhere** (a guest's name, a city entry, Il Notaio's name, a place, a glossary word): the buttons' faint shade behind the word, a deeper one pressed, the underline in the text's colour
+- **Into the buttons' shade too:** the key's rows, the city's guests on a card (their accent border dropped), the stage dots
+- **The side modals in a wide window:** no accent ring or accent title any more; the buttons' shade over them, a deeper one and a slight sink pressed; **the paddles' shades the buttons' own** (6% and 12%; 3.5% and 8% at first)
+- **The panel's hide control** darkens like the other marks, no box behind it
+- **Every main button waits the same way** (disabled: its own colour at half strength, as Speak does; Save Note went dark)
+
+**Every corner ✕ in one place** *(Dylan, Nov 19)*: **20px in from its box's top and right edges**, the modals', the Looking At card's and a rule card's alike (the rule card's 12px brought in a little; the modal's, 46 and 64px in, and the card's, 26 and 28px, out to match). The modals' titles stay centred; the panel's hide control stays centred over the Looking At card's ✕ (20px in plus the gap at the window's edge).
+
+**Save Note the same as Speak** *(Dylan)*: the solid button at the chat bar's size (32px tall, at least 106px wide, 15px), in the screen's blue, not the web's ink. **More Info** (the folded errand card's link): its shade a little roomier than its words (8px either side, 3px above and below), without moving them *(Dylan: the shade was the words' own tight box)*.
 
 **End conversation is quiet until you mean it** *(Dylan)*: in the stage bar and under the message box it's the soft fill in the text's colour (both were solid red), **turning red under the pointer** and a deeper red pressed. The stage bar's, 21px tall, takes 8px corners, the chat bar's 32px buttons' 12px in proportion (12px made it a pill). *(Found on the way: under the message box it had become white words on the soft fill, nearly invisible, since the review pass)*
 
@@ -1596,6 +1617,11 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | *(v0.22)* The notes' text box the new shape of the chat's | 14px corners (8px) | Corners |
 | *(v0.22)* Try: the Talking With card the background's colour with an outline; Looking At cards tinted their faction's colour; a place or anything else one consistent accent | Page colour and a 1px outline; a 14% wash of the faction (20% dark) under the 87% glass; a violet for the rest (the blue first, too near the French) | Right |
 | *(v0.22)* The @ and / menus the chat text box's corners; End conversation in the stage bar with the chat bar's corners; both End buttons red only under the pointer and pressed; a change under the pointer on every button, and again pressed? | Menus 14px (rows 10px); the stage bar's End 8px (its height's share of 12px); both End buttons the soft fill, red under the pointer, deeper red pressed; every button a faint shade under the pointer and a deeper one pressed (yes, good design: it says what's clickable and confirms the click) | Buttons; Corners |
+| *(v0.22)* The Talking With outline cut off at the top; the resize highlight running to the screen's foot | A true border; the highlight a thin line along the card's edge only | Right |
+| *(v0.22)* Hover on his Hide buttons, the web bar's title, the web's portraits, lines and key rows, the places' portraits (which used to spread: bring that back), and every name or place link; consistent everywhere | All in the buttons' language (Buttons); the places' spread back; the wide side modals and paddles brought into it too | Buttons |
+| *(v0.22)* Your Briefing's tabs larger | 17px, the web's two tabs with them | Type sizes |
+| *(v0.22)* The rule card's ✕ a little further in, and every ✕ in that place | 20px from the top and right, on the modals, the Looking At card and the rule cards; the hide control aligned | Buttons |
+| *(v0.22)* Save Note like Speak; More Info's hover shade too small for its words | The same solid blue button, 32px; More Info's shade 8px and 3px round its words | Buttons |
 | *(v0.22)* His hint's side margins back as they were | 12px (28px for a while) | Il Notaio |
 | *(v0.22)* More Below buttons in his boxes; a bigger bottom margin while there's a fade; the top fade not over his first lines | More Below in a 44px band at the foot while there's more; the title's fade only once scrolled | Il Notaio |
 | *(v0.22)* The rings' breathing reads as blinking, and two selected rings are out of step: breathe together, or too subtly to notice | One breath for the whole web, 4.8s, the width only (2 to 2.55 times the line), no fading | The Web of Confidences |
