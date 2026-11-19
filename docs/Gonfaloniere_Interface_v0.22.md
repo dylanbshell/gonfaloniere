@@ -75,6 +75,7 @@
 - **The decision cards in the screen's language** (Decision Cards): soft-fill choices that answer the pointer and press, the one "on" for the chosen one, the guest picker the same with the thin chevron, Confirm the main button
 - **The guest pickers' list mirrors the @ menu** (Decision Cards); **the paddles' ends fully round, their titles no longer spinning** (The modals; Right)
 - **A picked portrait's blue ring plain to see** (The Screen): a page-coloured gap, then a 2px ring, as in the web
+- **The seat card chooses, then confirms** (Decision Cards): no choice goes on a single click
 - **No guest's card twice in the right panel** (Right): picking the guest you're talking with leaves their "talking with" card, with nothing over it
 - **The four buttons the smaller gap under your sheet** (Left): while it's tucked or peeking (6px), sliding to the larger gap when it's clicked to stay out
 - **Every button's corners rounder, alike** (Corners, new): one radius, 12px, for every button on the screen (8px, and 4px for the small icon buttons, before); pills stay pills, text-like buttons square, the @ and / menus' rows as they were
@@ -914,6 +915,7 @@ The screen is laid out for **a laptop, a desktop, or a tablet held sideways.** W
 - **Their choices are soft fills like the screen's other buttons,** with no outline (they were outlined boxes), 12px corners, and the buttons' answer to the pointer and the press; **the chosen one wears the one "on"**: a tint of the accent with its words in it (it was a pale blue with a blue outline)
 - **Their guest pickers** ("Choose a Guest", at midnight the guest beside the act) are the same soft fill at the choices' height (48px), 15px, with **the thin chevron under "You are"** in place of the filled triangle, and the buttons' shade under the pointer. **The list that opens mirrors the @ menu** *(Dylan; the system's own menu at first)*: the same frosted list of portraits and names, the chosen row in the quiet shade following the pointer or the arrow keys, Enter or a click choosing, Escape closing; it floats over the screen, below the field or above it where there's no room, so the card's own scrolling never cuts it off; the field then shows the chosen guest's portrait and name. *(The act at midnight stays the system's menu: a short list of words)*
 - **Confirm is the screen's main button** at Speak's size (32px, 106px wide at least), waiting at half strength until it can be pressed
+- **Every choice is chosen, then confirmed** *(Dylan, Nov 19)*: on the seat card too, a click marks a choice (Join a group, Start a Secret Conversation…, Wait for a Seat) and Confirm sends it, as on the move card; nothing goes on a single click (joining a group and waiting went at once before, and only the secret conversation asked for Confirm). Confirm is there from the start, waiting until a choice is marked and, for a secret conversation, a guest picked
 - The same keyboard ring as everywhere (2px blue, 3px out), the arrow pointer over them, not the hand
 
 
@@ -1672,6 +1674,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | *(v0.22)* The blue selection ring on the left panel's portraits more visible | A 2px blue ring outside a 2px gap, above its neighbours | The Review Pass |
 | *(v0.22)* What You Heard and Saw and Notes as large as Your Briefing's tabs | 20px; 17px under 1280px wide, so they keep to one line | Type sizes |
 | *(v0.22)* The places aren't buttons and do nothing when clicked: no highlight | No shade and the arrow pointer on the places, and on Il Notaio's name and the glossary's words, which are the same (their explanation under the pointer stays) | Buttons |
+| *(v0.22)* Wait for a Seat to be chosen and then confirmed (a click sent it at once) | Every seat-card choice marked by a click and sent by Confirm, as on the move card; tested on a real card | Decision Cards |
 | *(v0.22)* His hint's side margins back as they were | 12px (28px for a while) | Il Notaio |
 | *(v0.22)* More Below buttons in his boxes; a bigger bottom margin while there's a fade; the top fade not over his first lines | More Below in a 44px band at the foot while there's more; the title's fade only once scrolled | Il Notaio |
 | *(v0.22)* The rings' breathing reads as blinking, and two selected rings are out of step: breathe together, or too subtly to notice | One breath for the whole web, 4.8s, the width only (2 to 2.55 times the line), no fading | The Web of Confidences |
