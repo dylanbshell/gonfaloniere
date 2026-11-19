@@ -762,8 +762,8 @@ Every control and panel has a short explanation on hover or focus, **in plain, s
 | **12px** | Small capital labels, all of them: the panels' (Talking With, Your Errand, The Places), the key's heading, the city's groups, Hide and Show; Il Notaio's titles a step up, 13px |
 | **13px** | Small print: the members line, the key's types, "Your next move", the count, the glossary's secondary lines, every More Below on a card or in his boxes |
 | **15px** | The screen's text and buttons: What You Heard and Saw, the guest cards, every tab, the stage's name |
-| **17px** | Reading: the conversation's lines and names, what you type, Il Notaio's words in his boxes; **Your Briefing's and the web's underlined tabs** *(Dylan, Nov 19; 15px before)*; **the modals' words, serif and sans alike** *(Dylan, Nov 19)*: Your Briefing and The City's entries in the serif, a rule card's words and the Glossary's terms and definitions in the sans (15px before, which still read smaller than the serif beside it), at 26px lines |
-| **20px** | Headings, semibold: a guest's name on their card (17px before), the modals' and paddles' titles (18px), your own name at the top of the left panel (about 21.6px; it scales with the panel, around 20px). Headings inside a modal (a rules section, a city entry) a step down, 17px (18px) |
+| **17px** | Reading: the conversation's lines and names, what you type, Il Notaio's words in his boxes; **the web's underlined tabs** *(Dylan, Nov 19; 15px before)*; **the modals' words, serif and sans alike** *(Dylan, Nov 19)*: Your Briefing and The City's entries in the serif, a rule card's words and the Glossary's terms and definitions in the sans (15px before, which still read smaller than the serif beside it), at 26px lines |
+| **20px** | **Your Briefing's tabs** *(Dylan, Nov 19: bigger still; 17px, then 15px, before)*, regular, the chosen one semibold and underlined: as big as the modal's title, on three rows in a 640px modal. Headings, semibold: a guest's name on their card (17px before), the modals' and paddles' titles (18px), your own name at the top of the left panel (about 21.6px; it scales with the panel, around 20px). Headings inside a modal (a rules section, a city entry) a step down, 17px (18px) |
 | **24px; 30px and up** | Display: the opening |
 
 - **Nothing read or clicked under 12px:** More Below on the cards was 10px; "Your next move", the count, and the glossary's secondary lines were 11px
@@ -1652,6 +1652,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | *(v0.22)* The huge Return to Current Stage the same, and not so huge | 20px corners, 64px tall, about 250px wide, centred in the box (the box's full width and 88px before) | Corners |
 | *(v0.22)* The family cards' Play buttons rounder; the paddles' font less bold | 16px; medium (500) on every paddle, the hidden panel's included | Corners; The modals |
 | *(v0.22)* The stage bar's ends completely round again | Back to the full capsule (999px) | Corners |
+| *(v0.22)* Your Briefing's tabs bigger still | 20px, the next step of the scale (the web's stay 17px); three rows now, level with the title's size | Type sizes |
 | *(v0.22)* His hint's side margins back as they were | 12px (28px for a while) | Il Notaio |
 | *(v0.22)* More Below buttons in his boxes; a bigger bottom margin while there's a fade; the top fade not over his first lines | More Below in a 44px band at the foot while there's more; the title's fade only once scrolled | Il Notaio |
 | *(v0.22)* The rings' breathing reads as blinking, and two selected rings are out of step: breathe together, or too subtly to notice | One breath for the whole web, 4.8s, the width only (2 to 2.55 times the line), no fading | The Web of Confidences |
