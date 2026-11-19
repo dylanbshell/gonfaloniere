@@ -58,6 +58,7 @@
 - **In the modals, only a button that takes you to another modal is highlighted** (The Review Pass): On to…, ← Back to…; paging within a modal plain
 - **The paddles move as Apple's controls do** (The modals): a faint lift and darker words under the pointer, the arrow nudging; a quick sink when pressed; no accent ring, flash, accent edge or change of colour on a modal's last page
 - **The notes' box the chat box's shape** (Corners): 14px
+- **On trial: the Talking With card in the page's colour with an outline; the Looking At card tinted with its guest's faction** (Right): a city entry or anything else in one violet
 - **No guest's card twice in the right panel** (Right): picking the guest you're talking with leaves their "talking with" card, with nothing over it
 - **The four buttons the smaller gap under your sheet** (Left): while it's tucked or peeking (6px), sliding to the larger gap when it's clicked to stay out
 - **Every button's corners rounder, alike** (Corners, new): one radius, 12px, for every button on the screen (8px, and 4px for the small icon buttons, before); pills stay pills, text-like buttons square, the @ and / menus' rows as they were
@@ -636,6 +637,8 @@ In the chat view, **one thing is selected at a time:** a guest or a lore topic. 
   - **"In the city":** links to the public lore entries that concern the guest, each opening here with a way back to the guest. *(Which entries concern which guest is Lore's, tracker; none may point at a secret: the demo links no one to San Frediano)*
 - **A city entry** opens here, with a way back: **its title centred** and a size up *(Dylan; v0.19)*, its text, and **"Guests it concerns":** a small portrait and name for each, selecting them
 - **"Open in the Web of Confidences"** on a filled card *(v0.6–v0.7)*
+
+**On trial: colour by what the card is** *(Dylan, Nov 19, "just to see what it looks like")*: **the Talking With card in the page's own colour** (`--bg`, the right panel with it), **outlined** (a 1px line in the border colour) rather than tinted blue; **the Looking At card tinted with its guest's faction** (your own card with yours): a wash of the faction's colour into the card's paper (14%; 20% in dark mode), under its usual 87% glass. **A city entry, or anything else that slides up, takes one colour for all:** a violet at the factions' depth (OKLCH 0.5, chroma 0.1, hue 310), Il Notaio's purple family, since the city is his notes (the screen's blue was tried first and sat too near the French indigo). With reduced transparency the card goes to its solid paper, untinted. *Build:* the card carries its guest's colour (`--family`, from the guest's `colour`, as the family cards do)
 
 ### Briefing, rules, the city, and the glossary *(v0.5–v0.7; v0.16; v0.17)*
 
@@ -1580,6 +1583,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | *(v0.22)* The paddles' animations gone, something more Apple-like instead | No accent ring, accent words or flash: a faint wash and darker words under the pointer, the arrow nudging 2px; pressed, a sink to 97% and a spring back | The modals |
 | *(v0.22)* No accent edge on the paddle that's the way you're going, and no change of its words' colour on a modal's last page | Both gone: a paddle looks the same until pointed at | The modals |
 | *(v0.22)* The notes' text box the new shape of the chat's | 14px corners (8px) | Corners |
+| *(v0.22)* Try: the Talking With card the background's colour with an outline; Looking At cards tinted their faction's colour; a place or anything else one consistent accent | Page colour and a 1px outline; a 14% wash of the faction (20% dark) under the 87% glass; a violet for the rest (the blue first, too near the French) | Right |
 | *(v0.22)* His hint's side margins back as they were | 12px (28px for a while) | Il Notaio |
 | *(v0.22)* More Below buttons in his boxes; a bigger bottom margin while there's a fade; the top fade not over his first lines | More Below in a 44px band at the foot while there's more; the title's fade only once scrolled | Il Notaio |
 | *(v0.22)* The rings' breathing reads as blinking, and two selected rings are out of step: breathe together, or too subtly to notice | One breath for the whole web, 4.8s, the width only (2 to 2.55 times the line), no fading | The Web of Confidences |
