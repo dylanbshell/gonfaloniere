@@ -97,6 +97,8 @@
 
 **In the demo only:** *(Dylan, Nov 19)* the fake guests leave you alone until your first chance to move has come and gone, so it reaches you as the movement card (Stay, Move Toward…, Start a Secret Conversation…) after a few turns of passing, rather than being missed inside a secret conversation one of them started with you ("Your chance to move came while you were in a secret conversation"); after it they call you aside as before, so the seat card still comes later. Fast-forward sits down in the bottom-left corner of the Web of Confidences' bar, clear of the left panel's More Below (it covered it in a 900px-tall window).
 
+
+**Also in the demo only:** *(Dylan, Nov 19)* Fast-forward steps through three speeds on one button: off, **2×** and **4×**, then off again. Its label says which ("Fast-forward 2×"), and it shows as on at both speeds. At 2× the fake guests speak twice as fast and your turns are answered half a second after they open; at 4× four times as fast and a quarter of a second (measured: 13 lines in 8 seconds at 2×, 28 at 4×). It used to be a single speed, about 3×.
 **Build:** v0.22's changes get a task of their own once this version is on `main` (Build State).
 
 ## Changes in v0.21
@@ -1713,6 +1715,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | *(v0.22)* The design review chat's second look at the transparency: two frost recipes, solid modals and open web, one wash; only the parts Claude agreed with | Bar 78%/24px, panel 88%/16px in both modes; modals, side modals, paddles and the open web solid in the colours they showed (measured over the wash); the web's wash blurs 5px; checked in both modes, no overlap between modals | Frosted glass |
 | *(v0.22)* Every name in the web low enough to clear the selection ring | Lowered one unit (8.6 below the circle's centre, from 7.6): about 7px clear of the ring at 1440px, where the halo had touched it; no new overlaps at three widths | The Web of Confidences |
 | *(v0.22)* With a rule card open, a click anywhere on the rules modal goes back to the rules (the foot's empty space turned to the next rule) | The title, the page count, the foot's empty space and the modal's edges all go back; the card itself still turns onward, its ✕ closes, Previous and Next still work; with no card, the foot's empty space still opens the first rule | Briefing, rules, the city, and the glossary |
+| *(v0.22)* The demo's Fast-forward toggles between off, 2× and 4× | One button stepping off → 2× → 4× → off, its label naming the speed; 13 and 28 lines in 8 seconds | Demo only |
 | *(v0.22)* His hint's side margins back as they were | 12px (28px for a while) | Il Notaio |
 | *(v0.22)* More Below buttons in his boxes; a bigger bottom margin while there's a fade; the top fade not over his first lines | More Below in a 44px band at the foot while there's more; the title's fade only once scrolled | Il Notaio |
 | *(v0.22)* The rings' breathing reads as blinking, and two selected rings are out of step: breathe together, or too subtly to notice | One breath for the whole web, 4.8s, the width only (2 to 2.55 times the line), no fading | The Web of Confidences |
