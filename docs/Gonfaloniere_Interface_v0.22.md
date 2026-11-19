@@ -997,6 +997,8 @@ Il Notaio introduces himself before the player meets anyone.
 - **No explanations on the opening** *(Dylan; v0.19)*: nothing shows on hover there (not Skip, Continue, the cards, or Il Notaio's name), whether explanations are on or off; his name has no dotted underline there, since its gloss is written just under it
 - With reduced motion set, each paragraph appears whole
 
+**Choosing a character fades the whole screen** *(Dylan, Nov 19)*: once the game is ready, the whole page fades out to the paper (0.35s, easing in) and the game's screen fades in from it (0.5s, easing out), rather than cutting from one to the other; without motion it cuts as before. *Build:* the page itself fades (the body), so everything on it goes together, not just the card; checked mid-fade, out and in
+
 ---
 
 ## The Tour *(Dylan, Nov 13; v0.8; v0.16)*
@@ -1717,6 +1719,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | *(v0.22)* With a rule card open, a click anywhere on the rules modal goes back to the rules (the foot's empty space turned to the next rule) | The title, the page count, the foot's empty space and the modal's edges all go back; the card itself still turns onward, its ✕ closes, Previous and Next still work; with no card, the foot's empty space still opens the first rule | Briefing, rules, the city, and the glossary |
 | *(v0.22)* The demo's Fast-forward toggles between off, 2× and 4× | One button stepping off → 2× → 4× → off, its label naming the speed; 13 and 28 lines in 8 seconds | Demo only |
 | *(v0.22)* No little line under Il Notaio's name when he peeks up from hiding; when shown, his name slides over to the left | The dotted underline off while he's hidden; his name glides from the middle to the left in 0.42s as his box opens, Hide fading in | Il Notaio |
+| *(v0.22)* Clicking to play as a character fades the whole screen to the chat interface | The whole page out in 0.35s, the game's screen in over 0.5s; opacity checked frame by frame, nothing left running | The Opening |
 | *(v0.22)* His hint's side margins back as they were | 12px (28px for a while) | Il Notaio |
 | *(v0.22)* More Below buttons in his boxes; a bigger bottom margin while there's a fade; the top fade not over his first lines | More Below in a 44px band at the foot while there's more; the title's fade only once scrolled | Il Notaio |
 | *(v0.22)* The rings' breathing reads as blinking, and two selected rings are out of step: breathe together, or too subtly to notice | One breath for the whole web, 4.8s, the width only (2 to 2.55 times the line), no fading | The Web of Confidences |
