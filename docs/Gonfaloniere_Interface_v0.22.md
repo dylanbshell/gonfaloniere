@@ -54,6 +54,7 @@
 - **The stage card nearly a capsule, the message box's text box rounder** (Corners): its ends 32px, a little square (fully round for a while); the text box 14px
 - **The @ and / menus a little higher above the message box's text** (The input box): 14px clear of it (6px)
 - **With a rule card up, its soft blur over the whole modal, the modal's ✕ gone, the card's ✕ up in its corner** (The Review Pass)
+- **The modals' sans a step up, to 17px** (Type sizes): a rule card's words and the Glossary's terms and definitions, level with the serif
 - **No guest's card twice in the right panel** (Right): picking the guest you're talking with leaves their "talking with" card, with nothing over it
 - **The four buttons the smaller gap under your sheet** (Left): while it's tucked or peeking (6px), sliding to the larger gap when it's clicked to stay out
 - **Every button's corners rounder, alike** (Corners, new): one radius, 12px, for every button on the screen (8px, and 4px for the small icon buttons, before); pills stay pills, text-like buttons square, the @ and / menus' rows as they were
@@ -737,8 +738,8 @@ Every control and panel has a short explanation on hover or focus, **in plain, s
 |---|---|
 | **12px** | Small capital labels, all of them: the panels' (Talking With, Your Errand, The Places), the key's heading, the city's groups, Hide and Show; Il Notaio's titles a step up, 13px |
 | **13px** | Small print: the members line, the key's types, "Your next move", the count, the glossary's secondary lines, every More Below on a card or in his boxes |
-| **15px** | The screen's text and buttons: the briefing, rules and city, the glossary's terms and definitions, What You Heard and Saw, the guest cards, every tab, the stage's name |
-| **17px** | Reading: the conversation's lines and names, what you type, Il Notaio's words in his boxes |
+| **15px** | The screen's text and buttons: What You Heard and Saw, the guest cards, every tab, the stage's name |
+| **17px** | Reading: the conversation's lines and names, what you type, Il Notaio's words in his boxes; **the modals' words, serif and sans alike** *(Dylan, Nov 19)*: Your Briefing and The City's entries in the serif, a rule card's words and the Glossary's terms and definitions in the sans (15px before, which still read smaller than the serif beside it), at 26px lines |
 | **20px** | Headings, semibold: a guest's name on their card (17px before), the modals' and paddles' titles (18px), your own name at the top of the left panel (about 21.6px; it scales with the panel, around 20px). Headings inside a modal (a rules section, a city entry) a step down, 17px (18px) |
 | **24px; 30px and up** | Display: the opening |
 
@@ -1569,6 +1570,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | *(v0.22)* The @ and / menus a little further above the chat's text box | 14px clear of the text box (6px) | The input box |
 | *(v0.22)* (Tried and scrapped at once: the @ and / menus popping out to the side over the left panel, like Messages' emoji picker; the left panel matters more than what they'd cover) | Not kept | — |
 | *(v0.22)* Is the rules modal behind a rule card just one colour and see-through level? Then that blur over the whole modal (not the controls, the title or the page number); no ✕ on the modal with a card up; the card's ✕ up into its corner | One even tint, plus a 2.5px blur over the grid alone (its ends fading over 22px); now the blur over the whole modal, those above it sharp; the modal's ✕ hidden while a card is up; the card's ✕ 12px from its top and right | The Review Pass |
+| *(v0.22)* The serif and the sans in the modals still too far apart: the sans bigger, within the type scale | The sans's body text a step up the scale, 15px to 17px (a rule card's words, the Glossary's terms and definitions), the serif's size; its small print (More in the Rules) still 13px | Type sizes |
 | *(v0.22)* His hint's side margins back as they were | 12px (28px for a while) | Il Notaio |
 | *(v0.22)* More Below buttons in his boxes; a bigger bottom margin while there's a fade; the top fade not over his first lines | More Below in a 44px band at the foot while there's more; the title's fade only once scrolled | Il Notaio |
 | *(v0.22)* The rings' breathing reads as blinking, and two selected rings are out of step: breathe together, or too subtly to notice | One breath for the whole web, 4.8s, the width only (2 to 2.55 times the line), no fading | The Web of Confidences |
