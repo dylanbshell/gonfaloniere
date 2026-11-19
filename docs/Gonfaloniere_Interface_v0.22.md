@@ -92,7 +92,7 @@
 - **Clicking a line selects its pair and its type** (The Web of Confidences): both guests, and the line's type in the key, with Secret too when it's a secret tie; clicking it again clears. **Secret now pairs with any type** in the key (secret romances, say), and whatever can't go with the key's choice fades (a type with no secret ties while Secret is on; Secret while the chosen type has none); clicking a faded one swaps the choice
 - **The places have their own small drawn marks** (Left; The Look): a line drawing per place, from the setting pack, wherever a place is named on the screen except in what's said: the places list (the empty ones' line too), the line under the stage bar, the past stages and their summaries
 
-**In the demo only:** Fast-forward sits down in the bottom-left corner of the Web of Confidences' bar, clear of the left panel's More Below (it covered it in a 900px-tall window).
+**In the demo only:** *(Dylan, Nov 19)* the fake guests leave you alone until your first chance to move has come and gone, so it reaches you as the movement card (Stay, Move Toward…, Start a Secret Conversation…) after a few turns of passing, rather than being missed inside a secret conversation one of them started with you ("Your chance to move came while you were in a secret conversation"); after it they call you aside as before, so the seat card still comes later. Fast-forward sits down in the bottom-left corner of the Web of Confidences' bar, clear of the left panel's More Below (it covered it in a 900px-tall window).
 
 **Build:** v0.22's changes get a task of their own once this version is on `main` (Build State).
 
@@ -1682,6 +1682,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | *(v0.22)* On your own card in the right panel, no light blue ring round the portrait; a blue highlight round the whole card instead | The portrait's ring gone; a 2px blue edge inside the card's own edge | Right |
 | *(v0.22)* Start a Secret Conversation as the menu itself, reading "Start a Secret Conversation with" and the guest once picked | Done on both cards (and Move Toward on the move card); the separate field gone; tested on a real seat card | Decision Cards |
 | *(v0.22)* Keep the secret conversation's guest after switching to Wait for a Seat | Kept on the tile; one click re-chooses it with that guest, a second opens the list; tested on a real card | Decision Cards |
+| *(v0.22)* The demo changed so the Move Toward card can be seen | The fake guests don't call you aside before your first movement window; it comes after about four passes | Changes in v0.22 (demo) |
 | *(v0.22)* His hint's side margins back as they were | 12px (28px for a while) | Il Notaio |
 | *(v0.22)* More Below buttons in his boxes; a bigger bottom margin while there's a fade; the top fade not over his first lines | More Below in a 44px band at the foot while there's more; the title's fade only once scrolled | Il Notaio |
 | *(v0.22)* The rings' breathing reads as blinking, and two selected rings are out of step: breathe together, or too subtly to notice | One breath for the whole web, 4.8s, the width only (2 to 2.55 times the line), no fading | The Web of Confidences |
