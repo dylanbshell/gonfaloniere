@@ -76,6 +76,7 @@
 - **The guest pickers' list mirrors the @ menu** (Decision Cards); **the paddles' ends fully round, their titles no longer spinning** (The modals; Right)
 - **A picked portrait's blue ring plain to see** (The Screen): a page-coloured gap, then a 2px ring, as in the web
 - **The seat card chooses, then confirms** (Decision Cards): no choice goes on a single click
+- **Your own card marked by a blue edge round the whole card, not a ring round your portrait** (Right)
 - **No guest's card twice in the right panel** (Right): picking the guest you're talking with leaves their "talking with" card, with nothing over it
 - **The four buttons the smaller gap under your sheet** (Left): while it's tucked or peeking (6px), sliding to the larger gap when it's clicked to stay out
 - **Every button's corners rounder, alike** (Corners, new): one radius, 12px, for every button on the screen (8px, and 4px for the small icon buttons, before); pills stay pills, text-like buttons square, the @ and / menus' rows as they were
@@ -658,6 +659,8 @@ In the chat view, **one thing is selected at a time:** a guest or a lore topic. 
 **The Talking With card's outline is a true border** *(Dylan, Nov 19)*: drawn as a shadow inside the card at first, its pinned heading covered it along the top. **The resize handle's highlight** (the panel's left edge) is now a thin rounded line along the card's straight edge only (3px, the accent at half strength, more while dragging), not a band down to the screen's foot.
 
 **On trial: colour by what the card is** *(Dylan, Nov 19, "just to see what it looks like")*: **the Talking With card in the page's own colour** (`--bg`, the right panel with it), **outlined** (a 1px line in the border colour) rather than tinted blue; **the Looking At card tinted with its guest's faction** (your own card with yours): a wash of the faction's colour into the card's paper (14%; 20% in dark mode), under its usual 87% glass. **A city entry, or anything else that slides up, takes one colour for all:** a violet at the factions' depth (OKLCH 0.5, chroma 0.1, hue 310), Il Notaio's purple family, since the city is his notes (the screen's blue was tried first and sat too near the French indigo). With reduced transparency the card goes to its solid paper, untinted. *Build:* the card carries its guest's colour (`--family`, from the guest's `colour`, as the family cards do)
+
+**Your own card ("This is you") is marked by a blue edge round the whole card** *(Dylan, Nov 19)*: 2px of the buttons' blue just inside its edge, following its corners, in place of the light blue ring round your portrait. (Its 3px blue border had been turned clear by the frosted surfaces' one edge, leaving only the portrait's ring.) "This is you" and the You tag keep their blue
 
 ### Briefing, rules, the city, and the glossary *(v0.5–v0.7; v0.16; v0.17)*
 
@@ -1675,6 +1678,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | *(v0.22)* What You Heard and Saw and Notes as large as Your Briefing's tabs | 20px; 17px under 1280px wide, so they keep to one line | Type sizes |
 | *(v0.22)* The places aren't buttons and do nothing when clicked: no highlight | No shade and the arrow pointer on the places, and on Il Notaio's name and the glossary's words, which are the same (their explanation under the pointer stays) | Buttons |
 | *(v0.22)* Wait for a Seat to be chosen and then confirmed (a click sent it at once) | Every seat-card choice marked by a click and sent by Confirm, as on the move card; tested on a real card | Decision Cards |
+| *(v0.22)* On your own card in the right panel, no light blue ring round the portrait; a blue highlight round the whole card instead | The portrait's ring gone; a 2px blue edge inside the card's own edge | Right |
 | *(v0.22)* His hint's side margins back as they were | 12px (28px for a while) | Il Notaio |
 | *(v0.22)* More Below buttons in his boxes; a bigger bottom margin while there's a fade; the top fade not over his first lines | More Below in a 44px band at the foot while there's more; the title's fade only once scrolled | Il Notaio |
 | *(v0.22)* The rings' breathing reads as blinking, and two selected rings are out of step: breathe together, or too subtly to notice | One breath for the whole web, 4.8s, the width only (2 to 2.55 times the line), no fading | The Web of Confidences |
