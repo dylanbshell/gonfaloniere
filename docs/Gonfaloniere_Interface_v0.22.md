@@ -66,6 +66,7 @@
 - **Every corner ✕ 20px in from its box's corner** (Buttons): the modals', the Looking At card's, a rule card's; the panel's hide control over the card's still
 - **Your Briefing's and the web's tabs 17px** (Type sizes); **Save Note the same as Speak** (Buttons); **More Info's shade roomier**
 - **The Talking With card's outline whole, the resize line only along the card** (Right)
+- **The four loose ends tied** (Buttons): the Mac's arrow over buttons and the hand only over links; one focus ring everywhere; on touch, what hover would show is shown; one "on" for every switched-on control
 - **No guest's card twice in the right panel** (Right): picking the guest you're talking with leaves their "talking with" card, with nothing over it
 - **The four buttons the smaller gap under your sheet** (Left): while it's tucked or peeking (6px), sliding to the larger gap when it's clicked to stay out
 - **Every button's corners rounder, alike** (Corners, new): one radius, 12px, for every button on the screen (8px, and 4px for the small icon buttons, before); pills stay pills, text-like buttons square, the @ and / menus' rows as they were
@@ -790,6 +791,14 @@ Every control and panel has a short explanation on hover or focus, **in plain, s
 **Every corner ✕ in one place** *(Dylan, Nov 19)*: **20px in from its box's top and right edges**, the modals', the Looking At card's and a rule card's alike (the rule card's 12px brought in a little; the modal's, 46 and 64px in, and the card's, 26 and 28px, out to match). The modals' titles stay centred; the panel's hide control stays centred over the Looking At card's ✕ (20px in plus the gap at the window's edge).
 
 **Save Note the same as Speak** *(Dylan)*: the solid button at the chat bar's size (32px tall, at least 106px wide, 15px), in the screen's blue, not the web's ink. **More Info** (the folded errand card's link): its shade a little roomier than its words (8px either side, 3px above and below), without moving them *(Dylan: the shade was the words' own tight box)*.
+
+**The loose ends, tied** *(Dylan, Nov 19; the four Claude raised as possibly forgotten)*:
+1. **The pointer, as on a Mac:** the arrow over buttons and controls (the web's guests and lines, the paddles, the tabs, the stage dots, the portraits), **the hand only over links** (names, places, city entries, glossary words, Il Notaio's name, More Info). Every button showed the hand before, as web pages do
+2. **One focus ring for the keyboard:** 2px in the screen's blue, 3px out, following each thing's own corners: a circle round the ✕s, the paddle's shape, the side modal's (scaled with it); the web's guests a solid ring like their selection, not a dashed one. It overrides the places that had switched the ring off for the mouse's sake (the corner ✕s, the modals' footers, the paddles, the side modals); inside the web it's the same blue, not the web's ink
+3. **Touch, where nothing hovers:** what the pointer would show is simply shown: the places' portraits stand apart for good; every press still answers
+4. **One "on" for every control that stays switched on** (Explanations: On, a key row and Secret, Fast-forward while it runs, a guest's name picked in the conversation): a tint of the accent (14%; 24% in dark mode) with the words in it, no outline. *(Fast-forward's "Stop" had become white words on the soft fill since the review pass, nearly invisible)* **Kept apart on purpose:** portraits keep their ring when picked, the tabs their underline, the stage you're in its solid pill: each says something other than "switched on"
+
+*Found on the way, not changed:* with a modal open, Tab still walks through the screen behind it before reaching the modal; a modal should hold the keyboard's focus inside itself until it closes.
 
 **End conversation is quiet until you mean it** *(Dylan)*: in the stage bar and under the message box it's the soft fill in the text's colour (both were solid red), **turning red under the pointer** and a deeper red pressed. The stage bar's, 21px tall, takes 8px corners, the chat bar's 32px buttons' 12px in proportion (12px made it a pill). *(Found on the way: under the message box it had become white words on the soft fill, nearly invisible, since the review pass)*
 
@@ -1622,6 +1631,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | *(v0.22)* Your Briefing's tabs larger | 17px, the web's two tabs with them | Type sizes |
 | *(v0.22)* The rule card's ✕ a little further in, and every ✕ in that place | 20px from the top and right, on the modals, the Looking At card and the rule cards; the hide control aligned | Buttons |
 | *(v0.22)* Save Note like Speak; More Info's hover shade too small for its words | The same solid blue button, 32px; More Info's shade 8px and 3px round its words | Buttons |
+| *(v0.22)* Do the four (the pointer, the focus ring, touch, one "on") | The arrow on buttons, the hand on links; one 2px blue ring everywhere, the ✕s', paddles' and footers' restored; places spread for good on touch; an accent tint for every switched-on control | Buttons |
 | *(v0.22)* His hint's side margins back as they were | 12px (28px for a while) | Il Notaio |
 | *(v0.22)* More Below buttons in his boxes; a bigger bottom margin while there's a fade; the top fade not over his first lines | More Below in a 44px band at the foot while there's more; the title's fade only once scrolled | Il Notaio |
 | *(v0.22)* The rings' breathing reads as blinking, and two selected rings are out of step: breathe together, or too subtly to notice | One breath for the whole web, 4.8s, the width only (2 to 2.55 times the line), no fading | The Web of Confidences |
