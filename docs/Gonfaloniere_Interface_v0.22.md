@@ -812,6 +812,7 @@ Every control and panel has a short explanation on hover or focus, **in plain, s
 - **"You are"'s shade takes in the arrow under it and stands 12px clear of the portrait's sides,** the card's words where they were (its box grown by padding, its margins drawn in to match), 16px corners
 - **The @ and / menus' chosen row in a quiet shade, not the blue:** the buttons' pressed depth (12%), so it reads as chosen whether the keyboard or the pointer put it there; another row under the pointer the lighter shade
 - **The web bar's title grey at rest and the text's colour under the pointer,** with the arrow: it was already the text's colour, so only the arrow seemed to change
+- **The web bar's arrow the same as the one under "You are"** *(Dylan)*: a thin chevron (7px, 1.5px lines) in place of the ▲/▼ triangle, up while the web is down and down while it's up, faint (45%) until the pointer is on the bar (85%), still nudging the way the web would go
 
 **End conversation is quiet until you mean it** *(Dylan)*: in the stage bar and under the message box it's the soft fill in the text's colour (both were solid red), **turning red under the pointer** and a deeper red pressed. The stage bar's, 21px tall, takes 8px corners, the chat bar's 32px buttons' 12px in proportion (12px made it a pill). *(Found on the way: under the message box it had become white words on the soft fill, nearly invisible, since the review pass)*
 
@@ -1653,6 +1654,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | *(v0.22)* The family cards' Play buttons rounder; the paddles' font less bold | 16px; medium (500) on every paddle, the hidden panel's included | Corners; The modals |
 | *(v0.22)* The stage bar's ends completely round again | Back to the full capsule (999px) | Corners |
 | *(v0.22)* Your Briefing's tabs bigger still | 20px, the next step of the scale (the web's stay 17px); three rows now, level with the title's size | Type sizes |
+| *(v0.22)* The web bar's arrow to match the one under "You are" | The same thin chevron, faint at rest, up or down with the web | Buttons |
 | *(v0.22)* His hint's side margins back as they were | 12px (28px for a while) | Il Notaio |
 | *(v0.22)* More Below buttons in his boxes; a bigger bottom margin while there's a fade; the top fade not over his first lines | More Below in a 44px band at the foot while there's more; the title's fade only once scrolled | Il Notaio |
 | *(v0.22)* The rings' breathing reads as blinking, and two selected rings are out of step: breathe together, or too subtly to notice | One breath for the whole web, 4.8s, the width only (2 to 2.55 times the line), no fading | The Web of Confidences |
