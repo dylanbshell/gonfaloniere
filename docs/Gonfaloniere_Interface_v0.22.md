@@ -8,7 +8,7 @@
 
 *Nov 17. Dylan's further notes on the demo, after v0.21 merged. Detail in the sections named; the record is in Playtest Findings (the rows marked v0.22).*
 
-- **"More Below" now reads "More"** everywhere it appears (the setting pack's `screen.more`), and **the opening's More is the same pill as the others** (their size, padding and rounding, frosted, no outline) *(Dylan, Nov 20)*; **more room inside the stage bar's End button** (16px either side, from 8px)
+- **"More Below" now reads "More"** everywhere it appears (the setting pack's `screen.more`), and **the opening's More takes the others' pill shape at its own size** (fully round, frosted, no outline; its 15px type and padding kept, as for a few minutes it shrank to their 10px) *(Dylan, Nov 20)*; **more room inside the stage bar's End button** (16px either side, from 8px)
 - **A subtler paddle press** (Briefing, rules, the city, and the glossary): its flash fades over 550ms (900ms)
 - **Il Notaio's titles pinned** (Il Notaio): his reading's and past-stage summary's titles stay at the top as his words scroll away under them through a fade
 - **Il Notaio's boxes only as tall as their text** (Il Notaio): his hint drops its two-line minimum (a one-line hint is 24px shorter) and stops at five lines; his reading and his past-stage summary sit centred in a room 10% in from the top and the foot, growing with their text until they fill it, then scroll; minimizing glides them down to the foot
@@ -1769,6 +1769,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 | *(v0.22)* The web's upright line midway between the panel's top and the window's bottom, not meeting the other as a T | Centred on that midpoint at three window sizes (495 at 1440 by 900), 60% of the height long | The Web of Confidences |
 | *(v0.22)* Instead of wrapping place names, let the portraits spread out into the space beside the chat; and more slowly | They spread right past the panel's edge, floating over the space beside the conversation; the name one line, unmoved; 0.45s (settled by about 0.35s) | Left |
 | *(v0.22)* Every "More below" reads "More"; the opening's More the same shape as the others | None left reading "More Below"; the opening's More a 10px pill like the rest | Briefing, rules, the city, and the glossary; The Opening |
+| *(v0.22)* The opening's More at the size it was, in the new shape | 85 by 35px, 15px type, fully round and frosted | The Opening |
 | *(v0.22)* The chat's and the notes' text boxes rounder | 20px (14px) | The input box; The Web of Confidences |
 | *(v0.22)* More room either side inside the stage bar's End button | 16px (8px), checked on a button in its place | The stage card |
 | *(v0.22)* Found testing the above: the pointer over Il Notaio's box shifted the conversation 7px, which counted as scrolling up, so it stopped following and showed Catch Up | Only your own scrolling (wheel, touch, keys, scrollbar) lets go; tested: the pointer over his box leaves it following, a wheel up still lets go, no stutter | Scrolling |
