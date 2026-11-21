@@ -14,7 +14,8 @@ Work arrives as tasks from Dylan, often relayed from Technical Design (TD). The 
 ## Branches and PRs
 
 - Start every task on a new short-lived branch off an up-to-date main. Never branch off another feature branch, and never stack PRs.
-- Open one PR per task, titled with its report ID, and merge it into main with a merge commit (never squash) once `npm test` and `npm run typecheck` pass. Delete the branch after merging.
+- Open one PR per task, titled with its report ID, and merge it into main with a merge commit (never squash) once `/code-review` has run on it and `npm test` and `npm run typecheck` pass. Delete the branch after merging.
+  Every PR except doc PRs gets the review: fix the findings that hold up and fit these rules, re-run the tests, and note in the PR description (within its usual limits) what was found, fixed, and skipped, and why. If `/code-review` isn't available in the session, say so in the report and merge once the tests pass.
 - If a task is too big for one PR, split it into tasks that each merge on their own.
 - If a PR's work is replaced before merging, close it with a comment saying what replaced it, rather than leaving it open.
 
