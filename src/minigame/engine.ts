@@ -239,13 +239,6 @@ export interface GameEvent {
   [k: string]: unknown;
 }
 
-/**
- * Il Notaio's reading or a stage summary that throws (in its own code, not its model call, which falls back
- * by itself) is the screen's loss only: it's reported here and the game plays on, where an unhandled
- * rejection would end the run without a record.
- */
-const screenFault = (e: unknown): void => console.error(`player screen: ${(e as Error)?.stack ?? String(e)}`);
-
 // ---- The game ------------------------------------------------------------------------------
 
 export class MiniGame {
@@ -361,7 +354,7 @@ export class MiniGame {
       this.player = new PlayerFeed(ctrl, this.human);
       ctrl.onInput = (m) => this.playerInput(m);
       ctrl.onNote = (m) => this.playerNote(m);
-      ctrl.onReading = (m) => void this.playerReading(m.guests).catch(screenFault);
+      ctrl.onReading = (m) => void this.playerReading(m.guests).catch(this.screenFault);
       this.recorder.skipPerception = new Set([this.human]);
     }
     for (const c of s.cast) {
@@ -409,8 +402,15 @@ export class MiniGame {
       if (!this.stopped) await this.knowledge();
     } finally {
       // TD v0.51: the past-stage summaries written in the background are finished before the game is, also
-      // when it fails, so no call is still running (and none is missing from `calls`) once this returns.
-      await Promise.all(this.summaryJobs);
+      // when it fails, so no summary call is still running (and none is missing from `calls`) once this
+      // returns. A failed turn's other guests may still be mid-call and start one more: those are waited
+      // for too, and none starts once the game is over.
+      for (let done = 0; done < this.summaryJobs.length; ) {
+        const jobs = this.summaryJobs.slice(done);
+        done = this.summaryJobs.length;
+        await Promise.all(jobs);
+      }
+      this.over = true;
     }
   }
 
@@ -1444,9 +1444,8 @@ export class MiniGame {
     // TD v0.47: the run's `plot_reward` flag reaches the screen with block 5 (a run setting, not a secret).
     // The mini-game runs with it off, so there's never a `{plot_status}` to send.
     const block5 = this.stateFor(h, { gathering: this.gathering });
-    // TD v0.51: whether the player's errand can be finished by /conclude (their own plot point only). An
-    // older TD has no such flag, and the screen then leaves /conclude as it was.
-    const state = { ...((this.placeNames ? this.withPlaces(h, block5) : block5) as unknown as Record<string, unknown>), plotReward: false, ...(tdMinor(this.docs.versions.technicalDesign) >= 51 && { knowledgeErrand: this.docs.conclusionErrands.includes(h) }) };
+    // TD v0.51: whether the player's errand can be finished by /conclude (their own plot point only).
+    const state = { ...((this.placeNames ? this.withPlaces(h, block5) : block5) as unknown as Record<string, unknown>), plotReward: false, knowledgeErrand: this.docs.conclusionErrands.includes(h) };
     this.player.state(state, menu([...allowed, ...extra, "conclude"], { amount: this.rules.pensionSize }), this.speaking, () => ({
       rules: rulesText(this.docs.templates, { ...this.docs.tunables, plotProtection: false, plotReward: false }),
       briefing: this.s.briefings[h]!,
@@ -1464,9 +1463,9 @@ export class MiniGame {
     // TD v0.51: a stage ends when the player's state moves on to the next; its summary is written then, in the background.
     if (this.guarded) {
       const stage = block5.phaseLabel;
-      if (this.playerStage !== null && stage !== this.playerStage && !this.summarized.has(this.playerStage)) {
+      if (!this.over && this.playerStage !== null && stage !== this.playerStage && !this.summarized.has(this.playerStage)) {
         this.summarized.add(this.playerStage);
-        this.summaryJobs.push(this.stageSummary(this.playerStage).catch(screenFault));
+        this.summaryJobs.push(this.stageSummary(this.playerStage).catch(this.screenFault));
       }
       this.playerStage = stage;
     }
@@ -1563,6 +1562,17 @@ export class MiniGame {
   private playerStage: string | null = null;
   private summarized = new Set<string>();
   private summaryJobs: Promise<void>[] = [];
+  /**
+   * Il Notaio's reading or a stage summary that throws (in its own code, not its model call, which falls back
+   * by itself) is the screen's loss only: the game plays on, where an unhandled rejection would end the run
+   * without a record. It's reported, and kept in the record as an engine failure.
+   */
+  private screenFault = (e: unknown): void => {
+    console.error(`player screen: ${(e as Error)?.stack ?? String(e)}`);
+    this.events.push({ turn: this.turn, type: "engine-failure", reason: "player screen", why: (e as Error)?.message ?? String(e) });
+  };
+  /** Set when `play()` ends, however it ends: no summary is started after it. */
+  private over = false;
 
   /** The public lore the screen links (kind: lore), with its glosses. */
   private publicLore() {

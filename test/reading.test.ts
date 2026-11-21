@@ -360,7 +360,7 @@ test("a failed game still waits for its stage summaries: no summary call is left
       return r;
     }
     // The first guest's call made while a summary is being written fails, as a refused call does in a live run.
-    if (running > 0 && !failed) {
+    if (running > 0 && !failed && req.character !== null) {
       failed = true;
       throw new Error("call failed (403)");
     }
@@ -381,19 +381,12 @@ test("a stage summary that throws outside its model call is the screen's loss, n
       if (ev.type === "stage-summary" && thrown++ === 0) throw new Error("the socket closed");
     });
     assert.equal(thrown > 0, true);
-    assert.ok(game.lines.length > 0 && summaries.length >= 1, "the game played on, and later summaries arrived");
+    assert.ok(game.lines.length > 0 && summaries.length >= 2, "the game played on, and later summaries arrived");
     assert.ok(errors.length === 1 && /the socket closed/.test(String((errors[0] as unknown[])[0])), "reported once");
+    assert.deepEqual(game.events.filter((e) => e.type === "engine-failure").map((e) => [e.reason, e.why]), [["player screen", "the socket closed"]], "and in the record");
   } finally {
     console.error = was;
   }
-});
-
-test("before TD v0.51 the state carries no knowledge-errand flag, so the screen leaves /conclude as it was (#210)", async () => {
-  const states = (log: Outgoing[]) => log.filter((e): e is Extract<Outgoing, { type: "state" }> => e.type === "state");
-  const old = await playWithReadings(loadDocs(docsFor("0.50")));
-  assert.ok(states(old.log).length > 0 && states(old.log).every((e) => !("knowledgeErrand" in e.state)));
-  const now = await playGuarded();
-  assert.ok(states(now.log).every((e) => e.state.knowledgeErrand === false));
 });
 
 test("TD v0.51's guard in play: a reply that isn't JSON is repaired once, then every line is code's plain version", async () => {
