@@ -222,6 +222,29 @@ const LORE: PublicLore[] = [
   { id: "pz", title: "The Pazzi conspiracy", aliases: ["1478"], subject: null, text: "In 1478 the Pazzi rose. Giuliano died at Mass. The plotters hanged. Giorgia Pazzi was a child." },
 ];
 
+test("G3 and G4: a span's closing ? or ! must be the line's own, so a statement is never shown as a question, or a question as a statement (#210)", () => {
+  const said: GuardLine = { n: 1, speaker: "Lupo", addressee: null, toPlayer: false, words: "You were at the chapel. Who sent you there?" };
+  assert.deepEqual(checkSentence(`Lupo asked: "You were at the chapel?"`, said), ["G4"], "the line states it");
+  assert.deepEqual(checkSentence(`Lupo said: "You were at the chapel!"`, said), ["G4"]);
+  assert.deepEqual(checkSentence(`Lupo said: "Who sent you there."`, said), ["G4"], "the line asks it");
+  // The line's own marks, or none, still pass.
+  assert.deepEqual(checkSentence(`Lupo asked: "Who sent you there?"`, said), []);
+  assert.deepEqual(checkSentence(`Lupo said: "You were at the chapel."`, said), []);
+  assert.deepEqual(checkSentence(`Lupo said: "You were at the chapel"`, said), []);
+  assert.deepEqual(checkSentence(`Lupo said: "You were at the chapel," and "Who sent you there?"`, said), []);
+});
+
+test("G5: a span can't start inside a word, after its apostrophe (#210)", () => {
+  const begged: GuardLine = { n: 1, speaker: "Lupo", addressee: null, toPlayer: false, words: "Don’t tell him, I beg you." };
+  assert.deepEqual(checkSentence(`Lupo said: "t tell him"`, begged), ["G5"], "the clause without its negation");
+  const owned: GuardLine = { n: 1, speaker: "Lupo", addressee: null, toPlayer: false, words: "Lorenzo's death was deserved." };
+  assert.deepEqual(checkSentence(`Lupo said: "s death was deserved."`, owned), ["G5"]);
+  // A clause that opens with a quote mark of its own still starts there.
+  const quoted: GuardLine = { n: 1, speaker: "Lupo", addressee: null, toPlayer: false, words: "He called it 'a debt of honour, and an old one'." };
+  assert.deepEqual(checkSentence(`Lupo said: "a debt of honour"`, quoted), []);
+  assert.deepEqual(checkSentence(`Lupo said: "Don't tell him"`, begged), []);
+});
+
 test("notes on what was said: the line's first match, one note per line, each entry once, the first two sentences when there's no gloss", () => {
   assert.equal(glossOf(LORE[1]!), "In 1478 the Pazzi rose. Giuliano died at Mass.");
   assert.equal(glossOf(LORE[0]!), LORE[0]!.gloss);
