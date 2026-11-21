@@ -4,6 +4,7 @@
 // said, the content-blind choice of lines, and what the model is given. No model calls.
 
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { test } from "node:test";
 import { docsFor } from "../probe.config.ts";
 import type { Outgoing } from "../src/core/protocol.ts";
@@ -314,4 +315,16 @@ test("the live golden set (TD v0.51) is built: every failure case and F1–F4 te
   const split = cases.find((c) => c.id === "split-F2")!;
   const items = rendered(split, recheck(split, null).verdicts, screenContent(reader as never, "off").lore);
   assert.deepEqual(items.map((i) => i.kind), ["sentence", "note", "sentence"]);
+});
+
+test("the golden set's --only refuses an id that names no case, on a dry run with no key and no calls (#210)", () => {
+  const { OPENROUTER_API_KEY: _key, ...env } = process.env;
+  const run = (only: string) => spawnSync(process.execPath, ["--import", "tsx", "src/minigame/golden.ts", "--dry-run", "--only", only], { env, encoding: "utf8" });
+  const typo = run("split-F2,tpyo");
+  assert.notEqual(typo.status, 0);
+  assert.match(typo.stderr, /--only: no golden case named tpyo/);
+  assert.doesNotMatch(typo.stdout, /DRY RUN/);
+  const one = run("split-F2");
+  assert.equal(one.status, 0, one.stderr);
+  assert.match(one.stdout, /DRY RUN: no calls\. 1 cases/);
 });
