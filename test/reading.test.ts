@@ -178,7 +178,7 @@ const docs51 = loadDocs(docsFor("0.51"));
  * A game as Francesco on TD v0.51, in process: he begins at once (the tour's hold), answers every request at
  * once, and at each speaking turn selects Lupo, Giorgia, and the pair. `caller` wraps the fake caller.
  */
-async function playGuarded(seed = 2000, wrap: (base: Caller) => Caller = (b) => b) {
+async function playGuarded(seed = 2000, wrap: (base: Caller) => Caller = (b) => b, tap: (ev: Outgoing) => void = () => {}) {
   const ctrl = new HumanController(F);
   const calls: CallRequest[] = [];
   const game = new MiniGame(docs51, fakeSettings({ briefings: castBriefings(docs51), seed, turns: 6, human: F }), wrap(fakeCaller(calls)), {}, null, ctrl);
@@ -188,6 +188,7 @@ async function playGuarded(seed = 2000, wrap: (base: Caller) => Caller = (b) => 
     send: (d) => {
       const ev = JSON.parse(d) as Outgoing;
       log.push(ev);
+      tap(ev);
       if (log.length === 1) queueMicrotask(() => reply(JSON.stringify({ type: "begin" })));
       if (ev.type !== "request" || ev.closed) return;
       const o = ev.options as Record<string, unknown>;
@@ -345,6 +346,47 @@ test("the empty line is for nothing at all (#174): a past stage, or a guest, wit
   const none = assembleReading(bg, [], [], [], [], [S1, S2, S3, S4, S5]);
   assert.deepEqual(none.stages, []);
   assert.equal(none.empty, "You have heard and seen nothing of them tonight.");
+});
+
+test("a failed game still waits for its stage summaries: no summary call is left running when play() ends (#210)", async () => {
+  let running = 0;
+  let failed = false;
+  const failing = (base: Caller): Caller => async (req) => {
+    if (req.kind === "notaio-summary") {
+      running++;
+      await new Promise((r) => setTimeout(r, 40));
+      const r = await base(req);
+      running--;
+      return r;
+    }
+    // The first guest's call made while a summary is being written fails, as a refused call does in a live run.
+    if (running > 0 && !failed && req.character !== null) {
+      failed = true;
+      throw new Error("call failed (403)");
+    }
+    return base(req);
+  };
+  await assert.rejects(playGuarded(2000, failing), /call failed \(403\)/);
+  assert.ok(failed);
+  assert.equal(running, 0, "every summary call had finished when the game ended");
+});
+
+test("a stage summary that throws outside its model call is the screen's loss, not the game's (#210)", async () => {
+  let thrown = 0;
+  const errors: unknown[] = [];
+  const was = console.error;
+  console.error = (...a: unknown[]) => void errors.push(a);
+  try {
+    const { game, summaries } = await playGuarded(2000, undefined, (ev) => {
+      if (ev.type === "stage-summary" && thrown++ === 0) throw new Error("the socket closed");
+    });
+    assert.equal(thrown > 0, true);
+    assert.ok(game.lines.length > 0 && summaries.length >= 2, "the game played on, and later summaries arrived");
+    assert.ok(errors.length === 1 && /the socket closed/.test(String((errors[0] as unknown[])[0])), "reported once");
+    assert.deepEqual(game.events.filter((e) => e.type === "engine-failure").map((e) => [e.reason, e.why]), [["player screen", "the socket closed"]], "and in the record");
+  } finally {
+    console.error = was;
+  }
 });
 
 test("TD v0.51's guard in play: a reply that isn't JSON is repaired once, then every line is code's plain version", async () => {
