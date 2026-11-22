@@ -413,7 +413,6 @@ Kept here so nothing depends on the chat remembering. Ticked off as each goes ou
   - the frost recipes; the faction entries; the type and design tokens, with a test that fails on drift **and checks Type parity**
   - the web stepping aside for a modal; the Escape fix; the modals' fade (dimming, blur and modals separately); the More rule (48px above the card's edge)
   - Nov 22: no pointing hand anywhere (the arrow; text and busy pointers kept); "Your next move" lighting on hover as the facts do; Looking At cards sliding without their blur, readied for moving (`will-change`), the frost back when they stop; a crowded prompt line running on over Speak and Pass (measured; the count's corner); the click-above-the-web rule listening only after the opening click (it shut the web on Open in the Web of Confidences); an arriving Looking At card drawn over the leaving one; the portrait stacks' hover area 32px past the spread; the web's tabs sliding as the briefing's do, and an earlier tab counting as going back (both); speakers' names tinted with their faction's colour (60%); the city entry's top fade below the back button; capitals labels always in the sans; the + menu closing after a tool; Catch Up's place (36px, 24px with Il Notaio open) moving on his slide; the empty prompt's baseline; Save Note at the right; the tips' colours; labels in capitals; eyebrows; the world's headings in the serif; Il Notaio at 17px; the current stage filled
-- [ ] **Delete the private test page** "Gonfaloniere demo: test build (card slide)" once the fix is published (or keep it for testing builds in Dylan's Chrome, if he'd like)
 - [ ] **Later passes, not this round:** smaller screens (the 14" laptop, short windows where the right card runs under the web bar); Dylan's work monitor size; the design review chat's Chrome prompt (read Design Review v0.1 first)
 
 ## About This Document
@@ -468,6 +467,8 @@ This doc covers **the player screen as the player meets it**: what's on it, wher
 To try it: `npm run play -- --as "Francesco Pazzi" --minigame` (add `--fake` for no model calls), or the demo page.
 
 ---
+
+- **A private test page** *(Dylan, Nov 22: kept)*: "Gonfaloniere demo: test build (card slide)", private to Dylan, for trying a build in his own Chrome before it goes to the public demo (headless Chrome draws without a graphics chip and can miss what his Mac shows). Republish it with the candidate build, record in his Chrome, then publish the demo on his word
 
 ## Notes for the Build *(v0.17)*
 
