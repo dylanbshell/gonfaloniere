@@ -400,6 +400,21 @@
 
 ---
 
+## End of the round: still to send *(working list; removed at release)*
+
+Kept here so nothing depends on the chat remembering. Ticked off as each goes out.
+
+- [ ] **Doc release** (the doc-release skill): the doc PR from `docs/Gonfaloniere_Interface-v0.22` (v0.22 in, v0.21 out, merge commit, after Dylan says so); the project copy (write v0.22, delete v0.21); the tracker, re-read just before editing
+- [ ] **Before release:** reword the draft's one personal reference to "a collaborator"; personal detail goes only in the Private section
+- [ ] **Handoff to 🎨 5 (Art & Design), widened:** the type styles (now eleven, with Heading: world), the project-wide rules, and today's: Type parity, Eyebrows, the dark always-on tips beside the parchment explanations, every More on the bar frost
+- [ ] **Handoff to 📜 7 (Lore) and 🎭 4 (Characters):** the faction entries (placeholders in the demo: "Families" as "Factions", Medici and Pazzi rewritten, Dominicans and the French Embassy added, each with `faction` and `aliases`); the `faction` field goes to 🏗️ 2 (Technical Design). Also: a singular name for each City group, for the eyebrow over an open entry ("FACTION", not "FACTIONS"), if wanted
+- [ ] **The cc-task** (titled 🖥️ …; Summary, Needs the doc PR, Task, Done when):
+  - new words for the setting pack: `screen.move.joinWith`, `screen.move.colloquioWith`, `screen.seat.colloquioWith`, `screen.catchUp`, `screen.input.tools`, `screen.hints.tools`, `screen.more`, `screen.web.writeOnLabel`
+  - the frost recipes; the faction entries; the type and design tokens, with a test that fails on drift **and checks Type parity**
+  - the web stepping aside for a modal; the Escape fix; the modals' fade (dimming, blur and modals separately); the More rule (48px above the card's edge)
+  - Nov 22: the + menu closing after a tool; Catch Up's place (36px, 24px with Il Notaio open) moving on his slide; the empty prompt's baseline; Save Note at the right; the tips' colours; labels in capitals; eyebrows; the world's headings in the serif; Il Notaio at 17px; the current stage filled
+- [ ] **Later passes, not this round:** smaller screens (the 14" laptop, short windows where the right card runs under the web bar); Dylan's work monitor size; the design review chat's Chrome prompt (read Design Review v0.1 first)
+
 ## About This Document
 
 This doc covers **the player screen as the player meets it**: what's on it, where, how it behaves, what it says, and how a new player learns it. How it looks is Art & Design's *(v0.15)*. It also keeps **the playtest findings** and what was decided because of them.
