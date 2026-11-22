@@ -6,7 +6,7 @@
 
 ## Changes in v0.22
 
-*Nov 17. Dylan's further notes on the demo, after v0.21 merged. Detail in the sections named; the record is in Playtest Findings (the rows marked v0.22).*
+*Nov 17–22. Dylan's sixth round of review on the demo page, after v0.21 merged, each change tried in the demo first, most of it on Nov 20–22 at his 2304×1296 monitor. New project-wide rules: Type parity, Eyebrows, No pointing hand, and the type styles (eleven now, with Heading: world). Detail in the sections named; the record is in Playtest Findings (the rows marked v0.22).*
 
 - **"More Below" now reads "More"** everywhere it appears (the setting pack's `screen.more`), and **the opening's More takes the others' pill shape at its own size** (fully round, frosted, no outline; its 15px type and padding kept, as for a few minutes it shrank to their 10px) *(Dylan, Nov 20)*; **more room inside the stage bar's End button** (16px either side, from 8px)
 - **A subtler paddle press** (Briefing, rules, the city, and the glossary): its flash fades over 550ms (900ms)
@@ -399,21 +399,6 @@
 - From now on a screen change starts here. If it needs something the browser doesn't get today, this doc hands Technical Design the plumbing through the tracker
 
 ---
-
-## End of the round: still to send *(working list; removed at release)*
-
-Kept here so nothing depends on the chat remembering. Ticked off as each goes out.
-
-- [ ] **Doc release** (the doc-release skill): the doc PR from `docs/Gonfaloniere_Interface-v0.22` (v0.22 in, v0.21 out, merge commit, after Dylan says so); the project copy (write v0.22, delete v0.21); the tracker, re-read just before editing
-- [ ] **Before release:** reword the draft's one personal reference to "a collaborator"; personal detail goes only in the Private section
-- [ ] **Handoff to 🎨 5 (Art & Design), widened:** the type styles (now eleven, with Heading: world), the project-wide rules, and today's: Type parity, Eyebrows, the dark always-on tips beside the parchment explanations, every More on the bar frost
-- [ ] **Handoff to 📜 7 (Lore) and 🎭 4 (Characters):** the faction entries (placeholders in the demo: "Families" as "Factions", Medici and Pazzi rewritten, Dominicans and the French Embassy added, each with `faction` and `aliases`); the `faction` field goes to 🏗️ 2 (Technical Design). Also: a singular name for each City group, for the eyebrow over an open entry ("FACTION", not "FACTIONS"), if wanted
-- [ ] **The cc-task** (titled 🖥️ …; Summary, Needs the doc PR, Task, Done when):
-  - new words for the setting pack: `screen.move.joinWith`, `screen.move.colloquioWith`, `screen.seat.colloquioWith`, `screen.catchUp`, `screen.input.tools`, `screen.hints.tools`, `screen.more`, `screen.web.writeOnLabel`
-  - the frost recipes; the faction entries; the type and design tokens, with a test that fails on drift **and checks Type parity**
-  - the web stepping aside for a modal; the Escape fix; the modals' fade (dimming, blur and modals separately); the More rule (48px above the card's edge)
-  - Nov 22: no pointing hand anywhere (the arrow; text and busy pointers kept); "Your next move" lighting on hover as the facts do; Looking At cards sliding without their blur, readied for moving (`will-change`), the frost back when they stop; a crowded prompt line running on over Speak and Pass (measured; the count's corner); the click-above-the-web rule listening only after the opening click (it shut the web on Open in the Web of Confidences); an arriving Looking At card drawn over the leaving one; the portrait stacks' hover area 32px past the spread; the web's tabs sliding as the briefing's do, and an earlier tab counting as going back (both); speakers' names tinted with their faction's colour (60%); the city entry's top fade below the back button; capitals labels always in the sans; the + menu closing after a tool; Catch Up's place (36px, 24px with Il Notaio open) moving on his slide; the empty prompt's baseline; Save Note at the right; the tips' colours; labels in capitals; eyebrows; the world's headings in the serif; Il Notaio at 17px; the current stage filled
-- [ ] **Later passes, not this round:** smaller screens (the 14" laptop, short windows where the right card runs under the web bar); Dylan's work monitor size; the design review chat's Chrome prompt (read Design Review v0.1 first)
 
 ## About This Document
 
@@ -856,7 +841,7 @@ Every control and panel has a short explanation on hover or focus, **in plain, s
 
 ### Project-wide rules *(Dylan, Nov 20; v0.22)*
 
-**What's settled here is the process, not the values** *(Dylan, Nov 20)*: the rules and their numbers are placeholders that may all change once Art & Design (with Dylan's sister helping) takes them up; the precedent is *when* Claude nudges toward a rule and *how* it offers one.
+**What's settled here is the process, not the values** *(Dylan, Nov 20)*: the rules and their numbers are placeholders that may all change once Art & Design (with a collaborator helping) takes them up; the precedent is *when* Claude nudges toward a rule and *how* it offers one.
 
 **Dylan's lean** *(Nov 20)*: **slower animations, rounder corners, larger and plainer text.** Where an option sits on that line, Claude says so, and offers the slower, rounder, larger or plainer one.
 
@@ -1984,6 +1969,7 @@ What each playtest decided, and where it now lives in this doc. Technical Design
 
 ## Open Questions
 
+- **Smaller screens, next** *(Dylan, Nov 22)*: this round was tuned at Dylan's 2304×1296 monitor. Next, 🔍 9B's independent review in Chrome at common window sizes (1280×720 to 2560×1440), then a pass here on what it finds. Already seen: in a short window the right panel's card runs under the web bar, hiding its More
 - **Your midnight choices in the sheet afterwards** ("You guarded Giorgia; you watched Lupo"), and **"Choosing now"** during midnight: ideas for later, not decided (Dylan, Nov 14)
 - **A storybook opening, maybe in v2** (Dylan): illustrations and more interaction, with Art & Design
 - **Does the full game's stage bar fit?** *(v0.16)* Eleven stages fit from a 1100-pixel window up in the demo, and the conversation's column now never narrows below them (v0.17); since v0.19 the circles size to the bar, whatever the side panels. Check on the first full game
