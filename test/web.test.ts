@@ -1185,7 +1185,7 @@ test("the shared selection on the screen: the chat's guest on the web's bar and 
 });
 
 test("the web's ring: factions together, a fixed ring read like a clock, an arc in each faction's colour with its name outside its middle, and curved lines", async () => {
-  const arcs = factionArcs(info.roster, info.factions);
+  const arcs = factionArcs(info.roster, info.factions, info.ring);
   const factions = [...new Set(info.roster.map((r) => r.faction))];
   assert.deepEqual(arcs.map((a) => a.faction), info.factions.filter((f) => factions.includes(f)), "an arc per faction, in the setting's order");
   for (const a of arcs) {
@@ -1193,14 +1193,14 @@ test("the web's ring: factions together, a fixed ring read like a clock, an arc 
     assert.match(a.d, /^M [\d.-]+ [\d.-]+ A 48 48 0 0 1 [\d.-]+ [\d.-]+/, `${a.faction}: an arc around the ring`);
     assert.ok(Math.hypot(a.x - 50, a.y - 50) > 48, `${a.faction}: outside the arc`);
   }
-  // Interface v0.16: a fixed ring, read like a clock. With twelve guests, the first in the roster sits at half past
-  // nine and the rest follow clockwise, an hour apart.
+  // Interface v0.16: a fixed ring, read like a clock. With twelve guests, the first sits at half past nine and the rest
+  // follow clockwise, an hour apart; Interface v0.21: in the setting pack's order.
   const clock = (p: { x: number; y: number }) => ((Math.atan2(p.y - 50, p.x - 50) * 6) / Math.PI + 3 + 12) % 12;
-  const seats = webLayout(info.roster, info.factions);
+  const seats = webLayout(info.roster, info.factions, info.ring);
   const order0 = [...seats.keys()];
   assert.equal(order0.length, 12);
   order0.forEach((n, i) => assert.ok(Math.abs(clock(seats.get(n)!) - ((9.5 + i) % 12)) < 1e-6, `${n} at ${(9.5 + i) % 12} o'clock`));
-  assert.equal(order0[0], info.roster[0]!.name, "by roster order");
+  assert.deepEqual(order0, settingPack().ring, "by the setting pack's ring order");
   // Interface v0.17: each faction's name sits outside its arc at a set hour, by roster order: 11:00, 1:00, 5:00, 7:00.
   assert.deepEqual(arcs.map((a) => Math.round(clock(a) * 100) / 100), [11, 1, 5, 7]);
   assert.deepEqual(arcs.map((a) => a.anchor), ["end", "start", "start", "end"]);
@@ -1208,36 +1208,29 @@ test("the web's ring: factions together, a fixed ring read like a clock, an arc 
   assert.deepEqual(arcs.map((a) => a.lines), [["Medici"], ["Pazzi"], ["Dominicans"], ["French", "Embassy"]]);
   assert.deepEqual([wrapName("The House of the Friars"), wrapName("Extraordinarily"), wrapName("Two Words")], [["The House of", "the Friars"], ["Extraordinarily"], ["Two Words"]]);
   // With any other number of factions the rule doesn't apply: each name sits outside the middle of its arc.
-  const three = factionArcs(info.roster.filter((r) => r.faction !== info.factions[3]), info.factions);
+  const three = factionArcs(info.roster.filter((r) => r.faction !== info.factions[3]), info.factions, info.ring);
   assert.equal(three.length, 3);
   assert.ok(three.every((a) => Math.hypot(a.x - 50, a.y - 50) > 48));
   assert.notDeepEqual(three.map((a) => Math.round(clock(a) * 100) / 100), [11, 1, 5]);
-  // Names sit under their circles; where two guests sit side by side at the top or bottom of the ring, each name
-  // moves outward, as far as it can without reaching the next guest's circle.
-  const names = webNames(info.roster, info.factions);
-  const moved = order0.filter((n) => names.get(n)!.x !== Math.round(seats.get(n)!.x * 100) / 100);
-  const crowded = [order0[2]!, order0[3]!, order0[8]!, order0[9]!];
-  assert.ok(moved.length >= 2 && moved.every((n) => crowded.includes(n)), `only the two pairs at the top and the bottom move (${moved})`);
-  for (const n of order0) assert.ok(Math.abs(names.get(n)!.y - seats.get(n)!.y - 7.6) < 0.01, `${n}: under their circle`);
-  for (const [l, r] of [[order0[2]!, order0[3]!], [order0[9]!, order0[8]!]]) {
-    assert.ok(names.get(l)!.x <= seats.get(l)!.x && names.get(r)!.x >= seats.get(r)!.x && names.get(r)!.x - names.get(l)!.x > seats.get(r)!.x - seats.get(l)!.x, `${l} and ${r} move apart`);
-    // Their estimated ends no longer meet in the middle.
-    assert.ok(names.get(l)!.x + (l.length * 1.2) / 2 <= names.get(r)!.x - (r.length * 1.2) / 2 + 0.01, `${l} and ${r} clear each other`);
+  // Interface v0.21: every name centred under its circle; none moves outward.
+  const names = webNames(info.roster, info.factions, info.ring);
+  for (const n of order0) {
+    assert.equal(names.get(n)!.x, Math.round(seats.get(n)!.x * 100) / 100, `${n}: centred under their circle`);
+    assert.ok(Math.abs(names.get(n)!.y - seats.get(n)!.y - 7.6) < 0.01, `${n}: under their circle`);
   }
-  // The next guest's circle stops a long name: its far end stays clear of it.
-  // (At the top the names' line runs through the next circles' height; at the bottom it's below them.)
-  for (const [n, outer, dir] of [[order0[2]!, order0[1]!, -1], [order0[3]!, order0[4]!, 1]] as const) {
-    const end = names.get(n)!.x + (dir * n.length * 1.2) / 2;
-    const edge = seats.get(outer)!.x - dir * NODE_RADIUS;
-    assert.ok(dir < 0 ? end >= edge : end <= edge, `${n} stops short of ${outer}'s circle`);
-  }
+  // The four nearest twelve and six o'clock break after their first word, and so does any name over 18 characters.
+  const broken = (m: Map<string, { lines: string[] }>) => Object.fromEntries([...m].filter(([, p]) => p.lines.length > 1).map(([n, p]) => [n, p.lines]));
+  assert.deepEqual(broken(names), { "Raffaello de' Medici": ["Raffaello", "de' Medici"], "Piero de' Medici": ["Piero", "de' Medici"], "Francesco Pazzi": ["Francesco", "Pazzi"], "Sister Beatrice": ["Sister", "Beatrice"], "Captain Armand LeNoir": ["Captain", "Armand LeNoir"] });
+  for (const [n, p] of names) if (p.lines.length === 1) assert.deepEqual(p.lines, [n]);
   // One faction alone takes the whole ring, as two half-arcs.
   assert.equal(factionArcs(info.roster.map((r) => ({ ...r, faction: "One" }))).length, 1);
   assert.equal(factionArcs([]).length, 0);
-  // Each faction's guests sit together, between its arc's ends.
-  const ring = webLayout(info.roster, info.factions);
-  const order = [...ring.keys()].map((n) => info.roster.find((r) => r.name === n)!.faction);
-  assert.equal(order.filter((f, i) => i === 0 || f !== order[i - 1]).length, factions.length, "each faction together");
+  // Each faction's guests sit together, between its arc's ends, in the pack's ring order and in the roster's.
+  const ring = webLayout(info.roster, info.factions, info.ring);
+  for (const r of [ring, webLayout(info.roster, info.factions)]) {
+    const order = [...r.keys()].map((n) => info.roster.find((g) => g.name === n)!.faction);
+    assert.equal(order.filter((f, i) => i === 0 || f !== order[i - 1]).length, factions.length, "each faction together");
+  }
   // A line curves toward the middle: its control point is nearer the centre than the line's midpoint.
   const [a, b] = [ring.get(info.roster[0]!.name)!, ring.get(info.roster[1]!.name)!];
   const q = curve(a, b).match(/Q ([\d.-]+) ([\d.-]+)/)!.slice(1).map(Number);
@@ -1253,7 +1246,51 @@ test("the web's ring: factions together, a fixed ring read like a clock, an arc 
   assert.equal((h.match(/class="faction-label"/g) ?? []).length, factions.length);
   assert.match(h, /text-anchor="(start|end|middle)"/);
   assert.match(h, /<text class="faction-label" data-faction="French Embassy"[^>]*><tspan x="[\d.-]+" dy="0">French<\/tspan><tspan x="[\d.-]+" dy="3\.2">Embassy<\/tspan><\/text>/, "the long name on two lines");
+  // Interface v0.21: a guest's name on two lines as two tspans, both centred on the circle's x; a short name as it is.
+  const fx = names.get("Francesco Pazzi")!.x;
+  assert.match(h, new RegExp(`<text class="node-name[^"]*" data-name="Francesco Pazzi" x="${fx}" y="[\\d.-]+"><tspan x="${fx}" dy="0">Francesco</tspan><tspan x="${fx}" dy="2.8">Pazzi</tspan></text>`), "Francesco over Pazzi");
+  assert.match(h, /<text class="node-name[^"]*" data-name="Lupo" x="[\d.-]+" y="[\d.-]+">Lupo<\/text>/, "Lupo on one line");
   assert.match(readFileSync("web/src/app.css", "utf8"), /\.faction-label:focus, \.faction-label:focus-visible \{ outline: none; \}\n\.faction-label:focus-visible \{ text-decoration: underline; \}/, "no focus box on a click; underlined by keyboard");
+});
+
+// ---- CC-20261117-09 (#205): Interface v0.21's ring order and two-line names ----------------------------------------
+
+test("the web's ring order comes from the setting pack (Interface v0.21): its list first, the rest in roster order; without one, the roster's", () => {
+  // Florence's list: every guest once, each a roster name.
+  const ring = settingPack().ring!;
+  assert.deepEqual([...ring].sort(), info.roster.map((r) => r.name).sort(), "each roster name once");
+  assert.equal(info.ring!.length, ring.length, "sent to the screen with the start information");
+  // A pack without a list: the roster's order.
+  const plain = { ...info, ring: undefined };
+  assert.deepEqual([...webLayout(plain.roster, plain.factions, plain.ring).keys()], info.roster.map((r) => r.name));
+  assert.deepEqual([...webLayout(info.roster, info.factions, []).keys()], info.roster.map((r) => r.name));
+  // A partial list: its guests first, in its order; the rest follow in roster order. A name not in the roster is skipped.
+  const [r0, r1, , , , r5] = info.roster.map((r) => r.name);
+  const partial = [...webLayout(info.roster, info.factions, [r5!, "Nobody", r0!]).keys()];
+  assert.deepEqual(partial, [r5, r0, ...info.roster.map((r) => r.name).filter((n) => n !== r5 && n !== r0)]);
+  assert.equal(partial[2], r1);
+  // A list that splits a faction: its arcs still draw, each name outside its arc's middle (no set hours).
+  const split = factionArcs(info.roster, info.factions, [r0!, r5!]);
+  assert.ok(split.length > 4 && split.every((a) => Number.isFinite(a.x) && Number.isFinite(a.y)), "no set hours for a split faction");
+});
+
+test("the web's two-line names (Interface v0.21): the four nearest twelve and six o'clock and any over 18 characters, by place and length, in any setting", () => {
+  // Florence on the roster's order (a pack without a list): the four places at 11:30, 12:30, 5:30, and 6:30 break,
+  // whoever sits there, and the Captain's long name still breaks at 8:30.
+  const plain = webNames(info.roster, info.factions);
+  const roster = info.roster.map((r) => r.name);
+  const twoLines = (m: Map<string, { lines: string[] }>) => [...m].filter(([, p]) => p.lines.length > 1).map(([n]) => n);
+  assert.deepEqual(twoLines(plain).sort(), [roster[2], roster[3], roster[8], roster[9], ...roster.filter((n) => n.length > 18)].filter((n, i, a) => a.indexOf(n) === i).sort());
+  for (const [n, p] of plain) if (p.lines.length > 1) assert.deepEqual(p.lines, [n.split(" ")[0], n.split(" ").slice(1).join(" ")], `${n}: after its first word`);
+  // A made-up setting of ten, no list: at 11:54 and 1:06 at the top, 5:54 and 7:06 at the bottom; a one-word name
+  // there stays on one line; a long name breaks wherever it sits; a short one elsewhere doesn't.
+  const ten = ["Ada Bell", "Bo Chen", "Cy Dunn", "Dov", "Eve Fox", "Bartholomew Fitzgerald", "Gil Hart", "Hal Ives", "Ivy Jones", "Jo Kay"].map((name, i) => ({ name, faction: i < 5 ? "North" : "South" }));
+  const t = webNames(ten, ["North", "South"]);
+  assert.deepEqual(twoLines(t), ["Cy Dunn", "Bartholomew Fitzgerald", "Hal Ives", "Ivy Jones"]);
+  assert.deepEqual(t.get("Dov")!.lines, ["Dov"], "one word stays whole, even at the top");
+  assert.deepEqual(t.get("Bartholomew Fitzgerald")!.lines, ["Bartholomew", "Fitzgerald"]);
+  const seats = webLayout(ten, ["North", "South"]);
+  for (const [n, p] of t) assert.equal(p.x, Math.round(seats.get(n)!.x * 100) / 100, `${n}: centred under their circle`);
 });
 
 test("Il Notaio's box in the What you heard and saw column: over the dialogue, expanded; nothing selected, one line and no reading", async () => {

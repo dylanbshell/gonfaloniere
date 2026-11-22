@@ -354,7 +354,7 @@ export class MiniGame {
       this.player = new PlayerFeed(ctrl, this.human);
       ctrl.onInput = (m) => this.playerInput(m);
       ctrl.onNote = (m) => this.playerNote(m);
-      ctrl.onReading = (m) => void this.playerReading(m.guests);
+      ctrl.onReading = (m) => void this.playerReading(m.guests).catch(this.screenFault);
       this.recorder.skipPerception = new Set([this.human]);
     }
     for (const c of s.cast) {
@@ -373,34 +373,45 @@ export class MiniGame {
   // ---- Running ------------------------------------------------------------------------
 
   async play(): Promise<void> {
-    const announce = this.formCapannelli();
-    await this.tourHold();
-    announce();
-    await this.opening();
-    for (this.turn = 1; this.turn <= this.s.turns && !this.stopped; this.turn++) {
-      const started = Date.now();
-      const callsBefore = this.calls.length;
-      await this.playTurn();
-      if (this.stopped) break;
-      await this.endOfTurn();
-      this.snapshot(`end of turn ${this.turn}`);
-      const turnCalls = this.calls.slice(callsBefore);
-      this.events.push({
-        turn: this.turn,
-        type: "turn-end",
-        ms: Date.now() - started,
-        calls: turnCalls.length,
-        costUsd: turnCalls.reduce((s, c) => s + c.costUsd, 0),
-        tokens: turnCalls.reduce((s, c) => s + c.inputTokens + c.outputTokens, 0),
-      });
-      this.hooks.turnEnd?.({ turn: this.turn, calls: this.calls.length, costUsd: this.calls.reduce((s, c) => s + c.costUsd, 0), ms: Date.now() - started });
+    try {
+      const announce = this.formCapannelli();
+      await this.tourHold();
+      announce();
+      await this.opening();
+      for (this.turn = 1; this.turn <= this.s.turns && !this.stopped; this.turn++) {
+        const started = Date.now();
+        const callsBefore = this.calls.length;
+        await this.playTurn();
+        if (this.stopped) break;
+        await this.endOfTurn();
+        this.snapshot(`end of turn ${this.turn}`);
+        const turnCalls = this.calls.slice(callsBefore);
+        this.events.push({
+          turn: this.turn,
+          type: "turn-end",
+          ms: Date.now() - started,
+          calls: turnCalls.length,
+          costUsd: turnCalls.reduce((s, c) => s + c.costUsd, 0),
+          tokens: turnCalls.reduce((s, c) => s + c.inputTokens + c.outputTokens, 0),
+        });
+        this.hooks.turnEnd?.({ turn: this.turn, calls: this.calls.length, costUsd: this.calls.reduce((s, c) => s + c.costUsd, 0), ms: Date.now() - started });
+      }
+      this.turn = Math.min(this.turn, this.s.turns);
+      if (!this.stopped) await this.murderRound();
+      if (!this.stopped && this.player) this.resolveMidnightForPlayer();
+      if (!this.stopped) await this.knowledge();
+    } finally {
+      // TD v0.51: the past-stage summaries written in the background are finished before the game is, also
+      // when it fails, so no summary call is still running (and none is missing from `calls`) once this
+      // returns. A failed turn's other guests may still be mid-call and start one more: those are waited
+      // for too, and none starts once the game is over.
+      for (let done = 0; done < this.summaryJobs.length; ) {
+        const jobs = this.summaryJobs.slice(done);
+        done = this.summaryJobs.length;
+        await Promise.all(jobs);
+      }
+      this.over = true;
     }
-    this.turn = Math.min(this.turn, this.s.turns);
-    if (!this.stopped) await this.murderRound();
-    if (!this.stopped && this.player) this.resolveMidnightForPlayer();
-    if (!this.stopped) await this.knowledge();
-    // TD v0.51: the past-stage summaries written in the background are finished before the game is.
-    await Promise.all(this.summaryJobs);
   }
 
   /**
@@ -1452,9 +1463,9 @@ export class MiniGame {
     // TD v0.51: a stage ends when the player's state moves on to the next; its summary is written then, in the background.
     if (this.guarded) {
       const stage = block5.phaseLabel;
-      if (this.playerStage !== null && stage !== this.playerStage && !this.summarized.has(this.playerStage)) {
+      if (!this.over && this.playerStage !== null && stage !== this.playerStage && !this.summarized.has(this.playerStage)) {
         this.summarized.add(this.playerStage);
-        this.summaryJobs.push(this.stageSummary(this.playerStage));
+        this.summaryJobs.push(this.stageSummary(this.playerStage).catch(this.screenFault));
       }
       this.playerStage = stage;
     }
@@ -1551,6 +1562,17 @@ export class MiniGame {
   private playerStage: string | null = null;
   private summarized = new Set<string>();
   private summaryJobs: Promise<void>[] = [];
+  /**
+   * Il Notaio's reading or a stage summary that throws (in its own code, not its model call, which falls back
+   * by itself) is the screen's loss only: the game plays on, where an unhandled rejection would end the run
+   * without a record. It's reported, and kept in the record as an engine failure.
+   */
+  private screenFault = (e: unknown): void => {
+    console.error(`player screen: ${(e as Error)?.stack ?? String(e)}`);
+    this.events.push({ turn: this.turn, type: "engine-failure", reason: "player screen", why: (e as Error)?.message ?? String(e) });
+  };
+  /** Set when `play()` ends, however it ends: no summary is started after it. */
+  private over = false;
 
   /** The public lore the screen links (kind: lore), with its glosses. */
   private publicLore() {

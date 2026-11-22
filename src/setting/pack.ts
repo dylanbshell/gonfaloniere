@@ -25,6 +25,11 @@ export interface SettingPack {
    * version of the new name (`before_characters`); a game on an earlier version hears the old one.
    */
   roster: { name: string; faction: string; subtitle: string; aliases: string[]; roles?: string[]; earlier?: { name: string; before_characters: string }[] }[];
+  /**
+   * Interface v0.21's ring order for the player screen's web: roster names, clockwise from the ring's start (half past
+   * nine). Guests it leaves out follow in roster order; absent, the web uses the roster's order.
+   */
+  ring?: string[];
   /** TD v0.49's named places, in Lore's order ("the great hall", …); absent in a pack without them. */
   places?: string[];
   playable: string[];

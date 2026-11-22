@@ -104,8 +104,11 @@ button.fact:hover .fact-label, button.fact:focus-visible .fact-label, button.lin
 .stream > * { transition: opacity var(--motion-slow) ease-out; }
 .ln { padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); font-size: var(--text-line); line-height: var(--line-height-line); }
 /* A space stands between the speaker's name, "to …", and the words, so a copied line keeps them apart */
-.ln .sp { font-weight: var(--weight-bold); font-size: var(--text-sm); margin-right: var(--space-1); }
-.ln .to { color: var(--text-muted); font-size: var(--text-sm); margin-right: var(--space-1); }
+/* Interface v0.21: the speaker, "(to …)", and Il Notaio's label the size of the line's words, still in the sans */
+.ln .sp { font-weight: var(--weight-bold); font-size: var(--text-line-name); margin-right: var(--space-1); }
+.ln .to { color: var(--text-muted); font-size: var(--text-line-name); margin-right: var(--space-1); }
+/* An action line's own label stays its line's size */
+.ln.action .sp { font-size: var(--text-sm); }
 .ln .tx { white-space: pre-wrap; }
 /* Interface v0.17, three typefaces: what the guests say in the book serif, Il Notaio's words in his own face */
 .ln.speech .tx, .heard, .field textarea { font-family: var(--font-guest); }
@@ -120,7 +123,8 @@ button.fact:hover .fact-label, button.fact:focus-visible .fact-label, button.lin
 /* Earlier this stage: one line per earlier conversation in the current stage, opening in place */
 .earlier { border-bottom: var(--border-width) solid var(--border); padding-bottom: var(--space-3); margin-bottom: var(--space-2); display: flex; flex-direction: column; gap: var(--space-1); }
 .earlier .label { margin: 0 0 var(--space-1); }
-.earlier-line { display: flex; justify-content: space-between; gap: var(--space-3); width: 100%; text-align: left; border: none; background: transparent; padding: var(--space-1) var(--space-2); font-size: var(--text-sm); color: var(--text-muted); }
+/* Interface v0.21: its rows, with their Show / Hide, at 15px, a step below the lines */
+.earlier-line { display: flex; justify-content: space-between; gap: var(--space-3); width: 100%; text-align: left; border: none; background: transparent; padding: var(--space-1) var(--space-2); font-size: var(--text-earlier); color: var(--text-muted); }
 .earlier-line:hover { background: var(--surface-2); }
 .earlier-item.open .earlier-line { color: var(--text); }
 .earlier-lines { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-2) 0 var(--space-2) var(--space-3); border-left: var(--border-width) solid var(--border); margin-left: var(--space-2); }
@@ -299,12 +303,13 @@ button.tab.on { border-color: var(--accent); color: var(--accent); }
 }
 /* Interface v0.7: the bar's contents are one centered group: the arrow, the title, and a selection's portraits and names */
 .web-bar { flex: none; height: var(--web-bar-height); display: flex; align-items: center; justify-content: center; width: 100%; border: none; border-radius: 0; background: transparent; padding: 0 var(--space-4); }
-.web-bar-group { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; }
+/* Interface v0.21: the title in capitals (the pack's words unchanged), spaced out, regular weight; more room round the ▲ and the dot */
+.web-bar-group { display: inline-flex; align-items: center; gap: 0; min-width: 0; }
 .web-bar-arrow { font-size: var(--text-xs); color: var(--text-muted); }
-.web-bar-title { font-weight: var(--weight-bold); }
-.web-bar-dot { color: var(--text-muted); }
-.web-bar-portraits { display: inline-flex; gap: var(--space-1); }
-.web-bar-sel { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.web-bar-title { margin-left: var(--web-bar-arrow-gap); font-weight: var(--web-bar-title-weight); text-transform: uppercase; letter-spacing: var(--web-bar-title-tracking); }
+.web-bar-dot { margin: 0 var(--web-bar-dot-gap); color: var(--text-muted); }
+.web-bar-portraits { display: inline-flex; gap: var(--web-bar-portrait-gap); }
+.web-bar-sel { margin-left: var(--space-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .portrait.small { width: var(--bar-portrait-size); height: var(--bar-portrait-size); font-size: var(--text-xs); }
 .web-backdrop { position: fixed; inset: 0; z-index: var(--z-dock-backdrop); background: var(--overlay); }
 /* The panel keeps its open size while down, so the bar clips it rather than squashing it */
@@ -332,6 +337,8 @@ button.web-side-handle:hover, button.web-side-handle:focus-visible { background:
   .web-body.side-open .web-side { display: flex; }
 }
 .web-side > .tabs { flex: none; }
+/* Interface v0.21: What You Heard and Saw and Notes at 15px, with a little more room */
+.web-side > .tabs button.tab { font-size: var(--text-web-tab); padding: var(--web-tab-pad-y) var(--web-tab-pad-x); }
 .web-side > .notes { flex: 1; min-height: 0; overflow-y: auto; }
 .web-side .record, .web-side .notes, .web-side > p { padding: var(--space-3) var(--space-4); }
 .web-side h3 { margin: 0 0 var(--space-2); }
@@ -522,7 +529,8 @@ button.key-secret { align-items: flex-start; }
 .person .who.column::after, .lore-entry h3::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: var(--right-fade); background: linear-gradient(to bottom, var(--card-bg), transparent); pointer-events: none; }
 /* A space above the subtitle, so it starts clear of the fade */
 .card-subtitle { margin-top: var(--right-fade); text-align: center; }
-.card-description { margin: var(--space-3) 0 0; }
+/* Interface v0.21: the card's details at the panel's small size, 15px, as Known to all and a city entry's text are */
+.card-description { margin: var(--space-3) 0 0; font-size: var(--text-sm); }
 .card-wins { margin: 0; font-size: var(--text-sm); }
 .card-city, .lore-guests { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--space-1); font-size: var(--text-sm); }
 .card-city button.lore-link { text-align: left; }

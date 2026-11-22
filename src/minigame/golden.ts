@@ -43,6 +43,9 @@ async function main(): Promise<void> {
   const kc = docs.systemPrompts?.knowledgeCheck;
   if (!kc) throw new Error("This TD has no knowledge check (block 10c)");
   const { reader, cases: all } = goldenSet();
+  // A mistyped --only must not pass as a clean run of no cases.
+  const unknown = (opts.only?.split(",") ?? []).filter((id) => !all.some((c) => c.id === id));
+  if (unknown.length) throw new Error(`--only: no golden case named ${unknown.join(", ")} (the cases: ${all.map((c) => c.id).join(", ")})`);
   const cases = opts.only ? all.filter((c) => opts.only!.split(",").includes(c.id)) : all;
   const facts = docs.plotFacts.filter((f) => /^F[1-4]$/.test(f.id));
   // The public lore the screen links: its notes go after the lines that name it.

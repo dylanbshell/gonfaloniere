@@ -84,17 +84,28 @@ function negatedAfter(line: string, end: number): boolean {
 /** G4 and G5 for one quoted span against its line: the problems, or none. */
 function spanProblems(span: string, line: string): Check[] {
   if (/…|\.\.\./.test(span)) return ["G4"];
-  const q = norm(span).replace(/^["'\s]+|["'\s]+$/g, "").replace(/[.,;:!?]+$/, "").trim();
+  const bare = norm(span).replace(/^["'\s]+|["'\s]+$/g, "");
+  const q = bare.replace(/[.,;:!?]+$/, "").trim();
+  // The span's own closing marks, which the match below leaves out.
+  const closing = bare.slice(q.length);
   const l = norm(line);
   if (!q) return ["G4"];
-  const at: number[] = [];
-  for (let i = l.indexOf(q); i >= 0; i = l.indexOf(q, i + 1)) at.push(i);
+  const found: number[] = [];
+  for (let i = l.indexOf(q); i >= 0; i = l.indexOf(q, i + 1)) found.push(i);
+  // G4, word for word: a span that closes with `?` or `!` needs the line's own mark there, and a question in
+  // the line can't be closed with a full stop. So a statement is never shown as a question, or the reverse
+  // (G3: `asked` is limited to what the line itself shows).
+  const at = found.filter((i) => {
+    const marks = l.slice(i + q.length).match(/^[\s"']*([.!?;:,—]*)/)![1]!;
+    return !["?", "!"].some((m) => closing.includes(m) && !marks.includes(m)) && !(closing.includes(".") && marks.includes("?"));
+  });
   if (!at.length) return ["G4"];
   const whole = q === l.replace(/[.,;:!?]+$/, "").trim();
   const ok = at.some((i) => {
     const before = l.slice(0, i).trimEnd();
     const after = l.slice(i + q.length);
-    const starts = !before || isMark(before.at(-1)) || /^["']$/.test(before.at(-1)!);
+    // A quote mark opens a clause only where it opens a word: an apostrophe inside a word (don't, Lorenzo's) doesn't.
+    const starts = !before || isMark(before.at(-1)) || /(^|[^\p{L}\p{N}])["']$/u.test(before);
     const ends = !after.trim() || isMark(after.trimStart()[0]);
     const long = whole || words(q).length >= 3;
     return starts && ends && long && !negatedAfter(l, i + q.length);
