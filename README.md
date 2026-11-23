@@ -19,8 +19,6 @@ Secret-keeping numbers are runs held of 10, scored by a Claude Sonnet judge whos
 - **The DPO pilot found no effect.** A 1-epoch LoRA on 84 preference pairs moved Qwen3.8 by +1 run on held-out and S5d and cost 4 on S5b. Clean "chosen" replies were the bottleneck. See [results/published/pilot/](results/published/pilot/).
 - **Strategy is fine.** Rules reasoning (S8) is 100% for all three models (the items need to be harder). Side by side, DeepSeek beats Qwen3.8 on plans (85%) and deals (75%); Murder Round choices are about even.
 
-**Cost so far:** about $100 in API and training spend, mostly judging.
-
 ## Running the probes
 
 Requires Node 22+ and an [OpenRouter](https://openrouter.ai) key. Tinker is needed only for the pilot.
