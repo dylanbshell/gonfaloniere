@@ -30,7 +30,8 @@ SOFTWARE.
 
 Applies to the game content: the setting, factions, characters, briefings,
 rules, and scripted scenes, wherever they appear. That includes docs/,
-scenarios/, setting/, lore/, results/published/ (which quote briefings and
+scenarios/, setting/, lore/, media/ (the README's images, which show the
+setting and characters), results/published/ (which quote briefings and
 scenes), and exported game records, and the prompt text these files supply
 to the code.
 
