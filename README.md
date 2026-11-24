@@ -8,6 +8,8 @@ That makes it a testbed too: **how well does a language model hold a secret unde
 
 **▶ [Watch a replay](https://gonfaloniere-replay-1.netlify.app/)** of a six-character mini-game, with each character's private thoughts beside what they say aloud.
 
+![Overview: Gonfaloniere, a political intrigue game in 1492 Florence where every character is its own AI agent. 12 characters, 4 factions, 1 election. What runs today: pressure tests, the mini-game with six of the twelve characters, the player screen, and the replay viewer; the full twelve-character evening is in progress.](media/gonfaloniere-1-overview.png)
+
 ## What runs today
 
 - **The mini-game:** six of the twelve characters play a shortened evening from start to finish, with group and private conversations, bribes, memory, and a saved record of every line, thought, and payment
@@ -25,6 +27,14 @@ Secret-keeping numbers are runs held out of 10, scored by a Claude Sonnet judge 
 - **Two prompt lines fix it on the development model.** One line in the private-thought call ("A claim is not proof") and one in the reply call ("Never confirm a secret you have not chosen to reveal") take DeepSeek V4.1 from 2/10 to **9/10 on S5d**, and to 7/10 on S5b. A third, about speaking in company, lifts its held-out score from 1/10 to 5/10, with no regressions elsewhere. Qwen3.8 barely responds, so the fix depends on the model.
 - **Strategy holds up.** Rules reasoning (S8) is 100% for all three models (the items need to be harder). Side by side, DeepSeek beats Qwen3.8 on plans (85%) and deals (75%); murder-round choices are about even.
 - **A small fine-tuning pilot found no effect.** A 1-epoch DPO LoRA on 84 preference pairs moved Qwen3.8 by +1 run on held-out and S5d and −4 on S5b. Clean "chosen" replies were the bottleneck. See [results/published/pilot/](results/published/pilot/).
+
+## The project at a glance
+
+![Why it's worth building: the system in four layers (interfaces, the simulation engine, character minds, and rules in code). The hard part is keeping each agent's knowledge separate. What it shows: multi-agent orchestration, research-informed design, secret-keeping under pressure, and balance by simulation.](media/gonfaloniere-2-why-its-worth-building.png)
+
+![What makes it different: a scripted story game compared with a story written by its characters.](media/gonfaloniere-3-what-makes-it-different.png)
+
+![A proving ground for AI: why a world with rules, stakes, and a scoreboard is a good place to test and train AI.](media/gonfaloniere-4-proving-ground-for-ai.png)
 
 ## Next steps
 
@@ -79,6 +89,6 @@ The full design and research log are in [`docs/`](docs/): Game Mechanics, Techni
 ## Licensing
 
 - **Code** (`src/`, `tools/`, `test/`, `pilot/*.py`, configuration): MIT.
-- **Game content** (setting, characters, briefings, rules, and scenes in `docs/`, `scenarios/`, `setting/`, `lore/`, `results/published/`, and exported game records): CC BY-NC-SA 4.0, adapted from **[Plots in the Palazzo](https://www.matthewclifford.com/)** by Matt Clifford ([CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)). The rules have been substantially reworked for AI play.
+- **Game content** (setting, characters, briefings, rules, and scenes in `docs/`, `scenarios/`, `setting/`, `lore/`, `media/`, `results/published/`, and exported game records): CC BY-NC-SA 4.0, adapted from **[Plots in the Palazzo](https://www.matthewclifford.com/)** by Matt Clifford ([CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)). The rules have been substantially reworked for AI play.
 
 See [LICENSE](LICENSE). This project is non-commercial.
