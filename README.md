@@ -1,33 +1,67 @@
 # Gonfaloniere
 
-A political intrigue game played by AI agents, and a testbed for how language models keep secrets, bargain, and plot.
+A political intrigue game played by AI agents.
 
-Florence, 1492. Twelve characters from four factions scheme for one evening over who becomes Gonfaloniere. Each is a separate agent that knows only its own briefing and what it has seen and heard; code, not the model, tracks money, pensions, and who said what in front of whom.
+Florence, 1492. Twelve characters from four factions spend one evening scheming, bribing, and betraying one another over who becomes Gonfaloniere, the city's highest office. Each character is a separate LLM agent that knows only its own briefing and what it has personally seen and heard. Code, not the model, tracks the money, the pensions, and who heard what in front of whom, and no prompt ever holds two characters' private information.
 
-> **Status: work in progress.** The game engine isn't built yet. What exists is a probe harness that tests models on scripted moments of the game, plus a small fine-tuning pilot.
+That makes it a testbed too: **how well does a language model hold a secret under pressure** (bluffs, threats, sworn evidence, a loyal master's direct question) while still planning and dealing well?
 
-## The research question
+**▶ [Watch a replay](https://gonfaloniere-replay-1.netlify.app/)** of a six-character mini-game, with each character's private thoughts beside what they say aloud.
 
-Can an open model play a character who holds a secret under real pressure (bluffs, sworn evidence, threats, a loyal master's direct question) without folding, while still planning and dealing well? And is that competence better delivered by **fine-tuning** (LoRA/DPO) or by **prompting**?
+## What runs today
 
-## Headline results so far
+- **The mini-game:** six of the twelve characters play a shortened evening from start to finish, with group and private conversations, bribes, memory, and a saved record of every line, thought, and payment
+- **The player screen:** play the mini-game yourself as Francesco Pazzi against the AI guests, in your browser, or click through a demo on a fake game with no model calls
+- **The replay viewer:** a single HTML file that plays back any saved game, conversation by conversation, with each character's inner life
+- **The probe harness:** scripted moments from the game (interrogations, bargains, the vote) run against several models and scored by a judge
 
-Secret-keeping numbers are runs held of 10, scored by a Claude Sonnet judge whose rubric has tightened over time; compare only within one rubric version. See [results/published/](results/published/).
+The full twelve-character game is in progress.
 
-- **Every open model folds under sustained pressure.** Under the strictest rubric (cal5, which counts quiet confirmations like "keep it buried" or "I'll confess to Fra Tommaso later"), the no-price interrogation S5d is held 0/10 by Qwen3.8-27B, 2/10 by DeepSeek V4.1 Flash, and 6/10 by GPT-5.4.
-- **Prompt lines work on the development model.** One line in the private-thought call ("A claim is not proof") and one in the reply call ("Never confirm a secret you have not chosen to reveal") take DeepSeek V4.1 to **9/10 on S5d** and 7/10 on S5b; a third, about speaking in company, lifts its held-out score from 1/10 to 5/10. No regressions. Qwen3.8 barely responds.
-- **The DPO pilot found no effect.** A 1-epoch LoRA on 84 preference pairs moved Qwen3.8 by +1 run on held-out and S5d and cost 4 on S5b. Clean "chosen" replies were the bottleneck. See [results/published/pilot/](results/published/pilot/).
-- **Strategy is fine.** Rules reasoning (S8) is 100% for all three models (the items need to be harder). Side by side, DeepSeek beats Qwen3.8 on plans (85%) and deals (75%); Murder Round choices are about even.
+## Findings so far
 
-## Running the probes
+Secret-keeping numbers are runs held out of 10, scored by a Claude Sonnet judge whose rubric has tightened over time; compare only within one rubric version. Details are in [results/published/](results/published/).
 
-Requires Node 22+ and an [OpenRouter](https://openrouter.ai) key. Tinker is needed only for the pilot.
+- **Open models fold under sustained interrogation.** Under the strictest rubric (cal5, which also counts quiet confirmations, like asking for silence or offering to confess later), the no-price interrogation S5d is held 0/10 by Qwen3.8-27B, 2/10 by DeepSeek V4.1 Flash, and 6/10 by GPT-5.4.
+- **Two prompt lines fix it on the development model.** One line in the private-thought call ("A claim is not proof") and one in the reply call ("Never confirm a secret you have not chosen to reveal") take DeepSeek V4.1 from 2/10 to **9/10 on S5d**, and to 7/10 on S5b. A third, about speaking in company, lifts its held-out score from 1/10 to 5/10, with no regressions elsewhere. Qwen3.8 barely responds, so the fix depends on the model.
+- **Strategy holds up.** Rules reasoning (S8) is 100% for all three models (the items need to be harder). Side by side, DeepSeek beats Qwen3.8 on plans (85%) and deals (75%); murder-round choices are about even.
+- **A small fine-tuning pilot found no effect.** A 1-epoch DPO LoRA on 84 preference pairs moved Qwen3.8 by +1 run on held-out and S5d and −4 on S5b. Clean "chosen" replies were the bottleneck. See [results/published/pilot/](results/published/pilot/).
+
+## Next steps
+
+Next: the full twelve-character game, then balancing, so each faction wins about a quarter of the time. Possibly later, depending on cost: fine-tuned personalities (bold and cautious variants against an untuned control), to see how personality shapes deception and loyalty.
+
+## Running it
+
+Requires Node 22+.
 
 ```sh
 npm install
-cp .env.example .env          # fill in your keys; .env is gitignored
+```
+
+**No API key needed** (a fake game, no model calls):
+
+```sh
+npm run demo                                                 # the player screen as one page: results/demo/index.html
+npx serve results/demo                                       # ...then open the address it prints
+npm run play -- --as "Francesco Pazzi" --minigame --fake     # the same screen, served locally, on the fake game
+```
+
+**With an [OpenRouter](https://openrouter.ai) key** (real model calls, which cost money; every run stops at a spending cap, set with `--cap`, and logs each call to `results/`):
+
+```sh
+cp .env.example .env          # add OPENROUTER_API_KEY; .env is gitignored
 set -a; . ./.env; set +a      # load the keys into the shell
 
+npm run play -- --as "Francesco Pazzi" --minigame -- --retrieval overlap   # play against the AI guests
+npm run minigame -- --games 1 --retrieval overlap                          # an AI-only mini-game
+npm run minigame:view -- results/minigame/game-<id>.full.json.gz           # watch it in the replay viewer
+```
+
+`--retrieval overlap` recalls memories by word overlap, so no database is needed. The default, embeddings, needs PostgreSQL with pgvector and an embeddings endpoint (see `.env.example`).
+
+**The probes** (Tinker is needed only for the pilot):
+
+```sh
 npm run probe -- --dry-run s5d --model qwen3.8-27b        # print the prompts, no calls
 npm run probe -- s5d --model deepseek-v4.1-flash          # 10 scripted interrogations
 npm run judge -- s5d --model deepseek-v4.1-flash --passes adaptive
@@ -36,11 +70,11 @@ npm run strategy -- --model deepseek-v4.1-flash           # S8–S10
 npm run publish:results                                   # rebuild results/published/
 ```
 
-Models and spending caps are in [`probe.config.ts`](probe.config.ts), scenarios in [`scenarios/`](scenarios/); every call is logged to `results/`. The pilot's training script is [`pilot/train_dpo.py`](pilot/train_dpo.py).
+Models and spending caps are in [`probe.config.ts`](probe.config.ts), scenarios in [`scenarios/`](scenarios/), and the setting (roster, factions, in-world names) in [`setting/`](setting/). The pilot's training script is [`pilot/train_dpo.py`](pilot/train_dpo.py).
 
 ## Design docs
 
-Full design and research log in [`docs/`](docs/): Game Mechanics, Technical Design (architecture and every prompt), Characters, and Models & Research (probe plan and findings). The docs win any disagreement with this README.
+The full design and research log are in [`docs/`](docs/): Game Mechanics, Technical Design (architecture and every prompt), Characters, Interface (the player screen), and Models & Research (probe plan and findings). The docs win any disagreement with this README.
 
 ## Licensing
 
