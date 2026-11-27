@@ -1,9 +1,16 @@
 # Gonfaloniere
 ## Game Mechanics — Working Document
-### Version 0.37
+### Version 0.38
 *Formerly "Plots in the Palazzo"*
 
 ---
+
+## Changes in v0.38
+
+*Dylan, Nov 27. Both planned for v1 and built last, after the "technically complete" milestone and before the first public release.*
+
+- **Unwanted Advances** (new, under Human Player): a ladder for a human player who keeps pressing advances a guest has refused. A sharp rebuff noted to everyone present, then public disgrace, then a drawn blade and removal before the Election. It has the same shape as the jailbreak rule: a misfire costs a rebuff, never the game. Flirtation and courtship stay part of the evening
+- **Mature Mode** (new, under Human Player): an optional mode with more graphic wording about violence, Il Notaio's midnight announcements and the ladder's top rung included. **Wording only, never rules**, so balancing, the research games, and replays are unchanged. **No sexual content in any mode.** Off by default; turned on with a passphrase, "i am reek loyal reek" (Dylan)
 
 ## Changes in v0.37
 
@@ -751,6 +758,25 @@ All of these are required for v1, the first public release, so players always ge
 - **One private warning first:** the first time a player's message is judged to break the fourth wall, it isn't spoken, and Il Notaio warns them privately. Only a second hit brings the consequence above. A detector will sometimes misfire, and removal is final
 
 *How a fourth-wall break is detected is covered in Technical Design.*
+
+### Unwanted Advances *(Dylan, Nov 27; planned for v1, built last)*
+
+Courtship and flirtation are part of the evening (Clarice and Giorgia court Emile; two guests hide affairs). This rule is only for a human player who keeps pressing advances a guest has refused, or who is aggressive from the start. It climbs like the jailbreak rule, so a misjudged line costs a rebuff, never the game:
+
+1. **First time:** the guest rebuffs the player sharply, in character, and Il Notaio notes it to everyone present
+2. **Again:** the guest complains openly, Il Notaio announces it to the room, and the player is in disgrace. As everywhere in the game, there's no score: the cost is in what the other guests now know and do, the player's own faction included
+3. **Again:** the guest draws a blade, and the host has the player removed before the Election, the same outcome as the jailbreak rule
+
+- **Human player only:** AI guests' behaviour comes from their prompts, so the rule never applies to them
+- **No sexual content in any mode:** guests rebuff; they never play along, and nothing explicit is written
+- *How an unwanted advance is detected is Technical Design's, like the fourth-wall detector.*
+
+### Mature Mode *(Dylan, Nov 27; planned for v1, built last)*
+
+- **An optional mode with more graphic wording about violence:** Il Notaio's midnight announcements, and the top rung of Unwanted Advances. The default mode, which the public showcase uses, is unchanged
+- **Wording only, never rules:** the same rules, values, and outcomes in both modes, so balancing, the all-AI research games, and replays are unaffected
+- **Violence only:** no sexual content in any mode
+- **Off by default,** turned on with a passphrase typed as a command: **"i am reek loyal reek"** (Dylan). How it's typed is Interface's and Technical Design's, and the phrase lives in the setting pack. In a public repo the phrase is a deliberate opt-in, not a lock or an age check
 
 ### Deferred Game Ideas
 
